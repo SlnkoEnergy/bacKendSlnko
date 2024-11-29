@@ -14,6 +14,7 @@ const {
 const { addPo, editPO } = require("../Controllers/purchaseOrderController");
 const { addVendor } = require("../Controllers/addVenderController");
 const { additem }= require("../Controllers/itemController");
+const{ payRrequest }=require("../Controllers/payRequestControllers");
 
 // Admin router
 router.post("/user-registration", userRegister);
@@ -38,5 +39,10 @@ router.post("/Add-vendor", addVendor);
 
 //item
 router.post("/add-item", additem);
+
+
+//pay Request api
+
+router.post("/add-pay-request", payRrequest)
 
 module.exports = router;
