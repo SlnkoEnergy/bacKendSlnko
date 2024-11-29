@@ -5,22 +5,24 @@ const moneySchema= new mongoose.Schema({
     p_id:{
         type:String,
     },
-    projectGroup:{
+  comment:{
         type:String
     },
-    crediteAmount:{
+    submitted_by:{
         type:String
+    },
+    cr_amount:{
+    type:String
+},
+cr_date:{
+    type:String
+},
+cr_mode:{
+    type:String
 
-    },
-    crediteMode:{
-        type:String
-    },
-    comment:{
-        type:String
-    },
-    submittedBy:{
-        type:String
-    }
+}
+
+
 
 },{timestamps:true});
 

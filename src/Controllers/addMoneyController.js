@@ -5,11 +5,12 @@ const addMoney = async function (req, res) {
   try {
     const {
       p_id,
-      projectGroup,
-      crediteAmount,
-      crediteMode,
+      submitted_by,
+      cr_amount,
+      cr_mode,
+      cr_date,
+
       comment,
-      submittedBy,
     } = req.body;
 
     // Check if the project exists
@@ -21,11 +22,13 @@ const addMoney = async function (req, res) {
     // Create the money addition record
     const admoney = new addMoneyModells({
       p_id,
-      projectGroup,
-      crediteAmount,
-      crediteMode,
+      submitted_by,
+      cr_amount,
+      cr_date,
+
+      cr_mode,
+
       comment,
-      submittedBy,
     });
 
     // Save the record to the database
