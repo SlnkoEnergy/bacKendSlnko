@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
         trim: true
 
     },
-    emp_id: {
+    id: {
         type: String,
         trim: true
     },
