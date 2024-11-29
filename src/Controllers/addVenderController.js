@@ -14,6 +14,7 @@ const addVendor = async function (req, res) {
       Bank_Name,
 
       Category,
+      IFSC_Code,
     } = req.body;
     const add_vendor = new vendorModells({
       id,
@@ -26,6 +27,7 @@ const addVendor = async function (req, res) {
       Bank_Name,
 
       Category,
+      IFSC_Code,
     });
 
     // Save the record to the database
