@@ -1,19 +1,28 @@
 const { default: mongoose } = require("mongoose");
 
 const vendorSchema= new mongoose.Schema({
-    vendorName:{
+    id:{
         type:String
     },
-    benificiaryName:{
+    
+
+    name:{
         type:String
     },
-    accountNumber :{
+   
+Beneficiary_Name:{
+        type:String
+    },
+    
+Account_No :{
         type :String
     },
-    ifscCode:{
+    
+IFSC_Code:{
         type:String
     },
-    bankName:{
+    
+Bank_Name:{
         type:String
     }
 
