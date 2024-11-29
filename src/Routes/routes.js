@@ -13,6 +13,7 @@ const {
 } = require("../Controllers/userController");
 const { addPo, editPO } = require("../Controllers/purchaseOrderController");
 const { addVendor } = require("../Controllers/addVenderController");
+const { additem }= require("../Controllers/itemController");
 
 // Admin router
 router.post("/user-registration", userRegister);
@@ -33,5 +34,9 @@ router.put("/edit-po/:_id", editPO);
 
 //Add vendor
 router.post("/Add-vendor", addVendor);
+
+
+//item
+router.post("/add-item", additem);
 
 module.exports = router;
