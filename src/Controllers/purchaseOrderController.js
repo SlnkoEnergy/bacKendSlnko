@@ -3,13 +3,13 @@ const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 
 const addPo = async function (req, res) {
   try {
-    const { project_ID, poNumber, date, item, other, poValue } = req.body;
-    let checkProject = await projectModells.findOne({ project_ID: project_ID });
+    const { p_id, poNumber, date, item, other, poValue } = req.body;
+    let checkProject = await projectModells.findOne({ p_id: p_id });
     if (!checkProject) {
       return res.status(400).json({ msg: "Project not found" });
     }
     const adpo = new purchaseOrderModells({
-      project_ID,
+      p_id,
       poNumber,
       date,
       item,

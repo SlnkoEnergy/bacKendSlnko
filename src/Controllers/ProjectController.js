@@ -4,12 +4,12 @@ const createProject = async function (req, res) {
   try {
     // Extract project data from the request body
     let {
-      project_ID,
-      customerName,
-      projectName,
-      projectGroup,
-      emailID,
-      mobileNumber,
+      p_id,
+      customer,
+      name,
+      p_group,
+      email,
+      number,
       alternateMobilenumber,
       billingAddress,
       siteAddress,
@@ -19,7 +19,7 @@ const createProject = async function (req, res) {
       tarrif,
       landAvailable,
       SLnkoServiceCharges,
-      projectStatus,
+      project_status,
       projectSubmmitedBy,
     } = req.body;
 
@@ -28,12 +28,12 @@ const createProject = async function (req, res) {
 
     // Create a new project instance with the received data
     const newProject = new projectModells({
-      project_ID,
-      customerName,
-      projectName,
-      projectGroup,
-      emailID,
-      mobileNumber,
+      p_id,
+      customer,
+      name,
+      p_group,
+      email,
+      number,
       alternateMobilenumber,
       billingAddress,
       siteAddress,
@@ -43,7 +43,7 @@ const createProject = async function (req, res) {
       tarrif,
       landAvailable,
       SLnkoServiceCharges,
-      projectStatus,
+      project_status,
       projectSubmmitedBy,
     });
 

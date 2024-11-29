@@ -4,7 +4,7 @@ const projectModells = require("../Modells/projectModells");
 const addMoney = async function (req, res) {
   try {
     const {
-      project_ID,
+      p_id,
       projectGroup,
       crediteAmount,
       crediteMode,
@@ -13,14 +13,14 @@ const addMoney = async function (req, res) {
     } = req.body;
 
     // Check if the project exists
-    let checkProject = await projectModells.findOne({ project_ID: project_ID });
+    let checkProject = await projectModells.findOne({ p_id: p_id });
     if (!checkProject) {
       return res.status(400).json({ msg: "Project not found" });
     }
 
     // Create the money addition record
     const admoney = new addMoneyModells({
-      project_ID,
+      p_id,
       projectGroup,
       crediteAmount,
       crediteMode,

@@ -2,7 +2,7 @@ const { default: mongoose } = require("mongoose");
 
 const payRequestschema = new mongoose.Schema({
 
-    	project_Id:{
+    	p_id:{
             type:String
         },
 

@@ -2,7 +2,7 @@ const { default: mongoose } = require("mongoose");
 
 const purchaseOrderSchema = new mongoose.Schema(
   {
-    project_ID: {
+    p_id: {
       type: String,
     },
     offer_Id:{
