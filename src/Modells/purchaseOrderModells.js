@@ -8,7 +8,8 @@ const purchaseOrderSchema = new mongoose.Schema(
     offer_Id:{
         type: String,
     },
-    poNumber: {
+    
+po_number: {
       type: String,
     },
     date: {
