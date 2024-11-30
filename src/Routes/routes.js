@@ -16,6 +16,18 @@ const { addVendor } = require("../Controllers/addVenderController");
 const { additem }= require("../Controllers/itemController");
 const{ payRrequest }=require("../Controllers/payRequestControllers");
 
+const { addBill }=require("../Controllers/billController");
+
+
+
+
+
+
+
+
+
+
+
 // Admin router
 router.post("/user-registration", userRegister);
 router.post("/login", login);
@@ -44,5 +56,9 @@ router.post("/add-item", additem);
 //pay Request api
 
 router.post("/add-pay-request", payRrequest)
+
+
+// add-Bill
+router.post("/add-bill",addBill);
 
 module.exports = router;
