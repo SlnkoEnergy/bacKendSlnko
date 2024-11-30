@@ -56,13 +56,19 @@ const getPO = async function(req,res){
   let id =req.params._id;
   let data = await purchaseOrderModells.findById(id);
   res.status(200).json(data)
-}
+};
 
+const getallpo= async function(req,res) {
+  let data= await purchaseOrderModells.find();
+  res.send(data);
+  
+}
 
   
 
 module.exports = {
     addPo,
     editPO,
-    getPO
+    getPO,
+    getallpo,
 }

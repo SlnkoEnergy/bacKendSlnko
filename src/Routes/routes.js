@@ -11,7 +11,7 @@ const {
   login,
   getalluser,
 } = require("../Controllers/userController");
-const { addPo, editPO, getPO } = require("../Controllers/purchaseOrderController");
+const { addPo, editPO, getPO, getallpo } = require("../Controllers/purchaseOrderController");
 const { addVendor } = require("../Controllers/addVenderController");
 const { additem }= require("../Controllers/itemController");
 const{ payRrequest }=require("../Controllers/payRequestControllers");
@@ -45,6 +45,7 @@ router.post("/Add-Money", addMoney);
 router.post("/Add-purchase-order", addPo);
 router.put("/edit-po/:_id", editPO);
 router.get("/get-po/:_id",getPO);
+router.get("/get-all-po",getallpo);
 
 //Add vendor
 router.post("/Add-vendor", addVendor);
