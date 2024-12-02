@@ -10,7 +10,7 @@ const createProject = async function (req, res) {
   p_group,
   email,
   number,
-  alternate_mobile_number,
+
   billing_address,
   site_address,
   state,
@@ -38,7 +38,7 @@ const newProject = new projectModells({
   p_group,
   email,
   number,
-  alternate_mobile_number,
+
   billing_address,
   site_address,
   state,
