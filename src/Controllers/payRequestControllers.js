@@ -24,7 +24,7 @@ const  payRrequest = async (req, res) => {
     }
 
     // Insert new payment request
-    const newPayment = new PaymentRequest({
+    const newPayment = new payRequestModells({
       p_id,
       pay_id,
       pay_type,
