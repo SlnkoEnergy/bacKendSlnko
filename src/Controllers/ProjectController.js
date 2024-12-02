@@ -1,72 +1,71 @@
 const projectModells = require("../Modells/projectModells");
 
-const createProject = async function (req, res) {
-  try {
-    // Extract project data from the request body
-    let {
-      p_id,
-      customer,
-      name,
-      p_group,
-      email,
-      number,
-      alternateMobilenumber,
-      billingAddress,
-      siteAddress,
-      state,
-      plantCapacity,
-      subStationDistance,
-      tarrif,
-      landAvailable,
-      SLnkoServiceCharges,
-      project_status,
-      projectSubmmitedBy,
-    } = req.body;
+const createProject = async function (req, res) { 
 
-    // Log the incoming request body to check the data
-    //console.log("Received Project Data: ", req.body);
+  try{
+  const {
+  p_id,
+  customer,
+  name,
+  p_group,
+  email,
+  number,
+  alternate_mobile_number,
+  billing_address,
+  site_address,
+  state,
+  project_category,
+  project_kwp,
+  distance,
+  tarrif,
+  land,
+  code,
+  project_status,
+  updated_on,
+  service,
+} = req.body;
 
-    // Create a new project instance with the received data
-    const newProject = new projectModells({
-      p_id,
-      customer,
-      name,
-      p_group,
-      email,
-      number,
-      alternateMobilenumber,
-      billingAddress,
-      siteAddress,
-      state,
-      plantCapacity,
-      subStationDistance,
-      tarrif,
-      landAvailable,
-      SLnkoServiceCharges,
-      project_status,
-      projectSubmmitedBy,
-    });
+// Validation: Ensure required fields are present
+if (!p_id || !customer || !name) {
+  return res.status(400).json({ msg: 'p_id, customer, and name are required fields!' });
+}
 
-    // Save the new project to the database
-    let savedProject = await newProject.save();
-    //console.log("Saved Project: ", savedProject);
+// Create a new project instance
+const newProject = new ProjectModells({
+  p_id,
+  customer,
+  name,
+  p_group,
+  email,
+  number,
+  alternate_mobile_number,
+  billing_address,
+  site_address,
+  state,
+  project_category,
+  project_kwp,
+  distance,
+  tarrif,
+  land,
+  code,
+  project_status,
+  updated_on,
+  service,
+});
 
+// Save the project to the database
+await newProject.save();
 
-    res.status(201).json({
-      msg: "Project created successfully",
-      data: savedProject, 
-    });
-
-  } catch (error) {
-    // If there's an error, send a response with status 400 (Bad Request)
-    console.error("Error saving project: ", error);
-    res.status(400).json({
-      msg: "Error saving project",
-      error: error.message,
-      validationErrors: error.errors,  // Show validation errors if any
-    });
-  }
+// Respond with success message and the saved data
+return res.status(201).json({ msg: 'Project details saved successfully!', data: newProject });
+} catch (error) {
+console.error('Error saving project details:', error);
+return res.status(500).json({ msg: 'Failed to save project details.', error: error.message });
+}
 };
+
+      
+
 
 
 //update project

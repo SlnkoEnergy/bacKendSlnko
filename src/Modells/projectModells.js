@@ -1,48 +1,45 @@
-const { default: mongoose, } = require("mongoose");
+const { default: mongoose } = require("mongoose");
 
 const projectSchema = new mongoose.Schema(
-  { 
-  p_id: { type: String, required: true },
-  customer: { type: String, required: true },
-  name: { type: String, required: true },
-  p_group: { type: String },
-  email: { type: String },
-  number: { type: String },
-  alternateMobilenumber: { type: String },
-  billingAddress: {
-    villageName: {
-      type: String,
-      
+  {
+    p_id: { type: String, required: true },
+    customer: { type: String, required: true },
+    name: { type: String, required: true },
+    p_group: { type: String },
+    email: { type: String },
+    number: { type: String },
+    alternate_mobile_number: { type: String },
+    billing_address: {
+      village_name: {
+        type: String,
+      },
+      district_name: {
+        type: String,
+      },
     },
-    districtName: {
-      type: String,
-      
-    },
-  },
 
-  siteAddress: {
-    villageName: {
-      type: String,
-      
+    site_address: {
+      village_name: {
+        type: String,
+      },
+      district_name: {
+        type: String,
+      },
     },
-    districtName: {
+    state: { type: String },
+    project_category: {
       type: String,
-    
     },
-  },
-  state: { type: String },
-  project_category:{
-    type: String,
+   
+    project_kwp: { type: String },
+    distance: { type: String },
+    tarrif: { type: String },
+    land: { type: String },
+    code: { type: String },
+    project_status: { type: String },
+    updated_on: { type: String },
 
-  },
-  plantCapacity: { type: String },
-  subStationDistance: { type: String },
-  tarrif: { type: String },
-  landAvailable: { type: String },
-  SLnkoServiceCharges: { type: String },
-  project_status: { type: String },
-  projectSubmmitedBy: { type: String },
-    
+    service: { type: String },
   },
   { timestamps: true }
 );
