@@ -89,10 +89,40 @@ const getPO = async function(req,res){
 };
 
 const getallpo= async function(req,res) {
-  let data= await purchaseOrderModells.find();
-  res.send(data);
+ try{
+      // Get the page number from the query params, default to 1
+      const page = parseInt(req.query.page) || 1;
+      
+      // Set the number of results per page
+      const limit = 15;
+      
+      // Calculate the number of documents to skip
+      const skip = (page - 1) * limit;
+      
+      // Fetch the data with pagination
+      const data = await purchaseOrderModells
+        .find()
+        .skip(skip)
+        .limit(limit);
+      
+      // Get the total count of documents
+      const total = await purchaseOrderModells.countDocuments();
+      
+      // Send the paginated data along with metadata
+      res.status(200).send({
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        data,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).send({ message: 'An error occurred while fetching data.', error: error.message });
+    }
+  };
   
-}
+  
+
 
   
 
