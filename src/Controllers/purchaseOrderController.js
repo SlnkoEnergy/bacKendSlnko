@@ -1,40 +1,11 @@
 const projectModells = require("../Modells/projectModells");
 const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 const iteamModells= require("../Modells/iteamModells");
+const moment = require("moment");
+
 
 const addPo = async function (req, res) {
-  // try {
-  //   const { p_id, poNumber, date, item, other, poValue } = req.body;
-  //   let checkProject = await projectModells.findOne({ p_id: p_id });
-  //   if (!checkProject) {
-  //     return res.status(400).json({ msg: "Project not found" });
-  //   }
-  //   const adpo = new purchaseOrderModells({
-  //     p_id,
-  //     poNumber,
-  //     date,
-  //     item,
-  //     other,
-  //     poValue,
-  //   });
-
-  //   // Save the record to the database
-  //   await adpo.save();
-
-  //   // Send a success response
-  //   return res.status(201).json({
-  //     msg: "purchase order added successfully",
-  //     data: adpo,
-  //   });
-  // } catch (error) {
-   
-  //   res.status(400).json({
-  //     msg: "Error saving project",
-  //     error: error.message,
-  //     validationErrors: error.errors, // Show validation errors if any
-  //   });
-  // }
-
+ 
 
 
   try {
@@ -43,7 +14,8 @@ const addPo = async function (req, res) {
 
 
     // Get project ID
-    const project = await projectModells.findOne({ code: p_id });
+    const project = await projectModells.findOne({ p_id : p_id });
+    console.log(project);
     if (!project) {
       return res.status(404).send({ message: 'Project not found!' });
     }
@@ -52,6 +24,11 @@ const addPo = async function (req, res) {
 
     // Resolve item value
     let resolvedItem = item === 'Other' ? other : item;
+       // Validate and format date using moment
+       const formattedDate = moment(date, 'YYYY-MM-DD', true);
+       if (!formattedDate.isValid()) {
+         return res.status(400).send({ message: 'Invalid date format. Expected format: YYYY-MM-DD.' });
+       }
 
     // Check partial billing
     const partialItem = await iteamModells.findOne({ item: resolvedItem });
@@ -67,7 +44,7 @@ const addPo = async function (req, res) {
     const newPO = new purchaseOrderModells({
       p_id,
       po_number,
-      date: new Date(date),
+      date:formattedDate.format('YYYY-MM-DD'),
       item: resolvedItem,
       po_value,
    
