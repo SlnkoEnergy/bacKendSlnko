@@ -13,7 +13,7 @@ const {
 } = require("../Controllers/userController");
 const { addPo, editPO, getPO, getallpo } = require("../Controllers/purchaseOrderController");
 const { addVendor } = require("../Controllers/addVenderController");
-const { additem }= require("../Controllers/itemController");
+const { additem, getItem }= require("../Controllers/itemController");
 const{ payRrequest }=require("../Controllers/payRequestControllers");
 
 const { addBill }=require("../Controllers/billController");
@@ -53,6 +53,7 @@ router.post("/Add-vendor", addVendor);
 
 //item
 router.post("/add-item", additem);
+router.get("/get-item",getItem);
 
 
 //pay Request api

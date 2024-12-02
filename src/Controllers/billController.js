@@ -5,7 +5,7 @@ const moment= require("moment");
 const addBill = async function (req, res) {
 
         try {
-          const { po_number, bill_number, bill_date, bill_value, bill_type, submitted_by } = req.body;
+          const { po_number, bill_number, bill_date, bill_value, bill_type, submitted_by,approved_by } = req.body;
       
           // Step 1: Calculate total billed value for the given PO number
           const bills = await addBillModells.find({ po_number });
@@ -34,6 +34,7 @@ const addBill = async function (req, res) {
             bill_value,
             type: bill_type,
             submitted_by,
+            approved_by
           });
       
           const savedBill = await newBill.save();
