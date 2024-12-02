@@ -31,7 +31,7 @@ if (!p_id || !customer || !name) {
 }
 
 // Create a new project instance
-const newProject = new ProjectModells({
+const newProject = new projectModells({
   p_id,
   customer,
   name,
