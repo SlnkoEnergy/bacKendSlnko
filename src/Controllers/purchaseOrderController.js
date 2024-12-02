@@ -44,7 +44,7 @@ const addPo = async function (req, res) {
     const newPO = new purchaseOrderModells({
       p_id,
       po_number,
-      date:formattedDate.format('YYYY-MM-DD'),
+      date:formattedDate.format('DD-MM-YYYY'),
       item: resolvedItem,
       po_value,
    
