@@ -23,29 +23,29 @@ po_number: {
       type: String,
        default:" ",
     },
-    poValue: {
+    po_value: {
       type: String,
     },
-    totalAdvancePaid: {
+    total_advance_paid: {
       type: String,
     },
-    poBalance: {
+    po_balance: {
       type: String,
     },
     vendor: {
       type: String,
     },
-    partialBilling: {
+    partial_billing: {
       type: String,
     },
 
-    amountPaid: {
+    amount_paid: {
       type: String,
     },
     comment: {
       type: String,
     },
-    updatedOn: {
+    updated_on: {
       type: String,
     },
   },
