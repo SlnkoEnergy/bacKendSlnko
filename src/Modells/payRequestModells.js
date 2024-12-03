@@ -39,4 +39,4 @@ const payRequestschema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("payRequest", payRequestschema);
-module.exports = mongoose.model("HoldPayment", payRequestschema);
+
