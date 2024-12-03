@@ -5,6 +5,7 @@ const {
   createProject,
   updateProject,
   getallproject,
+  deleteProjectById,
 } = require("../Controllers/ProjectController");
 const {
   userRegister,
@@ -41,7 +42,7 @@ router.get("/get-all-user", getalluser);
 router.post("/add-new-project", createProject);
 router.put("/update-project/:_id", updateProject);
 router.get("/get-all-project", getallproject);
-
+router.delete("/delete-by-id/:_id",deleteProjectById);
 
 
 
