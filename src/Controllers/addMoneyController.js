@@ -14,7 +14,7 @@ const addMoney = async function (req, res) {
     } = req.body;
 
     // Check if the project exists
-    let checkProject = await projectModells.findOne({ p_id: p_id });
+    let checkProject = await projectModells.find({ p_id: p_id });
     if (!checkProject) {
       return res.status(400).json({ msg: "Project not found" });
     }
