@@ -14,7 +14,7 @@ const addPo = async function (req, res) {
 
 
     // Get project ID
-    const project = await projectModells.findOne({ p_id : p_id });
+    const project = await projectModells.find({ p_id : p_id });
    
     if (!project) {
       return res.status(404).send({ message: 'Project not found!' });
