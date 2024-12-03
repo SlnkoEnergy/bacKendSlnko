@@ -42,6 +42,6 @@ const billSchema = new mongoose.Schema({
   },
 },{timestamps:true});
 
-module.exports=  mongoose.model('biiiDetail', billSchema);
+module.exports=  mongoose.model('biilDetail', billSchema);
 
 
