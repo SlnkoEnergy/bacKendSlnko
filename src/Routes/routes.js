@@ -16,7 +16,7 @@ const { addVendor } = require("../Controllers/addVenderController");
 const { additem, getItem }= require("../Controllers/itemController");
 const{ payRrequest }=require("../Controllers/payRequestControllers");
 
-const { addBill }=require("../Controllers/billController");
+const { addBill, getBill }=require("../Controllers/billController");
 
 
 
@@ -63,5 +63,6 @@ router.post("/add-pay-request", payRrequest)
 
 // add-Bill
 router.post("/add-bill",addBill);
+router.get("/get-all-bill",getBill);
 
 module.exports = router;
