@@ -2,6 +2,8 @@ const addBillModells=require("../Modells/billDetailModells");
 const projectModells =require("../Modells/projectModells");
 const purchaseOrderModeslls =require("../Modells/purchaseOrderModells");
 const moment= require("moment");
+
+
 const addBill = async function (req, res) {
 
         try {
@@ -10,7 +12,7 @@ const addBill = async function (req, res) {
           // Step 1: Calculate total billed value for the given PO number
           const bills = await addBillModells.find({ po_number });
           const totalBilled = bills.reduce((sum, bill) => sum + bill.bill_value, 0);
-      
+         
           // Step 2: Fetch the purchase order value
           const purchaseOrder = await purchaseOrderModeslls.findOne({ po_number });
           if (!purchaseOrder) {
