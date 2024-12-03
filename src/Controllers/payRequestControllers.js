@@ -42,7 +42,7 @@ const  payRrequest = async (req, res) => {
 
 
     // Get project details by project ID
-    const project = await projectModells.findOne({ p_id });
+    const project = await projectModells.find({ p_id:p_id });
     if (!project) {
       return res.status(400).json({ msg: 'Project ID is invalid!' });
     }
@@ -140,7 +140,7 @@ const holdpay = async function(req,res) {
 
 
     // Get project details by project ID
-    const project = await projectModells.findOne({ p_id });
+    const project = await projectModells.find({ p_id:p_id });
     if (!project) {
       return res.status(400).json({ msg: 'Project ID is invalid!' });
     }
