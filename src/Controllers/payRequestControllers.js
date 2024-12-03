@@ -35,7 +35,7 @@ const  payRrequest = async (req, res) => {
       comment, } = req.body;
 
     // Check if pay_id exists
-    const existingPayment = await payRequestModells.find({ pay_id:pay_id });
+    const existingPayment = await payRequestModells.findOne({ pay_id:pay_id });
     if (existingPayment) {
       return res.status(400).json({ msg: 'Payment ID already used!' });
     }
