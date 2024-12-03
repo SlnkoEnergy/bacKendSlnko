@@ -10,7 +10,7 @@ const additem = async function (req,res) {
 };
 const getItem =async function (req,res) {
     let d= await itemModells.find();
-    res.status(200).json({msg:"item",d})    
+    res.status(200).json({msg:"item",Data:d})    
 }
 
 module.exports={
