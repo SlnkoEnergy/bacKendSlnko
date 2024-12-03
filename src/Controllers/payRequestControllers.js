@@ -3,7 +3,33 @@ const projectModells =require("../Modells/projectModells")
 
 const  payRrequest = async (req, res) => {
   try {
-    const { pay_id, p_id, pay_type, amt_paid, po_value, ...otherData } = req.body;
+    const {  id,
+      p_id,
+      pay_id,
+      pay_type,
+      amount_paid,
+      amt_for_customer,
+      dbt_date,
+      paid_for,
+      vendor,
+      po_number,
+      po_value,
+      po_balance,
+      pay_mode,
+      paid_to,
+      ifsc,
+      benificiary,
+      acc_number,
+      branch,
+      created_on,
+      submitted_by,
+      approved,
+      disable,
+      acc_match,
+      utr,
+      total_advance_paid,
+      other,
+      comment, } = req.body;
 
     // Check if pay_id exists
     const existingPayment = await payRequestModells.findOne({ pay_id });
@@ -24,12 +50,37 @@ const  payRrequest = async (req, res) => {
     }
 
     // Insert new payment request
-    const newPayment = new payRequestModells({
+    const newPayment = new payRequestModells({ 
+      id,
       p_id,
       pay_id,
       pay_type,
-      amount_paid: amt_paid,
-      ...otherData,
+      amount_paid,
+      amt_for_customer,
+      dbt_date,
+      paid_for,
+      vendor,
+      po_number,
+      po_value,
+      po_balance,
+      pay_mode,
+      paid_to,
+      ifsc,
+      benificiary,
+      acc_number,
+      branch,
+      created_on,
+      submitted_by,
+      approved,
+      disable,
+      acc_match,
+      utr,
+      total_advance_paid,
+      other,
+      comment,
+      
+      
+      
     });
     await newPayment.save();
 
@@ -38,6 +89,10 @@ const  payRrequest = async (req, res) => {
     console.error(error);
     return res.status(500).json({ msg: 'Failed to request payment. Please try again.', error: error.message });
   }
+
+
+
+
 };
 
 

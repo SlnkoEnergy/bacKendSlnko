@@ -12,9 +12,16 @@ const payRequestschema = new mongoose.Schema(
     paid_for: { type: String },
     vendor: { type: String },
     po_number: { type: String },
+    po_value: { type: String },
+    po_balance: { type: String },
+
     pay_mode: {
       type: String,
     },
+    paid_to: {
+      type: String,
+    },
+    ifsc: { type: String },
     benificiary: { type: String },
     acc_number: { type: String },
     branch: { type: String },
@@ -24,9 +31,12 @@ const payRequestschema = new mongoose.Schema(
     disable: { type: String },
     acc_match: { type: String },
     utr: { type: Number },
-    total_balance: { type: Number },
+    total_advance_paid: { type: String },
+    other: { type: String },
+    comment: { type: String },
   },
   { timestamps: true }
 );
 
 module.exports = mongoose.model("payRequest", payRequestschema);
+module.exports = mongoose.model("HoldPayment", payRequestschema);
