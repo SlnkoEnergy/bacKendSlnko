@@ -48,7 +48,7 @@ const  payRrequest = async (req, res) => {
     }
 
     // Validation: Amount paid should not exceed PO value
-    if (amt_paid > po_value) {
+    if (amount_paid > po_value) {
       return res.status(400).json({ msg: 'Requested Amount is greater than PO Value!' });
     }
 
@@ -146,7 +146,7 @@ const holdpay = async function(req,res) {
     }
 
     // Validation: Amount paid should not exceed PO value
-    if (amt_paid > po_value) {
+    if (amount_paid > po_value) {
       return res.status(400).json({ msg: 'Requested Amount is greater than PO Value!' });
     }
 
