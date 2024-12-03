@@ -16,6 +16,15 @@ const addVendor = async function (req, res) {
       Category,
       IFSC_Code,
     } = req.body;
+
+
+    const vendorexist = await vendorModells.findOne({
+      $or: [{ id: id }, { name: name }]
+    });
+    
+    if (vendorexist) {
+      return res.status(400).json({ msg: "Vendor already exists!" });
+    }
     const add_vendor = new vendorModells({
       id,
       name,
