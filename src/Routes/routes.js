@@ -11,6 +11,8 @@ const {
   userRegister,
   login,
   getalluser,
+  forgettpass,
+  resetpassword,
 } = require("../Controllers/userController");
 const { addPo, editPO, getPO, getallpo } = require("../Controllers/purchaseOrderController");
 const { addVendor, getVendor } = require("../Controllers/addVenderController");
@@ -33,6 +35,8 @@ const { addBill, getBill }=require("../Controllers/billController");
 router.post("/user-registration", userRegister);
 router.post("/login", login);
 router.get("/get-all-user", getalluser);
+router.post("/forget-password-send-otp", forgettpass);
+router.post("/reset-password",resetpassword);
 
 
 

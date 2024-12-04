@@ -28,6 +28,9 @@ const userSchema = new mongoose.Schema({
     role: {
         type: String,
         trim: true
+    },
+     otp:{
+        type:String
     }
 
 
