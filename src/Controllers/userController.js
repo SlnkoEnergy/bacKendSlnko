@@ -127,7 +127,8 @@ const resetpassword = async function (req, res) {
       user.otp = null;
   
       // Save the updated user document
-      await user.save(); // Correct method name is `save()`
+       let d =await user.save(); // Correct method name is `save()`
+      console.log(d)
   
       // Respond with success
       res.status(200).json({ msg: "Password reset successfully" });
@@ -142,7 +143,7 @@ const resetpassword = async function (req, res) {
 const login = async function (req, res) {
   try {
     let { name, password } = req.body;
-    let user = await userModells.find({ name });
+    let user = await userModells.findOne({ name });
     if (!user || user.password !== password) {
       return res.status(401).json({ error: "Invalid Credentials" });
     }
