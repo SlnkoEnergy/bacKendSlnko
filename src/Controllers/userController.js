@@ -142,7 +142,7 @@ const resetpassword = async function (req, res) {
 const login = async function (req, res) {
   try {
     let { name, password } = req.body;
-    let user = await userModells.findOne({ name });
+    let user = await userModells.find({ name });
     if (!user || user.password !== password) {
       return res.status(401).json({ error: "Invalid Credentials" });
     }
