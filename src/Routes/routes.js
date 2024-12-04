@@ -15,7 +15,7 @@ const {
 const { addPo, editPO, getPO, getallpo } = require("../Controllers/purchaseOrderController");
 const { addVendor, getVendor } = require("../Controllers/addVenderController");
 const { additem, getItem }= require("../Controllers/itemController");
-const{ payRrequest, holdpay }=require("../Controllers/payRequestControllers");
+const{ payRrequest, holdpay, getPaySummary }=require("../Controllers/payRequestControllers");
 
 const { addBill, getBill }=require("../Controllers/billController");
 
@@ -81,6 +81,7 @@ router.get("/get-item",getItem);
 
 router.post("/add-pay-request", payRrequest);
 router.post("/hold-payment",holdpay);
+router.get("/get-pay-summary",getPaySummary);
 
 
 // add-Bill

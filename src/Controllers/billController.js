@@ -58,6 +58,8 @@ const addBill = async function (req, res) {
           });
         }
       };
+
+      
     const getBill =async function (req,res) {
       let data=  await addBillModells.find();
       res.status(200).json({msg:"All Bill Detail", data})

@@ -1,6 +1,7 @@
 const userModells = require("../Modells/userModells");
 const jwt = require("jsonwebtoken");
  const JWT_SECRET = " your-secret-key";
+ const nodemailer =require("nodemailer");
 
 
 
@@ -14,7 +15,12 @@ const userRegister = async function (req, res) {
     } catch (error) {
         res.status(500).json({ msg: "server error" + error });
     }
-}
+};
+
+
+
+
+
 
 
 

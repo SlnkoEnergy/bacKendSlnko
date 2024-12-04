@@ -190,11 +190,12 @@ const holdpay = async function(req,res) {
     return res.status(500).json({ msg: 'Failed to request hold payment. Please try again.', error: error.message });
   }
 
-
-
-
 };
-
+const getPaySummary =async (req,res) => {
+  let data = await payRequestModells.find();
+  res.status(200).json(data)
+  
+};
 
 
 
@@ -205,7 +206,8 @@ const holdpay = async function(req,res) {
 
 
   module.exports={
-    payRrequest,holdpay
+    payRrequest,holdpay,
+    getPaySummary
   }
 
 

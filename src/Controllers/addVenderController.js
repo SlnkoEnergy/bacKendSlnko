@@ -17,11 +17,10 @@ const addVendor = async function (req, res) {
       IFSC_Code,
     } = req.body;
 
-
     const vendorexist = await vendorModells.findOne({
-      $or: [{ id: id }, { name: name }]
+      $or: [{ id: id }, { name: name }],
     });
-    
+
     if (vendorexist) {
       return res.status(400).json({ msg: "Vendor already exists!" });
     }
@@ -56,11 +55,10 @@ const addVendor = async function (req, res) {
   }
 };
 
-const getVendor =async function (req,res) {
+const getVendor = async function (req, res) {
   let data = await vendorModells.find();
-  res.status(200).json({msg:"all vendor", data})
-  
-}
+  res.status(200).json({ msg: "all vendor", data });
+};
 module.exports = {
   addVendor,
   getVendor,
