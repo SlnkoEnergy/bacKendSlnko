@@ -57,21 +57,21 @@ const userRegister = async function (req, res) {
 
 const forgettpass = async function (req, res) {
   try {
-    const { name } = req.body;
+    const { email } = req.body;
 
-    if (!name) {
+    if ( !email) {
       return res.status(400).json({ message: "Invalid credential" });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000);
 
     const user = await userModells.findOneAndUpdate(
-      { name },
+      { email },
       { otp },
       { new: true }
     );
 
-    if (!user) {
+    if (!user ) {
       return res.status(404).json({ message: "User not found." });
     }
 
@@ -99,7 +99,7 @@ const forgettpass = async function (req, res) {
 
       res.status(200).json({
         message: "OTP sent successfully. Please check your email.",
-        name,
+        email,
         otp, // In production, avoid exposing the OTP in the response.
         userID: user._id,
       });
@@ -112,10 +112,10 @@ const forgettpass = async function (req, res) {
 
 const resetpassword = async function (req, res) {
     try {
-      const { name, otp, newpassword } = req.body;
+      const { email, otp, newpassword } = req.body;
   
       // Find the user by email and otp
-      const user = await userModells.findOne({ name: name, otp: otp }); // Use findOne for a single document
+      const user = await userModells.findOne({ email:email, otp: otp }); // Use findOne for a single document
   
       // Check if the user exists
       if (!user) {
