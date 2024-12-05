@@ -1,28 +1,34 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cluster = require("cluster");
+require("dotenv").config();
 const os = require("os");
 const app = express();
 const routes = require("../src/Routes/routes");
-
-// Number of CPU cores available on the system
 const numCPUs = os.cpus().length;
+
+
 
 const cors = require("cors");
 const Option = {
   origin: "*",
 };
-
-// Enable CORS with the specified options
 app.use(cors(Option));
 
-// Middleware to parse JSON and URL-encoded data
+
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB connection URI
-const dbURI =
-  "mongodb+srv://it:slnkoEnergy@cluster0.nj3x6.mongodb.net/slnko?retryWrites=true&w=majority&appName=Cluster0";
+
+
+
+const dbURI =process.env.MONGODB_URI 
+ 
+
+
+
+
 
 // Function to start the server in each worker process
 const startServer = () => {
@@ -32,13 +38,25 @@ const startServer = () => {
     .then(() => console.log("SlnkoEnergy database is connected"))
     .catch((err) => console.log("Database connection error: ", err));
 
+
+
+
+
+
   // Use routes defined in the `routes` module
   app.use("/v1", routes);
 
-  // Start the server on the specified port (or default to 8080)
-  app.listen(process.env.PORT || 8080, function () {
-    console.log(`Slnko app is running on port ${process.env.PORT || 8080}`);
+
+
+
+  const PORT =process.env.PORT
+
+// Start the server on the specified port (or default to 8080)
+  app.listen(PORT , function () {
+    console.log(`Slnko app is running on port ${process.env.PORT }`);
   });
+
+
 
   // Gracefully handle shutdown on SIGINT (Ctrl+C)
   process.on("SIGINT", () => {

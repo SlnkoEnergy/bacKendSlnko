@@ -3,6 +3,10 @@ const jwt = require("jsonwebtoken");
 const JWT_SECRET = " your-secret-key";
 const nodemailer = require("nodemailer");
 
+
+
+
+//user Registration
 const userRegister = async function (req, res) {
   try {
     let data = req.body;
@@ -13,48 +17,9 @@ const userRegister = async function (req, res) {
   }
 };
 
-// const forgettpass = async function (req, res) {
-//   try {
-//     const { email } = req.body;
-//     const otp = Math.floor(100000 + Math.random() * 900000);
-//     const user = await userModells.findOneAndUpdate(
-//       { email },
-//       { otp },
-//       { new: true, upsert: true }
-//     );
 
-//     var transport = nodemailer.createTransport({
-//       service: "gamil",
-//       auth: {
-//         user: "biplavmandal.mandal@gmail.com",
-//         pass: "abnj vnct roto spfn",
-//       },
-//     });
 
-//     const info = await transport.sendMail({
-//       from: `"slnko Energy pvt.ltd"`,
-//       to: email,
-//       subject: `"your Otp for password reset" `,
-//       text: `your OTP for Password Reset is : ${otp}`,
-//     });
-//     console.log(info);
-
-//     transport.sendMail(info, (err) => {
-//       if (err) {
-//         console.log(err);
-//       }
-//       res.status(200).json({
-//         message: "OTP send Successfully. please check your email",
-//         otp: otp,
-//         email: email,
-//         userID: user._id,
-//       });
-//     });
-//   } catch (error) {
-//     console.log(error);
-//   }
-// };
-
+//Forget-Password
 const forgettpass = async function (req, res) {
   try {
     const { email } = req.body;
@@ -110,6 +75,8 @@ const forgettpass = async function (req, res) {
   }
 };
 
+
+//reset-password 
 const resetpassword = async function (req, res) {
     try {
       const { email, otp, newpassword } = req.body;
@@ -139,7 +106,7 @@ const resetpassword = async function (req, res) {
     }
   };
   
-
+//Login
 const login = async function (req, res) {
   try {
     let { name, password } = req.body;
@@ -155,6 +122,8 @@ const login = async function (req, res) {
   }
 };
 
+
+//get-all-user
 const getalluser = async function (req, res) {
   let user = await userModells.find();
   res.status(200).json(user);

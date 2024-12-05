@@ -92,11 +92,10 @@ const  payRrequest = async (req, res) => {
     console.error(error);
     return res.status(500).json({ msg: 'Failed to request payment. Please try again.', error: error.message });
   }
-
-
-
-
 };
+
+
+
 
 
 const holdpay = async function(req,res) {
