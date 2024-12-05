@@ -2,6 +2,12 @@ const userModells = require("../Modells/userModells");
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = " your-secret-key";
 const nodemailer = require("nodemailer");
+require("dotenv").config();
+
+const userCredential =process.env.user
+const userPass=process.env.pass
+
+
 
 
 
@@ -44,8 +50,8 @@ const forgettpass = async function (req, res) {
     const transport = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: "biplavmandal.mandal@gmail.com",
-        pass: "hajp dgmg mvyd ljui",
+        user:userCredential,
+        pass: userPass,
       },
     });
 
