@@ -12,9 +12,10 @@ const {
   login,
   getalluser,
   forgettpass,
-  resetpassword,
+   
+   verifyandSendPass,
 } = require("../Controllers/userController");
-const { addPo, editPO, getPO, getallpo } = require("../Controllers/purchaseOrderController");
+const { addPo, editPO, getPO, getallpo, exportCSV } = require("../Controllers/purchaseOrderController");
 const { addVendor, getVendor } = require("../Controllers/addVenderController");
 const { additem, getItem }= require("../Controllers/itemController");
 const{ payRrequest, holdpay, getPaySummary }=require("../Controllers/payRequestControllers");
@@ -36,7 +37,9 @@ router.post("/user-registration", userRegister);
 router.post("/login", login);
 router.get("/get-all-user", getalluser);
 router.post("/forget-password-send-otp", forgettpass);
-router.post("/reset-password",resetpassword);
+// router.post("/password-receive",verifyOtpAndSendPassword);
+
+router.post("/received-email",verifyandSendPass );
 
 
 
@@ -65,7 +68,7 @@ router.post("/Add-purchase-order", addPo);
 router.put("/edit-po/:_id", editPO);
 router.get("/get-po/:_id",getPO);
 router.get("/get-all-po",getallpo);
-
+router.post("/export-to-csv",exportCSV)
 
 
 
