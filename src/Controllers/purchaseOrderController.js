@@ -54,6 +54,7 @@ const addPo = async function (req, res) {
       item: resolvedItem,
       po_value,
       vendor,
+      other,
    
       partial_billing,
     });
