@@ -197,6 +197,13 @@ const getPaySummary =async (req,res) => {
 };
 
 
+const hold = async function(req,res) {
+  let data = await holdPaymentModells.find();
+  res.status(200).json({msg:"Hold Payment Status",data})
+  
+}
+
+
 
   
 
@@ -206,7 +213,8 @@ const getPaySummary =async (req,res) => {
 
   module.exports={
     payRrequest,holdpay,
-    getPaySummary
+    getPaySummary,
+    hold
   }
 
 

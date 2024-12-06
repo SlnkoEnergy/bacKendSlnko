@@ -18,7 +18,7 @@ const {
 const { addPo, editPO, getPO, getallpo, exportCSV } = require("../Controllers/purchaseOrderController");
 const { addVendor, getVendor } = require("../Controllers/addVenderController");
 const { additem, getItem }= require("../Controllers/itemController");
-const{ payRrequest, holdpay, getPaySummary }=require("../Controllers/payRequestControllers");
+const{ payRrequest, holdpay, getPaySummary, hold }=require("../Controllers/payRequestControllers");
 
 const { addBill, getBill }=require("../Controllers/billController");
 
@@ -89,6 +89,7 @@ router.get("/get-item",getItem);
 router.post("/add-pay-request", payRrequest);
 router.post("/hold-payment",holdpay);
 router.get("/get-pay-summary",getPaySummary);
+router.get("/hold-pay-summary",hold)
 
 
 // add-Bill
