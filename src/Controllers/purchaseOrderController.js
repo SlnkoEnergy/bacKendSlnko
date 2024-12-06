@@ -103,7 +103,7 @@ const getallpo= async function(req,res) {
     try {
       // Fetch data from MongoDB
       const users = await purchaseOrderModells.find().lean(); // Use `.lean()` to get plain JS objects
-      console.log(users);
+      // console.log(users);
   
       if (users.length === 0) {
         return res.status(404).send("No data found to export.");
