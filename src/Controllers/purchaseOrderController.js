@@ -15,7 +15,7 @@ const addPo = async function (req, res) {
 
 
   try {
-    const { p_id, date, item, other, po_number, po_value } = req.body;
+    const { p_id, date, item, other, po_number, po_value,vendor } = req.body;
  
 
 
@@ -53,6 +53,7 @@ const addPo = async function (req, res) {
       date:formattedDate.format('DD-MM-YYYY'),
       item: resolvedItem,
       po_value,
+      vendor,
    
       partial_billing,
     });
