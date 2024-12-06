@@ -44,8 +44,8 @@ const forgettpass = async function (req, res) {
     // Save OTP in database (optional: set expiration time)
     user.otp = otp;
     user.otpExpires = Date.now() + 15 * 60 * 1000; // OTP valid for 15 minutes
-    await user.save();
-
+    let x= await user.save();
+     console.log(x);
 
     // Configure the email transporter
     const transport = nodemailer.createTransport({
