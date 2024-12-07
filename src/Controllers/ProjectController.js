@@ -26,9 +26,9 @@ const createProject = async function (req, res) {
 } = req.body;
 
 // Validation: Ensure required fields are present
-if (!p_id || !customer || !name) {
-  return res.status(400).json({ msg: 'p_id, customer, and name are required fields!' });
-}
+// if (!p_id || !customer || !name) {
+//   return res.status(400).json({ msg: 'p_id, customer, and name are required fields!' });
+// }
 
 // Create a new project instance
 const newProject = new projectModells({
