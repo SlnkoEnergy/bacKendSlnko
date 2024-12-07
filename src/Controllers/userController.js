@@ -13,9 +13,15 @@ const nodemailer = require("nodemailer");
 //user Registration
 const userRegister = async function (req, res) {
   try {
-    let data = req.body;
-    let savedData = await userModells.create(data);
-    res.status(200).json({ msg: "user register sucessfully", savedData });
+    let {name,emp_id,email,phone,department,role,password} = req.body;
+    
+  const newuser = new userModells({
+    name,emp_id,email,phone,department,role,password
+
+  });
+  await newuser.save()
+
+    res.status(200).json({ msg: "user register sucessfully", newuser });
   } catch (error) {
     res.status(500).json({ msg: "server error" + error });
   }
