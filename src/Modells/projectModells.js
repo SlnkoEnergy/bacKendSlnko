@@ -3,8 +3,8 @@ const { default: mongoose } = require("mongoose");
 const projectSchema = new mongoose.Schema(
   {
     p_id: { type: String, default:" " },
-    customer: { type: String, required: true },
-    name: { type: String, required: true },
+    customer: { type: String, default:" " },
+    name: { type: String, default:" "  },
     p_group: { type: String },
     email: { type: String },
     number: { type: String },
