@@ -46,68 +46,79 @@ const addMoney = async function (req, res) {
     return res.status(400).json({ msg: "Server error", error: error.message });
   }
 };
+const allbill = async function(req,res) {
+  let bill = await addMoneyModells.find();
+  res.status(200).json({msg:"all Bill Detail", allbill})
+
+  
+}
 
 
-
-const  getCreditAmount = async function (req,res) {
-  try {
-    const { p_id } = req.query.p_id;
-    console.log(p_id)
+// const  getCreditAmount = async function (req,res) {
+//   try {
+//     const { p_id } = req.query.p_id;
+//     console.log(p_id)
 
    
 
-    // Fetch records from the database
-    const records = await addMoneyModells.findOne({ p_id });
+//     // Fetch records from the database
+//     const records = await addMoneyModells.findOne({ p_id });
     
 
-    if (!records || records.length === 0) {
-        return res.status(404).json({ message: 'No records found for the given p_id' });
-    }
+//     if (!records || records.length === 0) {
+//         return res.status(404).json({ message: 'No records found for the given p_id' });
+//     }
 
-    // Calculate the total credit amount
-    const totalCreditAmount = records.reduce((total, record) => {
-        return total + (record.cr_amount || 0);
-    }, 0);
+//     // Calculate the total credit amount
+//     const totalCreditAmount = records.reduce((total, record) => {
+//         return total + (record.cr_amount || 0);
+//     }, 0);
 
-    return res.status(200).json({ totalCreditAmount, records });
-} catch (error) {
-    console.error('Error fetching records:', error);
-    return res.status(500).json({ message: 'Internal server error' });
-}
-}
+//     return res.status(200).json({ totalCreditAmount, records });
+// } catch (error) {
+//     console.error('Error fetching records:', error);
+//     return res.status(500).json({ message: 'Internal server error' });
+// }
+// }
 
 
-const getAllBill = async function (req,res) {
-try{
-  const p_id = req.query.params;
-  console.log(p_id)
+// const getAllBill = async (req, res) => {
+//   try {
+//       // Access `p_id` from query parameters
+//       const { p_id } = req.query;  // Correctly destructure the `p_id` query parameter
 
-  if (!p_id) {
-      return res.status(400).json({ message: 'p_id is required' });
-  }
+//       console.log('Received p_id:', p_id);
 
-  // Fetch records from the database for the given p_id
-  const records = await addMoneyModells.find({ p_id });
+//       // Check if p_id is provided
+//       if (!p_id) {
+//           return res.status(400).json({ message: 'p_id is required' });
+//       }
 
-  if (!records || records.length === 0) {
-      return res.status(404).json({ message: `No records found for p_id: ${p_id}` });
-  }
+//       // Fetch records from the database where `p_id` matches
+//       const records = await addMoneyModells.find({ p_id });
 
-  // Calculate the total credit amount for the same p_id
-  const totalCreditAmount = records.reduce((total, record) => {
-      return total + (record.cr_amount || 0);
-  }, 0);
+//       // Check if any records were found
+//       if (!records || records.length === 0) {
+//           return res.status(404).json({ message: `No records found for p_id: ${p_id}` });
+//       }
 
-  return res.status(200).json({ totalCreditAmount, records });
-} catch (error) {
-  console.error('Error fetching records:', error);
-  return res.status(500).json({ message: 'Internal server error' });
-}
-}
+//       // Calculate the total credit amount for the given p_id
+//       const totalCreditAmount = records.reduce((total, record) => {
+//           return total + (record.cr_amount || 0);  // Ensure we handle cases where cr_amount might be missing
+//       }, 0);
+
+//       // Return the total credit amount along with the records
+//       return res.status(200).json({ totalCreditAmount, records });
+//   } catch (error) {
+//       console.error('Error fetching records:', error);
+//       return res.status(500).json({ message: 'Internal server error' });
+//   }
+// };
 
 
 module.exports = {
   addMoney,
-  getCreditAmount,
-  getAllBill,
+  // getCreditAmount,
+  // getAllBill,
+  allbill
 };
