@@ -56,9 +56,7 @@ const  getCreditAmount = async function (req,res) {
 
     // Fetch records from the database
     const records = await addMoneyModells.find({ p_id });
-    if (!p_id) {
-      return res.status(400).json({ message: 'p_id is required' });
-  }
+    
 
     if (!records || records.length === 0) {
         return res.status(404).json({ message: 'No records found for the given p_id' });
