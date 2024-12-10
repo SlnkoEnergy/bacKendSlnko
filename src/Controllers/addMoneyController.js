@@ -1,5 +1,6 @@
 const addMoneyModells = require("../Modells/addMoneyModells");
 const projectModells = require("../Modells/projectModells");
+const { getBill } = require("./billController");
 
 const addMoney = async function (req, res) {
   try {
@@ -51,11 +52,12 @@ const addMoney = async function (req, res) {
 const  getCreditAmount = async function (req,res) {
   try {
     const { p_id } = req.query.p_id;
+    console.log(p_id)
 
    
 
     // Fetch records from the database
-    const records = await addMoneyModells.find({ p_id });
+    const records = await addMoneyModells.findOne({ p_id });
     
 
     if (!records || records.length === 0) {
@@ -74,7 +76,38 @@ const  getCreditAmount = async function (req,res) {
 }
 }
 
+
+const getAllBill = async function (req,res) {
+try{
+  const p_id = req.query.params;
+  console.log(p_id)
+
+  if (!p_id) {
+      return res.status(400).json({ message: 'p_id is required' });
+  }
+
+  // Fetch records from the database for the given p_id
+  const records = await addMoneyModells.find({ p_id });
+
+  if (!records || records.length === 0) {
+      return res.status(404).json({ message: `No records found for p_id: ${p_id}` });
+  }
+
+  // Calculate the total credit amount for the same p_id
+  const totalCreditAmount = records.reduce((total, record) => {
+      return total + (record.cr_amount || 0);
+  }, 0);
+
+  return res.status(200).json({ totalCreditAmount, records });
+} catch (error) {
+  console.error('Error fetching records:', error);
+  return res.status(500).json({ message: 'Internal server error' });
+}
+}
+
+
 module.exports = {
   addMoney,
   getCreditAmount,
+  getAllBill,
 };

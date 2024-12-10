@@ -1,6 +1,6 @@
 var router = require("express").Router();
 
-const { addMoney, getCreditAmount } = require("../Controllers/addMoneyController");
+const { addMoney, getCreditAmount, getAllBill } = require("../Controllers/addMoneyController");
 const {
   createProject,
   updateProject,
@@ -60,7 +60,7 @@ router.post("/Add-Money", addMoney);
 // router.get("/get-credit-amount",getCreditAmount);
 
 router.get("/credit",getCreditAmount)
-
+router.get("/get-all-bill/:p_id",getAllBill);
 
 
 
