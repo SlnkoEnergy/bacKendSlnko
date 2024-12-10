@@ -189,8 +189,8 @@ SLNKO Energy Pvt. Ltd`,
 //Login
 const login = async function (req, res) {
   try {
-    let { name, password } = req.body;
-    let user = await userModells.findOne({ name });
+    let { name, password ,email} =req.body;
+    const user = await userModells.findOne({ name: { $regex: `^${name}$`, $options: "i" } });
     if (!user || user.password !== password) {
       return res.status(401).json({ error: "Invalid Credentials" });
     }
