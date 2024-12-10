@@ -49,24 +49,30 @@ const addMoney = async function (req, res) {
 
 
 const  getCreditAmount = async function (req,res) {
-  const{p_id}=req.params.p_id;
   try {
+    const { p_id } = req.query.p_id;
+
+    if (!p_id) {
+        return res.status(400).json({ message: 'p_id is required' });
+    }
+
     // Fetch records from the database
     const records = await addMoneyModells.find({ p_id });
-    console.log(records);
 
-    if (records.length === 0) {
-        return res.status(404).json({ message: 'No records found' });
+    if (!records || records.length === 0) {
+        return res.status(404).json({ message: 'No records found for the given p_id' });
     }
 
     // Calculate the total credit amount
-    const totalCreditAmount = records.reduce((total, record) => total + (record.cr_amount || 0), 0);
+    const totalCreditAmount = records.reduce((total, record) => {
+        return total + (record.cr_amount || 0);
+    }, 0);
 
-    res.json({ totalCreditAmount, records });
+    return res.status(200).json({ totalCreditAmount, records });
 } catch (error) {
     console.error('Error fetching records:', error);
-    res.status(500).json({ message: 'Internal server error' });
-} 
+    return res.status(500).json({ message: 'Internal server error' });
+}
 }
 
 module.exports = {
