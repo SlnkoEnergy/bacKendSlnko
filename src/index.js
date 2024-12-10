@@ -45,7 +45,7 @@ const startServer = () => {
   const PORT =process.env.PORT
 
 // Start the server on the specified port (or default to 8080)
-  app.listen(PORT , function () {
+  app.listen(PORT ||8080 , function () {
     console.log(`Slnko app is running on port ${process.env.PORT }`);
   });
 

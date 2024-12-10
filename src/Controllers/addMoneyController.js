@@ -49,10 +49,11 @@ const addMoney = async function (req, res) {
 
 
 const  getCreditAmount = async function (req,res) {
-  const{p_id}=req.body;
+  const{p_id}=req.query.params;
   try {
     // Fetch records from the database
     const records = await addMoneyModells.find({ p_id });
+    console.log(records);
 
     if (records.length === 0) {
         return res.status(404).json({ message: 'No records found' });

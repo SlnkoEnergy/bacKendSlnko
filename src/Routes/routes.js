@@ -57,7 +57,7 @@ router.delete("/delete-by-id/:_id",deleteProjectById);
 
 //addMoney APi
 router.post("/Add-Money", addMoney);
-router.get("/get-credit-amount/:_id",getCreditAmount);
+router.get("/get-credit-amount/:p_id",getCreditAmount);
 
 
 
