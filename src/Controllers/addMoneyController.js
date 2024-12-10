@@ -48,7 +48,7 @@ const addMoney = async function (req, res) {
 };
 const allbill = async function(req,res) {
   let bill = await addMoneyModells.find();
-  res.status(200).json({msg:"all Bill Detail", allbill})
+  res.status(200).json({msg:"all Bill Detail", bill})
 
   
 }
