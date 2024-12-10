@@ -8,6 +8,10 @@ const projectSchema = new mongoose.Schema(
     p_group: { type: String },
     email: { type: String },
     number: { type: String },
+    
+alt_number:{
+  type:String
+},
    
     billing_address: {
       village_name: {
@@ -30,6 +34,7 @@ const projectSchema = new mongoose.Schema(
     project_category: {
       type: String,
     },
+
    
     project_kwp: { type: String },
     distance: { type: String },
