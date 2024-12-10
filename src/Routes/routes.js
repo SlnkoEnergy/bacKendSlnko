@@ -1,6 +1,6 @@
 var router = require("express").Router();
 
-const { addMoney } = require("../Controllers/addMoneyController");
+const { addMoney, getCreditAmount } = require("../Controllers/addMoneyController");
 const {
   createProject,
   updateProject,
@@ -57,6 +57,7 @@ router.delete("/delete-by-id/:_id",deleteProjectById);
 
 //addMoney APi
 router.post("/Add-Money", addMoney);
+router.get("/get-credit-amount/:_id",getCreditAmount);
 
 
 

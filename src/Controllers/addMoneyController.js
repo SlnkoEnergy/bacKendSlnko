@@ -46,6 +46,29 @@ const addMoney = async function (req, res) {
   }
 };
 
+
+
+const  getCreditAmount = async function (req,res) {
+  const{p_id}=req.body;
+  try {
+    // Fetch records from the database
+    const records = await addMoneyModells.find({ p_id });
+
+    if (records.length === 0) {
+        return res.status(404).json({ message: 'No records found' });
+    }
+
+    // Calculate the total credit amount
+    const totalCreditAmount = records.reduce((total, record) => total + (record.cr_amount || 0), 0);
+
+    res.json({ totalCreditAmount, records });
+} catch (error) {
+    console.error('Error fetching records:', error);
+    res.status(500).json({ message: 'Internal server error' });
+} 
+}
+
 module.exports = {
   addMoney,
+  getCreditAmount,
 };
