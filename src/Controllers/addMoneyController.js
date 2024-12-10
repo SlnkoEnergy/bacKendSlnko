@@ -49,7 +49,7 @@ const addMoney = async function (req, res) {
 
 
 const  getCreditAmount = async function (req,res) {
-  const{p_id}=req.query.params;
+  const{p_id}=req.params.p_id;
   try {
     // Fetch records from the database
     const records = await addMoneyModells.find({ p_id });
