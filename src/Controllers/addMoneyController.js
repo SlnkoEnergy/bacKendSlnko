@@ -81,7 +81,7 @@ const credit_amount = async function (req, res) {
     ]);
 
     // If no matching records found
-    if (credits.length === 0) {
+    if (credits) {
       return res.status(404).json({ message: "No credit history found" });
     }
 
