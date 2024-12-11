@@ -59,24 +59,16 @@ const allbill = async function(req,res) {
 
 
 
-
-
 const credit_amount = async function (req, res) {
   const { p_id } = req.params;
-  console.log(p_id)
 
   try {
-    // const credits = await addMoneyModells.find({ p_id });
-    // console.log(credits)
-    // if (!credits) {
-    //   return res.status(404).json({ message: "No credit history found" });
-    // }
     const credits = await addMoneyModells.aggregate([
       { $match: { p_id } }, // Match documents with the provided p_id
       {
         $group: {
           _id: "$p_id",
-          totalCredited: { $sum: "$cr_amount" },
+          totalCredited: { $sum: "$cr_amount" }, // Summing the credit amount
           creditDetails: {
             $push: {
               cr_date: "$cr_date",
@@ -88,24 +80,82 @@ const credit_amount = async function (req, res) {
       },
     ]);
 
-   
+    // If no matching records found
+    if (credits.length === 0) {
+      return res.status(404).json({ message: "No credit history found" });
+    }
+
+    const { totalCredited, creditDetails } = credits[0];
+
+    const formattedDetails = creditDetails.map((credit) => ({
+      cr_date: new Date(credit.cr_date).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }),
+      cr_mode: credit.cr_mode,
+      cr_amount: credit.cr_amount,
+    }));
 
     res.json({
-      credits: credits.map((credit) => ({
-        cr_date: new Date(credit.cr_date).toLocaleDateString("en-IN", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
-        cr_mode: credit.cr_mode,
-        cr_amount: credit.cr_amount,
-      })),
       totalCredited,
+      credits: formattedDetails,
     });
   } catch (error) {
+    console.error("Error in credit_amount:", error);
     res.status(500).json({ message: "Server Error", error });
   }
 };
+
+
+
+
+
+// const credit_amount = async function (req, res) {
+//   const { p_id } = req.params;
+//   console.log(p_id)
+
+//   try {
+//     // const credits = await addMoneyModells.find({ p_id });
+//     // console.log(credits)
+//     // if (!credits) {
+//     //   return res.status(404).json({ message: "No credit history found" });
+//     // }
+//     const credits = await addMoneyModells.aggregate([
+//       { $match: { p_id } }, // Match documents with the provided p_id
+//       {
+//         $group: {
+//           _id: "$p_id",
+//           totalCredited: { $sum: "$cr_amount" },
+//           creditDetails: {
+//             $push: {
+//               cr_date: "$cr_date",
+//               cr_mode: "$cr_mode",
+//               cr_amount: "$cr_amount",
+//             },
+//           },
+//         },
+//       },
+//     ]);
+
+   
+
+//     res.json({
+//       credits: credits.map((credit) => ({
+//         cr_date: new Date(credit.cr_date).toLocaleDateString("en-IN", {
+//           day: "2-digit",
+//           month: "short",
+//           year: "numeric",
+//         }),
+//         cr_mode: credit.cr_mode,
+//         cr_amount: credit.cr_amount,
+//       })),
+//       totalCredited,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: "Server Error", error });
+//   }
+// };
 
 
 
