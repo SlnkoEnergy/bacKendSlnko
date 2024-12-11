@@ -46,12 +46,55 @@ const addMoney = async function (req, res) {
     return res.status(400).json({ msg: "Server error", error: error.message });
   }
 };
+
+
+
+
+
+
 const allbill = async function(req,res) {
   let bill = await addMoneyModells.find();
   res.status(200).json({msg:"all Bill Detail", bill})
+};
 
-  
-}
+
+
+
+
+const credit_amount = async function (req, res) {
+  const { p_id } = req.params;
+
+  try {
+    const credits = await addMoneyModells.find({ p_id });
+
+    if (credits.length === 0) {
+      return res.status(404).json({ message: "No credit history found" });
+    }
+
+    const totalCredited = credits.reduce((total, credit) => total + credit.cr_amount, 0);
+
+    res.json({
+      credits: credits.map((credit) => ({
+        cr_date: new Date(credit.cr_date).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        cr_mode: credit.cr_mode,
+        cr_amount: credit.cr_amount,
+      })),
+      totalCredited,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server Error", error });
+  }
+};
+
+
+
+
+
+
 
 
 // const  getCreditAmount = async function (req,res) {
@@ -120,5 +163,6 @@ module.exports = {
   addMoney,
   // getCreditAmount,
   // getAllBill,
-  allbill
+  allbill,
+  credit_amount
 };

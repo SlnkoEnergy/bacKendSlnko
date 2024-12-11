@@ -5,6 +5,7 @@ const moment = require("moment");
 const { Parser } = require("json2csv");
 const fs = require("fs");
 const path = require("path");
+const dayjs = require('dayjs');
 
 
 
@@ -97,7 +98,14 @@ const getPO = async function(req,res){
 };
 
 const getallpo= async function(req,res) {
- let data =await purchaseOrderModells.find()
+ let data =await purchaseOrderModells.find();
+//  data = data.map((item) => {
+//   const formattedItem = item.toObject(); // Convert Mongoose document to plain object
+//   if (formattedItem.date) {
+//       formattedItem.date = dayjs(formattedItem.date).format('DD/MM/YYYY'); // Format date as dd/mm/yyyy
+//   }
+//   return formattedItem;
+// });
  res.status(200).json({msg:"all po",data})
   };
 
