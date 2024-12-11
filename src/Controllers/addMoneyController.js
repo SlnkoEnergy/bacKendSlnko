@@ -66,13 +66,29 @@ const credit_amount = async function (req, res) {
   console.log(p_id)
 
   try {
-    const credits = await addMoneyModells.find({ p_id });
-    console.log(credits)
+    // const credits = await addMoneyModells.find({ p_id });
+    // console.log(credits)
     // if (!credits) {
     //   return res.status(404).json({ message: "No credit history found" });
     // }
+    const credits = await addMoneyModells.aggregate([
+      { $match: { p_id } }, // Match documents with the provided p_id
+      {
+        $group: {
+          _id: "$p_id",
+          totalCredited: { $sum: "$cr_amount" },
+          creditDetails: {
+            $push: {
+              cr_date: "$cr_date",
+              cr_mode: "$cr_mode",
+              cr_amount: "$cr_amount",
+            },
+          },
+        },
+      },
+    ]);
 
-    const totalCredited = credits.reduce((total, credit) => total + credit.cr_amount, 0);
+   
 
     res.json({
       credits: credits.map((credit) => ({
