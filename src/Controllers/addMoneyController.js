@@ -63,13 +63,14 @@ const allbill = async function(req,res) {
 
 const credit_amount = async function (req, res) {
   const { p_id } = req.params;
+  console.log(p_id)
 
   try {
     const credits = await addMoneyModells.find({ p_id });
-
-    if (credits.length == 0) {
-      return res.status(404).json({ message: "No credit history found" });
-    }
+    // console.log(credits)
+    // if (!credits) {
+    //   return res.status(404).json({ message: "No credit history found" });
+    // }
 
     const totalCredited = credits.reduce((total, credit) => total + credit.cr_amount, 0);
 
