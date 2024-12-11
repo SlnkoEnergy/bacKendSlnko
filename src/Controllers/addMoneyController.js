@@ -67,7 +67,7 @@ const credit_amount = async function (req, res) {
 
   try {
     const credits = await addMoneyModells.find({ p_id });
-    // console.log(credits)
+    console.log(credits)
     // if (!credits) {
     //   return res.status(404).json({ message: "No credit history found" });
     // }
