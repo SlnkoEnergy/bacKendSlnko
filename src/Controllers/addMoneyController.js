@@ -79,29 +79,43 @@ const credit_amount = async function (req, res) {
       //             return total + (record.cr_amount || 0);  // Ensure we handle cases where cr_amount might be missing
       //         }, 0);
 
-      const totalsByPID = records.reduce((totals, record) => {
-        const pID = record.p_id; // Extract the p_id
-        const crAmount = record.cr_amount || 0; // Ensure missing amounts default to 0
-    
-        // Initialize or update the total for this p_id
-        totals[pID] = (totals[pID] || 0) + crAmount;
-    
-        return totals;
-    }, {});
-    
-    // If needed, format the result to include INR values (assuming amounts are in INR)
-    const totalCreditAmount = Object.entries(totalsByPID).map(([pID, total]) => ({
-        p_id: pID,
-        total_amount_in_inr: `₹${total.toFixed(2)}`
-    }));
+       // }
+    const credits = await addMoneyModells.aggregate([
+      { $match: { p_id } }, // Match documents with the provided p_id
+      {
+        $group: {
+          _id: "$p_id",
+          totalCredited: { $sum: "$cr_amount" },
+          creditDetails: {
+            $push: {
+              cr_date: "$cr_date",
+              cr_mode: "$cr_mode",
+              cr_amount: "$cr_amount",
+            },
+          },
+        },
+      },
+    ]);
 
-      res.status(200).json({msg:"All credit Amount",totalCreditAmount})
-      
+   
+
+    res.json({
+      credits: credits.map((credit) => ({
+        cr_date: new Date(credit.cr_date).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        cr_mode: credit.cr_mode,
+        cr_amount: credit.cr_amount,
+      })),
+      totalCredited,
+    });
   } catch (error) {
-      console.error('Error fetching records:', error);
-      return res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: "Server Error", error });
   }
 };
+
 
 
 
