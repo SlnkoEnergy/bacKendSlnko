@@ -81,7 +81,7 @@ const credit_amount = async function (req, res) {
     ]);
 
     // Check if the aggregation result is empty
-    if (!credits || credits.length === 0) {
+    if (!credits) {
       return res.status(404).json({ message: "No credit history found" });
     }
 
