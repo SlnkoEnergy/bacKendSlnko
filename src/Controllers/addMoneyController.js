@@ -61,13 +61,14 @@ const allbill = async function(req,res) {
 
 const credit_amount = async function (req, res) {
   const { p_id } = req.body;
+  console.log(p_id);
 
   try {
     const credits = await addMoneyModells.aggregate([
       { $match: { p_id } }, // Match documents with the provided p_id
       {
         $group: {
-          _id: "$p_id",
+          p_id: "$p_id",
           totalCredited: { $sum: "$cr_amount" }, // Summing the credit amount
           creditDetails: {
             $push: {
@@ -79,7 +80,7 @@ const credit_amount = async function (req, res) {
         },
       },
     ]);
-
+console.log(credits);
     // Check if the aggregation result is empty
     if (!credits || credits.length === 0) {
       return res.status(404).json({ message: "No credit history found" });
