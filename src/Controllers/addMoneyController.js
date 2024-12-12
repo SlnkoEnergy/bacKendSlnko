@@ -61,14 +61,13 @@ const allbill = async function(req,res) {
 
 const credit_amount = async function (req, res) {
   const { p_id } = req.body;
-  console.log(p_id);
 
   try {
     const credits = await addMoneyModells.aggregate([
       { $match: { p_id } }, // Match documents with the provided p_id
       {
         $group: {
-          p_id: "$p_id",
+          _id: "$p_id", // Use _id as the group key
           totalCredited: { $sum: "$cr_amount" }, // Summing the credit amount
           creditDetails: {
             $push: {
@@ -80,14 +79,14 @@ const credit_amount = async function (req, res) {
         },
       },
     ]);
-console.log(credits);
+
     // Check if the aggregation result is empty
     if (!credits || credits.length === 0) {
       return res.status(404).json({ message: "No credit history found" });
     }
 
-    // // Destructure the first result in the aggregation array
-    // const { totalCredited, creditDetails } = credits[0];
+    // Destructure the first result in the aggregation array
+    const { _id: groupId, totalCredited, creditDetails } = credits[0];
 
     // Format the credit details for response
     const formattedDetails = creditDetails.map((credit) => ({
@@ -102,6 +101,7 @@ console.log(credits);
 
     // Respond with the formatted data
     res.json({
+      p_id: groupId,
       totalCredited,
       credits: formattedDetails,
     });
