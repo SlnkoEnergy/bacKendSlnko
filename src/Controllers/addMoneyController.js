@@ -75,9 +75,25 @@ const credit_amount = async function (req, res) {
          
       }
 
-      const totalCreditAmount = records.reduce((total, record) => {
-                  return total + (record.cr_amount || 0);  // Ensure we handle cases where cr_amount might be missing
-              }, 0);
+      // const totalCreditAmount = records.reduce((total, record) => {
+      //             return total + (record.cr_amount || 0);  // Ensure we handle cases where cr_amount might be missing
+      //         }, 0);
+
+      const totalsByPID = records.reduce((totals, record) => {
+        const pID = record.p_id; // Extract the p_id
+        const crAmount = record.cr_amount || 0; // Ensure missing amounts default to 0
+    
+        // Initialize or update the total for this p_id
+        totals[pID] = (totals[pID] || 0) + crAmount;
+    
+        return totals;
+    }, {});
+    
+    // If needed, format the result to include INR values (assuming amounts are in INR)
+    const totalCreditAmount = Object.entries(totalsByPID).map(([pID, total]) => ({
+        p_id: pID,
+        total_amount_in_inr: `₹${total.toFixed(2)}`
+    }));
 
       res.status(200).json({msg:"All credit Amount",totalCreditAmount})
       
