@@ -63,51 +63,26 @@ const credit_amount = async function (req, res) {
   const { p_id } = req.body;
 
   try {
-    const credits = await addMoneyModells.aggregate([
-      { $match: { p_id } }, // Match documents with the provided p_id
-      {
-        $group: {
-          _id: "$p_id", // Use _id as the group key
-          totalCredited: { $sum: "$cr_amount" }, // Summing the credit amount
-          creditDetails: {
-            $push: {
-              cr_date: "$cr_date",
-              cr_mode: "$cr_mode",
-              cr_amount: "$cr_amount",
-            },
-          },
-        },
-      },
-    ]);
-
-    // Check if the aggregation result is empty
-    if (!credits) {
-      return res.status(404).json({ message: "No credit history found" });
-    }
-
-    // Destructure the first result in the aggregation array
-    const { _id: groupId, totalCredited, creditDetails } = credits[0];
-
-    // Format the credit details for response
-    const formattedDetails = creditDetails.map((credit) => ({
-      cr_date: new Date(credit.cr_date).toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }),
-      cr_mode: credit.cr_mode,
-      cr_amount: credit.cr_amount,
-    }));
-
-    // Respond with the formatted data
-    res.json({
-      p_id: groupId,
-      totalCredited,
-      credits: formattedDetails,
-    });
+   
+     
+  
+      // Fetch records from the database
+      const records = await addMoneyModells.find({ p_id });
+      
+  
+      if (!records ) {
+          return res.status(404).json({ message: 'No records found for the given p_id' });
+      }
+  
+      // Calculate the total credit amount
+      const totalCreditAmount = records.reduce((total, record) => {
+          return total + (record.cr_amount || 0);
+      }, 0);
+  
+      return res.status(200).json({ totalCreditAmount, records });
   } catch (error) {
-    console.error("Error in credit_amount:", error);
-    res.status(500).json({ message: "Server Error", error });
+      console.error('Error fetching records:', error);
+      return res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -169,31 +144,8 @@ const credit_amount = async function (req, res) {
 
 
 // const  getCreditAmount = async function (req,res) {
-//   try {
-//     const { p_id } = req.query.p_id;
-//     console.log(p_id)
+  
 
-   
-
-//     // Fetch records from the database
-//     const records = await addMoneyModells.findOne({ p_id });
-    
-
-//     if (!records || records.length === 0) {
-//         return res.status(404).json({ message: 'No records found for the given p_id' });
-//     }
-
-//     // Calculate the total credit amount
-//     const totalCreditAmount = records.reduce((total, record) => {
-//         return total + (record.cr_amount || 0);
-//     }, 0);
-
-//     return res.status(200).json({ totalCreditAmount, records });
-// } catch (error) {
-//     console.error('Error fetching records:', error);
-//     return res.status(500).json({ message: 'Internal server error' });
-// }
-// }
 
 
 // const getAllBill = async (req, res) => {
