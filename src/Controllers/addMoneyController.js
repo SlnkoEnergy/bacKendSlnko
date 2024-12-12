@@ -75,7 +75,7 @@ const credit_amount = async function (req, res) {
          
       }
       const totalCreditAmount = records.reduce((total, record) => {
-             return total + (record.cr_amount || 0);  // Ensure we handle cases where cr_amount might be missing
+             return total + (record.cr_amount || "nan");  // Ensure we handle cases where cr_amount might be missing
            }, 0);
            res.status(200).json({msg:"credit history ",totalCreditAmount})
       
