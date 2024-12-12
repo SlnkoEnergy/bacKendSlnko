@@ -72,22 +72,12 @@ const credit_amount = async function (req, res) {
   
       if (!records ) {
           return res.status(404).json({ message: 'No records found for the given p_id' });
+         
       }
       const totalCreditAmount = records.reduce((total, record) => {
-        let crAmount = 0;
-      
-        if (record.cr_amount) {
-          if (!isNaN(parseFloat(record.cr_amount))) {
-            crAmount = parseFloat(record.cr_amount); // Convert to number if it's valid
-          } else {
-            console.warn(`Invalid cr_amount value: ${record.cr_amount}`); // Log a warning for invalid values
-          }
-        }
-      
-        return total + crAmount; // Add to the total
-      }, 0);
-
-      res.status(200).json({msg:"all credit amount", totalCreditAmount})
+             return total + (record.cr_amount || 0);  // Ensure we handle cases where cr_amount might be missing
+           }, 0);
+           res.status(200).json({msg:"credit history ",totalCreditAmount})
       
   } catch (error) {
       console.error('Error fetching records:', error);
