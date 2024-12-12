@@ -87,7 +87,7 @@ const credit_amount = async function (req, res) {
     ]);
 
     // If no credits found, return a 404 response
-    if (credits.length === 0) {
+    if (credits.length == 0) {
       return res
         .status(404)
         .json({ message: "No records found for the given p_id" });
