@@ -74,10 +74,21 @@ const credit_amount = async function (req, res) {
           return res.status(404).json({ message: 'No records found for the given p_id' });
       }
       const totalCreditAmount = records.reduce((total, record) => {
-        const crAmount = parseFloat(record.cr_amount) || 0; // Safely handle non-numeric or missing values
-        return total + crAmount;
+        let crAmount = 0;
+      
+        if (record.cr_amount) {
+          if (!isNaN(parseFloat(record.cr_amount))) {
+            crAmount = parseFloat(record.cr_amount); // Convert to number if it's valid
+          } else {
+            console.warn(`Invalid cr_amount value: ${record.cr_amount}`); // Log a warning for invalid values
+          }
+        }
+      
+        return total + crAmount; // Add to the total
       }, 0);
-      return res.status(200).json({ totalCreditAmount, records });
+
+      res.status(200).json({msg:"all credit amount", totalCreditAmount})
+      
   } catch (error) {
       console.error('Error fetching records:', error);
       return res.status(500).json({ message: 'Internal server error' });
