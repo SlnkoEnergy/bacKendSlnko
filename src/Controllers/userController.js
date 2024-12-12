@@ -98,7 +98,6 @@ const verifyandSendPass = async (req, res) => {
       return res.status(400).json({ message: "Email and OTP are required." });
     }
 
-    // Find user by email
     const user = await userModells.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "User not found." });
@@ -106,7 +105,6 @@ const verifyandSendPass = async (req, res) => {
     }
     console.log(user)
 
-    // Verify OTP
     if (user.otp !== parseInt(otp)) {
       return res.status(400).json({ message: "Invalid OTP." });
     }
@@ -115,7 +113,7 @@ const verifyandSendPass = async (req, res) => {
       return res.status(400).json({ message: "OTP has expired." });
     }
 
-    // Clear OTP after verification
+
     user.otp = null;
     user.otpExpires = null;
     await user.save();
@@ -156,35 +154,6 @@ SLNKO Energy Pvt. Ltd`,
 };
 
 
-//reset-password 
-// const resetpassword = async function (req, res) {
-//     try {
-//       const { email, otp, newpassword } = req.body;
-  
-//       // Find the user by email and otp
-//       const user = await userModells.findOne({ email:email, otp: otp }); // Use findOne for a single document
-  
-//       // Check if the user exists
-//       if (!user) {
-//         return res.status(400).json({ msg: "Invalid credential" });
-//       }
-  
-//       // Update the user's password and clear the OTP
-//       user.password = newpassword;
-//       user.otp = null;
-  
-//       // Save the updated user document
-//        let d =await user.save(); // Correct method name is `save()`
-//       console.log(d)
-  
-//       // Respond with success
-//       res.status(200).json({ msg: "Password reset successfully" });
-  
-//     } catch (error) {
-//       console.log(error);
-//       res.status(500).json({ msg: "Server error" });
-//     }
-//   };
   
 //Login
 const login = async function (req, res) {
