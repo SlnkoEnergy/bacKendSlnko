@@ -3,7 +3,7 @@ const { default: mongoose } = require("mongoose");
 const moneySchema= new mongoose.Schema({
 
     p_id:{
-        type:String,
+        type:Number,
     },
   comment:{
         type:String

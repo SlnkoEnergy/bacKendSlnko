@@ -74,10 +74,7 @@ const credit_amount = async function (req, res) {
           return res.status(404).json({ message: 'No records found for the given p_id' });
          
       }
-      const totalCreditAmount = records.reduce((total, record) => {
-             return total + (record.cr_amount || "nan");  // Ensure we handle cases where cr_amount might be missing
-           }, 0);
-           res.status(200).json({msg:"credit history ",totalCreditAmount})
+      res.status(200).json({msg:"detail",records})
       
   } catch (error) {
       console.error('Error fetching records:', error);
