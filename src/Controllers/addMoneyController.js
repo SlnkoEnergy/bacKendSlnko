@@ -60,7 +60,7 @@ const allbill = async function(req,res) {
 
 
 const credit_amount = async function (req, res) {
-  const { p_id } = req.params;
+  const { p_id } = req.body;
 
   try {
     const credits = await addMoneyModells.aggregate([
@@ -80,13 +80,15 @@ const credit_amount = async function (req, res) {
       },
     ]);
 
-    // If no matching records found
-    if (!credits) {
+    // Check if the aggregation result is empty
+    if (!credits || credits.length === 0) {
       return res.status(404).json({ message: "No credit history found" });
     }
 
-    const { totalCredited, creditDetails } = credits[0];
+    // // Destructure the first result in the aggregation array
+    // const { totalCredited, creditDetails } = credits[0];
 
+    // Format the credit details for response
     const formattedDetails = creditDetails.map((credit) => ({
       cr_date: new Date(credit.cr_date).toLocaleDateString("en-IN", {
         day: "2-digit",
@@ -97,6 +99,7 @@ const credit_amount = async function (req, res) {
       cr_amount: credit.cr_amount,
     }));
 
+    // Respond with the formatted data
     res.json({
       totalCredited,
       credits: formattedDetails,
