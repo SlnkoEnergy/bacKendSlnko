@@ -2,7 +2,7 @@ const payRequestModells = require("../Modells/payRequestModells");
 const projectModells =require("../Modells/projectModells");
 const holdPayment = require("../Modells/holdPaymentModells");
 const holdPaymentModells = require("../Modells/holdPaymentModells");
-const recoveryPayRequestModells =require("../Modells/reoveryPayRequestModells");
+const recoverPay= require("../Modells/reoveryPayRequestModells");
 
 const  payRrequest = async (req, res) => {
   try {
@@ -109,7 +109,7 @@ try {
     }
 
    
-    const recoveryItemData =new recoveryPayRequestModells({
+    const recoveryItemData =new recoverPay({
       id: deletedItem.id,
       p_id: deletedItem.p_id,
       pay_id: deletedItem.pay_id,
