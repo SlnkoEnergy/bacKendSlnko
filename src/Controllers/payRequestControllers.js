@@ -136,7 +136,7 @@ try {
       utr: deletedItem.utr,
       total_advance_paid: deletedItem.total_advance_paid,
       other: deletedItem.other,
-  }) ;
+  });
 
   await recoveryItemData.save();
 

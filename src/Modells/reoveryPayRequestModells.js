@@ -13,20 +13,26 @@ const recoveryParyRequest =new mongoose.Schema({
     po_number: { type: String },
     po_value: { type: String },
     po_balance: { type: String },
-    pay_mode: { type: String },
-    paid_to: { type: String },
+
+    pay_mode: {
+      type: String,
+    },
+    paid_to: {
+      type: String,
+    },
     ifsc: { type: String },
     benificiary: { type: String },
     acc_number: { type: String },
     branch: { type: String },
-    created_on: { type: String },
+    created_on: { type: String, default: Date.now },
     submitted_by: { type: String },
-    approved: { type: Boolean, default: false },
-    disable: { type: Boolean, default: false },
-    acc_match: { type: Boolean, default: false },
-    utr: { type: String },
+    approved: { type: String },
+    disable: { type: String },
+    acc_match: { type: String },
+    utr: { type: Number },
     total_advance_paid: { type: String },
-    other: { type: String, default: "" },
+    other: { type: String },
+    comment: { type: String },
 },{timestamps:true})
 
 module.exports = mongoose.model("recoveryPayRequestSchema",recoveryParyRequest);
