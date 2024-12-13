@@ -1,6 +1,8 @@
 const projectModells = require("../Modells/projectModells");
 const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 const iteamModells = require("../Modells/iteamModells");
+const recoveryPurchaseOrder = require("../Modells/recoveryPurchaseOrderModells");
+
 const moment = require("moment");
 const { Parser } = require("json2csv");
 const fs = require("fs");
@@ -75,6 +77,10 @@ const addPo = async function (req, res) {
   }
 };
 
+
+
+
+
 const editPO = async function (req, res) {
   let _id = req.params._id;
   let updateData = req.body;
@@ -91,11 +97,18 @@ const editPO = async function (req, res) {
   }
 };
 
+
+
+
 const getPO = async function (req, res) {
   let id = req.params._id;
   let data = await purchaseOrderModells.findById(id);
   res.status(200).json(data);
 };
+
+
+
+
 
 //get ALLPO
 const getallpo = async function (req, res) {
@@ -125,6 +138,52 @@ const getallpo = async function (req, res) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
+
+
+
+
+
+const moverecovery = async function (req,res) {
+  const { _id } = req.params;
+
+  try {
+    // Find and delete the item from the main collection
+    const deletedItem = await purchaseOrderModells.findByIdAndRemove(_id);
+
+    if (!deletedItem) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    // Add the deleted item to the recovery collection
+    const recoveryItem = new recoveryPurchaseOrder({
+      p_id: deletedItem.p_id,
+      offer_Id: deletedItem.offer_Id,
+      po_number: deletedItem.po_number,
+      date: deletedItem.date,
+      item: deletedItem.item,
+      other: deletedItem.other,
+      po_value: deletedItem.po_value,
+      total_advance_paid: deletedItem.total_advance_paid,
+      po_balance: deletedItem.po_balance,
+      vendor: deletedItem.vendor,
+      partial_billing: deletedItem.partial_billing,
+      amount_paid: deletedItem.amount_paid,
+      comment: deletedItem.comment,
+      updated_on: deletedItem.updated_on,
+    });
+
+    await recoveryItem.save();
+
+    res.json({
+      message: "Item moved to recovery collection successfully",
+      item: recoveryItem,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting item", error });
+  }
+
+  
+}
 
 const exportCSV = async function (req, res) {
   try {
@@ -161,10 +220,14 @@ const exportCSV = async function (req, res) {
   }
 };
 
+
+
 module.exports = {
   addPo,
   editPO,
   getPO,
   getallpo,
   exportCSV,
+ moverecovery,
+
 };
