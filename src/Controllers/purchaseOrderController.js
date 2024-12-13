@@ -173,8 +173,8 @@ const moverecovery = async function (req,res) {
       updated_on: deletedItem.updated_on,
     });
 
-    let x= await recoveryItem.save();
-    console.log(x)
+     await recoveryItem.save();
+   
 
     res.json({
       message: "Item moved to recovery collection successfully",

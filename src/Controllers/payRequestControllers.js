@@ -2,7 +2,7 @@ const payRequestModells = require("../Modells/payRequestModells");
 const projectModells =require("../Modells/projectModells");
 const holdPayment = require("../Modells/holdPaymentModells");
 const holdPaymentModells = require("../Modells/holdPaymentModells");
-
+const recoveryPayRequestModells =require("../Modells/reoveryPayRequestModells");
 
 const  payRrequest = async (req, res) => {
   try {
@@ -94,6 +94,64 @@ const  payRrequest = async (req, res) => {
   }
 };
 
+
+
+
+
+
+const recoverypay= async function (req,res) {
+ const _id = req.query._id; 
+try {
+    const deletedItem = await payRequestModells.findByIdAndRemove(_id);
+
+    if (!deletedItem) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+   
+    const recoveryItemData =new recoveryPayRequestModells({
+      id: deletedItem.id,
+      p_id: deletedItem.p_id,
+      pay_id: deletedItem.pay_id,
+      pay_type: deletedItem.pay_type,
+      amount_paid: deletedItem.amount_paid,
+      amt_for_customer: deletedItem.amt_for_customer,
+      dbt_date: deletedItem.dbt_date,
+      paid_for: deletedItem.paid_for,
+      vendor: deletedItem.vendor,
+      po_number: deletedItem.po_number,
+      po_value: deletedItem.po_value,
+      po_balance: deletedItem.po_balance,
+      pay_mode: deletedItem.pay_mode,
+      paid_to: deletedItem.paid_to,
+      ifsc: deletedItem.ifsc,
+      benificiary: deletedItem.benificiary,
+      acc_number: deletedItem.acc_number,
+      branch: deletedItem.branch,
+      created_on: deletedItem.created_on,
+      submitted_by: deletedItem.submitted_by,
+      approved: deletedItem.approved,
+      disable: deletedItem.disable,
+      acc_match: deletedItem.acc_match,
+      utr: deletedItem.utr,
+      total_advance_paid: deletedItem.total_advance_paid,
+      other: deletedItem.other,
+  }) ;
+
+  await recoveryItemData.save();
+
+   
+    res.json({
+      message: "Item moved to recovery collection successfully",
+      item: recoveryItemData,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error processing recovery: " + error });
+  }
+
+  
+  
+};
 
 
 
@@ -201,7 +259,9 @@ const hold = async function(req,res) {
   let data = await holdPaymentModells.find();
   res.status(200).json({msg:"Hold Payment Status",data})
   
-}
+};
+
+
 
 
 
@@ -214,7 +274,8 @@ const hold = async function(req,res) {
   module.exports={
     payRrequest,holdpay,
     getPaySummary,
-    hold
+    hold,
+    recoverypay
   }
 
 

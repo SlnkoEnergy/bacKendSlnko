@@ -15,6 +15,8 @@ const {
    
    verifyandSendPass,
 } = require("../Controllers/userController");
+
+
 const { addPo, editPO, getPO, getallpo, exportCSV, moverecovery } = require("../Controllers/purchaseOrderController");
 const { addVendor, getVendor } = require("../Controllers/addVenderController");
 const { additem, getItem }= require("../Controllers/itemController");
@@ -95,7 +97,8 @@ router.get("/get-item",getItem);
 router.post("/add-pay-request", payRrequest);
 router.post("/hold-payment",holdpay);
 router.get("/get-pay-summary",getPaySummary);
-router.get("/hold-pay-summary",hold)
+router.get("/hold-pay-summary",hold);
+router.delete("/remove-payrequest-to-recovery/:_id",moverecovery)
 
 
 // add-Bill
