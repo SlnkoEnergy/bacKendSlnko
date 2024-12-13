@@ -144,7 +144,7 @@ const getallpo = async function (req, res) {
 
 
 const moverecovery = async function (req,res) {
-  const { _id } = req.params;
+  const { _id } = req.params._id;
 
   try {
     // Find and delete the item from the main collection
@@ -172,7 +172,8 @@ const moverecovery = async function (req,res) {
       updated_on: deletedItem.updated_on,
     });
 
-    await recoveryItem.save();
+    let x= await recoveryItem.save();
+    console.log(x)
 
     res.json({
       message: "Item moved to recovery collection successfully",
