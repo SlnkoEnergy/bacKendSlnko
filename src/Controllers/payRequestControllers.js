@@ -102,7 +102,7 @@ const  payRrequest = async (req, res) => {
 const recoverypay= async function (req,res) {
  const _id = req.query._id; 
 try {
-    const deletedItem = await payRequestModells.findByIdAndRemove(_id);
+    const deletedItem = await payRequestModells.findOneAndReplace(_id);
 
     if (!deletedItem) {
       return res.status(404).json({ message: "Item not found" });
