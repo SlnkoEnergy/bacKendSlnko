@@ -149,6 +149,7 @@ const moverecovery = async function (req,res) {
   try {
     // Find and delete the item from the main collection
     const deletedItem = await purchaseOrderModells.findByIdAndRemove(_id);
+    console.log(deletedItem);
 
     if (!deletedItem) {
       return res.status(404).json({ message: "Item not found" });
@@ -180,7 +181,7 @@ const moverecovery = async function (req,res) {
       item: recoveryItem,
     });
   } catch (error) {
-    res.status(500).json({ message: "Error deleting item", error });
+    res.status(500).json({ message: "Error deleting item" +error });
   }
 
   
