@@ -175,7 +175,7 @@ const login = async function (req, res) {
 //get-all-user
 const getalluser = async function (req, res) {
   let user = await userModells.find();
-  res.status(200).json(user);
+  res.status(200).json({data:user});
 };
 
 module.exports = {
