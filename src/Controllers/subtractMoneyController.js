@@ -34,12 +34,12 @@ const subtractmoney = async function (req, res) {
       } = req.body;
   
       // Validate if UTR is provided
-      if (!utr || utr.trim() === "") {
+      if (!utr || utr.trim() === "" || utr === 0 || utr === "0") {
         return res.status(400).json({ msg: "UTR is missing. Please provide a valid UTR." });
       }
   
       // Check if UTR already exists in payrequestModells
-      const existingutr = await payrequestModells.findOne({ utr: { $ne: " " || 0    } });
+      const existingutr = await payrequestModells.findOne({ utr: { $ne: " " || 0  || "0"  } });
   
       
     if(existingutr){
