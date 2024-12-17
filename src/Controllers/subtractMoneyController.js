@@ -42,7 +42,7 @@ const subtractmoney = async function (req, res) {
       // Check if UTR already exists in payrequestModells
       const existingutr = await payrequestModells.findOne({ $or: [{ utr: "0" }, { utr: 0 }] });
 
-if (existingutr) {
+if (!existingutr) {
   return res.status(400).json({ msg: "UTR does not exist or is not zero." });
 }
   
