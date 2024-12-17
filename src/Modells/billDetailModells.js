@@ -9,6 +9,7 @@ const billSchema = new mongoose.Schema({
     type: String, 
   },
   bill_number: { 
+    type: String, 
     
   },
   bill_date: { 

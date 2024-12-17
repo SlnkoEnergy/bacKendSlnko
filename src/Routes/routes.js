@@ -40,8 +40,6 @@ router.post("/user-registration", userRegister);
 router.post("/login", login);
 router.get("/get-all-user", getalluser);
 router.post("/forget-password-send-otp", forgettpass);
-// router.post("/password-receive",verifyOtpAndSendPassword);
-
 router.post("/received-email",verifyandSendPass );
 
 
@@ -62,10 +60,7 @@ router.delete("/delete-by-id/:_id",deleteProjectById);
 router.post("/Add-Money", addMoney);
 router.get("/all-bill",allbill);
 router.post("/get-bill",credit_amount)
-// router.get("/get-credit-amount",getCreditAmount);
 
-// router.get("/credit",getCreditAmount)
-// router.get("/get-all-bill/:id",getAllBill);
 
 
 
