@@ -3,7 +3,6 @@ const payrequestModells =require("../Modells/payRequestModells");
 
 const subtractmoney = async function (req, res) {
     try {
-     
       const {
         id,
         p_id,
@@ -34,16 +33,17 @@ const subtractmoney = async function (req, res) {
         comment,
       } = req.body;
   
-      // Validate if utr is provided
-      if (!utr || utr.trim() == "") {
+      // Validate if UTR is provided
+      if (!utr || utr.trim() === "") {
         return res.status(400).json({ msg: "UTR is missing. Please provide a valid UTR." });
       }
   
       // Check if UTR already exists in payrequestModells
-      const existingutr = await payrequestModells.findOne({ $or: [{ utr: "0" }, { utr: 0 }] });
-
-if (!existingutr) {
-    const subtractMoney = new subtractModells({
+      const existingutr = await payrequestModells.findOne({ utr: { $ne: " " || 0    } });
+  
+      
+    if(existingutr){
+        const subtractMoney = new subtractModells({
         id,
         p_id,
         pay_id,
@@ -74,17 +74,15 @@ if (!existingutr) {
       });
   
       // Save to the database
-      await subtractMoney.save();
-  
-      // Return success response
+      let data=   await subtractMoney.save();
       return res.status(200).json({
         msg: "Debited amount successfully saved",
-        data: subtractMoney,
+        data: data,
       });
- 
-}
+
+    }
+   
   
-      // Create a new subtract entry
      
     } catch (error) {
       console.error("Error:", error.message);
@@ -94,6 +92,7 @@ if (!existingutr) {
       });
     }
   };
+  
   
 
   module.exports = {
