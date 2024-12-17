@@ -23,6 +23,7 @@ const { additem, getItem }= require("../Controllers/itemController");
 const{ payRrequest, holdpay, getPaySummary, hold }=require("../Controllers/payRequestControllers");
 
 const { addBill, getBill }=require("../Controllers/billController");
+const{ subtractmoney }=require("../Controllers/subtractMoneyController")
 
 
 
@@ -104,5 +105,10 @@ router.delete("/remove-payrequest-to-recovery/:_id",moverecovery)
 // add-Bill
 router.post("/add-bill",addBill);
 router.get("/get-all-bill",getBill);
+
+
+//subtractmoney-debitmoney
+
+router.post("/debit-money",subtractmoney);
 
 module.exports = router;
