@@ -43,11 +43,7 @@ const subtractmoney = async function (req, res) {
       const existingutr = await payrequestModells.findOne({ $or: [{ utr: "0" }, { utr: 0 }] });
 
 if (!existingutr) {
-  return res.status(400).json({ msg: "UTR does not exist or is not zero." });
-}
-  
-      // Create a new subtract entry
-      const subtractMoney = new subtractModells({
+    const subtractMoney = new subtractModells({
         id,
         p_id,
         pay_id,
@@ -85,6 +81,11 @@ if (!existingutr) {
         msg: "Debited amount successfully saved",
         data: subtractMoney,
       });
+ 
+}
+  
+      // Create a new subtract entry
+     
     } catch (error) {
       console.error("Error:", error.message);
       return res.status(500).json({
