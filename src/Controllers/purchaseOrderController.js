@@ -149,7 +149,7 @@ const moverecovery = async function (req,res) {
   try {
     // Find and delete the item from the main collection
     const deletedItem = await purchaseOrderModells.findOneAndReplace(_id);
-    console.log(deletedItem);
+  
 
     if (!deletedItem) {
       return res.status(404).json({ message: "Item not found" });

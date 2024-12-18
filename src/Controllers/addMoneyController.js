@@ -51,10 +51,18 @@ const addMoney = async function (req, res) {
   }
 };
 
+
+
+//get all bill
+
 const allbill = async function (req, res) {
   let bill = await addMoneyModells.find();
   res.status(200).json({ msg: "all Bill Detail", bill });
 };
+
+
+
+
 
 
 //  Credit Amount
@@ -62,7 +70,7 @@ const credit_amount = async function (req, res) {
   const { p_id } = req.body;
 
   try {
-    // Check if p_id is provided
+   
     if (!p_id) {
       return res.status(400).json({ message: "p_id is required" });
     }
