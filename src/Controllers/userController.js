@@ -29,6 +29,28 @@ const userRegister = async function (req, res) {
 
 
 
+
+//user-Deleted
+const deleteUser = async function (req,res) {
+  const userId = req.params._id;
+
+  try {
+    const deletedUser = await userModells.findByIdAndDelete(userId);
+
+    if (!deletedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({ message: 'User deleted successfully', user: deletedUser });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting user', error: error.message });
+  }
+};
+
+
+
+
+
 //Forget-Password
 const forgettpass = async function (req, res) {
   try {
@@ -184,4 +206,5 @@ module.exports = {
   getalluser,
   forgettpass,
  verifyandSendPass,
+ deleteUser,
 };
