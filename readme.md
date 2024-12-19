@@ -20,3 +20,6 @@ to start with pm 2
 pm2 start index.js
  iahds
 
+// .connect(
+    //   "mongodb+srv://it:slnkoEnergy@cluster0.nj3x6.mongodb.net/slnko?retryWrites=true&w=majority&appName=Cluster0"
+    // )

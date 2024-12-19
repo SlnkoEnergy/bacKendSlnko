@@ -2,6 +2,10 @@ const userModells = require("../Modells/userModells");
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = " your-secret-key";
 const nodemailer = require("nodemailer");
+const { config } = require("dotenv");
+config({
+  path: "./.env"
+})
 
 
 
@@ -73,14 +77,14 @@ const forgettpass = async function (req, res) {
     user.otp = otp;
     user.otpExpires = Date.now() + 15 * 60 * 1000; // OTP valid for 15 minutes
     let x= await user.save();
-     console.log(x);
+    
 
     // Configure the email transporter
     const transport = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user:"biplavmandal.mandal@gmail.com",
-        pass: "hajp dgmg mvyd ljui",
+        user:process.env.USER,
+        pass: process.env.PASS
       },
     });
 
@@ -125,7 +129,7 @@ const verifyandSendPass = async (req, res) => {
       return res.status(404).json({ message: "User not found." });
       
     }
-    console.log(user)
+   
 
     if (user.otp !== parseInt(otp)) {
       return res.status(400).json({ message: "Invalid OTP." });
@@ -144,8 +148,8 @@ const verifyandSendPass = async (req, res) => {
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user:"biplavmandal.mandal@gmail.com",
-        pass: "hajp dgmg mvyd ljui",
+        user:process.env.USER,
+        pass: process.env.PASS,
       },
     });
 

@@ -1,38 +1,46 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cluster = require("cluster");
-require("dotenv").config();
+//require("dotenv").config();
 const os = require("os");
 const app = express();
 const routes = require("../src/Routes/routes");
 const numCPUs = os.cpus().length;
 
 const cors = require("cors");
+const { config } = require("dotenv");
 const Option = {
   origin: "*",
 };
-app.use(cors(Option));
 
+config({
+  path: "./.env"
+})
+
+app.use(cors(Option));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+
+
+const PORT = process.env.PORT;
+const db = process.env.db;
 
 // Function to start the server in each worker process
 const startServer = () => {
   // Connect to MongoDB using Mongoose
-  mongoose
-    .connect(
-      "mongodb+srv://it:slnkoEnergy@cluster0.nj3x6.mongodb.net/slnko?retryWrites=true&w=majority&appName=Cluster0"
-    )
+  mongoose.connect(db)
+    
     .then(() => console.log("SlnkoEnergy database is connected"))
     .catch((err) => console.log("Database connection error: ", err));
 
   // Use routes defined in the `routes` module
   app.use("/v1", routes);
 
-  const PORT = process.env.PORT;
+ 
 
   // Start the server on the specified port (or default to 8080)
-  app.listen(8080 || PORT, function () {
+  app.listen(process.env.PORT, function () {
     console.log(`Slnko app is running on port ${process.env.PORT}`);
   });
 
