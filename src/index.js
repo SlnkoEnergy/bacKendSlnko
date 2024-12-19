@@ -7,49 +7,34 @@ const app = express();
 const routes = require("../src/Routes/routes");
 const numCPUs = os.cpus().length;
 
-
-
 const cors = require("cors");
 const Option = {
   origin: "*",
 };
 app.use(cors(Option));
 
-
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-
-
 
 // Function to start the server in each worker process
 const startServer = () => {
   // Connect to MongoDB using Mongoose
   mongoose
-    .connect("mongodb+srv://it:slnkoEnergy@cluster0.nj3x6.mongodb.net/slnko?retryWrites=true&w=majority&appName=Cluster0",)
+    .connect(
+      "mongodb+srv://it:slnkoEnergy@cluster0.nj3x6.mongodb.net/slnko?retryWrites=true&w=majority&appName=Cluster0"
+    )
     .then(() => console.log("SlnkoEnergy database is connected"))
     .catch((err) => console.log("Database connection error: ", err));
-
-
-
-
-
 
   // Use routes defined in the `routes` module
   app.use("/v1", routes);
 
+  const PORT = process.env.PORT;
 
-
-
-  const PORT =process.env.PORT
-
-// Start the server on the specified port (or default to 8080)
-  app.listen(8080 || PORT , function () {
-    console.log(`Slnko app is running on port ${process.env.PORT }`);
+  // Start the server on the specified port (or default to 8080)
+  app.listen(8080 || PORT, function () {
+    console.log(`Slnko app is running on port ${process.env.PORT}`);
   });
-
-
 
   // Gracefully handle shutdown on SIGINT (Ctrl+C)
   process.on("SIGINT", () => {
@@ -79,12 +64,3 @@ if (cluster.isMaster) {
   // If this is a worker, start the server
   startServer();
 }
-
-
-
-
-
-
-
-
-

@@ -2,6 +2,9 @@ const payRequestModells = require("../Modells/payRequestModells");
 const projectModells =require("../Modells/projectModells");
 const holdPayment = require("../Modells/holdPaymentModells");
 const holdPaymentModells = require("../Modells/holdPaymentModells");
+const NodeCache = require("node-cache");
+const nodeCache = new NodeCache();
+
 
 
 const  payRrequest = async (req, res) => {
@@ -300,8 +303,15 @@ const holdpay = async function(req,res) {
 
 //get alll pay summary
 const getPaySummary =async (req,res) => {
-  let data = await payRequestModells.find();
-  res.status(200).json(data)
+  let request;
+  if(nodeCache.has("request")){
+    request =JSON.parse(nodeCache.get("request"));
+  }else{
+    request =await payRequestModells.find();
+    nodeCache.set("request",JSON.stringify(request))
+}
+
+  res.status(200).json({msg:"all-pay-summary",data:request})
   
 };
 
