@@ -349,6 +349,36 @@ const hold = async function(req,res) {
     });
   }
 };
+
+ const utrUpdate = async function (req,res) {
+  const { pay_id, utr } = req.body;
+  try {
+    const payment = await payRequestModells.findOneAndUpdate(
+      { pay_id, acc_match: 'matched' }, // Matching criteria
+      { $set: { utr } }, // Update action
+      { new: true } // Return the updated document
+    );
+
+    if (payment) {
+      res.status(200).json({
+        message: 'UTR number updated successfully!',
+        data: payment,
+      });
+    } else {
+      res.status(404).json({
+        message: 'No matching record found or account not matched.',
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: 'An error occurred while updating the UTR number.',
+    });
+  }
+};
+
+  
+ 
   
 
 
@@ -365,7 +395,8 @@ const hold = async function(req,res) {
     payRrequest,holdpay,
     getPaySummary,
     hold,
-    account_matched
+    account_matched,
+    utrUpdate,
 
     
   }

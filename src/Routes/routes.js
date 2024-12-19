@@ -21,7 +21,7 @@ const {
 const { addPo, editPO, getPO, getallpo, exportCSV, moverecovery } = require("../Controllers/purchaseOrderController");
 const { addVendor, getVendor } = require("../Controllers/addVenderController");
 const { additem, getItem }= require("../Controllers/itemController");
-const{ payRrequest, holdpay, getPaySummary, hold, account_matched }=require("../Controllers/payRequestControllers");
+const{ payRrequest, holdpay, getPaySummary, hold, account_matched, utrUpdate }=require("../Controllers/payRequestControllers");
 
 const { addBill, getBill, updatebill }=require("../Controllers/billController");
 const{ subtractmoney }=require("../Controllers/subtractMoneyController")
@@ -97,6 +97,7 @@ router.post("/hold-payment",holdpay);
 router.get("/get-pay-summary",getPaySummary);
 router.get("/hold-pay-summary",hold);
 router.put("/acc-matched",account_matched);
+router.put("/utr-update",utrUpdate);
 //router.delete("/remove-payrequest-to-recovery/:_id",moverecovery)
 
 

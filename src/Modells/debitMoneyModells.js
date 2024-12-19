@@ -54,7 +54,7 @@ const debitmoneySchema= new mongoose.Schema({
       
       },
       utr: {
-        type: String,
+        type: Number,
       
       },
       trans_details: {
