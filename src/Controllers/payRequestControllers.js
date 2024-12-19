@@ -323,6 +323,35 @@ const hold = async function(req,res) {
 };
 
 
+ const account_matched = async function (req,res) {
+  const { pay_id,  acc_number, ifsc } = req.body;
+  try {
+    const payment = await payRequestModells.findOneAndUpdate(
+      { pay_id, acc_number, ifsc }, // Matching criteria
+      { $set: { acc_match: 'matched' } }, // Update action
+      { new: true } // Return the updated document
+    );
+
+    if (payment) {
+      res.status(200).json({
+        message: 'Account matched successfully!',
+        data: payment,
+      });
+    } else {
+      res.status(404).json({
+        message: 'No matching record found.',
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: 'An error occurred while matching the account.',
+    });
+  }
+};
+  
+
+
 
 
 
@@ -336,6 +365,8 @@ const hold = async function(req,res) {
     payRrequest,holdpay,
     getPaySummary,
     hold,
+    account_matched
+
     
   }
 
