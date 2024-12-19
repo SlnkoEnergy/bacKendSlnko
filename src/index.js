@@ -29,7 +29,7 @@ const db = process.env.db;
 // Function to start the server in each worker process
 const startServer = () => {
   // Connect to MongoDB using Mongoose
-  mongoose.connect(db)
+  mongoose.connect(process.env.db)
     
     .then(() => console.log("SlnkoEnergy database is connected"))
     .catch((err) => console.log("Database connection error: ", err));
