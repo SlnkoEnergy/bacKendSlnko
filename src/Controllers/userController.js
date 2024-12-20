@@ -304,7 +304,7 @@ html: `
   </head>
   <body>
   <div> <p>Your registered password is:</p><h3 style="color:blue"> ${user.password},</h3></div>
-  <div> <p style="color:blue">If you did not request this email, please contact support immediately.</p></div>
+  <div> <p style="color:blue">If it is not requested by you, please contact support immediately.</p></div>
     <div style="color:rgb(34,34,34);direction:ltr;margin:8px 0px 0px;padding:0px;font-size:0.875rem;font-family:Roboto,RobotoDraft,Helvetica,Arial,sans-serif">
       <div style="font-stretch:normal;font-size:small;line-height:1.5;font-family:Arial,Helvetica,sans-serif;overflow:hidden">
         <div dir="ltr">
