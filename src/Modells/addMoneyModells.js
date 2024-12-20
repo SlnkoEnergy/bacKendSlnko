@@ -12,10 +12,10 @@ const moneySchema= new mongoose.Schema({
         type:String
     },
     cr_amount:{
-    type:String
+    type:Number
 },
 cr_date:{
-    type:String
+    type:Date
 },
 cr_mode:{
     type:String
