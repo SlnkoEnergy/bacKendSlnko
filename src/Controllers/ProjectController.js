@@ -1,4 +1,10 @@
+const { request } = require("express");
 const projectModells = require("../Modells/projectModells");
+const NodeCache = require("node-cache");
+const nodeCache = new NodeCache();
+
+
+
 
 const createProject = async function (req, res) { 
 
@@ -109,10 +115,15 @@ const deleteProjectById = async function (req, res) {
 
 //view all project
  const getallproject = async function (req,res)  {
-  let data = await projectModells.find();
-  res.status(200).json({msg: "All Project", data})
-  
+  let request;
+  if(nodeCache.has("request")){
+      request =JSON.parse(nodeCache.get("request"));
+    }else{
+      request =await projectModells.find();
+      nodeCache.set("request",JSON.stringify(request))
 }
+res.status(200).json({msg: "All Project", data:request})
+ };
 
 
 
