@@ -2,7 +2,8 @@ const { default: mongoose } = require("mongoose");
 
 const vendorSchema= new mongoose.Schema({
     id:{
-        type:String
+        type:String,
+        default:" "
     },
     
 
