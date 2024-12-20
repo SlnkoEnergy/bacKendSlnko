@@ -71,7 +71,6 @@ return res.status(500).json({ msg: 'Failed to save project details.', error: err
 
 
 //update project
-
 const updateProject = async function (req, res) {
   let id = req.params._id; // Project ID from the request params
   let updateData = req.body; // Data to update from the request body
@@ -91,7 +90,6 @@ const updateProject = async function (req, res) {
 
 
 //delete by id
-
 const deleteProjectById = async function (req, res) {
   try {
     const id = req.params._id; // Project ID from the request params
@@ -110,8 +108,7 @@ const deleteProjectById = async function (req, res) {
 
 
 //view all project
-
-const getallproject = async function (req,res)  {
+ const getallproject = async function (req,res)  {
   let data = await projectModells.find();
   res.status(200).json({msg: "All Project", data})
   

@@ -16,6 +16,9 @@ const isoToCustomFormat = (isoDate) => {
   return `${year}-${day}-${month}`;
 };
 
+
+
+//Add-Purchase-Order
 const addPo = async function (req, res) {
   try {
     const { p_id, date, item, other, po_number, po_value, vendor } = req.body;
@@ -27,7 +30,7 @@ const addPo = async function (req, res) {
       return res.status(404).send({ message: "Project not found!" });
     }
 
-    // const p_id = project.p_id;
+   
 
     // Resolve item value
     let resolvedItem = item === "Other" ? other : item;
@@ -77,10 +80,7 @@ const addPo = async function (req, res) {
   }
 };
 
-
-
-
-
+//Edit-Purchase-Order
 const editPO = async function (req, res) {
   let _id = req.params._id;
   let updateData = req.body;
@@ -97,9 +97,7 @@ const editPO = async function (req, res) {
   }
 };
 
-
-
-
+//Get-Purchase-Order
 const getPO = async function (req, res) {
   let id = req.params._id;
   let data = await purchaseOrderModells.findById(id);
@@ -139,10 +137,7 @@ const getallpo = async function (req, res) {
   }
 };
 
-
-
-
-
+//Move-Recovery
 const moverecovery = async function (req,res) {
   const { _id } = req.params._id;
 
@@ -186,7 +181,7 @@ const moverecovery = async function (req,res) {
 
   
 }
-
+ //Export-CSV
 const exportCSV = async function (req, res) {
   try {
     // Fetch data from MongoDB

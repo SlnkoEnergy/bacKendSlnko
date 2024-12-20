@@ -6,7 +6,7 @@ const NodeCache = require("node-cache");
 const nodeCache = new NodeCache();
 
 
-
+// Request payment
 const  payRrequest = async (req, res) => {
   try {
     const {  id,
@@ -292,7 +292,6 @@ const holdpay = async function(req,res) {
       
     });
     await holdPayment.save();
-
     return res.status(200).json({ msg: 'Hold Payment requested successfully', holdPayment });
   } catch (error) {
     console.error(error);
@@ -300,6 +299,9 @@ const holdpay = async function(req,res) {
   }
 
 };
+
+
+
 
 //get alll pay summary
 const getPaySummary =async (req,res) => {
@@ -310,10 +312,13 @@ const getPaySummary =async (req,res) => {
     request =await payRequestModells.find();
     nodeCache.set("request",JSON.stringify(request))
 }
+res.status(200).json({msg:"all-pay-summary",data:request})
+  };
 
-  res.status(200).json({msg:"all-pay-summary",data:request})
-  
-};
+
+
+
+
 
 //get all hold pay
 const hold = async function(req,res) {
@@ -323,6 +328,9 @@ const hold = async function(req,res) {
 };
 
 
+
+
+//Account matched
  const account_matched = async function (req,res) {
   const { pay_id,  acc_number, ifsc } = req.body;
   try {
@@ -350,6 +358,10 @@ const hold = async function(req,res) {
   }
 };
 
+
+
+
+//Update UTR number
  const utrUpdate = async function (req,res) {
   const { pay_id, utr } = req.body;
   try {
