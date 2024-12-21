@@ -92,13 +92,31 @@ const subtractmoney = async function (req, res) {
       });
     }
   };
+
+
+  const getsubtractMoney = async function (req, res) {
+    try {
+      const data = await subtractModells.find();
+      return res.status(200).json({
+        msg: "Debited amount fetched successfully",
+        data: data,
+      });
+    } catch (error) {
+      console.error("Error:", error.message);
+      return res.status(500).json({
+        msg: "Failed to fetch debited amount. Please try again.",
+        error: error.message,
+      });
+    }
+  }
   
 
   
   
 
   module.exports = {
-  subtractmoney
+  subtractmoney,
+  getsubtractMoney,
   };
   
   

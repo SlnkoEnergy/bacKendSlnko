@@ -24,7 +24,7 @@ const { additem, getItem }= require("../Controllers/itemController");
 const{ payRrequest, holdpay, getPaySummary, hold, account_matched, utrUpdate }=require("../Controllers/payRequestControllers");
 
 const { addBill, getBill, updatebill }=require("../Controllers/billController");
-const{ subtractmoney }=require("../Controllers/subtractMoneyController")
+const{ subtractmoney, getsubtractMoney }=require("../Controllers/subtractMoneyController")
 
 
 
@@ -111,5 +111,6 @@ router.put("/update-bill/:_id",updatebill);
 
 //subtractmoney-debitmoney
 router.post("/debit-money",subtractmoney);
+router.get("/get-subtract-amount",getsubtractMoney);
 
 module.exports = router;
