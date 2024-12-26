@@ -78,8 +78,8 @@ const forgettpass = async function (req, res) {
     const transport = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.USER,
-        pass: process.env.PASS,
+        user: process.env.USER || "it@slnkoenergy.com",
+        pass: process.env.PASS || "zkst bdhq jsno aedn",
       },
     });
 
@@ -254,8 +254,8 @@ const verifyandSendPass = async (req, res) => {
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.USER,
-        pass: process.env.PASS,
+        user: process.env.USER || "it@slnkoenergy.com",
+        pass: process.env.PASS || "zkst bdhq jsno aedn",
       },
     });
 
