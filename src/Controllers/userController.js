@@ -81,8 +81,8 @@ const forgettpass = async function (req, res) {
       secure: true,
       service: "gmail",
       auth: {
-        user: process.env.USER || "it@slnkoenergy.com",
-        pass: process.env.PASS || "zkst bdhq jsno aedn",
+        user: "it@slnkoenergy.com",
+        pass: "zkst bdhq jsno aedn",
       },
     });
 
@@ -260,8 +260,8 @@ const verifyandSendPass = async (req, res) => {
       secure: true,
       service: "gmail",
       auth: {
-        user: process.env.USER || "it@slnkoenergy.com",
-        pass: process.env.PASS || "zkst bdhq jsno aedn",
+        user: "it@slnkoenergy.com",
+        pass:  "zkst bdhq jsno aedn",
       },
     });
 
