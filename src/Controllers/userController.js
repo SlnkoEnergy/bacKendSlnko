@@ -78,7 +78,7 @@ const forgettpass = async function (req, res) {
     const transport = nodemailer.createTransport({
       host: "smtp.hostinger.com", 
       port: 465, 
-      secure: true,
+      secure: false,
       service: "gmail",
       auth: {
         user: "it@slnkoenergy.com",
@@ -257,7 +257,7 @@ const verifyandSendPass = async (req, res) => {
     const transporter = nodemailer.createTransport({
       host: "smtp.hostinger.com", 
       port: 465, 
-      secure: true,
+      secure: false,
       service: "gmail",
       auth: {
         user: "it@slnkoenergy.com",
