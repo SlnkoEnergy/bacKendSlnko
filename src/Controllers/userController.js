@@ -76,6 +76,9 @@ const forgettpass = async function (req, res) {
 
     // Configure the email transporter
     const transport = nodemailer.createTransport({
+      host: "smtp.hostinger.com", 
+  port: 465, 
+  secure: true,
       service: "gmail",
       auth: {
         user: process.env.USER || "it@slnkoenergy.com",
@@ -252,6 +255,9 @@ const verifyandSendPass = async (req, res) => {
 
     // Configure email transporter
     const transporter = nodemailer.createTransport({
+      host: "smtp.hostinger.com", 
+      port: 465, 
+      secure: true,
       service: "gmail",
       auth: {
         user: process.env.USER || "it@slnkoenergy.com",
