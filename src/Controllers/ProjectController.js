@@ -115,15 +115,16 @@ const deleteProjectById = async function (req, res) {
 
 //view all project
  const getallproject = async function (req,res)  {
-  let request;
-  if(nodeCache.has("request")){
-      request =JSON.parse(nodeCache.get("request"));
-    }else{
-      request =await projectModells.find();
-      nodeCache.set("request",JSON.stringify(request))
+  // let request;
+  // if(nodeCache.has("request")){
+  //     request =JSON.parse(nodeCache.get("request"));
+  //   }else{
+      let data = await projectModells.find();
+      res.status(200).json({msg: "All Project", data:data})
+      
 }
-res.status(200).json({msg: "All Project", data:request})
- };
+
+ 
 
 
 
