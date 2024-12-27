@@ -29,7 +29,7 @@ const db = process.env.db;
 // Function to start the server in each worker process
 const startServer = () => {
   // Connect to MongoDB using Mongoose
-  mongoose.connect(process.env.db || "mongodb+srv://it:slnkoEnergy@cluster0.nj3x6.mongodb.net/slnko?retryWrites=true&w=majority&appName=Cluster0")
+  mongoose.connect(process.env.db )
     
     .then(() => console.log("SlnkoEnergy database is connected"))
     .catch((err) => console.log("Database connection error: ", err));
@@ -40,7 +40,7 @@ const startServer = () => {
  
 
   // Start the server on the specified port (or default to 8080)
-  app.listen( process.env.PORT || 8080 , function () {
+  app.listen( process.env.PORT, function () {
     console.log(`Slnko app is running on port ${process.env.PORT}`);
   });
 
