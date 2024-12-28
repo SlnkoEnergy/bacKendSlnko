@@ -2,7 +2,7 @@ const { default: mongoose } = require("mongoose");
 
 const projectSchema = new mongoose.Schema(
   {
-    p_id: { type: String, default:" " },
+    p_id: { type: Number, default:" " },
     customer: { type: String, default:" " },
     name: { type: String, default:" "  },
     p_group: { type: String },
