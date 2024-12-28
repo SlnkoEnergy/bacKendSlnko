@@ -114,9 +114,8 @@ const deleteProjectById = async function (req, res) {
 
 //view all project
  const getallproject = async function (req,res)  {
-
-      let data = await projectModells.find();
-      res.status(200).json({msg: "All Project", data:data})
+let data = await projectModells.find();
+res.status(200).json({msg: "All Project", data:data})
       
 }
 

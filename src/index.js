@@ -27,48 +27,85 @@ const PORT = process.env.PORT;
 const db = process.env.db;
 
 // Function to start the server in each worker process
-const startServer = () => {
-  // Connect to MongoDB using Mongoose
-  mongoose.connect(process.env.db )
+// const startServer = () => {
+//   // Connect to MongoDB using Mongoose
+//   mongoose.connect(process.env.db,{
+  
+//   } )
     
-    .then(() => console.log("SlnkoEnergy database is connected"))
-    .catch((err) => console.log("Database connection error: ", err));
+//     .then(() => console.log("SlnkoEnergy database is connected"))
+//     .catch((err) => console.log("Database connection error: ", err));
 
-  // Use routes defined in the `routes` module
-  app.use("/v1", routes);
+//   // Use routes defined in the `routes` module
+//   app.use("/v1", routes);
 
  
 
-  // Start the server on the specified port (or default to 8080)
-  app.listen( process.env.PORT, function () {
-    console.log(`Slnko app is running on port ${process.env.PORT}`);
-  });
+//   // Start the server on the specified port (or default to 8080)
+//   app.listen( process.env.PORT, function () {
+//     console.log(`Slnko app is running on port ${process.env.PORT}`);
+//   });
 
-  // Gracefully handle shutdown on SIGINT (Ctrl+C)
-  process.on("SIGINT", () => {
-    console.log("Gracefully shutting down...");
-    mongoose.connection.close(() => {
-      console.log("MongoDB connection closed");
-      process.exit(0);
+//   // Gracefully handle shutdown on SIGINT (Ctrl+C)
+//   process.on("SIGINT", () => {
+//     console.log("Gracefully shutting down...");
+//     mongoose.connection.close(() => {
+//       console.log("MongoDB connection closed");
+//       process.exit(0);
+//     });
+//   });
+// };
+
+// // If the current process is the master, fork workers
+// if (cluster.isMaster) {
+//   console.log(`Master process is running on PID: ${process.pid}`);
+
+//   // Fork workers based on the number of CPU cores
+//   for (let i = 0; i < numCPUs; i++) {
+//     cluster.fork(); // Creates a new worker
+//   }
+
+//   // Listen for dying workers and respawn them
+//   cluster.on("exit", (worker, code, signal) => {
+//     console.log(`Worker ${worker.process.pid} died`);
+//     cluster.fork(); // Fork a new worker when one dies
+//   });
+// } else {
+//   // If this is a worker, start the server
+//   startServer();
+// }
+
+
+
+const startServer = async () => {
+  try {
+    // Connect to MongoDB using Mongoose
+    await mongoose.connect(db, {
+     
     });
-  });
+    console.log("SlnkoEnergy database is connected");
+
+    // Use routes defined in the `routes` module
+    app.use("/v1", routes);
+
+    // Start the server
+    app.listen(PORT, () => {
+      console.log(`Slnko app is running on port ${PORT}`);
+    });
+
+    // Gracefully handle shutdown on SIGINT (Ctrl+C)
+    process.on("SIGINT", () => {
+      console.log("Gracefully shutting down...");
+      mongoose.connection.close(() => {
+        console.log("MongoDB connection closed");
+        process.exit(0);
+      });
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
 };
 
-// If the current process is the master, fork workers
-if (cluster.isMaster) {
-  console.log(`Master process is running on PID: ${process.pid}`);
-
-  // Fork workers based on the number of CPU cores
-  for (let i = 0; i < numCPUs; i++) {
-    cluster.fork(); // Creates a new worker
-  }
-
-  // Listen for dying workers and respawn them
-  cluster.on("exit", (worker, code, signal) => {
-    console.log(`Worker ${worker.process.pid} died`);
-    cluster.fork(); // Fork a new worker when one dies
-  });
-} else {
-  // If this is a worker, start the server
-  startServer();
-}
+// Start the server
+startServer();
