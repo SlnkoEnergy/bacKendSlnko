@@ -5,7 +5,7 @@ const cluster = require("cluster");
 const os = require("os");
 const app = express();
 const routes = require("../src/Routes/routes");
-const numCPUs = os.cpus().length;
+//const numCPUs = os.cpus().length;
 
 const cors = require("cors");
 const { config } = require("dotenv");
