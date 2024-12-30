@@ -2,7 +2,9 @@ const payRequestModells = require("../Modells/payRequestModells");
 const projectModells =require("../Modells/projectModells");
 const holdPayment = require("../Modells/holdPaymentModells");
 const holdPaymentModells = require("../Modells/holdPaymentModells");
-
+const vendorModells = require("../Modells/vendorModells");
+const purchaseOrderModells = require("../Modells/purchaseOrderModells");
+const { get } = require("mongoose");
 
 
 // Request payment
@@ -34,6 +36,7 @@ const  payRrequest = async (req, res) => {
       utr,
       total_advance_paid,
       other,
+      code,
       comment, } = req.body;
 
     // Check if pay_id exists
@@ -44,20 +47,41 @@ const  payRrequest = async (req, res) => {
 
 
     // Get project details by project ID
-    const project = await projectModells.find({ p_id:p_id });
+    const project = await projectModells.findOne({ $or :[
+      { p_id: p_id },
+      { code: code }
+    ]});
     if (!project) {
       return res.status(400).json({ msg: 'Project ID is invalid!' });
     }
+
+    if (!project.code) {
+      return res.status(400).json({ msg: 'Project code not found!' });
+    }
+
+    console.log("Project code:", project.code);  // Debugging log
+
 
     // Validation: Amount paid should not exceed PO value
     if (amount_paid > po_value) {
       return res.status(400).json({ msg: 'Requested Amount is greater than PO Value!' });
     }
+    const projectCode = project.code; // Assuming `code` is a field in projectModells
 
+    // Generate random three-digit code
+    const randomCode = Math.floor(100 + Math.random() * 900); // Random 3-digit number
+
+    // Append the random code to the project code to form modified p_id
+    const modifiedPId = `${projectCode}/${randomCode}`;
+    console.log("Modified p_id:", modifiedPId);
+
+      
+   
+  
     // Insert new payment request
     const newPayment = new payRequestModells({ 
       id,
-      p_id,
+      p_id:modifiedPId,
       pay_id,
       pay_type,
       amount_paid,
@@ -310,9 +334,22 @@ const getPaySummary =async (req,res) => {
 res.status(200).json({msg:"all-pay-summary",data:request})
   };
 
+//get vendor by-id
+// const getVendorById = async function (req, res) {
+//   const { id } = req.params;
+//   console.log(id);
+//   try {
+//     const vendor = await vendorModells.findById(id);
+//     if (vendor) {
+//       res.status(200).json({ msg: 'Vendor details', data: vendor });
+//     } else {
+//       res.status(404).json({ msg: 'Vendor not found' });
+//     }
+//     }catch (error) {
+//       console.error(error);
+//       res.status(500).json({ msg: 'Error fetching vendor details' });};
 
-
-
+//     };
 
 
 //get all hold pay
@@ -404,6 +441,7 @@ const hold = async function(req,res) {
     hold,
     account_matched,
     utrUpdate,
+    // getVendorById,
 
     
   }
