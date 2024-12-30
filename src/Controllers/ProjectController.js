@@ -80,19 +80,37 @@ return res.status(500).json({ msg: 'Failed to save project details.', error: err
 
 //update project
 const updateProject = async function (req, res) {
-  let id = req.params._id; // Project ID from the request params
-  let updateData = req.body; // Data to update from the request body
+  const { _id } = req.params; // Extracting Project ID from the request params
+  const updateData = req.body; // Extracting data to update from the request body
+
+  // Validate input
+  if (!_id) {
+    return res.status(400).json({ msg: "Project ID is required." });
+  }
+
+  if (!updateData || Object.keys(updateData).length === 0) {
+    return res.status(400).json({ msg: "No update data provided." });
+  }
 
   try {
-    let update = await projectModells.findByIdAndUpdate(id, updateData, {
-      new: true,
+    // Find and update the project
+    const updatedProject = await projectModells.findByIdAndUpdate(_id, updateData, {
+      new: true, // Return the updated document
+      runValidators: true, // Ensure validation rules are applied
     });
+
+    if (!updatedProject) {
+      return res.status(404).json({ msg: "Project not found." });
+    }
+
+    // Respond with the updated project data
     res.status(200).json({
       msg: "Project updated successfully",
-      data: update, // Send back the updated project data
+      data: updatedProject,
     });
   } catch (error) {
-    res.status(400).json({ msg: "Server error", error: error.message });
+    // Catch and handle any errors
+    res.status(500).json({ msg: "Server error", error: error.message });
   }
 };
 
