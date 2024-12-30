@@ -31,14 +31,17 @@ const createProject = async function (req, res) {
   service,
 } = req.body;
 
-// Validation: Ensure required fields are present
-// if (!p_id || !customer || !name) {
-//   return res.status(400).json({ msg: 'p_id, customer, and name are required fields!' });
-// }
+const lastProject = await projectModells.findOne().sort({ p_id: -1 }).exec();
+const newPId = lastProject ? parseInt(lastProject.p_id, 10) + 1 : 1;
 
+const checkProject = await projectModells.findOne({code: code});{
+  if (checkProject) {
+    return res.status(400).json({ msg: "Project code already exists!" });
+  }
+}
 // Create a new project instance
 const newProject = new projectModells({
-  p_id,
+  p_id:newPId.toString().padStart(6, '0'),
   customer,
   name,
   p_group,
