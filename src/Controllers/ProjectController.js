@@ -9,7 +9,7 @@ const createProject = async function (req, res) {
 
   try{
   const {
-  p_id,
+
   customer,
   name,
   p_group,
