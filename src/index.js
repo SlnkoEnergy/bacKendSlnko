@@ -2,7 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cluster = require("cluster");
 //require("dotenv").config();
-const os = require("os");
+//const os = require("os");
 const app = express();
 const routes = require("../src/Routes/routes");
 //const numCPUs = os.cpus().length;
@@ -15,7 +15,7 @@ const Option = {
 
 config({
   path: "./.env"
-})
+});
 
 app.use(cors(Option));
 app.use(express.json());
