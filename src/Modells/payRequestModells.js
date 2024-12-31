@@ -27,7 +27,7 @@ const payRequestschema = new mongoose.Schema(
     branch: { type: String },
     created_on: { type: String, default: Date.now },
     submitted_by: { type: String },
-    approved: { type: String },
+    approved: { type: String,enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending'},
     disable: { type: String },
     acc_match: { type: String },
     utr: { type: Number },

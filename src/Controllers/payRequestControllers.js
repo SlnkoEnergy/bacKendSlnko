@@ -392,6 +392,46 @@ const hold = async function(req,res) {
 
 
 
+const acc_Approved = async function (req,res) {
+  const { pay_id, status } = req.body;
+  if (!pay_id || !status || !['Approved', 'Rejected'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid p_id or status' });
+  }
+
+  try {
+    // Find the payment request with the given p_id and an 'approved' status of 'Pending'
+    const payment = await payRequestModells.findOne({ pay_id, approved: 'Pending' });
+
+    // If no matching payment request is found, return a 404 error
+    if (!payment) {
+      return res.status(404).json({ message: 'No matching record found or record already approved' });
+    }
+
+    // Update the 'approved' field to the status (matched/rejected)
+    payment.approved = status;
+
+    // Save the updated payment request
+    await payment.save();
+
+    // Return a success response
+    return res.status(200).json({ message: 'Approval status updated', data: payment });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
+
+  
+
+ 
+   
+
+
+
+
+
 
 //Update UTR number
  const utrUpdate = async function (req,res) {
@@ -441,6 +481,7 @@ const hold = async function(req,res) {
     hold,
     account_matched,
     utrUpdate,
+    acc_Approved,
     // getVendorById,
 
     
