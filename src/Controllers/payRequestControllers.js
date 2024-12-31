@@ -73,7 +73,7 @@ const  payRrequest = async (req, res) => {
 
     // Append the random code to the project code to form modified p_id
     const modifiedPId = `${projectCode}/${randomCode}`;
-    console.log("Modified p_id:", modifiedPId);
+    //console.log("Modified p_id:", modifiedPId);
 
       
    
@@ -81,8 +81,8 @@ const  payRrequest = async (req, res) => {
     // Insert new payment request
     const newPayment = new payRequestModells({ 
       id,
-      p_id:modifiedPId,
-      pay_id,
+      p_id,
+      pay_id:modifiedPId,
       pay_type,
       amount_paid,
       amt_for_customer,
