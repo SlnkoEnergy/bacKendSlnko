@@ -1,7 +1,9 @@
+require("dotenv").config();
+const fs = require('fs');
+const https = require('https');
 const express = require("express");
 const mongoose = require("mongoose");
 const cluster = require("cluster");
-//require("dotenv").config();
 const os = require("os");
 const app = express();
 const routes = require("../src/Routes/routes");
@@ -10,7 +12,8 @@ const routes = require("../src/Routes/routes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const Option = {
-  origin: "*",
+   key: fs.readFileSync('/etc/letsencrypt/live/api.slnkoprotrac.com/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/api.slnkoprotrac.com/fullchain.pem')
 };
 
 config({
@@ -25,6 +28,10 @@ app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
 const db = process.env.db;
+https.createServer(Option, app).listen(0, '127.0.0.1', () => {
+    console.log('Node.js app is running on https://localhost:5000');
+});
+
 
 // Function to start the server in each worker process
 // const startServer = () => {
