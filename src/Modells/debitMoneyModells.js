@@ -2,7 +2,7 @@ const { default: mongoose } = require("mongoose");
 
 const debitmoneySchema= new mongoose.Schema({
     p_id: {
-        type: String,
+        type: Number,
         
       },
       p_group: {

@@ -4,7 +4,7 @@ const { default: mongoose } = require("mongoose");
 const holdPaymentModells = new mongoose.Schema(
     {
       id: { type: String },
-      p_id: { type: String },
+      p_id: { type: Number },
       pay_id: { type: String },
       pay_type: { type: String },
       amount_paid: { type: String },
