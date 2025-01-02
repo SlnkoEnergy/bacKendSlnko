@@ -41,10 +41,10 @@ const payRrequest = async (req, res) => {
     } = req.body;
 
     // Check if pay_id exists
-    const existingPayment = await payRequestModells.findOne({ pay_id: pay_id });
-    if (existingPayment) {
-      return res.status(400).json({ msg: "Payment ID already used!" });
-    }
+    // const existingPayment = await payRequestModells.findOne({ pay_id: pay_id });
+    // if (existingPayment) {
+    //   return res.status(400).json({ msg: "Payment ID already used!" });
+    // }
 
     // Get project details by project ID
     const project = await projectModells.findOne({
@@ -73,8 +73,15 @@ const payRrequest = async (req, res) => {
 
     // Append the random code to the project code to form modified p_id
     const modifiedPId = `${projectCode}/${randomCode}`;
-    //console.log("Modified p_id:", modifiedPId);
+    
+    let existingPayRequest = await payRequestModells.findOne({ pay_id: modifiedPId });
 
+    while (existingPayRequest) {
+      // If the modifiedPId exists, generate a new one and check again
+      modifiedPId = `${projectCode}/${generateRandomCode()}`;
+      existingPayRequest = await payRequestModells.findOne({ pay_id: modifiedPId });
+    }
+    
     // Insert new payment request
     const newPayment = new payRequestModells({
       id,
