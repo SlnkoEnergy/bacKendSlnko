@@ -55,11 +55,15 @@ const addVendor = async function (req, res) {
   }
 };
 
+
+
 // Get all vendors
 const getVendor = async function (req, res) {
   let data = await vendorModells.find();
   res.status(200).json({ msg: "all vendor", data });
 };
+
+
 module.exports = {
   addVendor,
   getVendor,

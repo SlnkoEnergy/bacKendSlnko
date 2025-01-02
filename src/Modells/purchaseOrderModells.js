@@ -3,7 +3,7 @@ const { default: mongoose } = require("mongoose");
 const purchaseOrderSchema = new mongoose.Schema(
   {
     p_id: {
-      type: String,
+      type: Number,
     },
     offer_Id:{
         type: String,

@@ -1,16 +1,16 @@
 const payRequestModells = require("../Modells/payRequestModells");
-const projectModells =require("../Modells/projectModells");
+const projectModells = require("../Modells/projectModells");
 const holdPayment = require("../Modells/holdPaymentModells");
 const holdPaymentModells = require("../Modells/holdPaymentModells");
 const vendorModells = require("../Modells/vendorModells");
 const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 const { get } = require("mongoose");
 
-
 // Request payment
-const  payRrequest = async (req, res) => {
+const payRrequest = async (req, res) => {
   try {
-    const {  id,
+    const {
+      id,
       p_id,
       pay_id,
       pay_type,
@@ -37,34 +37,34 @@ const  payRrequest = async (req, res) => {
       total_advance_paid,
       other,
       code,
-      comment, } = req.body;
+      comment,
+    } = req.body;
 
     // Check if pay_id exists
-    const existingPayment = await payRequestModells.findOne({ pay_id:pay_id });
+    const existingPayment = await payRequestModells.findOne({ pay_id: pay_id });
     if (existingPayment) {
-      return res.status(400).json({ msg: 'Payment ID already used!' });
+      return res.status(400).json({ msg: "Payment ID already used!" });
     }
 
-
     // Get project details by project ID
-    const project = await projectModells.findOne({ $or :[
-      { p_id: p_id },
-      { code: code }
-    ]});
+    const project = await projectModells.findOne({
+      $or: [{ p_id: p_id }, { code: code }],
+    });
     if (!project) {
-      return res.status(400).json({ msg: 'Project ID is invalid!' });
+      return res.status(400).json({ msg: "Project ID is invalid!" });
     }
 
     if (!project.code) {
-      return res.status(400).json({ msg: 'Project code not found!' });
+      return res.status(400).json({ msg: "Project code not found!" });
     }
 
-    console.log("Project code:", project.code);  // Debugging log
-
+    console.log("Project code:", project.code); // Debugging log
 
     // Validation: Amount paid should not exceed PO value
     if (amount_paid > po_value) {
-      return res.status(400).json({ msg: 'Requested Amount is greater than PO Value!' });
+      return res
+        .status(400)
+        .json({ msg: "Requested Amount is greater than PO Value!" });
     }
     const projectCode = project.code; // Assuming `code` is a field in projectModells
 
@@ -75,14 +75,11 @@ const  payRrequest = async (req, res) => {
     const modifiedPId = `${projectCode}/${randomCode}`;
     //console.log("Modified p_id:", modifiedPId);
 
-      
-   
-  
     // Insert new payment request
-    const newPayment = new payRequestModells({ 
+    const newPayment = new payRequestModells({
       id,
       p_id,
-      pay_id:modifiedPId,
+      pay_id: modifiedPId,
       pay_type,
       amount_paid,
       amt_for_customer,
@@ -107,26 +104,25 @@ const  payRrequest = async (req, res) => {
       total_advance_paid,
       other,
       comment,
-      
-      
-      
     });
     await newPayment.save();
 
-    return res.status(200).json({ msg: 'Payment requested successfully', newPayment });
+    return res
+      .status(200)
+      .json({ msg: "Payment requested successfully", newPayment });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ msg: 'Failed to request payment. Please try again.', error: error.message });
+    return res
+      .status(500)
+      .json({
+        msg: "Failed to request payment. Please try again.",
+        error: error.message,
+      });
   }
 };
 
-
-
-
-
-
 // const recoverypay= async function (req,res) {
-  
+
 // try {
 //   const { _id } = req.params._id;
 //     const deleted = await payRequestModells.findOneAndReplace( _id);
@@ -229,60 +225,10 @@ const  payRrequest = async (req, res) => {
 //   }
 // };
 
-
-//Hold payment 
-const holdpay = async function(req,res) {
-
-  try{
-  const{
-    id,
-    p_id,
-    pay_id,
-    pay_type,
-    amount_paid,
-    amt_for_customer,
-    dbt_date,
-    paid_for,
-    vendor,
-    po_number,
-    po_value,
-    po_balance,
-    pay_mode,
-    paid_to,
-    ifsc,
-    benificiary,
-    acc_number,
-    branch,
-    created_on,
-    submitted_by,
-    approved,
-    disable,
-    acc_match,
-    utr,
-    total_advance_paid,
-    other,
-    comment,
-
-  }=req.body;
-
-  const existingPayment = await payRequestModells.findOne({ pay_id:pay_id });
-    if (existingPayment) {
-      return res.status(400).json({ msg: 'Payment ID already used!' });
-    }
-
-
-    // Get project details by project ID
-    const project = await projectModells.find({ p_id:p_id });
-    if (!project) {
-      return res.status(400).json({ msg: 'Project ID is invalid!' });
-    }
-
-    // Validation: Amount paid should not exceed PO value
-    if (amount_paid > po_value) {
-      return res.status(400).json({ msg: 'Requested Amount is greater than PO Value!' });
-    }
-
-    const holdPayment = new holdPaymentModells({ 
+//Hold payment
+const holdpay = async function (req, res) {
+  try {
+    const {
       id,
       p_id,
       pay_id,
@@ -310,29 +256,76 @@ const holdpay = async function(req,res) {
       total_advance_paid,
       other,
       comment,
-      
-      
-      
+    } = req.body;
+
+    const existingPayment = await payRequestModells.findOne({ pay_id: pay_id });
+    if (existingPayment) {
+      return res.status(400).json({ msg: "Payment ID already used!" });
+    }
+
+    // Get project details by project ID
+    const project = await projectModells.find({ p_id: p_id });
+    if (!project) {
+      return res.status(400).json({ msg: "Project ID is invalid!" });
+    }
+
+    // Validation: Amount paid should not exceed PO value
+    if (amount_paid > po_value) {
+      return res
+        .status(400)
+        .json({ msg: "Requested Amount is greater than PO Value!" });
+    }
+
+    const holdPayment = new holdPaymentModells({
+      id,
+      p_id,
+      pay_id,
+      pay_type,
+      amount_paid,
+      amt_for_customer,
+      dbt_date,
+      paid_for,
+      vendor,
+      po_number,
+      po_value,
+      po_balance,
+      pay_mode,
+      paid_to,
+      ifsc,
+      benificiary,
+      acc_number,
+      branch,
+      created_on,
+      submitted_by,
+      approved,
+      disable,
+      acc_match,
+      utr,
+      total_advance_paid,
+      other,
+      comment,
     });
     await holdPayment.save();
-    return res.status(200).json({ msg: 'Hold Payment requested successfully', holdPayment });
+    return res
+      .status(200)
+      .json({ msg: "Hold Payment requested successfully", holdPayment });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ msg: 'Failed to request hold payment. Please try again.', error: error.message });
+    return res
+      .status(500)
+      .json({
+        msg: "Failed to request hold payment. Please try again.",
+        error: error.message,
+      });
   }
-
 };
 
-
-
-
 //get alll pay summary
-const getPaySummary =async (req,res) => {
- 
-   let request =await payRequestModells.find();
-   
-res.status(200).json({msg:"all-pay-summary",data:request})
-  };
+const getPaySummary = async (req, res) => {
+  let request = await payRequestModells.find();
+
+  res.status(200).json({ msg: "all-pay-summary", data: request });
+};
 
 //get vendor by-id
 // const getVendorById = async function (req, res) {
@@ -351,60 +344,61 @@ res.status(200).json({msg:"all-pay-summary",data:request})
 
 //     };
 
-
 //get all hold pay
-const hold = async function(req,res) {
+const hold = async function (req, res) {
   let data = await holdPaymentModells.find();
-  res.status(200).json({msg:"Hold Payment Status",data})
-  
+  res.status(200).json({ msg: "Hold Payment Status", data });
 };
 
-
-
-
 //Account matched
- const account_matched = async function (req,res) {
-  const { pay_id,  acc_number, ifsc } = req.body;
+const account_matched = async function (req, res) {
+  const { pay_id, acc_number, ifsc } = req.body;
   try {
     const payment = await payRequestModells.findOneAndUpdate(
       { pay_id, acc_number, ifsc }, // Matching criteria
-      { $set: { acc_match: 'matched' } }, // Update action
+      { $set: { acc_match: "matched" } }, // Update action
       { new: true } // Return the updated document
     );
 
     if (payment) {
       res.status(200).json({
-        message: 'Account matched successfully!',
+        message: "Account matched successfully!",
         data: payment,
       });
     } else {
       res.status(404).json({
-        message: 'No matching record found.',
+        message: "No matching record found.",
       });
     }
   } catch (error) {
     console.error(error);
     res.status(500).json({
-      message: 'An error occurred while matching the account.',
+      message: "An error occurred while matching the account.",
     });
   }
 };
 
-
 // account approved
-const accApproved = async function (req,res) {
+const accApproved = async function (req, res) {
   const { pay_id, status } = req.body;
-  if (!pay_id || !status || !['Approved', 'Rejected'].includes(status)) {
-    return res.status(400).json({ message: 'Invalid p_id or status' });
+  if (!pay_id || !status || !["Approved", "Rejected"].includes(status)) {
+    return res.status(400).json({ message: "Invalid p_id or status" });
   }
 
   try {
     // Find the payment request with the given p_id and an 'approved' status of 'Pending'
-    const payment = await payRequestModells.findOne({ pay_id, approved: 'Pending' });
+    const payment = await payRequestModells.findOne({
+      pay_id,
+      approved: "Pending",
+    });
 
     // If no matching payment request is found, return a 404 error
     if (!payment) {
-      return res.status(404).json({ message: 'No matching record found or record already approved' });
+      return res
+        .status(404)
+        .json({
+          message: "No matching record found or record already approved",
+        });
     }
 
     // Update the 'approved' field to the status (matched/rejected)
@@ -414,60 +408,63 @@ const accApproved = async function (req,res) {
     await payment.save();
 
     // Return a success response
-    return res.status(200).json({ message: 'Approval status updated', data: payment });
+    return res
+      .status(200)
+      .json({ message: "Approval status updated", data: payment });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-
-
-
 //Update UTR number
- const utrUpdate = async function (req,res) {
+const utrUpdate = async function (req, res) {
   const { pay_id, utr } = req.body;
   try {
     const payment = await payRequestModells.findOneAndUpdate(
-      { pay_id, acc_match: 'matched' }, // Matching criteria
+      { pay_id, acc_match: "matched" }, // Matching criteria
       { $set: { utr } }, // Update action
       { new: true } // Return the updated document
     );
 
     if (payment) {
       res.status(200).json({
-        message: 'UTR number updated successfully!',
+        message: "UTR number updated successfully!",
         data: payment,
       });
     } else {
       res.status(404).json({
-        message: 'No matching record found or account not matched.',
+        message: "No matching record found or account not matched.",
       });
     }
   } catch (error) {
     console.error(error);
     res.status(500).json({
-      message: 'An error occurred while updating the UTR number.',
+      message: "An error occurred while updating the UTR number.",
     });
   }
 };
 
-  //new-appov-account
+//new-appov-account
 
-   const newAppovAccount = async function (req, res) {
-    const { pay_id, status } = req.body;
-    const isValidRequest = (pay_id, status) => pay_id && status && ['Approved', 'Rejected'].includes(status);
-  
+const newAppovAccount = async function (req, res) {
+  const { pay_id, status } = req.body;
+  const isValidRequest = (pay_id, status) =>
+    pay_id && status && ["Approved", "Rejected"].includes(status);
+
   if (!isValidRequest(pay_id, status)) {
-    return res.status(400).json({ message: 'Invalid p_id or status' });
+    return res.status(400).json({ message: "Invalid p_id or status" });
   }
   try {
     // Fetch the payment with the provided pay_id and 'Pending' approval status
-    const payment = await payRequestModells.findOne({ pay_id, approved: 'Pending' });
+    const payment = await payRequestModells.findOne({
+      pay_id,
+      approved: "Pending",
+    });
 
     // Early return if no matching record is found
     if (!payment) {
-      return res.status(404).json({ message: ' record already approved' });
+      return res.status(404).json({ message: " record already approved" });
     }
 
     // Update approval status
@@ -477,42 +474,23 @@ const accApproved = async function (req,res) {
     await payment.save();
 
     // Send a success response with the updated payment
-    return res.status(200).json({ message: 'Approval status updated', data: payment });
-
+    return res
+      .status(200)
+      .json({ message: "Approval status updated", data: payment });
   } catch (error) {
-    console.error('Error updating payment approval status:', error);
-    return res.status(500).json({ message: 'Server error' });
+    console.error("Error updating payment approval status:", error);
+    return res.status(500).json({ message: "Server error" });
   }
+};
 
-
-   }
- 
-  
-
-
-
-
-
-  
-
-
-
-
-
-  module.exports={
-    payRrequest,holdpay,
-    getPaySummary,
-    hold,
-    account_matched,
-    utrUpdate,
-    accApproved,
-    // getVendorById,
-    newAppovAccount 
-
-    
-  }
-
-
-
-    
-    
+module.exports = {
+  payRrequest,
+  holdpay,
+  getPaySummary,
+  hold,
+  account_matched,
+  utrUpdate,
+  accApproved,
+  // getVendorById,
+  newAppovAccount,
+};
