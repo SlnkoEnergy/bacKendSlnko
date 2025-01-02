@@ -391,7 +391,7 @@ const hold = async function(req,res) {
 };
 
 
-
+// account approved
 const accApproved = async function (req,res) {
   const { pay_id, status } = req.body;
   if (!pay_id || !status || !['Approved', 'Rejected'].includes(status)) {
@@ -420,15 +420,6 @@ const accApproved = async function (req,res) {
     return res.status(500).json({ message: 'Server error' });
   }
 };
-
-
-
-  
-
- 
-   
-
-
 
 
 
@@ -461,7 +452,40 @@ const accApproved = async function (req,res) {
   }
 };
 
+  //new-appov-account
+
+   const newAppovAccount = async function (req, res) {
+    const { pay_id, status } = req.body;
+    const isValidRequest = (pay_id, status) => pay_id && status && ['Approved', 'Rejected'].includes(status);
   
+  if (!isValidRequest(pay_id, status)) {
+    return res.status(400).json({ message: 'Invalid p_id or status' });
+  }
+  try {
+    // Fetch the payment with the provided pay_id and 'Pending' approval status
+    const payment = await payRequestModells.findOne({ pay_id, approved: 'Pending' });
+
+    // Early return if no matching record is found
+    if (!payment) {
+      return res.status(404).json({ message: ' record already approved' });
+    }
+
+    // Update approval status
+    payment.approved = status;
+
+    // Save the updated payment request
+    await payment.save();
+
+    // Send a success response with the updated payment
+    return res.status(200).json({ message: 'Approval status updated', data: payment });
+
+  } catch (error) {
+    console.error('Error updating payment approval status:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+
+
+   }
  
   
 
@@ -483,6 +507,7 @@ const accApproved = async function (req,res) {
     utrUpdate,
     accApproved,
     // getVendorById,
+    newAppovAccount 
 
     
   }
