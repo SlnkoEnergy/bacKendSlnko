@@ -392,7 +392,7 @@ const hold = async function(req,res) {
 
 
 
-const acc_Approved = async function (req,res) {
+const accApproved = async function (req,res) {
   const { pay_id, status } = req.body;
   if (!pay_id || !status || !['Approved', 'Rejected'].includes(status)) {
     return res.status(400).json({ message: 'Invalid p_id or status' });
@@ -481,7 +481,7 @@ const acc_Approved = async function (req,res) {
     hold,
     account_matched,
     utrUpdate,
-    acc_Approved,
+    accApproved,
     // getVendorById,
 
     
