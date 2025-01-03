@@ -430,6 +430,24 @@ const getalluser = async function (req, res) {
   res.status(200).json({ data: user });
 };
 
+
+//get-single-user
+const getSingleUser = async function (req, res) {
+  const userId = req.params._id;
+
+  try {
+    const user = await userModells.findById(userId).select('-otp -otpExpires -password  -id  -duration  -_id');
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ user });
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching user", error: error.message });
+  }
+};
+
 module.exports = {
   userRegister,
   login,
@@ -437,4 +455,5 @@ module.exports = {
   forgettpass,
   verifyandSendPass,
   deleteUser,
+  getSingleUser,
 };

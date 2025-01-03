@@ -15,6 +15,7 @@ const {
    
    verifyandSendPass,
    deleteUser,
+   getSingleUser,
 } = require("../Controllers/userController");
 
 
@@ -43,6 +44,7 @@ router.get("/get-all-user", getalluser);
 router.post("/forget-password-send-otp", forgettpass);
 router.post("/received-email",verifyandSendPass );
 router.delete("/delete-user/:_id",deleteUser);
+router.get("/get-single-user/:_id",getSingleUser)
 
 
 
