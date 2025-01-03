@@ -30,7 +30,7 @@ const payRequestschema = new mongoose.Schema(
     approved: { type: String,enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending'},
     disable: { type: String },
     acc_match: { type: String },
-    utr: { type: Number },
+    utr: { type: String },
     total_advance_paid: { type: String },
     other: { type: String },
     comment: { type: String },
