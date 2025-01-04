@@ -276,7 +276,7 @@ const holdpay = async function (req, res) {
       return res.status(400).json({ msg: "Project ID is invalid!" });
     }
 
-    // Validation: Amount paid should not exceed PO value
+    // Validation: Amount paid should not exceed PO balance
     if (amount_paid > po_balance) {
       return res
         .status(400)
