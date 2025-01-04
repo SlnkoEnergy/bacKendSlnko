@@ -61,10 +61,10 @@ const payRrequest = async (req, res) => {
     console.log("Project code:", project.code); // Debugging log
 
     // Validation: Amount paid should not exceed PO value
-    if (amount_paid > po_value) {
+    if (amount_paid > po_balance) {
       return res
         .status(400)
-        .json({ msg: "Requested Amount is greater than PO Value!" });
+        .json({ msg: "Requested Amount is greater than PO Balance!" });
     }
     const projectCode = project.code; // Assuming `code` is a field in projectModells
 
