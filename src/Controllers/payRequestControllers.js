@@ -277,10 +277,10 @@ const holdpay = async function (req, res) {
     }
 
     // Validation: Amount paid should not exceed PO value
-    if (amount_paid > po_value) {
+    if (amount_paid > po_balance) {
       return res
         .status(400)
-        .json({ msg: "Requested Amount is greater than PO Value!" });
+        .json({ msg: "Requested Amount is greater than PO_balance!" });
     }
 
     const holdPayment = new holdPaymentModells({
@@ -363,7 +363,7 @@ const account_matched = async function (req, res) {
   try {
     const payment = await payRequestModells.findOneAndUpdate(
       { pay_id, acc_number, ifsc }, // Matching criteria
-      { $set: { acc_match: "matched" } }, // Update action
+      { $set: { acc_match: "matched" }}, // Update action
       { new: true } // Return the updated document
     );
 

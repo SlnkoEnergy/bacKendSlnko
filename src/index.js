@@ -1,4 +1,4 @@
-//  deploy code api.slnkoprotrac.com
+// deploy code api.slnkoprotrac.com
 require("dotenv").config();
 const fs = require('fs');
 const https = require('https');
@@ -130,7 +130,7 @@ startServer();
 // const startServer = async () => {
 // try {
 //   // Connect to MongoDB using Mongoose
-//   await mongoose.connect(db, {
+//   await mongoose.connect("mongodb+srv://itslnkoenergy:slnkoit@protrac.e7wnn.mongodb.net/Protrac-Test?retryWrites=true&w=majority&appName=Protrac", {
     
 //   });
 //   console.log("SlnkoEnergy database is connected");
