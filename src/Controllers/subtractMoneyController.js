@@ -93,7 +93,7 @@ const subtractmoney = async function (req, res) {
     }
   };
 
-
+//get subtract money
   const getsubtractMoney = async function (req, res) {
     try {
       const data = await subtractModells.find();
@@ -110,7 +110,38 @@ const subtractmoney = async function (req, res) {
     }
   }
 
-  
+  //detete debit money
+  const deleteDebitMoney = async function (req, res) {
+      const { _id } = req.params;
+    
+      try {
+        // Use MongoDB's updateOne with $unset to remove fields
+        const updatedDoc = await subtractModells.updateOne(
+          { _id: _id },  // Find document by ID
+          {
+            $unset: {
+              'dbt_date': '',
+              'pay_mode': '',
+              'paid_for': '',
+              'amount_paid': '',
+              "utr": '',
+              "vendor": '',
+
+            }
+          }
+        );
+    
+        if (updatedDoc.nModified === 0) {
+          return res.status(404).json({ message: 'Document not found or no changes made.' });
+        }
+    
+        return res.status(200).json({ message: 'Debit amount deleted successfully.' });
+      } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal Server Error' });
+      }
+   
+}
   
 
   
@@ -119,6 +150,7 @@ const subtractmoney = async function (req, res) {
   module.exports = {
   subtractmoney,
   getsubtractMoney,
+  deleteDebitMoney
   };
   
   

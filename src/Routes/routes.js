@@ -25,7 +25,7 @@ const { additem, getItem }= require("../Controllers/itemController");
 const{ payRrequest, holdpay, getPaySummary, hold, account_matched, utrUpdate,  accApproved, newAppovAccount, deletePayRequestById }=require("../Controllers/payRequestControllers");
 
 const { addBill, getBill, updatebill }=require("../Controllers/billController");
-const{ subtractmoney, getsubtractMoney }=require("../Controllers/subtractMoneyController")
+const{ subtractmoney, getsubtractMoney, deleteDebitMoney }=require("../Controllers/subtractMoneyController")
 
 
 
@@ -118,5 +118,6 @@ router.delete("/delete-credit-amount/:_id",deletecredit);
 //subtractmoney-debitmoney
 router.post("/debit-money",subtractmoney);
 router.get("/get-subtract-amount",getsubtractMoney);
+router.delete("/delete-debit-money/:_id", deleteDebitMoney,);
 
 module.exports = router;
