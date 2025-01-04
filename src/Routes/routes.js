@@ -1,6 +1,6 @@
 var router = require("express").Router();
 
-const { addMoney, getCreditAmount, getAllBill, allbill, credit_amount } = require("../Controllers/addMoneyController");
+const { addMoney, getCreditAmount, getAllBill, allbill, credit_amount, deletecredit } = require("../Controllers/addMoneyController");
 const {
   createProject,
   updateProject,
@@ -22,7 +22,7 @@ const {
 const { addPo, editPO, getPO, getallpo, exportCSV, moverecovery } = require("../Controllers/purchaseOrderController");
 const { addVendor, getVendor } = require("../Controllers/addVenderController");
 const { additem, getItem }= require("../Controllers/itemController");
-const{ payRrequest, holdpay, getPaySummary, hold, account_matched, utrUpdate,  accApproved, newAppovAccount }=require("../Controllers/payRequestControllers");
+const{ payRrequest, holdpay, getPaySummary, hold, account_matched, utrUpdate,  accApproved, newAppovAccount, deletePayRequestById }=require("../Controllers/payRequestControllers");
 
 const { addBill, getBill, updatebill }=require("../Controllers/billController");
 const{ subtractmoney, getsubtractMoney }=require("../Controllers/subtractMoneyController")
@@ -102,6 +102,7 @@ router.put("/acc-matched",account_matched);
 router.put("/utr-update",utrUpdate);
 router.put("/account-approve",accApproved);
 router.put("/approval",newAppovAccount);
+router.delete("/delete-payrequest/:_id",deletePayRequestById);
 // router.get("/get-vendor-single/:_id",getVendorById);
 //router.delete("/remove-payrequest-to-recovery/:_id",moverecovery)
 
@@ -110,7 +111,7 @@ router.put("/approval",newAppovAccount);
 router.post("/add-bill",addBill);
 router.get("/get-all-bill",getBill);
 router.put("/update-bill/:_id",updatebill);
-
+router.delete("/delete-credit-amount/:_id",deletecredit);
 
 
 

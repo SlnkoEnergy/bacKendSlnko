@@ -490,6 +490,24 @@ const newAppovAccount = async function (req, res) {
   }
 };
 
+
+
+const deletePayRequestById = async function (req, res) {
+  try {
+    const { _id } = req.params;
+    const deleted = await payRequestModells.findByIdAndDelete(_id);
+    if (!deleted) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+    res.json({
+      message: "Item deleted successfully",
+      item: deleted,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting item: " + error });
+  }
+};
+
 module.exports = {
   payRrequest,
   holdpay,
@@ -500,4 +518,5 @@ module.exports = {
   accApproved,
   // getVendorById,
   newAppovAccount,
+  deletePayRequestById,
 };
