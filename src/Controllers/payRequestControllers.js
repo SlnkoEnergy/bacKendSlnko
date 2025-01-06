@@ -508,6 +508,53 @@ const deletePayRequestById = async function (req, res) {
   }
 };
 
+// Edit payment request by ID
+
+const editPayRequestById = async function (req, res) {
+  try {
+    const { _id } = req.params;
+    const data = req.body;
+    const updated = await payRequestModells.findByIdAndUpdate(_id, data, {
+      new: true,
+    });
+
+    if (!updated) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    res.json({
+      message: "Item updated successfully",
+      item: updated,
+    });
+  }
+  catch (error) {
+    res.status(500).json({ message: "Error updating item: " + error });
+  }
+};
+
+// Get payment request by ID
+
+const getPayRequestById = async function (req, res) {
+  try {
+    const { _id } = req.params;
+    const data = await payRequestModells.findById(_id);
+
+    if (!data) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    res.json({
+      message: "Item found",
+      item: data,
+    });
+  }
+  catch (error) {
+    res.status(500).json({ message: "Error fetching item: " + error });
+  }
+};
+
+
+
 module.exports = {
   payRrequest,
   holdpay,
@@ -519,4 +566,6 @@ module.exports = {
   // getVendorById,
   newAppovAccount,
   deletePayRequestById,
+  editPayRequestById,
+  getPayRequestById,
 };

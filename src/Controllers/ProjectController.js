@@ -140,7 +140,25 @@ res.status(200).json({msg: "All Project", data:data})
       
 }
 
- 
+//Get Project by ID
+
+const getProjectById = async function (req, res) {
+  try {
+    const id = req.params._id; // Project ID from the request params
+    const project = await projectModells.findById(id);
+
+    if (!project) {
+      return res.status(404).json({ msg: "Project not found!" });
+    }
+
+    res.status(200).json({ msg: "Project found!", data: project });
+  } catch (error) {
+    res.status(500).json({ msg: "Error fetching project", error: error.message });
+  }
+}
+
+
+
 
 
 
@@ -149,4 +167,5 @@ module.exports = {
   updateProject,
   getallproject,
   deleteProjectById,
+  getProjectById,
 };

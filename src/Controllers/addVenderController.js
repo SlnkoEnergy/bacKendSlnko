@@ -63,8 +63,50 @@ const getVendor = async function (req, res) {
   res.status(200).json({ msg: "all vendor", data });
 };
 
+// Update vendor
+
+const updateVendor = async function (req, res) {
+  let _id = req.params._id;
+  let updateData = req.body;
+  try {
+    let update = await vendorModells.findByIdAndUpdate(_id, updateData, {
+      new: true,
+    });
+
+    if(!update){
+      return res.status(404).json({msg:"Vendor not found"})
+    }
+
+    res.status(200).json({
+      msg: "Vendor updated successfully",
+      data: update,
+    });
+  }
+  catch (error) {
+    res.status(400).json({ msg: "Server error", error: error.message });
+  }
+};
+
+// Delete Vendor
+
+const deleteVendor = async function (req, res) {
+   
+  let _id = req.params._id;
+  try {
+    let deleted = await vendorModells.findByIdAndDelete(_id);
+    if (!deleted) {
+      return res.status(404).json({ msg: "Vendor not found" });
+    }
+    res.status(200).json({ msg: "Vendor deleted successfully" });
+  } catch (error) {
+    res.status(400).json({ msg: "Server error", error: error.message });
+  }
+
+};
 
 module.exports = {
   addVendor,
   getVendor,
+  updateVendor,
+  deleteVendor,
 };
