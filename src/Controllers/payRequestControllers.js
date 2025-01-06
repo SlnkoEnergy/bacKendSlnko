@@ -58,14 +58,14 @@ const payRrequest = async (req, res) => {
       return res.status(400).json({ msg: "Project code not found!" });
     }
 
-    console.log("Project code:", project.code); // Debugging log
+   // console.log("Project code:", project.code); // Debugging log
 
     // Validation: Amount paid should not exceed PO value
-    if (amount_paid > po_balance) {
-      return res
-        .status(400)
-        .json({ msg: "Requested Amount is greater than PO Balance!" });
-    }
+    // if (amount_paid > po_balance) {
+    //   return res
+    //     .status(400)
+    //     .json({ msg: "Requested Amount is greater than PO Balance!" });
+    // }
     const projectCode = project.code; // Assuming `code` is a field in projectModells
 
     // Generate random three-digit code
