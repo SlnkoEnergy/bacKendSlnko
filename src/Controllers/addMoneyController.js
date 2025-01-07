@@ -2,9 +2,6 @@ const addMoneyModells = require("../Modells/addMoneyModells");
 const projectModells = require("../Modells/projectModells");
 const { getBill } = require("./billController");
 
-
-
-
 //Add Money
 const addMoney = async function (req, res) {
   try {
@@ -51,8 +48,6 @@ const addMoney = async function (req, res) {
   }
 };
 
-
-
 //get all bill
 
 const allbill = async function (req, res) {
@@ -60,43 +55,42 @@ const allbill = async function (req, res) {
   res.status(200).json({ msg: "all Bill Detail", bill });
 };
 
-
 const deletecredit = async function (req, res) {
   const { _id } = req.params;
 
   try {
     // Use MongoDB's updateOne with $unset to remove fields
     const updatedDoc = await addMoneyModells.updateOne(
-      { _id: _id },  // Find document by ID
+      { _id: _id }, // Find document by ID
       {
         $unset: {
-          'cr_date': '',
-          'cr_mode': '',
-          'cr_amount': ''
-        }
+          cr_date: "",
+          cr_mode: "",
+          cr_amount: "",
+        },
       }
     );
 
     if (updatedDoc.nModified === 0) {
-      return res.status(404).json({ message: 'Document not found or no changes made.' });
+      return res
+        .status(404)
+        .json({ message: "Document not found or no changes made." });
     }
 
-    return res.status(200).json({ message: 'Credit amount deleted successfully.' });
+    return res
+      .status(200)
+      .json({ message: "Credit amount deleted successfully." });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: 'Internal Server Error' });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-
-
 
 //  Credit Amount
 const credit_amount = async function (req, res) {
   const { p_id } = req.body;
 
   try {
-   
     if (!p_id) {
       return res.status(400).json({ message: "p_id is required" });
     }
@@ -157,14 +151,9 @@ const credit_amount = async function (req, res) {
   }
 };
 
-
-
-
-
 module.exports = {
   addMoney,
   allbill,
   credit_amount,
   deletecredit,
-
 };

@@ -58,7 +58,7 @@ const payRrequest = async (req, res) => {
       return res.status(400).json({ msg: "Project code not found!" });
     }
 
-   // console.log("Project code:", project.code); // Debugging log
+    // console.log("Project code:", project.code); // Debugging log
 
     // Validation: Amount paid should not exceed PO value
     // if (amount_paid > po_balance) {
@@ -73,15 +73,19 @@ const payRrequest = async (req, res) => {
 
     // Append the random code to the project code to form modified p_id
     const modifiedPId = `${projectCode}/${randomCode}`;
-    
-    let existingPayRequest = await payRequestModells.findOne({ pay_id: modifiedPId });
+
+    let existingPayRequest = await payRequestModells.findOne({
+      pay_id: modifiedPId,
+    });
 
     while (existingPayRequest) {
       // If the modifiedPId exists, generate a new one and check again
       modifiedPId = `${projectCode}/${generateRandomCode()}`;
-      existingPayRequest = await payRequestModells.findOne({ pay_id: modifiedPId });
+      existingPayRequest = await payRequestModells.findOne({
+        pay_id: modifiedPId,
+      });
     }
-    
+
     // Insert new payment request
     const newPayment = new payRequestModells({
       id,
@@ -119,12 +123,10 @@ const payRrequest = async (req, res) => {
       .json({ msg: "Payment requested successfully", newPayment });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({
-        msg: "Failed to request payment. Please try again.",
-        error: error.message,
-      });
+    return res.status(500).json({
+      msg: "Failed to request payment. Please try again.",
+      error: error.message,
+    });
   }
 };
 
@@ -318,12 +320,10 @@ const holdpay = async function (req, res) {
       .json({ msg: "Hold Payment requested successfully", holdPayment });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({
-        msg: "Failed to request hold payment. Please try again.",
-        error: error.message,
-      });
+    return res.status(500).json({
+      msg: "Failed to request hold payment. Please try again.",
+      error: error.message,
+    });
   }
 };
 
@@ -363,7 +363,7 @@ const account_matched = async function (req, res) {
   try {
     const payment = await payRequestModells.findOneAndUpdate(
       { pay_id, acc_number, ifsc }, // Matching criteria
-      { $set: { acc_match: "matched" }}, // Update action
+      { $set: { acc_match: "matched" } }, // Update action
       { new: true } // Return the updated document
     );
 
@@ -401,11 +401,9 @@ const accApproved = async function (req, res) {
 
     // If no matching payment request is found, return a 404 error
     if (!payment) {
-      return res
-        .status(404)
-        .json({
-          message: "No matching record found or record already approved",
-        });
+      return res.status(404).json({
+        message: "No matching record found or record already approved",
+      });
     }
 
     // Update the 'approved' field to the status (matched/rejected)
@@ -490,8 +488,6 @@ const newAppovAccount = async function (req, res) {
   }
 };
 
-
-
 const deletePayRequestById = async function (req, res) {
   try {
     const { _id } = req.params;
@@ -526,8 +522,7 @@ const editPayRequestById = async function (req, res) {
       message: "Item updated successfully",
       item: updated,
     });
-  }
-  catch (error) {
+  } catch (error) {
     res.status(500).json({ message: "Error updating item: " + error });
   }
 };
@@ -547,13 +542,10 @@ const getPayRequestById = async function (req, res) {
       message: "Item found",
       item: data,
     });
-  }
-  catch (error) {
+  } catch (error) {
     res.status(500).json({ message: "Error fetching item: " + error });
   }
 };
-
-
 
 module.exports = {
   payRrequest,

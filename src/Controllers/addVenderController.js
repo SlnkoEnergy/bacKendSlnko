@@ -13,19 +13,18 @@ const addVendor = async function (req, res) {
 
       Bank_Name,
 
-    
       IFSC_Code,
     } = req.body;
 
     const vendorexist = await vendorModells.findOne({
-      name: name ,
+      name: name,
     });
 
     if (vendorexist) {
       return res.status(400).json({ msg: "Vendor already exists!" });
     }
     const add_vendor = new vendorModells({
-     id,
+      id,
       name,
 
       Beneficiary_Name,
@@ -34,7 +33,6 @@ const addVendor = async function (req, res) {
 
       Bank_Name,
 
-    
       IFSC_Code,
     });
 
@@ -55,8 +53,6 @@ const addVendor = async function (req, res) {
   }
 };
 
-
-
 // Get all vendors
 const getVendor = async function (req, res) {
   let data = await vendorModells.find();
@@ -73,16 +69,15 @@ const updateVendor = async function (req, res) {
       new: true,
     });
 
-    if(!update){
-      return res.status(404).json({msg:"Vendor not found"})
+    if (!update) {
+      return res.status(404).json({ msg: "Vendor not found" });
     }
 
     res.status(200).json({
       msg: "Vendor updated successfully",
       data: update,
     });
-  }
-  catch (error) {
+  } catch (error) {
     res.status(400).json({ msg: "Server error", error: error.message });
   }
 };
@@ -90,7 +85,6 @@ const updateVendor = async function (req, res) {
 // Delete Vendor
 
 const deleteVendor = async function (req, res) {
-   
   let _id = req.params._id;
   try {
     let deleted = await vendorModells.findByIdAndDelete(_id);
@@ -101,7 +95,6 @@ const deleteVendor = async function (req, res) {
   } catch (error) {
     res.status(400).json({ msg: "Server error", error: error.message });
   }
-
 };
 
 module.exports = {
