@@ -7,6 +7,7 @@ const moment = require("moment");
 const { Parser } = require("json2csv");
 const fs = require("fs");
 const path = require("path");
+const { error } = require("console");
 //TO DATE FROMATE
 const isoToCustomFormat = (isoDate) => {
   const date = new Date(isoDate);
@@ -104,6 +105,13 @@ const getPO = async function (req, res) {
   res.status(200).json(data);
 };
 
+
+// get-purchase-order-by p_id
+const getPOByProjectId = async function (req, res) {
+  let {p_id} = req.body;
+  let data = await purchaseOrderModells.find({ p_id:p_id });
+  res.status(200).json({ msg: "All Purchase Orders", data:data});
+};
 
 
 
@@ -226,5 +234,6 @@ module.exports = {
   getallpo,
   exportCSV,
   moverecovery,
+  getPOByProjectId,
 
 };
