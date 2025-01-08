@@ -31,7 +31,7 @@ const holdPaymentModells = new mongoose.Schema(
       approved: { type: String },
       disable: { type: String },
       acc_match: { type: String },
-      utr: { type: Number },
+      utr: { type: String },
       total_advance_paid: { type: String },
       other: { type: String },
       comment: { type: String },
