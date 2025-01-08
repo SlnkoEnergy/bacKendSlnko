@@ -73,7 +73,7 @@ const addPo = async function (req, res) {
       newPO,
     });
   } catch (error) {
-    console.error(error);
+    
     res
       .status(500)
       .send({ message: "An error occurred while processing your request." });

@@ -24,13 +24,13 @@ po_number: {
        default:" ",
     },
     po_value: {
-      type: String,
+      type: Number,
     },
     total_advance_paid: {
       type: String,
     },
     po_balance: {
-      type: String,
+      type: Number,
     },
     vendor: {
       type: String,
@@ -40,7 +40,7 @@ po_number: {
     },
 
     amount_paid: {
-      type: String,
+      type: Number,
     },
     comment: {
       type: String,
