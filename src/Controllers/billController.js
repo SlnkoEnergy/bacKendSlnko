@@ -39,6 +39,10 @@ const addBill = async function (req, res) {
           "Total billed amount exceeds the PO value. Please review the billing details.",
       });
     }
+    const biilnum= await addBillModells.findOne({ bill_number });
+    if (biilnum) {
+      return res.status(400).send({ message: "Bill Number already used!" });
+    }
 
     // Step 4: Save the new bill
     const newBill = new addBillModells({
