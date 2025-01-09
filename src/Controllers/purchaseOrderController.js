@@ -17,21 +17,17 @@ const isoToCustomFormat = (isoDate) => {
   return `${year}-${day}-${month}`;
 };
 
-
-
 //Add-Purchase-Order
 const addPo = async function (req, res) {
   try {
     const { p_id, date, item, other, po_number, po_value, vendor } = req.body;
 
     // Get project ID
-    const project = await projectModells.find({ p_id: p_id });
+    // const project = await projectModells.find({ p_id: p_id });
 
-    if (!project) {
-      return res.status(404).send({ message: "Project not found!" });
-    }
-
-   
+    // if (!project) {
+    //   return res.status(404).send({ message: "Project not found!" });
+    // }
 
     // Resolve item value
     let resolvedItem = item === "Other" ? other : item;
@@ -74,7 +70,6 @@ const addPo = async function (req, res) {
       newPO,
     });
   } catch (error) {
-    
     res
       .status(500)
       .send({ message: "An error occurred while processing your request." });
@@ -105,16 +100,12 @@ const getPO = async function (req, res) {
   res.status(200).json(data);
 };
 
-
 // get-purchase-order-by p_id
 const getPOByProjectId = async function (req, res) {
-  let {p_id} = req.body;
-  let data = await purchaseOrderModells.find({ p_id:p_id });
-  res.status(200).json({ msg: "All Purchase Orders", data:data});
+  let { p_id } = req.body;
+  let data = await purchaseOrderModells.find({ p_id: p_id });
+  res.status(200).json({ msg: "All Purchase Orders", data: data });
 };
-
-
-
 
 //get ALLPO
 const getallpo = async function (req, res) {
@@ -146,13 +137,12 @@ const getallpo = async function (req, res) {
 };
 
 //Move-Recovery
-const moverecovery = async function (req,res) {
+const moverecovery = async function (req, res) {
   const { _id } = req.params._id;
 
   try {
     // Find and delete the item from the main collection
     const deletedItem = await purchaseOrderModells.findOneAndReplace(_id);
-  
 
     if (!deletedItem) {
       return res.status(404).json({ message: "Item not found" });
@@ -176,20 +166,17 @@ const moverecovery = async function (req,res) {
       updated_on: deletedItem.updated_on,
     });
 
-     await recoveryItem.save();
-   
+    await recoveryItem.save();
 
     res.json({
       message: "Item moved to recovery collection successfully",
       item: recoveryItem,
     });
   } catch (error) {
-    res.status(500).json({ message: "Error deleting item" +error });
+    res.status(500).json({ message: "Error deleting item" + error });
   }
-
-  
-}
- //Export-CSV
+};
+//Export-CSV
 const exportCSV = async function (req, res) {
   try {
     // Fetch data from MongoDB
@@ -225,8 +212,6 @@ const exportCSV = async function (req, res) {
   }
 };
 
-
-
 module.exports = {
   addPo,
   editPO,
@@ -235,5 +220,4 @@ module.exports = {
   exportCSV,
   moverecovery,
   getPOByProjectId,
-
 };
