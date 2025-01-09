@@ -116,8 +116,29 @@ const updatebill = async function (req, res) {
   }
 };
 
+//delete-bill
+
+const deleteBill = async function (req, res) {
+  try {
+    let id = req.params._id;
+    let data = await addBillModells.findByIdAndDelete(id);
+    if (!data) {
+      res.status(404).json({ msg: "User Not fornd" });
+    }
+    res.status(200).json({msg:"Bill deleted sucessfully", data});
+      
+    } catch (error) {
+      res.status(400).json({
+        message: "An error occurred while adding the bill.",
+        error: error.message,
+      });
+     
+    }
+}
+
 module.exports = {
   addBill,
   getBill,
   updatebill,
+  deleteBill
 };
