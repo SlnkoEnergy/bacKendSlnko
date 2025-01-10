@@ -5,6 +5,7 @@ const holdPaymentModells = require("../Modells/holdPaymentModells");
 const vendorModells = require("../Modells/vendorModells");
 const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 const { get } = require("mongoose");
+const exccelDataModells = require("../Modells/excelDataModells");
 
 // Request payment
 const payRrequest = async (req, res) => {
@@ -372,6 +373,41 @@ const account_matched = async function (req, res) {
         message: "Account matched successfully!",
         data: payment,
       });
+      const newExcelData = new exccelDataModells({
+        id: payment.id,
+        p_id: payment.p_id,
+        pay_id: payment.pay_id,
+        pay_type: payment.pay_type,
+        amount_paid: payment.amount_paid,
+        amt_for_customer: payment.amt_for_customer,
+        dbt_date: payment.dbt_date,
+        paid_for: payment.paid_for,
+        vendor: payment.vendor,
+        po_number: payment.po_number,
+        po_value: payment.po_value,
+        po_balance: payment.po_balance,
+        pay_mode: payment.pay_mode,
+        paid_to: payment.paid_to,
+        ifsc: payment.ifsc,
+        benificiary: payment.benificiary,
+        acc_number: payment.acc_number,
+        branch: payment.branch,
+        created_on: payment.created_on,
+        submitted_by: payment.submitted_by,
+        approved: payment.approved,
+        disable: payment.disable,
+        acc_match: payment.acc_match,
+        utr: payment.utr,
+        total_advance_paid: payment.total_advance_paid,
+        other: payment.other,
+        comment: payment.comment,
+        status: "Not-paid",
+
+      })
+      await newExcelData.save();
+
+
+
     } else {
       res.status(404).json({
         message: "No matching record found.",
@@ -547,6 +583,45 @@ const getPayRequestById = async function (req, res) {
   }
 };
 
+
+//get exceldaTa
+const excelData = async function (req, res) { 
+  let data = await exccelDataModells.find();
+  res.status(200).json({ msg: "All Excel Data", data: data });    
+};
+
+//update excel data
+const updateExcelData = async function (req, res) {
+  try {
+    const status = req.body; // You aren't actually using this variable in the current function
+
+    // Perform update operation
+    const result = await exccelDataModells.updateMany(
+      { status,status: "Not-paid" }, // Query for documents with status "Not-paid"
+      { $set: { status: "Deleted" } } // Update the status to "Deleted"
+    );
+
+    // Check if any documents were updated
+    if (result.modifiedCount > 0) {
+      // Return success response with the number of modified documents
+      res.json({
+        message: "Deleted successfully",
+        modifiedCount: result.modifiedCount,
+      });
+    } else {
+      res.json({
+        message: "No matching documents found to update. +",
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "An error occurred while updating the item status.",
+    });
+  }
+};
+
+
 module.exports = {
   payRrequest,
   holdpay,
@@ -560,4 +635,6 @@ module.exports = {
   deletePayRequestById,
   editPayRequestById,
   getPayRequestById,
+  excelData,
+  updateExcelData,
 };

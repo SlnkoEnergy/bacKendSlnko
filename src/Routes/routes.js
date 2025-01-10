@@ -55,6 +55,8 @@ const {
   deletePayRequestById,
   editPayRequestById,
   getPayRequestById,
+  excelData,
+  updateExcelData,
 } = require("../Controllers/payRequestControllers");
 
 const {
@@ -126,6 +128,8 @@ router.delete("/delete-payrequest/:_id", deletePayRequestById);
 //router.delete("/remove-payrequest-to-recovery/:_id",moverecovery)
 router.put("/update-pay-request/:_id", editPayRequestById); //update pay request
 router.get("/get-pay-request-id/:_id", getPayRequestById); //get pay request by id
+router.get("/get-exceldata",excelData);
+router.put("/update-excel-data",updateExcelData);
 
 // add-Bill
 router.post("/add-bill", addBill);
