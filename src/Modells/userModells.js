@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema({
         type: Number,
 
     },
+    
     department: {
         type: String,
         trim: true

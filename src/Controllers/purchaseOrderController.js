@@ -212,6 +212,19 @@ const exportCSV = async function (req, res) {
   }
 };
 
+
+
+// edit po
+const deletePO = async function (req, res) {
+  let _id = req.params._id;
+  try {
+    let data = await purchaseOrderModells.findByIdAndDelete(_id);
+    res.status(200).json({ msg: "PO deleted successfully", data });
+  } catch (error) {
+    res.status(400).json({ msg: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   addPo,
   editPO,
@@ -220,4 +233,5 @@ module.exports = {
   exportCSV,
   moverecovery,
   getPOByProjectId,
+  deletePO,
 };
