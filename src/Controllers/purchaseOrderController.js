@@ -2,6 +2,7 @@ const projectModells = require("../Modells/projectModells");
 const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 const iteamModells = require("../Modells/iteamModells");
 const recoveryPurchaseOrder = require("../Modells/recoveryPurchaseOrderModells");
+const pohisttoryModells = require("../Modells/pohistoryModells");
 
 const moment = require("moment");
 const { Parser } = require("json2csv");
@@ -78,12 +79,32 @@ const addPo = async function (req, res) {
 
 //Edit-Purchase-Order
 const editPO = async function (req, res) {
-  let _id = req.params._id;
+  let id= req.params._id;
   let updateData = req.body;
   try {
-    let update = await purchaseOrderModells.findByIdAndUpdate(_id, updateData, {
+    let update = await purchaseOrderModells.findByIdAndUpdate(id, updateData, {
       new: true,
     });
+
+    const pohistory = {
+      po_number: update.po_number,
+      offer_Id: update.offer_Id,
+     // po_number: updatedPO.po_number,
+      date: update.date,
+      item: update.item,
+      other: update.other,
+      po_value: update.po_value,
+      total_advance_paid: update.total_advance_paid,
+      po_balance: update.po_balance,
+      vendor: update.vendor,
+      partial_billing: update.partial_billing,
+      amount_paid: update.amount_paid,
+      comment: update.comment,
+      updated_on: new Date().toISOString(), // Use current time for updated_on field
+      submitted_By: update.submitted_By,
+    }
+    await pohisttoryModells.create(pohistory);
+    
     res.status(200).json({
       msg: "Project updated successfully",
       data: update, // Send back the updated project data
