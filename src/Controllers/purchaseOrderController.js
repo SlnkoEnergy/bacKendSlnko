@@ -192,6 +192,7 @@ const moverecovery = async function (req, res) {
       amount_paid: deletedItem.amount_paid,
       comment: deletedItem.comment,
       updated_on: deletedItem.updated_on,
+      submitted_By: deletedItem.submitted_By,
     });
 
     await recoveryItem.save();

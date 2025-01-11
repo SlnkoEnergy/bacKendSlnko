@@ -7,6 +7,8 @@ const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 const { get } = require("mongoose");
 const exccelDataModells = require("../Modells/excelDataModells");
 
+
+
 // Request payment
 const payRrequest = async (req, res) => {
   try {
@@ -131,109 +133,8 @@ const payRrequest = async (req, res) => {
   }
 };
 
-// const recoverypay= async function (req,res) {
 
-// try {
-//   const { _id } = req.params._id;
-//     const deleted = await payRequestModells.findOneAndReplace( _id);
-//     console.log(deletedItem);
-//      if (!deletedItem) {
-//       return res.status(404).json({ message: "Item not found" });
-//     }
-// const recoveryItemData = new recoverPayModells({
-//       id: deleted.id,
-//       p_id: deleted.p_id,
-//       pay_id: deleted.pay_id,
-//       pay_type: deleted.pay_type,
-//       amount_paid: deleted.amount_paid,
-//       amt_for_customer: deleted.amt_for_customer,
-//       dbt_date: deleted.dbt_date,
-//       paid_for: deleted.paid_for,
-//       vendor: deleted.vendor,
-//       po_number: deleted.po_number,
-//       po_value: deleted.po_value,
-//       po_balance: deleted.po_balance,
-//       pay_mode: deleted.pay_mode,
-//       paid_to: deleted.paid_to,
-//       ifsc: deleted.ifsc,
-//       benificiary: deleted.benificiary,
-//       acc_number: deleted.acc_number,
-//       branch: deleted.branch,
-//       created_on: deleted.created_on,
-//       submitted_by: deleted.submitted_by,
-//       approved: deleted.approved,
-//       disable: deleted.disable,
-//       acc_match: deleted.acc_match,
-//       utr: deleted.utr,
-//       total_advance_paid: deleted.total_advance_paid,
-//       other: deleted.other,
-//   });
 
-//   await recoveryItemData.save();
-//   res.json({
-//       message: "Item moved to recovery collection successfully",
-//       item: recoveryItemData,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: "Error processing recovery: " + error });
-//   }
-// };
-
-// const recoverypay = async function (req, res) {
-//   const { _id } = req.params;
-
-//   try {
-//     // Validate _id
-//     const mongoose = require("mongoose");
-//     if (!mongoose.Types.ObjectId.isValid(_id)) {
-//       return res.status(400).json({ message: "Invalid _id provided" });
-//     }
-
-//     // Fetch and delete the item
-//     const deletedItem = await payRequestModells.findByIdAndDelete(_id);
-//     if (!deletedItem) {
-//       return res.status(404).json({ message: "Item not found" });
-//     }
-
-//     // Create recovery item
-//     const recoveryItemData = new recoverPayModells({
-//       id: deletedItem.id,
-//       p_id: deletedItem.p_id,
-//       pay_id: deletedItem.pay_id,
-//       pay_type: deletedItem.pay_type,
-//       amount_paid: deletedItem.amount_paid,
-//       amt_for_customer: deletedItem.amt_for_customer,
-//       dbt_date: deletedItem.dbt_date,
-//       paid_for: deletedItem.paid_for,
-//       vendor: deletedItem.vendor,
-//       po_number: deletedItem.po_number,
-//       po_value: deletedItem.po_value,
-//       po_balance: deletedItem.po_balance,
-//       pay_mode: deletedItem.pay_mode,
-//       paid_to: deletedItem.paid_to,
-//       ifsc: deletedItem.ifsc,
-//       benificiary: deletedItem.benificiary,
-//       acc_number: deletedItem.acc_number,
-//       branch: deletedItem.branch,
-//       created_on: deletedItem.created_on,
-//       submitted_by: deletedItem.submitted_by,
-//       approved: deletedItem.approved,
-//       disable: deletedItem.disable,
-//       acc_match: deletedItem.acc_match,
-//       utr: deletedItem.utr,
-//       total_advance_paid: deletedItem.total_advance_paid,
-//       other: deletedItem.other,
-//     });
-
-//     await recoveryItemData.save();
-//     res.json({
-//       message: "Item moved to recovery collection successfully",
-//       item: recoveryItemData,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: "Error processing recovery: " + error.message });
-//   }
-// };
 
 //Hold payment
 const holdpay = async function (req, res) {
@@ -328,6 +229,8 @@ const holdpay = async function (req, res) {
   }
 };
 
+
+
 //get alll pay summary
 const getPaySummary = async (req, res) => {
   let request = await payRequestModells.find();
@@ -335,22 +238,7 @@ const getPaySummary = async (req, res) => {
   res.status(200).json({ msg: "all-pay-summary", data: request });
 };
 
-//get vendor by-id
-// const getVendorById = async function (req, res) {
-//   const { id } = req.params;
-//   console.log(id);
-//   try {
-//     const vendor = await vendorModells.findById(id);
-//     if (vendor) {
-//       res.status(200).json({ msg: 'Vendor details', data: vendor });
-//     } else {
-//       res.status(404).json({ msg: 'Vendor not found' });
-//     }
-//     }catch (error) {
-//       console.error(error);
-//       res.status(500).json({ msg: 'Error fetching vendor details' });};
 
-//     };
 
 //get all hold pay
 const hold = async function (req, res) {
@@ -358,9 +246,11 @@ const hold = async function (req, res) {
   res.status(200).json({ msg: "Hold Payment Status", data });
 };
 
+
+
 //Account matched
 const account_matched = async function (req, res) {
-  const { pay_id, acc_number, ifsc } = req.body;
+  const { pay_id, acc_number, ifsc,submitted_by } = req.body;
   try {
     const payment = await payRequestModells.findOneAndUpdate(
       { pay_id, acc_number, ifsc }, // Matching criteria
@@ -393,7 +283,7 @@ const account_matched = async function (req, res) {
         acc_number: payment.acc_number,
         branch: payment.branch,
         created_on: payment.created_on,
-        submitted_by: payment.submitted_by,
+        submitted_by,
         approved: payment.approved,
         disable: payment.disable,
         acc_match: payment.acc_match,
@@ -420,6 +310,8 @@ const account_matched = async function (req, res) {
     });
   }
 };
+
+
 
 // account approved
 const accApproved = async function (req, res) {
@@ -458,6 +350,8 @@ const accApproved = async function (req, res) {
   }
 };
 
+
+
 //Update UTR number
 const utrUpdate = async function (req, res) {
   const { pay_id, utr } = req.body;
@@ -486,8 +380,9 @@ const utrUpdate = async function (req, res) {
   }
 };
 
-//new-appov-account
 
+
+//new-appov-account
 const newAppovAccount = async function (req, res) {
   const { pay_id, status } = req.body;
   const isValidRequest = (pay_id, status) =>
@@ -524,6 +419,8 @@ const newAppovAccount = async function (req, res) {
   }
 };
 
+
+//detete payment request by ID
 const deletePayRequestById = async function (req, res) {
   try {
     const { _id } = req.params;
@@ -540,8 +437,9 @@ const deletePayRequestById = async function (req, res) {
   }
 };
 
-// Edit payment request by ID
 
+
+// Edit payment request by ID
 const editPayRequestById = async function (req, res) {
   try {
     const { _id } = req.params;
@@ -563,8 +461,9 @@ const editPayRequestById = async function (req, res) {
   }
 };
 
-// Get payment request by ID
 
+
+// Get payment request by ID
 const getPayRequestById = async function (req, res) {
   try {
     const { _id } = req.params;
@@ -584,11 +483,16 @@ const getPayRequestById = async function (req, res) {
 };
 
 
+
 //get exceldaTa
 const excelData = async function (req, res) { 
   let data = await exccelDataModells.find();
   res.status(200).json({ msg: "All Excel Data", data: data });    
 };
+
+
+
+
 
 //update excel data
 const updateExcelData = async function (req, res) {
