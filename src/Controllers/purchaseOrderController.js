@@ -119,7 +119,7 @@ const editPO = async function (req, res) {
 const getPO = async function (req, res) {
   let id = req.params._id;
   let data = await purchaseOrderModells.findById(id);
-  res.status(200).json(data);
+  res.status(200).json({ msg: "PO Detail", data:data });
 };
 
 
