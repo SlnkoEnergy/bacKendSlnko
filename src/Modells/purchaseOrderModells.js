@@ -48,6 +48,9 @@ po_number: {
     updated_on: {
       type: String,
     },
+    submitted_By: {
+      type: String,
+    },
   },
   { timestamps: true }
 );

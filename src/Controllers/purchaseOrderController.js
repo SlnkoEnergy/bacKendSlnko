@@ -21,7 +21,7 @@ const isoToCustomFormat = (isoDate) => {
 //Add-Purchase-Order
 const addPo = async function (req, res) {
   try {
-    const { p_id, date, item, other, po_number, po_value, vendor } = req.body;
+    const { p_id, date, item, other, po_number, po_value, vendor, submitted_By } = req.body;
 
     // Get project ID
     // const project = await projectModells.find({ p_id: p_id });
@@ -59,6 +59,7 @@ const addPo = async function (req, res) {
       po_value,
       vendor,
       other,
+      submitted_By,
 
       partial_billing,
     });
@@ -119,6 +120,12 @@ const getPO = async function (req, res) {
   let id = req.params._id;
   let data = await purchaseOrderModells.findById(id);
   res.status(200).json(data);
+};
+
+
+const getpohistory = async function (req, res) {
+  let data = await pohisttoryModells.find();
+  res.status(200).json({ msg: "All PO History", data: data });
 };
 
 // get-purchase-order-by p_id
@@ -255,4 +262,5 @@ module.exports = {
   moverecovery,
   getPOByProjectId,
   deletePO,
+  getpohistory,
 };

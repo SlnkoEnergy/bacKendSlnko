@@ -35,6 +35,7 @@ const {
   moverecovery,
   getPOByProjectId,
   deletePO,
+  getpohistory,
 } = require("../Controllers/purchaseOrderController");
 const {
   addVendor,
@@ -102,6 +103,7 @@ router.post("/export-to-csv", exportCSV);
 router.delete("/remove-to-recovery/:_id", moverecovery);
 router.get("/get-po-by-p_id/", getPOByProjectId);
 router.delete("/delete-po/:_id",deletePO);
+router.get ("/get-po-history",getpohistory);
 
 //Add vendor
 router.post("/Add-vendor", addVendor);
