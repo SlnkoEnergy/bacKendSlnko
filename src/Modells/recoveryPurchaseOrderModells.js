@@ -25,7 +25,7 @@ const recoveryPurchaseOrder = new mongoose.Schema({
       po_value: {
         type: String,
       },
-      total_advance_paid: {
+      final:{
         type: String,
       },
       po_balance: {

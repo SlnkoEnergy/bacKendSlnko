@@ -185,13 +185,13 @@ const moverecovery = async function (req, res) {
     // Add the deleted item to the recovery collection
     const recoveryItem = new recoveryPurchaseOrder({
       p_id: deletedItem.p_id,
-      offer_Id: deletedItem.offer_Id,
+     
       po_number: deletedItem.po_number,
       date: deletedItem.date,
       item: deletedItem.item,
       other: deletedItem.other,
       po_value: deletedItem.po_value,
-      total_advance_paid: deletedItem.total_advance_paid,
+      final: deletedItem.final,
       po_balance: deletedItem.po_balance,
       vendor: deletedItem.vendor,
       partial_billing: deletedItem.partial_billing,
@@ -202,6 +202,7 @@ const moverecovery = async function (req, res) {
     });
 
     await recoveryItem.save();
+    await purchaseOrderModells.deleteOne(_id);
 
     res.json({
       message: "Item moved to recovery collection successfully",
