@@ -6,8 +6,7 @@ const vendorModells = require("../Modells/vendorModells");
 const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 const { get } = require("mongoose");
 const exccelDataModells = require("../Modells/excelDataModells");
-
-
+const recoverypayrequest = require("../Modells/recoveryPayrequestModells");;
 
 // Request payment
 const payRrequest = async (req, res) => {
@@ -438,6 +437,72 @@ const deletePayRequestById = async function (req, res) {
 };
 
 
+// Move payment request to recovery collection
+const restorepayrequest = async function (req, res) {
+  const {_id} = req.params._id;
+  try {
+    
+
+     const data  = await payRequestModells.findOneAndReplace(_id);
+   
+
+    
+  
+    if (!data) {
+      return res.status(404).json({ msg: "User Not fornd" });
+    }
+    const recoveryItem = new recoverypayrequest({
+      id: data.id,
+      p_id: data.p_id,
+      pay_id: data.pay_id,
+      pay_type: data.pay_type,
+      amount_paid: data.amount_paid,
+      amt_for_customer: data.amt_for_customer,
+      dbt_date: data.dbt_date,
+      paid_for: data.paid_for,
+      vendor: data.vendor,
+      po_number: data.po_number,
+      po_value: data.po_value,
+      po_balance: data.po_balance,
+      pay_mode: data.pay_mode,
+      paid_to: data.paid_to,
+      ifsc: data.ifsc,
+      benificiary: data.benificiary,
+      acc_number: data.acc_number,
+      branch: data.branch,
+      created_on: data.created_on,
+      submitted_by: data.submitted_by,
+      approved: data.approved,
+      disable: data.disable,
+      acc_match: data.acc_match,
+      utr: data.utr,
+      total_advance_paid: data.total_advance_paid,
+      other: data.other,
+      comment: data.comment,
+      createdAt:data.createdAt,
+      updatedAt:data.updatedAt,
+      created_on:data.created_on,
+      
+      
+    });
+    await recoveryItem.save();
+   await payRequestModells.deleteOne(_id);
+
+  
+   
+    res.json({
+      message: "Item moved to recovery collection successfully",
+      item: recoveryItem,
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting item" + error });
+    
+  }
+
+};
+
+
 
 // Edit payment request by ID
 const editPayRequestById = async function (req, res) {
@@ -541,4 +606,5 @@ module.exports = {
   getPayRequestById,
   excelData,
   updateExcelData,
+  restorepayrequest,
 };

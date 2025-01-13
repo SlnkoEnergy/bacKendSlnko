@@ -58,6 +58,8 @@ const {
   getPayRequestById,
   excelData,
   updateExcelData,
+  recoverypayrequest,
+  restorepayrequest,
 } = require("../Controllers/payRequestControllers");
 
 const {
@@ -132,6 +134,8 @@ router.put("/update-pay-request/:_id", editPayRequestById); //update pay request
 router.get("/get-pay-request-id/:_id", getPayRequestById); //get pay request by id
 router.get("/get-exceldata",excelData);
 router.put("/update-excel-data",updateExcelData);
+router.put("/restorepayrequest/:_id",restorepayrequest); 
+
 
 // add-Bill
 router.post("/add-bill", addBill);

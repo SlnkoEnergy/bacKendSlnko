@@ -123,10 +123,14 @@ const getPO = async function (req, res) {
 };
 
 
+
+//get PO History
 const getpohistory = async function (req, res) {
   let data = await pohisttoryModells.find();
   res.status(200).json({ msg: "All PO History", data: data });
 };
+
+
 
 // get-purchase-order-by p_id
 const getPOByProjectId = async function (req, res) {
@@ -134,6 +138,8 @@ const getPOByProjectId = async function (req, res) {
   let data = await purchaseOrderModells.find({ p_id: p_id });
   res.status(200).json({ msg: "All Purchase Orders", data: data });
 };
+
+
 
 //get ALLPO
 const getallpo = async function (req, res) {
