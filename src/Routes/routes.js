@@ -102,7 +102,7 @@ router.put("/edit-po/:_id", editPO);
 router.get("/get-po/:_id", getPO);
 router.get("/get-all-po", getallpo);
 router.post("/export-to-csv", exportCSV);
-router.delete("/remove-to-recovery/:_id", moverecovery);
+router.put("/remove-to-recovery/:_id", moverecovery);
 router.get("/get-po-by-p_id/", getPOByProjectId);
 router.delete("/delete-po/:_id",deletePO);
 router.get ("/get-po-history",getpohistory);
