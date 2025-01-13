@@ -201,7 +201,7 @@ const moverecovery = async function (req, res) {
       updated_on: deletedItem.updated_on,
       submitted_By: deletedItem.submitted_By,
     });
-    console.log(recoveryItem);
+    
 
     await recoveryItem.save();
    await purchaseOrderModells.deleteOne(_id);
