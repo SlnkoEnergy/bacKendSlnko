@@ -145,28 +145,28 @@ const getPOByProjectId = async function (req, res) {
 const getallpo = async function (req, res) {
   try {
     let data = await purchaseOrderModells.find();
+  
 
-    const formattedData = data.map((item) => {
-      const date = new Date(item.date);
-      if (isNaN(date.getTime())) {
-        return {
-          ...item.toObject(),
-          date: "Invalid Date",
-        };
-      }
+    // const formattedData = data.map((item) => {
+    //   const date = new Date(item.date);
+    //   if (isNaN(date.getTime())) {
+    //     return {
+    //       ...item.toObject(),
+    //       date: "Invalid Date",
+    //     };
+    //   }
 
-      const formattedDate = isoToCustomFormat(date.toISOString());
+    //   const formattedDate = isoToCustomFormat(date.toISOString());
 
-      return {
-        ...item.toObject(),
-        date: formattedDate,
-      };
-    });
+    //   return {
+    //     ...item.toObject(),
+    //     date: formattedDate,
+    //   };
+    // });
 
-    res.status(200).json({ msg: "All PO", data: formattedData });
+    res.status(200).json({ msg: "All PO", data: data });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ msg: "Error fetching data", error: error.message });
+res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
 
