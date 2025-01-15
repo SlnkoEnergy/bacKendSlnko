@@ -10,13 +10,13 @@ const fs = require("fs");
 const path = require("path");
 const { error } = require("console");
 //TO DATE FROMATE
-const isoToCustomFormat = (isoDate) => {
-  const date = new Date(isoDate);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  return `${year}-${day}-${month}`;
-};
+// const isoToCustomFormat = (isoDate) => {
+//   const date = new Date(isoDate);
+//   const day = String(date.getDate()).padStart(2, "0");
+//   const month = String(date.getMonth() + 1).padStart(2, "0");
+//   const year = date.getFullYear();
+//   return `${year}-${day}-${month}`;
+// };
 
 //Add-Purchase-Order
 const addPo = async function (req, res) {
@@ -54,7 +54,7 @@ const addPo = async function (req, res) {
     const newPO = new purchaseOrderModells({
       p_id,
       po_number,
-      date: formattedDate.format("DD-MM-YYYY"),
+      date,
       item: resolvedItem,
       po_value,
       vendor,
