@@ -21,7 +21,7 @@ const { error } = require("console");
 //Add-Purchase-Order
 const addPo = async function (req, res) {
   try {
-    const { p_id, date, item, other, po_number, po_value, vendor, submitted_By } = req.body;
+    const { p_id, date, item, other, po_number, po_value, vendor, partial_billing, submitted_By,  } = req.body;
 
     // Get project ID
     // const project = await projectModells.find({ p_id: p_id });
@@ -32,17 +32,17 @@ const addPo = async function (req, res) {
 
     // Resolve item value
     let resolvedItem = item === "Other" ? other : item;
-    // Validate and format date using moment
-    const formattedDate = moment(date, "YYYY-MM-DD", true);
-    if (!formattedDate.isValid()) {
-      return res
-        .status(400)
-        .send({ message: "Invalid date format. Expected format: YYYY-MM-DD." });
-    }
+    // // Validate and format date using moment
+    // const formattedDate = moment(date, "YYYY-MM-DD", true);
+    // if (!formattedDate.isValid()) {
+    //   return res
+    //     .status(400)
+    //     .send({ message: "Invalid date format. Expected format: YYYY-MM-DD." });
+    // }
 
     // Check partial billing
     const partialItem = await iteamModells.findOne({ item: resolvedItem });
-    const partial_billing = partialItem ? partialItem.partial_billing : "";
+    const partal_billing = partialItem ? partialItem.partial_billing : "";
 
     // Check if PO Number exists
     const existingPO = await purchaseOrderModells.findOne({ po_number });
@@ -60,8 +60,8 @@ const addPo = async function (req, res) {
       vendor,
       other,
       submitted_By,
-
       partial_billing,
+   
     });
 
     await newPO.save();
