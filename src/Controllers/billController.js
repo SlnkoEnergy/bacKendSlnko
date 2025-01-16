@@ -22,7 +22,7 @@ const addBill = async function (req, res) {
 
     // Step 1: Calculate total billed value for the given PO number
     const bills = await addBillModells.find({ po_number });
-    const totalBilled = bills.reduce((sum, bill) => sum + bill.bill_value, );
+    const totalBilled = bills.reduce((sum, bill) => sum + bill.bill_value);
 
     // Step 2: Fetch the purchase order value
     const purchaseOrder = await purchaseOrderModeslls.findOne({ po_number });

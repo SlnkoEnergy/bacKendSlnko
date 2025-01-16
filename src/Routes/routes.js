@@ -74,6 +74,10 @@ const {
   deleteDebitMoney,
 } = require("../Controllers/subtractMoneyController");
 
+
+
+const { all_project_balance, all_project_debit, total_po_balance, total_billed_value, total_project_billValue } = require("../Controllers/balanceController");
+
 // Admin router
 router.post("/user-registration", userRegister);
 router.post("/login", login);
@@ -148,5 +152,16 @@ router.delete("/delete-bill/:_id", deleteBill);
 router.post("/debit-money", subtractmoney);
 router.get("/get-subtract-amount", getsubtractMoney);
 router.delete("/delete-debit-money/:_id", deleteDebitMoney);
+
+
+
+
+//All Balance SUMMARY
+router.get("/get-balance-summary", all_project_balance);
+router.get("/get-debit-balance",all_project_debit);
+router.get("/get-po-balance", total_po_balance); 
+router.get("/get-total-billed", total_billed_value);
+//router.post("/total-project-bill", total_project_billValue);
+
 
 module.exports = router;
