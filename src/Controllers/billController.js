@@ -21,8 +21,8 @@ const addBill = async function (req, res) {
     } = req.body;
 
     // Step 1: Calculate total billed value for the given PO number
-    const bills = await addBillModells.find({ po_number });
-    const totalBilled = bills.reduce((sum, bill) => sum + bill.bill_value);
+    // const bills = await addBillModells.find({ po_number });
+    // const totalBilled = bills.reduce((sum, bill) => sum + bill.bill_value);
 
     // Step 2: Fetch the purchase order value
     const purchaseOrder = await purchaseOrderModeslls.findOne({ po_number });
@@ -30,15 +30,15 @@ const addBill = async function (req, res) {
       return res.status(404).json({ message: "Purchase Order not found." });
     }
 
-    const { po_value, final } = purchaseOrder;
+  //  const { po_value, final } = purchaseOrder;
 
     // Step 3: Check if total billed value exceeds PO value
-    if (po_value < totalBilled + bill_value) {
-      return res.status(400).json({
-        message:
-          "Total billed amount exceeds the PO value. Please review the billing details.",
-      });
-    }
+    // if (po_value < totalBilled + bill_value) {
+    //   return res.status(400).json({
+    //     message:
+    //       "Total billed amount exceeds the PO value. Please review the billing details.",
+    //   });
+   // }
     const biilnum= await addBillModells.findOne({ bill_number });
     if (biilnum) {
       return res.status(400).send({ message: "Bill Number already used!" });
