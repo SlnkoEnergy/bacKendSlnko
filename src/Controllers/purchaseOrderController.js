@@ -248,6 +248,47 @@ const deletePO = async function (req, res) {
   }
 };
 
+
+
+// //gtpo test
+// const getAllPoTest = async (req, res) => {
+//   try {
+//     // Set up the cursor to stream the data from MongoDB
+//     const cursor = purchaseOrderModells.find()
+//       .lean()  // Lean queries to speed up the process (returns plain JavaScript objects)
+//       .cursor();  // MongoDB cursor to stream data
+
+//     res.setHeader('Content-Type', 'application/json');
+
+//     // Initialize a JSON array to send back in chunks (streamed)
+//     res.write('{"data":[');  // Start the JSON array
+
+//     let first = true;
+//     cursor.on('data', (doc) => {
+//       if (!first) {
+//         res.write(',');  // Add comma between records
+//       }
+//       first = false;
+//       res.write(JSON.stringify(doc));  // Write each document as a JSON object
+//     });
+
+//     cursor.on('end', () => {
+//       res.write(']}');  // Close the JSON array
+//       res.end();  // End the response stream
+//     });
+
+//     cursor.on('error', (err) => {
+//       console.error(err);
+//       res.status(500).json({ msg: 'Error retrieving data', error: err.message });
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ msg: 'Error retrieving data', error: err.message });
+//   }
+// };
+
+
+
 module.exports = {
   addPo,
   editPO,
@@ -258,4 +299,6 @@ module.exports = {
   getPOByProjectId,
   deletePO,
   getpohistory,
+  // getAllPoTest,
+
 };

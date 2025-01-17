@@ -36,6 +36,7 @@ const {
   getPOByProjectId,
   deletePO,
   getpohistory,
+ 
 } = require("../Controllers/purchaseOrderController");
 const {
   addVendor,
@@ -60,6 +61,8 @@ const {
   updateExcelData,
   recoverypayrequest,
   restorepayrequest,
+  getPay,
+  
 } = require("../Controllers/payRequestControllers");
 
 const {
@@ -122,7 +125,7 @@ router.post("/add-item", additem);
 router.get("/get-item", getItem);
 
 //pay Request api
-
+router.get("/get-pay-sumry",getPay);
 router.post("/add-pay-request", payRrequest);
 router.post("/hold-payment", holdpay);
 router.get("/get-pay-summary", getPaySummary);
@@ -162,6 +165,9 @@ router.get("/get-debit-balance",all_project_debit);
 router.get("/get-po-balance", total_po_balance); 
 router.get("/get-total-billed", total_billed_value);
 //router.post("/total-project-bill", total_project_billValue);
+
+
+
 
 
 module.exports = router;

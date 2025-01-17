@@ -234,54 +234,11 @@ const holdpay = async function (req, res) {
 const getPaySummary = async (req, res) => {
 let request = await payRequestModells.find()
 res.status(200).json({ msg: "all-pay-summary", data: request });
-
-
-
-
-// Start the response
-// res.setHeader('Content-Type', 'text/event-stream');
-// res.setHeader('Cache-Control', 'no-cache');
-// res.setHeader('Connection', 'keep-alive');
-
-// // Get latest data (first batch)
-// const latestData = await payRequestModells
-//   .find()
-//   .sort({ _id: -1 })
-//   .limit(10)
-//   .lean();
-
-// // Send the initial data
-// res.write(`data: {"msg": "Pay summary", "latestData": ${JSON.stringify(latestData)}}\n\n`);
-
-// // Flush headers immediately
-// res.flushHeaders();
-
-// // Stream data in intervals
-// const stream = payRequestModells
-//   .find({ _id: { $lt: latestData[latestData.length - 1]._id } }) // Exclude the already sent records
-//   .sort({ _id: -1 })
-//   .cursor();
-
-// let isFirst = true;
-
-// // Set up a periodic interval to send new data
-// const intervalId = setInterval(async () => {
-//   // Fetch the next set of data
-//   const newData = await stream.next();
-
-//   if (newData) {
-//     // If data exists, send it
-//     res.write(`data: ${JSON.stringify(newData)}\n\n`);
-//   } else {
-//     // If no more data, stop the interval
-//     clearInterval(intervalId);
-//     res.write('data: {"msg": "No more data"}\n\n');
-//     res.end();
-//   }
-// }, 1); // Sends new data every second (1000ms)
-
- 
 };
+
+
+
+
 
 
 
@@ -637,6 +594,28 @@ const updateExcelData = async function (req, res) {
 };
 
 
+
+//get-all-payRequest
+
+const getPay = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = 200;
+    const skip = (page - 1) * pageSize;
+
+    const request = await payRequestModells
+      .find()
+      .sort({ createdAt: -1 }) // Latest first
+      .skip(skip)
+      .limit(pageSize);
+
+    res.status(200).json({ msg: "all-pay-summary", data: request });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: "Error retrieving data", error: err.message });
+  };
+}
+
 module.exports = {
   payRrequest,
   holdpay,
@@ -653,4 +632,5 @@ module.exports = {
   excelData,
   updateExcelData,
   restorepayrequest,
+  getPay,
 };
