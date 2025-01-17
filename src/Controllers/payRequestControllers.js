@@ -232,9 +232,42 @@ const holdpay = async function (req, res) {
 
 //get alll pay summary
 const getPaySummary = async (req, res) => {
-  let request = await payRequestModells.find();
+//let request = await payRequestModells.find()
+//res.status(200).json({ msg: "all-pay-summary", data: request });
 
-  res.status(200).json({ msg: "all-pay-summary", data: request });
+
+const latestData = await payRequestModells
+.find()
+.sort({ _id: -1 })
+.limit(10)
+.lean();
+
+// Start the response
+res.writeHead(200, { "Content-Type": "application/json" });
+res.write(`{"msg": "Pay summary", "latestData": ${JSON.stringify(latestData)}, "remainingData": [`);
+
+if (res.flushHeaders) {
+  res.flushHeaders(); // Ensure headers are sent immediately (if supported)
+}
+
+
+const stream = payRequestModells
+.find({ _id: { $lt: latestData[latestData.length - 1]._id } }) // Exclude the already sent records
+.sort({ _id: -1 })
+.cursor();
+
+let isFirst = true;
+for await (const doc of stream) {
+if (!isFirst) res.write(",");
+res.write(JSON.stringify(doc));
+isFirst = false;
+}
+
+// End the response
+res.write("]}");
+res.end();
+
+ 
 };
 
 

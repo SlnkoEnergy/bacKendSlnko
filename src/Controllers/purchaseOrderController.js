@@ -145,28 +145,9 @@ const getPOByProjectId = async function (req, res) {
 const getallpo = async function (req, res) {
   try {
     
-    let data = await purchaseOrderModells.find() 
+    let data = await purchaseOrderModells.find()
+    //.sort({ _id: -1 }).lean()
     // .sort({ _id: -1 }) .lean() // Sort by _id in descending order
-
-
-  
-
-    // const formattedData = data.map((item) => {
-    //   const date = new Date(item.date);
-    //   if (isNaN(date.getTime())) {
-    //     return {
-    //       ...item.toObject(),
-    //       date: "Invalid Date",
-    //     };
-    //   }
-
-    //   const formattedDate = isoToCustomFormat(date.toISOString());
-
-    //   return {
-    //     ...item.toObject(),
-    //     date: formattedDate,
-    //   };
-    // });
 
     res.status(200).json({ msg: "All PO", data: data });
   } catch (error) {
