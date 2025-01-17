@@ -144,10 +144,16 @@ const getPOByProjectId = async function (req, res) {
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = 200;
+    const skip = (page - 1) * pageSize;
     
     let data = await purchaseOrderModells.find()
-    //.sort({ _id: -1 }).lean()
-    // .sort({ _id: -1 }) .lean() // Sort by _id in descending order
+    .sort({ createdAt: -1 }) // Latest first
+    .skip(skip)
+    .limit(pageSize);
+
+    
 
     res.status(200).json({ msg: "All PO", data: data });
   } catch (error) {
