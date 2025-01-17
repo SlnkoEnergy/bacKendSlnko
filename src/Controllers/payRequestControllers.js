@@ -232,40 +232,53 @@ const holdpay = async function (req, res) {
 
 //get alll pay summary
 const getPaySummary = async (req, res) => {
-//let request = await payRequestModells.find()
-//res.status(200).json({ msg: "all-pay-summary", data: request });
+let request = await payRequestModells.find()
+res.status(200).json({ msg: "all-pay-summary", data: request });
 
 
-const latestData = await payRequestModells
-.find()
-.sort({ _id: -1 })
-.limit(10)
-.lean();
+
 
 // Start the response
-res.writeHead(200, { "Content-Type": "application/json" });
-res.write(`{"msg": "Pay summary", "latestData": ${JSON.stringify(latestData)}, "remainingData": [`);
+// res.setHeader('Content-Type', 'text/event-stream');
+// res.setHeader('Cache-Control', 'no-cache');
+// res.setHeader('Connection', 'keep-alive');
 
-if (res.flushHeaders) {
-  res.flushHeaders(); // Ensure headers are sent immediately (if supported)
-}
+// // Get latest data (first batch)
+// const latestData = await payRequestModells
+//   .find()
+//   .sort({ _id: -1 })
+//   .limit(10)
+//   .lean();
 
+// // Send the initial data
+// res.write(`data: {"msg": "Pay summary", "latestData": ${JSON.stringify(latestData)}}\n\n`);
 
-const stream = payRequestModells
-.find({ _id: { $lt: latestData[latestData.length - 1]._id } }) // Exclude the already sent records
-.sort({ _id: -1 })
-.cursor();
+// // Flush headers immediately
+// res.flushHeaders();
 
-let isFirst = true;
-for await (const doc of stream) {
-if (!isFirst) res.write(",");
-res.write(JSON.stringify(doc));
-isFirst = false;
-}
+// // Stream data in intervals
+// const stream = payRequestModells
+//   .find({ _id: { $lt: latestData[latestData.length - 1]._id } }) // Exclude the already sent records
+//   .sort({ _id: -1 })
+//   .cursor();
 
-// End the response
-res.write("]}");
-res.end();
+// let isFirst = true;
+
+// // Set up a periodic interval to send new data
+// const intervalId = setInterval(async () => {
+//   // Fetch the next set of data
+//   const newData = await stream.next();
+
+//   if (newData) {
+//     // If data exists, send it
+//     res.write(`data: ${JSON.stringify(newData)}\n\n`);
+//   } else {
+//     // If no more data, stop the interval
+//     clearInterval(intervalId);
+//     res.write('data: {"msg": "No more data"}\n\n');
+//     res.end();
+//   }
+// }, 1); // Sends new data every second (1000ms)
 
  
 };
