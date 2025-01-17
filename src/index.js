@@ -29,7 +29,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
 const db = process.env.db;
-https.createServer(Option, app).listen(0, '0.0.0.0', () => {
+https.createServer(Option, app).listen(0, '127.0.0.1', () => {
     console.log('Node.js app is running on https://localhost:5000');
 });
 const startServer = async () => {

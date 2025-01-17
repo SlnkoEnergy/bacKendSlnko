@@ -145,7 +145,8 @@ const getPOByProjectId = async function (req, res) {
 const getallpo = async function (req, res) {
   try {
     
-    let data = await purchaseOrderModells.find() .sort({ _id: -1 }) // Sort by _id in descending order
+    let data = await purchaseOrderModells.find() 
+    // .sort({ _id: -1 }) .lean() // Sort by _id in descending order
 
 
   
