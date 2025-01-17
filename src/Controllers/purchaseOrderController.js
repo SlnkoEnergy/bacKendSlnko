@@ -144,7 +144,10 @@ const getPOByProjectId = async function (req, res) {
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
-    let data = await purchaseOrderModells.find();
+    
+    let data = await purchaseOrderModells.find() .sort({ _id: -1 }) // Sort by _id in descending order
+    .limit(10); // Limit to 10 records
+;
   
 
     // const formattedData = data.map((item) => {
