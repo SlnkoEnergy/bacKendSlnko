@@ -126,7 +126,15 @@ const getPO = async function (req, res) {
 
 //get PO History
 const getpohistory = async function (req, res) {
-  let data = await pohisttoryModells.find();
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = 200;
+  const skip = (page - 1) * pageSize;
+
+  let data = await pohisttoryModells.find()
+  .sort({ createdAt: -1 }) // Latest first
+  .skip(skip)
+  .limit(pageSize);
+;
   res.status(200).json({ msg: "All PO History", data: data });
 };
 
