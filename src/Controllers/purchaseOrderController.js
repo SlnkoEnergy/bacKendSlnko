@@ -152,14 +152,14 @@ const getPOByProjectId = async function (req, res) {
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = 200;
-    const skip = (page - 1) * pageSize;
+    // const page = parseInt(req.query.page) || 1;
+    // const pageSize = 200;
+    // const skip = (page - 1) * pageSize;
     
-    let data = await purchaseOrderModells.find()
-    .sort({ createdAt: -1 }) // Latest first
-    .skip(skip)
-    .limit(pageSize);
+    let data = await purchaseOrderModells.find();
+    // .sort({ createdAt: -1 }) // Latest first
+    // .skip(skip)
+    // .limit(pageSize);
 
     
 

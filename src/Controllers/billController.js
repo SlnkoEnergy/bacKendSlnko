@@ -86,14 +86,14 @@ const addBill = async function (req, res) {
 
 //GET ALL BILL
 const getBill = async function (req, res) {
-  const page = parseInt(req.query.page) || 1;
-  const pageSize = 200;
-  const skip = (page - 1) * pageSize;
+  // const page = parseInt(req.query.page) || 1;
+  // const pageSize = 200;
+  // const skip = (page - 1) * pageSize;
 
-  let data = await addBillModells.find()
-  .sort({ createdAt: -1 }) // Latest first
-  .skip(skip)
-  .limit(pageSize);;
+  let data = await addBillModells.find();
+  // .sort({ createdAt: -1 }) // Latest first
+  // .skip(skip)
+  // .limit(pageSize);;
   res.status(200).json({ msg: "All Bill Detail", data });
 };
 

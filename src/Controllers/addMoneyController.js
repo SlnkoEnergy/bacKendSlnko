@@ -51,13 +51,13 @@ const addMoney = async function (req, res) {
 //get all bill
 
 const allbill = async function (req, res) {
-  const page = parseInt(req.query.page) || 1;
-  const pageSize = 200;
-  const skip = (page - 1) * pageSize;
-  let bill = await addMoneyModells.find()
-  .sort({ createdAt: -1 }) // Latest first
-  .skip(skip)
-  .limit(pageSize);;
+  // const page = parseInt(req.query.page) || 1;
+  // const pageSize = 200;
+  // const skip = (page - 1) * pageSize;
+  let bill = await addMoneyModells.find();
+  // .sort({ createdAt: -1 }) // Latest first
+  // .skip(skip)
+  // .limit(pageSize);;
   res.status(200).json({ msg: "all Bill Detail", bill });
 };
 

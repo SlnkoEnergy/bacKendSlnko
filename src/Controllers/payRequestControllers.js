@@ -244,14 +244,14 @@ res.status(200).json({ msg: "all-pay-summary", data: request });
 
 //get all hold pay
 const hold = async function (req, res) {
-  const page = parseInt(req.query.page) || 1;
-  const pageSize = 200;
-  const skip = (page - 1) * pageSize;
+  // const page = parseInt(req.query.page) || 1;
+  // const pageSize = 200;
+  // const skip = (page - 1) * pageSize;
 
   let data = await holdPaymentModells.find()
-  .sort({ createdAt: -1 }) // Latest first
-  .skip(skip)
-  .limit(pageSize);
+  // .sort({ createdAt: -1 }) // Latest first
+  // .skip(skip)
+  // .limit(pageSize);
 
   res.status(200).json({ msg: "Hold Payment Status", data });
 };
@@ -562,14 +562,14 @@ const getPayRequestById = async function (req, res) {
 
 //get exceldaTa
 const excelData = async function (req, res) { 
-  const page = parseInt(req.query.page) || 1;
-  const pageSize = 200;
-  const skip = (page - 1) * pageSize;
+  // const page = parseInt(req.query.page) || 1;
+  // const pageSize = 200;
+  // const skip = (page - 1) * pageSize;
 
-  let data = await exccelDataModells.find()
-  .sort({ createdAt: -1 }) // Latest first
-  .skip(skip)
-  .limit(pageSize);
+  let data = await exccelDataModells.find();
+  // .sort({ createdAt: -1 }) // Latest first
+  // .skip(skip)
+  // .limit(pageSize);
 
   res.status(200).json({ msg: "All Excel Data", data: data });    
 };
