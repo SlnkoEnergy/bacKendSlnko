@@ -141,11 +141,55 @@ const deleteBill = async function (req, res) {
       });
      
     }
+};
+
+
+
+// bill_appoved
+const bill_approved =async function (req,res) {
+  const{
+    bill_number,approved_by }=req.body;
+  try {
+    const existingBill = await addBillModells.findOne({bill_number:bill_number});
+    if (!existingBill) {
+      return res.status(404).json({
+        msg: "No bill found"
+      });
+    }
+
+    if ( existingBill.approved_by.trim() !== "") {
+      return res.status(400).json({
+        msg: "Bill is already approved and cannot be updated to an empty string."
+      });
+    }
+
+       const approvedby  = await addBillModells.findOneAndUpdate(
+          { bill_number }, // Matching criteria
+          { $set: { approved_by} }, // Update action
+          { new: true } // Return the updated document
+        );
+
+        res.status(200).json({
+          msg: "Bill updated successfully.",
+          data: approvedby
+        });
+      
+      
+    
+    } catch (error) {
+    res.status(500).json({
+      msg:"An error occurred while adding the bill.",
+      error: error.message,
+    })
+    
+  }
+  
 }
 
 module.exports = {
   addBill,
   getBill,
   updatebill,
-  deleteBill
+  deleteBill,
+  bill_approved,
 };

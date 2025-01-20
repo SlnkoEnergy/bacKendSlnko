@@ -70,6 +70,7 @@ const {
   getBill,
   updatebill,
   deleteBill,
+  bill_approved,
 } = require("../Controllers/billController");
 const {
   subtractmoney,
@@ -150,6 +151,7 @@ router.get("/get-all-bill", getBill);
 router.put("/update-bill/:_id", updatebill);
 router.delete("/delete-credit-amount/:_id", deletecredit);
 router.delete("/delete-bill/:_id", deleteBill);
+router.put("/accepted-by",bill_approved);
 
 //subtractmoney-debitmoney
 router.post("/debit-money", subtractmoney);
