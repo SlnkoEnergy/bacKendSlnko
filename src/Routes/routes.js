@@ -80,7 +80,7 @@ const {
 
 
 
-const { all_project_balance, all_project_debit, total_po_balance, total_billed_value, total_project_billValue } = require("../Controllers/balanceController");
+const { all_project_balance, all_project_debit, total_po_balance, total_billed_value, total_project_billValue, project_credit_amount, project_debit_amount, } = require("../Controllers/balanceController");
 
 // Admin router
 router.post("/user-registration", userRegister);
@@ -166,7 +166,13 @@ router.get("/get-balance-summary", all_project_balance);
 router.get("/get-debit-balance",all_project_debit);
 router.get("/get-po-balance", total_po_balance); 
 router.get("/get-total-billed", total_billed_value);
-//router.post("/total-project-bill", total_project_billValue);
+router.post("/get-total-credit-single", project_credit_amount);
+router.post("/get-total-debit-single",project_debit_amount);
+// router.post("/get-group-balance", group_blanace);
+// router.get("/get-balance",groupbalance);
+
+
+
 
 
 

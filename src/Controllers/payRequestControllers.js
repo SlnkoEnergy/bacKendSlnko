@@ -581,7 +581,7 @@ const excelData = async function (req, res) {
 //update excel data
 const updateExcelData = async function (req, res) {
   try {
-    const status = req.body; // You aren't actually using this variable in the current function
+    const status = req.body; 
 
     // Perform update operation
     const result = await exccelDataModells.updateMany(
