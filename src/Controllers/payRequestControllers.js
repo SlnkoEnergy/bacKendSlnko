@@ -168,7 +168,7 @@ const holdpay = async function (req, res) {
       comment,
     } = req.body;
 
-    const existingPayment = await payRequestModells.find({ pay_id: pay_id });
+    const existingPayment = await payRequestModells.findOne({ pay_id: pay_id });
     if (!existingPayment) {
       return res.status(400).json({ msg: "Payment ID already used!" });
     }
@@ -178,9 +178,7 @@ const holdpay = async function (req, res) {
     // if (!project) {
     //   return res.status(400).json({ msg: "Project ID is invalid!" });
     // }
-    const project = await projectModells.find({
-        p_id: p_id 
-    });
+    const project = await projectModells.findOne({p_id: p_id});
     if (!project) {
       return res.status(400).json({ msg: "Project ID is invalid!" });
     }
