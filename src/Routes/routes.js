@@ -62,6 +62,7 @@ const {
   recoverypayrequest,
   restorepayrequest,
   getPay,
+  approve_pending,
   
 } = require("../Controllers/payRequestControllers");
 
@@ -143,6 +144,7 @@ router.get("/get-pay-request-id/:_id", getPayRequestById); //get pay request by 
 router.get("/get-exceldata",excelData);
 router.put("/update-excel-data",updateExcelData);
 router.put("/restorepayrequest/:_id",restorepayrequest); 
+router.post("/approve-data-send-holdpay",approve_pending);
 
 
 // add-Bill

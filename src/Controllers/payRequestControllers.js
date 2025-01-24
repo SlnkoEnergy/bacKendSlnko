@@ -673,6 +673,61 @@ const getPay = async (req, res) => {
   };
 }
 
+//Acount Approved is = pending data save to hold payment
+  const approve_pending = async function (req, res) {
+   
+    try {
+     const {pay_id , approved }   = req.body;
+    const data = await payRequestModells.findOne({ pay_id:pay_id, approved:"Pending"});
+      if (!data) {
+        return res.status(404).json({ message: "No pending payment request found." });
+      }
+      if (data) {
+        const newData = new holdPaymentModells({
+          id: data.id,
+          p_id: data.p_id,
+          pay_id: data.pay_id,
+          pay_type: data.pay_type,
+          amount_paid: data.amount_paid,
+          amt_for_customer: data.amt_for_customer,
+          dbt_date: data.dbt_date,
+          paid_for: data.paid_for,
+          vendor: data.vendor,
+          po_number: data.po_number,
+          po_value: data.po_value,
+          po_balance: data.po_balance,
+          pay_mode: data.pay_mode,
+          paid_to: data.paid_to,
+          ifsc: data.ifsc,
+          benificiary: data.benificiary,
+          acc_number: data.acc_number,
+          branch: data.branch,
+          created_on: data.created_on,
+          submitted_by: data.submitted_by,
+          approved: data.approved,
+          disable: data.disable,
+          acc_match: data.acc_match,
+          utr: data.utr,
+          total_advance_paid: data.total_advance_paid,
+          other: data.other,
+          comment: data.comment,
+        });
+        await payRequestModells.deleteOne({ pay_id: pay_id, approved: "Pending" });
+
+         await newData.save();
+        
+
+        res.status(200).json({ message: "Data saved to hold payment", data: newData });
+       
+      }
+      
+    } catch (error) {
+      res.status(500).json({ message: "Error deleting item" + error });
+      }
+ }
+
+
+
 module.exports = {
   payRrequest,
   holdpay,
@@ -690,4 +745,5 @@ module.exports = {
   updateExcelData,
   restorepayrequest,
   getPay,
+  approve_pending,
 };
