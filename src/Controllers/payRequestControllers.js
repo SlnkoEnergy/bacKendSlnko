@@ -770,7 +770,7 @@ const getPay = async (req, res) => {
     
             await newData.save();
           
-          res.status(200).json({ message: "Data saved to hold payment", data: newData });
+          res.status(200).json({ message: "Data saved to pay Request", data: newData });
           
         }
   } catch (error) {
