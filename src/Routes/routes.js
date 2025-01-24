@@ -63,6 +63,7 @@ const {
   restorepayrequest,
   getPay,
   approve_pending,
+  hold_approve_pending,
   
 } = require("../Controllers/payRequestControllers");
 
@@ -137,14 +138,13 @@ router.put("/utr-update", utrUpdate);
 router.put("/account-approve", accApproved);
 router.put("/approval", newAppovAccount);
 router.delete("/delete-payrequest/:_id", deletePayRequestById);
-// router.get("/get-vendor-single/:_id",getVendorById);
-//router.delete("/remove-payrequest-to-recovery/:_id",moverecovery)
 router.put("/update-pay-request/:_id", editPayRequestById); //update pay request
 router.get("/get-pay-request-id/:_id", getPayRequestById); //get pay request by id
 router.get("/get-exceldata",excelData);
 router.put("/update-excel-data",updateExcelData);
 router.put("/restorepayrequest/:_id",restorepayrequest); 
 router.post("/approve-data-send-holdpay",approve_pending);
+router.post("/hold-payto-payrequest", hold_approve_pending);
 
 
 // add-Bill
