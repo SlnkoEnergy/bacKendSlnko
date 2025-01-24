@@ -174,22 +174,65 @@ const holdpay = async function (req, res) {
     }
 
     // Get project details by project ID
-    const project = await projectModells.find({ p_id: p_id });
+    // const project = await projectModells.find({ p_id: p_id });
+    // if (!project) {
+    //   return res.status(400).json({ msg: "Project ID is invalid!" });
+    // }
+    const project = await projectModells.findOne({
+      $or: [{ p_id: p_id }, { code: code }],
+    });
     if (!project) {
       return res.status(400).json({ msg: "Project ID is invalid!" });
     }
 
-    // Validation: Amount paid should not exceed PO balance
-    if (amount_paid > po_balance) {
-      return res
-        .status(400)
-        .json({ msg: "Requested Amount is greater than PO_balance!" });
+    // if (!project.code) {
+    //   return res.status(400).json({ msg: "Project code not found!" });
+    // }
+
+    // console.log("Project code:", project.code); // Debugging log
+
+    // Validation: Amount paid should not exceed PO value
+    // if (amount_paid > po_balance) {
+    //   return res
+    //     .status(400)
+    //     .json({ msg: "Requested Amount is greater than PO Balance!" });
+    // }
+    const projectCode = project.code; // Assuming `code` is a field in projectModells
+
+    // Generate random three-digit code
+    const randomCode = Math.floor(100 + Math.random() * 900); // Random 3-digit number
+
+    // Append the random code to the project code to form modified p_id
+    const modifiedPId = `${projectCode}/${randomCode}`;
+
+    let existingPayRequest = await holdPaymentModells.findOne({
+      pay_id: modifiedPId,
+    });
+
+    while (existingPayRequest) {
+      // If the modifiedPId exists, generate a new one and check again
+      modifiedPId = `${projectCode}/${generateRandomCode()}`;
+      existingPayRequest = await holdPaymentModells.findOne({
+        pay_id: modifiedPId,
+      });
     }
+
+
+
+
+
+
+    // Validation: Amount paid should not exceed PO balance
+    // if (amount_paid > po_balance) {
+    //   return res
+    //     .status(400)
+    //     .json({ msg: "Requested Amount is greater than PO_balance!" });
+    // }
 
     const holdPayment = new holdPaymentModells({
       id,
       p_id,
-      pay_id,
+      pay_id: modifiedPId,
       pay_type,
       amount_paid,
       amt_for_customer,
