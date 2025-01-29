@@ -1,5 +1,6 @@
 const subtractModells= require("../Modells/debitMoneyModells");
 const payrequestModells =require("../Modells/payRequestModells");
+const recoverydebitModells = require("../Modells/recoveryDebitHistoryModells");
 
 const subtractmoney = async function (req, res) {
     try {
@@ -141,8 +142,48 @@ const subtractmoney = async function (req, res) {
         return res.status(500).json({ message: 'Internal Server Error' });
       }
    
+};
+
+const recoveryDebit= async function (req, res) {
+  const {id} = req.params._id;
+
+  try {
+    const data = await subtractModells.findOneAndReplace({id}); 
+    if (!data) {
+      res.status(404).json({ msg: "User Not fornd" });
+    }
+    const recoverydebit = new recoverydebitModells({
+      p_id: data.p_id,
+      p_group: data.p_group,
+      pay_type: data.pay_type,
+      amount_paid: data.amount_paid,
+      amt_for_customer: data.amt_for_customer,
+      dbt_date: data.dbt_date,
+      paid_for: data.paid_for,
+      other: data.other,
+      vendor: data.vendor,
+      po_number: data.po_number,
+      pay_mode: data.pay_mode,
+      dbt_acc_number: data.dbt_acc_number,
+      cr_acc_number: data.cr_acc_number,
+      utr: data.utr,
+      trans_details: data.trans_details,
+      submitted_by: data.submitted_by,
+      t_id: data.t_id,
+})
+      let recoverydebitdata = await recoverydebit.save();
+      await subtractModells.deleteOne({id});
+
+res.status(200).json({msg: "Debit amount recovery successfully", data: recoverydebitdata});
+  
+  } catch (error) {
+    res.status(500).json({ msg: "An error occurred while recovery debit history", error: error.message });
+    
+  }
 }
   
+
+
 
   
   
@@ -150,7 +191,8 @@ const subtractmoney = async function (req, res) {
   module.exports = {
   subtractmoney,
   getsubtractMoney,
-  deleteDebitMoney
+  deleteDebitMoney,
+  recoveryDebit
   };
   
   
