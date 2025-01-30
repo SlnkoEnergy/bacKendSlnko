@@ -302,9 +302,17 @@ const hold = async function (req, res) {
 //Account matched
 const account_matched = async function (req, res) {
   const { pay_id, acc_number, ifsc,submitted_by } = req.body;
+  const accNumberStr = String(acc_number);  // Match as string
+const accNumberNum = Number(acc_number);  // Match as number (integer or float)
+const accNumberDouble = parseFloat(acc_number); // Ensure floating point match
   try {
     const payment = await payRequestModells.findOneAndUpdate(
-      { pay_id, acc_number, ifsc }, // Matching criteria
+      { pay_id,  ifsc, 
+        $or: [
+          { acc_number: accNumberStr },  // Match as string
+          { acc_number: accNumberNum },  // Match as number (integer or float)
+          { acc_number: accNumberDouble }]
+      }, // Matching criteria
       { $set: { acc_match: "matched" } }, // Update action
       { new: true } // Return the updated document
     );
