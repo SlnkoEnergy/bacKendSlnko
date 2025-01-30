@@ -46,11 +46,11 @@ const debitmoneySchema= new mongoose.Schema({
       
       },
       dbt_acc_number: {
-        type: String,
+        type: mongoose.Schema.Types.Mixed,
        
       },
       cr_acc_number: {
-        type: String,
+        type: mongoose.Schema.Types.Mixed,
       
       },
       utr: {

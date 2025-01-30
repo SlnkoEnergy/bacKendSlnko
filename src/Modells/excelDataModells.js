@@ -48,7 +48,7 @@ const excelSchema = new mongoose.Schema({
         type: String,
     },
     acc_number: {
-        type: String,
+        type: mongoose.Schema.Types.Mixed,
     },
     branch: {
         type: String,

@@ -16,7 +16,7 @@ Beneficiary_Name:{
     },
     
 Account_No :{
-        type :String
+        type :mongoose.Schema.Types.Mixed
     },
     
 IFSC_Code:{

@@ -23,7 +23,7 @@ const payRequestschema = new mongoose.Schema(
     },
     ifsc: { type: String },
     benificiary: { type: String },
-    acc_number: { type: String },
+    acc_number: { type: mongoose.Schema.Types.Mixed},
     branch: { type: String },
     created_on: { type: String, default: Date.now },
     submitted_by: { type: String },
