@@ -40,11 +40,6 @@ const createOffer = async function (req,res) {
             nextOfferId = "comm/offer/00001"; // First ID if no records exist
         }
 
-
-     
-
-        
-    // if(existingOffer){
         const createOffer = new conmmOfferModells({
         offer_id: nextOfferId,
         client_name,
@@ -70,15 +65,15 @@ const createOffer = async function (req,res) {
         });
         const newOffer = await createOffer.save();
         return res.status(200).json(newOffer);
-    // } else {
-    //     return res.status(400).json({ msg: "Offer ID already exists. Please provide a new Offer ID." });
-    // }
+    
     } catch (error) {
         return res.status(500).json({ msg: error.message });
     }
     
 };
 
+
+// Get all commOffers
 const getCommOffer = async function (req, res) {
     try {
         const offers = await conmmOfferModells.find();
@@ -88,7 +83,46 @@ const getCommOffer = async function (req, res) {
     }
 };
 
+
+//edit commOffer
+
+const editOffer = async function (req, res) {
+try {
+    let { _id } = req.params;
+    let updateData = req.body;
+    let data = await conmmOfferModells.findByIdAndUpdate( _id,
+      updateData ,
+        { new: true }
+    );
+    if(!data) {
+        return res.status(404).json({ msg: "user not found" });
+    }
+    return res.status(200).json({ msg: "Offer updated successfully", data: data });
+
+} catch (error) {
+    return res.status(500).json({ msg: error.message });    
+    
+}
+};
+
+// Delete a commOffer
+
+const deleteOffer = async function (req, res) {
+    try {
+        let {_id} = req.params;
+        let data = await conmmOfferModells.findByIdAndDelete(_id);
+        if (!data) {
+            return res.status(404).json({ msg: "Offer not found" });
+        }
+        return res.status(200).json({ msg: "Offer deleted successfully", data:data });
+    } catch (error) {
+        return res.status(500).json({ msg: error.message });
+    }
+}
+
 module.exports = {
     createOffer,
     getCommOffer,
+    editOffer,  
+    deleteOffer,
 };

@@ -85,7 +85,7 @@ const {
 
 const { all_project_balance, all_project_debit, total_po_balance, total_billed_value, total_project_billValue, project_credit_amount, project_debit_amount, } = require("../Controllers/balanceController");
 
-const{ createOffer, getCommOffer }=require("../Controllers/commOfferController");
+const{ createOffer, getCommOffer, editOffer, deleteOffer }=require("../Controllers/commOfferController");
 
 // Admin router
 router.post("/user-registration", userRegister);
@@ -180,7 +180,8 @@ router.post("/get-total-debit-single",project_debit_amount);
 //commOffer
 router.post("/create-offer", createOffer);
 router.get("/get-comm-offer", getCommOffer);
-
+router.put("/edit-offer/:_id",editOffer);
+router.delete("/delete-offer/:_id", deleteOffer);
 
 
 
