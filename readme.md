@@ -1,25 +1,5 @@
 
 
+A Crm for User
 
-credential  
-
-mongodb pass = slnkoEnergy
-
-mongodb Connection string =   mongodb+srv://it:slnkoEnergy@cluster0.nj3x6.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
-
-
-Mongodb Altas  
-
-Password- Slnko@IT123
-It@slnkoenergy.com
- 
-
-
-
-to start with pm 2
-pm2 start index.js
- iahds
-
-// .connect(
-    //   "mongodb+srv://it:slnkoEnergy@cluster0.nj3x6.mongodb.net/slnko?retryWrites=true&w=majority&appName=Cluster0"
-    // )
+A Solar CRM (Customer Relationship Management) is a specialized software solution designed for solar energy businesses to streamline sales, customer interactions, project management, and service operations. It helps solar companies manage leads, track sales pipelines, generate quotes, schedule installations, and monitor customer inquiries efficiently.
