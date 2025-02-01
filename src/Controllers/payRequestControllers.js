@@ -661,7 +661,60 @@ const updateExcelData = async function (req, res) {
 
 
 //
+const updateExceData = async function (req, res) {
+  try {
+    const { _id } = req.body; // Extract _id from request body
 
+    if (!_id) {
+      return res.status(400).json({ message: "ID is required." });
+    }
+
+    // Find the document by _id
+    const document = await exccelDataModells.findOne({ _id });
+
+    if (!document) {
+      return res.status(404).json({ message: "Document not found." });
+    }
+
+    if (document.status !== "Not-paid") {
+      return res.status(400).json({ message: "Status is not 'Not-paid', update not allowed." });
+    }
+
+    // Perform update operation
+    const result = await exccelDataModells.updateOne(
+      { _id, status: "Not-paid" },
+      { $set: { status: "Deleted" } }
+    );
+
+    if (result.modifiedCount > 0) {
+      res.json({ message: "Status Changed to Deleted successfully" });
+    } else {
+      res.json({ message: "No changes made." });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "An error occurred while updating the item status." });
+  }
+};
+
+
+// Get Excel data by id
+
+const getExcelDataById = async function (req, res) {
+  try {
+    const { _id } = req.params;
+
+    const data = await exccelDataModells.findById(_id);
+
+    if (!data) {
+      return res.status(404).json({ message: "Data not found" });
+    }
+
+    res.json({ message: "Data found", data });
+  } catch (error) {
+    return res.status(500).json({ message: "Error fetching data" });
+  }
+}
 
 
 //get-all-payRequest
@@ -813,4 +866,6 @@ module.exports = {
   getPay,
   approve_pending,
   hold_approve_pending,
+  updateExceData,
+  getExcelDataById,
 };

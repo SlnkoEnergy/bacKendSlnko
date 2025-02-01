@@ -64,6 +64,8 @@ const {
   getPay,
   approve_pending,
   hold_approve_pending,
+  updateExceData,
+  getExcelDataById,
   
 } = require("../Controllers/payRequestControllers");
 
@@ -149,7 +151,8 @@ router.put("/update-excel-data",updateExcelData);
 router.put("/restorepayrequest/:_id",restorepayrequest); 
 router.post("/approve-data-send-holdpay",approve_pending);
 router.post("/hold-payto-payrequest", hold_approve_pending);
-
+router.put("/update-excel",updateExceData);
+router.get("/get-single-excel-data/:_id", getExcelDataById);
 
 // add-Bill
 router.post("/add-bill", addBill);
