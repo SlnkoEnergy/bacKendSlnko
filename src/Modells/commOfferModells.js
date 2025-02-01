@@ -15,6 +15,7 @@ const conmmOfferModells = new mongoose.Schema({
     rate: { type: Number },
     timeline: { type: String },
     module_capacity: { type: Number },
+    module_type: { type: String },
     inverter_capacity: { type: Number },
     evacuation_voltage: { type: Number },
     module_orientation: { type: String },
