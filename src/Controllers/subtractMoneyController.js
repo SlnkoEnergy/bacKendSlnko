@@ -148,10 +148,16 @@ const recoveryDebit= async function (req, res) {
   const {id} = req.params._id;
 
   try {
-    const data = await subtractModells.findOneAndReplace({id}); 
+    // const data = await subtractModells.findOneAndReplace({id}); 
+    // if (!data) {
+    //   res.status(404).json({ msg: "User Not fornd" });
+    // }
+
+    const data = await subtractModells.findOne({ _id: id }); 
     if (!data) {
-      res.status(404).json({ msg: "User Not fornd" });
+      return res.status(404).json({ msg: "User Not found" });
     }
+
     const recoverydebit = new recoverydebitModells({
       p_id: data.p_id,
       p_group: data.p_group,
@@ -172,13 +178,30 @@ const recoveryDebit= async function (req, res) {
       t_id: data.t_id,
 })
       let recoverydebitdata = await recoverydebit.save();
-      await subtractModells.deleteOne({id});
+      await subtractModells.deleteOne({ _id: id });
 
 res.status(200).json({msg: "Debit amount recovery successfully", data: recoverydebitdata});
   
   } catch (error) {
     res.status(500).json({ msg: "An error occurred while recovery debit history", error: error.message });
     
+  }
+};
+
+
+const deleteSubtractMoney = async function (req, res) {
+  try {
+    const {_id} = req.params;
+
+    const data = await subtractModells.findByIdAndDelete({_id});
+
+    if(!data){
+      return res.status(404).json({msg: "Data not found"});
+    }
+
+    return res.status(200).json({msg: "Debit amount deleted successfully", data: data});
+  } catch (error) {
+    return res.status(500).json({msg: "An error occurred while deleting debit amount", error: error.message});
   }
 }
   
@@ -192,7 +215,8 @@ res.status(200).json({msg: "Debit amount recovery successfully", data: recoveryd
   subtractmoney,
   getsubtractMoney,
   deleteDebitMoney,
-  recoveryDebit
+  recoveryDebit,
+  deleteSubtractMoney
   };
   
   

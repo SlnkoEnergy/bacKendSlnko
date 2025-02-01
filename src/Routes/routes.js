@@ -79,6 +79,7 @@ const {
   getsubtractMoney,
   deleteDebitMoney,
   recoveryDebit,
+  deleteSubtractMoney,
 } = require("../Controllers/subtractMoneyController");
 
 
@@ -163,7 +164,7 @@ router.post("/debit-money", subtractmoney);
 router.get("/get-subtract-amount", getsubtractMoney);
 router.delete("/delete-debit-money/:_id", deleteDebitMoney);
 router.put("/recovery-debit/:_id", recoveryDebit);//to test for rrecovery subtract money
-
+router.delete("/delete-subtract-money/:_id", deleteSubtractMoney);
 
 
 
