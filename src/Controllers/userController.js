@@ -82,7 +82,7 @@ const forgettpass = async function (req, res) {
       service: "gmail",
       auth: {
         user: "it@slnkoenergy.com",
-        pass: "zkst bdhq jsno aedn",
+        pass: "ifyx hwvm qaat jpdl",
       },
     });
 
@@ -261,7 +261,7 @@ const verifyandSendPass = async (req, res) => {
       service: "gmail",
       auth: {
         user: "it@slnkoenergy.com",
-        pass:  "zkst bdhq jsno aedn",
+        pass:  "ifyx hwvm qaat jpdl",
       },
     });
 
