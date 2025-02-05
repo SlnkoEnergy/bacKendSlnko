@@ -92,6 +92,14 @@ const{ createOffer, getCommOffer, editOffer, deleteOffer }=require("../Controlle
 
 const{ addCommRate, getCommRate, editCommRate }=require("../Controllers/commRateController");
 
+const { addCommScmRate, editCommScmRate, getCommScmRate } =require("../Controllers/commScmRateController");
+
+
+
+
+
+
+
 // Admin router
 router.post("/user-registration", userRegister);
 router.post("/login", login);
@@ -195,6 +203,13 @@ router.delete("/delete-offer/:_id", deleteOffer);
 router.post("/create-rate", addCommRate);
 router.get("/get-comm-rate", getCommRate);
 router.put("/edit-comm-rate/:_id", editCommRate);
+
+
+//commScmRate
+router.post("/create-scm-rate",addCommScmRate );
+router.put("/edit-scm-rate/:_id", editCommScmRate );
+router.get("/get-comm-scm-rate", getCommScmRate);
+
 
 
 
