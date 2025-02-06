@@ -61,6 +61,8 @@ const allbill = async function (req, res) {
   res.status(200).json({ msg: "all Bill Detail", bill });
 };
 
+//Delete -Crerdit Amount not IN USE
+
 const deletecredit = async function (req, res) {
   const { _id } = req.params;
 
@@ -87,10 +89,35 @@ const deletecredit = async function (req, res) {
       .status(200)
       .json({ message: "Credit amount deleted successfully." });
   } catch (error) {
-    console.error(error);
+
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+
+
+//Delete -Crerdit Amount IN USE
+
+const deleteCreditAmount = async function (req, res) {
+  const { _id } = req.params;
+  try {
+    let credit = await addMoneyModells.findByIdAndDelete(_id);
+    if (!credit) {
+      return res.status(404).json({ message: "Credit Amount Not Found" });
+    }
+
+    res.status(200).json({ msg: "Credit Amount Deleted", credit });
+    
+  } catch (error) {
+   
+    return res.status(500).json({ message: "Internal Server Error" + error });
+    
+  }
+ 
+};
+
+
+
 
 //  Credit Amount
 const credit_amount = async function (req, res) {
@@ -162,4 +189,5 @@ module.exports = {
   allbill,
   credit_amount,
   deletecredit,
+  deleteCreditAmount,
 };

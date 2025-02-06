@@ -7,6 +7,7 @@ const {
   allbill,
   credit_amount,
   deletecredit,
+  deleteCreditAmount,
 } = require("../Controllers/addMoneyController");
 const {
   createProject,
@@ -120,6 +121,7 @@ router.get("/get-project-id/:_id", getProjectById); //get project by id
 router.post("/Add-Money", addMoney);
 router.get("/all-bill", allbill);
 router.post("/get-bill", credit_amount);
+router.delete("/delete-crdit-amount/:_id",deleteCreditAmount);
 
 
 //purchase order controller
