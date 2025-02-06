@@ -99,9 +99,9 @@ const deletecredit = async function (req, res) {
 //Delete -Crerdit Amount IN USE
 
 const deleteCreditAmount = async function (req, res) {
-  const { _id } = req.params;
+          let id = req.params._id;
   try {
-    let credit = await addMoneyModells.findByIdAndDelete(_id);
+    let credit = await addMoneyModells.findByIdAndDelete(id);
     if (!credit) {
       return res.status(404).json({ message: "Credit Amount Not Found" });
     }
