@@ -5,11 +5,11 @@ const purchaseOrderSchema = new mongoose.Schema(
     p_id: {
       type: String,
     },
-    offer_Id:{
-        type: String,
+    offer_Id: {
+      type: String,
     },
-    
-po_number: {
+
+    po_number: {
       type: String,
     },
     date: {
@@ -17,11 +17,10 @@ po_number: {
     },
     item: {
       type: String,
-     
     },
     other: {
       type: String,
-       default:" ",
+      default: " ",
     },
     po_value: {
       type: Number,
