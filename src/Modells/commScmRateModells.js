@@ -24,9 +24,15 @@ earthing_strip: { type: String  },
   abt_meter: { type: String  },
   vcb_kiosk: { type: String  },
   slnko_charges: { type: String  },
-  labour_works: { type: String },
-  machinery: { type: String },
-  civil_material: { type: String },
+  
+  installation_commissioing: {
+    labour_works: { type: String },
+    machinery:  { type: String },
+    civil_material:  { type: String },
+    },
+  // labour_works: { type: String },
+  // machinery: { type: String },
+  // civil_material: { type: String },
   submitted_by: { type: String  },
 
 },{timestamps:true});

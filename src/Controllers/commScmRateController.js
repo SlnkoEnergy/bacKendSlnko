@@ -25,9 +25,7 @@ const addCommScmRate = async function (req, res) {
     abt_meter,
     vcb_kiosk,
     slnko_charges,
-    labour_works,
-    machinery,
-    civil_material,
+    installation_commissioing, 
     submitted_by,
   } = req.body;
   try {
@@ -54,9 +52,7 @@ const addCommScmRate = async function (req, res) {
       abt_meter,
       vcb_kiosk,
       slnko_charges,
-      labour_works,
-      machinery,
-      civil_material,
+      installation_commissioing,
       submitted_by,
     });
     await commScmRate.save();
