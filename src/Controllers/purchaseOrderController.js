@@ -21,7 +21,17 @@ const { error } = require("console");
 //Add-Purchase-Order
 const addPo = async function (req, res) {
   try {
-    const { p_id, date, item, other, po_number, po_value, vendor, partial_billing, submitted_By,  } = req.body;
+    const {
+      p_id,
+      date,
+      item,
+      other,
+      po_number,
+      po_value,
+      vendor,
+      partial_billing,
+      submitted_By,
+    } = req.body;
 
     // Get project ID
     // const project = await projectModells.find({ p_id: p_id });
@@ -61,7 +71,6 @@ const addPo = async function (req, res) {
       other,
       submitted_By,
       partial_billing,
-   
     });
 
     await newPO.save();
@@ -80,7 +89,7 @@ const addPo = async function (req, res) {
 
 //Edit-Purchase-Order
 const editPO = async function (req, res) {
-  let id= req.params._id;
+  let id = req.params._id;
   let updateData = req.body;
   try {
     let update = await purchaseOrderModells.findByIdAndUpdate(id, updateData, {
@@ -90,7 +99,7 @@ const editPO = async function (req, res) {
     const pohistory = {
       po_number: update.po_number,
       offer_Id: update.offer_Id,
-     // po_number: updatedPO.po_number,
+      // po_number: updatedPO.po_number,
       date: update.date,
       item: update.item,
       other: update.other,
@@ -103,9 +112,9 @@ const editPO = async function (req, res) {
       comment: update.comment,
       updated_on: new Date().toISOString(), // Use current time for updated_on field
       submitted_By: update.submitted_By,
-    }
+    };
     await pohisttoryModells.create(pohistory);
-    
+
     res.status(200).json({
       msg: "Project updated successfully",
       data: update, // Send back the updated project data
@@ -119,10 +128,8 @@ const editPO = async function (req, res) {
 const getPO = async function (req, res) {
   let id = req.params._id;
   let data = await purchaseOrderModells.findById(id);
-  res.status(200).json({ msg: "PO Detail", data:data });
+  res.status(200).json({ msg: "PO Detail", data: data });
 };
-
-
 
 //get PO History
 const getpohistory = async function (req, res) {
@@ -130,15 +137,13 @@ const getpohistory = async function (req, res) {
   const pageSize = 200;
   const skip = (page - 1) * pageSize;
 
-  let data = await pohisttoryModells.find()
-  .sort({ createdAt: -1 }) // Latest first
-  .skip(skip)
-  .limit(pageSize);
-;
+  let data = await pohisttoryModells
+    .find()
+    .sort({ createdAt: -1 }) // Latest first
+    .skip(skip)
+    .limit(pageSize);
   res.status(200).json({ msg: "All PO History", data: data });
 };
-
-
 
 // get-purchase-order-by p_id
 const getPOByProjectId = async function (req, res) {
@@ -147,6 +152,17 @@ const getPOByProjectId = async function (req, res) {
   res.status(200).json({ msg: "All Purchase Orders", data: data });
 };
 
+//get po history by id
+
+const getPOHistoryById = async function (req, res) {
+  try {
+    let id = req.params._id;
+    let data = await pohisttoryModells.findById(id);
+    res.status(200).json({ msg: "PO History Detail", data: data });
+  } catch (error) {
+    res.status(500).json({ msg: "Error fetching data", error: error.message });
+  }
+};
 
 
 //get ALLPO
@@ -155,21 +171,17 @@ const getallpo = async function (req, res) {
     // const page = parseInt(req.query.page) || 1;
     // const pageSize = 200;
     // const skip = (page - 1) * pageSize;
-    
+
     let data = await purchaseOrderModells.find();
     // .sort({ createdAt: -1 }) // Latest first
     // .skip(skip)
     // .limit(pageSize);
 
-    
-
     res.status(200).json({ msg: "All PO", data: data });
   } catch (error) {
-res.status(500).json({ msg: "Error fetching data", error: error.message });
+    res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
-
-
 
 //Move-Recovery
 const moverecovery = async function (req, res) {
@@ -185,8 +197,6 @@ const moverecovery = async function (req, res) {
 
     // Add the deleted item to the recovery collection
     const recoveryItem = new recoveryPurchaseOrder({
-    
-     
       po_number: deletedItem.po_number,
       p_id: deletedItem.p_id,
       date: deletedItem.date,
@@ -202,10 +212,9 @@ const moverecovery = async function (req, res) {
       updated_on: deletedItem.updated_on,
       submitted_By: deletedItem.submitted_By,
     });
-    
 
     await recoveryItem.save();
-   await purchaseOrderModells.deleteOne(_id);
+    await purchaseOrderModells.deleteOne(_id);
 
     res.json({
       message: "Item moved to recovery collection successfully",
@@ -251,8 +260,6 @@ const exportCSV = async function (req, res) {
   }
 };
 
-
-
 // Delete po
 const deletePO = async function (req, res) {
   let _id = req.params._id;
@@ -263,8 +270,6 @@ const deletePO = async function (req, res) {
     res.status(400).json({ msg: "Server error", error: error.message });
   }
 };
-
-
 
 // //gtpo test
 // const getAllPoTest = async (req, res) => {
@@ -303,8 +308,6 @@ const deletePO = async function (req, res) {
 //   }
 // };
 
-
-
 module.exports = {
   addPo,
   editPO,
@@ -315,6 +318,6 @@ module.exports = {
   getPOByProjectId,
   deletePO,
   getpohistory,
+  getPOHistoryById,
   // getAllPoTest,
-
 };
