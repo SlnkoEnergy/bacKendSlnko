@@ -4,6 +4,7 @@ const commScmRateModells = require("../Modells/commScmRateModells");
 const addCommScmRate = async function (req, res) {
   const {
     spv_modules,
+    offer_id,
     solar_inverter,
     module_mounting_structure,
     mounting_hardware,
@@ -33,6 +34,7 @@ const addCommScmRate = async function (req, res) {
   try {
     let commScmRate = new commScmRateModells({
       spv_modules,
+      offer_id,
       solar_inverter,
       module_mounting_structure,
       mounting_hardware,

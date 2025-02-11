@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const commScmRateSchema = new mongoose.Schema(
   {
     spv_modules: { type: String },
+    offer_id: { type: String,default:" " },
     solar_inverter: { type: String },
     module_mounting_structure: { type: String },
     mounting_hardware: { type: String },
