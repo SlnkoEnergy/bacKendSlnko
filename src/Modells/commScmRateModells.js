@@ -20,6 +20,8 @@ const commScmRateSchema = new mongoose.Schema(
     balance_of_system: { type: String },
     transportation: { type: String },
     transmission_line: { type: String },
+    transmission_line_intrenal: { type: Number },
+    transmission_line_print: { type: Number },
     ct_pt: { type: String },
     abt_meter: { type: String },
     vcb_kiosk: { type: String },

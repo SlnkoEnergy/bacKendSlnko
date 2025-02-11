@@ -92,7 +92,7 @@ const { all_project_balance, all_project_debit, total_po_balance, total_billed_v
 
 const{ createOffer, getCommOffer, editOffer, deleteOffer }=require("../Controllers/commOfferController");
 
-const{ addCommRate, getCommRate, editCommRate }=require("../Controllers/commRateController");
+const{ addCommRate, getCommRate, editCommRate, deleteCommRate }=require("../Controllers/commRateController");
 
 const { addCommScmRate, editCommScmRate, getCommScmRate } =require("../Controllers/commScmRateController");
 
@@ -207,6 +207,7 @@ router.delete("/delete-offer/:_id", deleteOffer);
 router.post("/create-rate", addCommRate);
 router.get("/get-comm-rate", getCommRate);
 router.put("/edit-comm-rate/:_id", editCommRate);
+router.delete("/delete-comm-rate/:_id",deleteCommRate);
 
 
 //commScmRate
