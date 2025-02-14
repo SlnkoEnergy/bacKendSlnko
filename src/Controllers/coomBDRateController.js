@@ -9,9 +9,7 @@ const addCommBDRate = async function (req, res) {
         spv_modules_585,
         
         solar_inverter,
-        module_mounting_structure_4LX6,
-        module_mounting_structure_2PX24,
-        module_mounting_structure_2PX12,
+        module_mounting_structure,
         mounting_hardware,
         dc_cable,
         ac_cable_inverter_accb,
@@ -50,9 +48,7 @@ const addCommBDRate = async function (req, res) {
             spv_modules_585,
         
             solar_inverter,
-            module_mounting_structure_4LX6,
-            module_mounting_structure_2PX24,
-            module_mounting_structure_2PX12,
+            module_mounting_structure,
             mounting_hardware,
             dc_cable,
             ac_cable_inverter_accb,
