@@ -109,6 +109,7 @@ const editCommBDRate = async function (req, res) {
         if (!data) {
             return res.status(404).json({ msg: "user not found" });
         }
+        return res.status(200).json({ msg: "Comm Rate updated successfully", data: data });
     } catch (error) {
         return res.status(500).json({ msg: error.message });
     }
