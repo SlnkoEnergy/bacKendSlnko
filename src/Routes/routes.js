@@ -95,6 +95,7 @@ const{ createOffer, getCommOffer, editOffer, deleteOffer }=require("../Controlle
 const{ addCommRate, getCommRate, editCommRate, deleteCommRate }=require("../Controllers/commRateController");
 
 const { addCommScmRate, editCommScmRate, getCommScmRate } =require("../Controllers/commScmRateController");
+const{ addCommBDRate, editCommBDRate, getCommBDRate, deleteCommBDRate }=require("../Controllers/coomBDRateController");
 
 
 
@@ -215,6 +216,12 @@ router.post("/create-scm-rate",addCommScmRate );
 router.put("/edit-scm-rate/:_id", editCommScmRate );
 router.get("/get-comm-scm-rate", getCommScmRate);
 
+
+//commBDRate
+router.post("/create-bd-rate",addCommBDRate );
+router.put("/edit-bd-rate/:_id", editCommBDRate );
+router.get("/get-comm-bd-rate",getCommBDRate);
+router.delete("/delete-comm-bd-rate/:_id", deleteCommBDRate);
 
 
 

@@ -112,4 +112,23 @@ const editCommBDRate = async function (req, res) {
     } catch (error) {
         return res.status(500).json({ msg: error.message });
     }
-}
+};
+//delete CommBDRate
+const deleteCommBDRate = async function (req, res) {
+    try {
+        let { _id } = req.params;
+        let data = await CommBDRate.findByIdAndDelete(_id);
+        if (!data) {
+            return res.status(404).json({ msg: "Comm Rate not found" });
+        }
+        return res.status(200).json({ msg: "Comm Rate deleted successfully" });
+    } catch (error) {
+        return res.status(500).json({ msg: error.message });
+    }
+};
+module.exports = {
+    addCommBDRate,
+    getCommBDRate,
+    editCommBDRate,
+    deleteCommBDRate
+};
