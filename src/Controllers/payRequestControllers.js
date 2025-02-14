@@ -303,8 +303,8 @@ const hold = async function (req, res) {
 const account_matched = async function (req, res) {
   const { pay_id, acc_number, ifsc,submitted_by } = req.body;
   const accNumberStr = String(acc_number);  // Match as string
-const accNumberNum = Number(acc_number);  // Match as number (integer or float)
-const accNumberDouble = parseFloat(acc_number); // Ensure floating point match
+  const accNumberNum = Number(acc_number);  // Match as number (integer or float)
+  const accNumberDouble = parseFloat(acc_number); // Ensure floating point match
   try {
     const payment = await payRequestModells.findOneAndUpdate(
       { pay_id,  ifsc, 
@@ -322,6 +322,7 @@ const accNumberDouble = parseFloat(acc_number); // Ensure floating point match
         message: "Account matched successfully!",
         data: payment,
       });
+      
       const newExcelData = new exccelDataModells({
         id: payment.id,
         p_id: payment.p_id,
