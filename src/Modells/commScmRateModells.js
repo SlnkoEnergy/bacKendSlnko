@@ -8,7 +8,7 @@ const commScmRateSchema = new mongoose.Schema(
     spv_modules_585: { type: String,default:" " },
    // offer_id: { type: String,default:" " },
     solar_inverter: { type: String },
-    module_mounting_structure: { type: String,},
+    module_mounting_structure: { type: String, default:" "},
     // module_mounting_structure_2PX24: { type: String,default:" " },
     // module_mounting_structure_2PX12: { type: String,default:" " },
     mounting_hardware: { type: String },
