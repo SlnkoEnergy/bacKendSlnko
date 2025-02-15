@@ -154,7 +154,7 @@ router.get("/get-pay-sumrY",getPay);
 router.post("/add-pay-requesT", payRrequest);
 router.post("/hold-paymenT", holdpay);
 router.get("/get-pay-summarY", getPaySummary);
-router.get("/hold-pay-summarY-IT", hold);
+router.get("/hold-pay-summary-IT", hold);
 router.put("/acc-matched", account_matched);
 router.put("/utr-update", utrUpdate);
 router.put("/account-approve", accApproved);
