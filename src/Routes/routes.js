@@ -128,33 +128,33 @@ router.delete("/delete-crdit-amount/:_id",deleteCreditAmount);
 
 
 //purchase order controller
-router.post("/Add-purchase-order", addPo);
-router.put("/edit-po/:_id", editPO);
-router.get("/get-po/:_id", getPO);
-router.get("/get-all-po", getallpo);
+router.post("/Add-purchase-ordeR", addPo);
+router.put("/edit-pO/:_id", editPO);
+router.get("/get-pO/:_id", getPO);
+router.get("/get-all-pO", getallpo);
 router.post("/export-to-csv", exportCSV);
 router.put("/remove-to-recovery/:_id", moverecovery);
 router.get("/get-po-by-p_id/", getPOByProjectId);
-router.delete("/delete-po/:_id",deletePO);
-router.get ("/get-po-history",getpohistory);
-router.get("/get-po-history-id/:_id", getPOHistoryById);
+router.delete("/delete-pO/:_id",deletePO);
+router.get ("/get-po-historY",getpohistory);
+router.get("/get-po-history-iD/:_id", getPOHistoryById);
 
 //Add vendor
-router.post("/Add-vendor", addVendor);
-router.get("/get-all-vendor", getVendor);
-router.put("/update-vendor/:_id", updateVendor); //update vendor
-router.delete("/delete-vendor/:_id", deleteVendor); //delete vendor
+router.post("/Add-vendoR", addVendor);
+router.get("/get-all-vendoR", getVendor);
+router.put("/update-vendoR/:_id", updateVendor); //update vendor
+router.delete("/delete-vendoR/:_id", deleteVendor); //delete vendor
 
 //item
-router.post("/add-item", additem);
-router.get("/get-item", getItem);
+router.post("/add-iteM", additem);
+router.get("/get-iteM", getItem);
 
 //pay Request api
-router.get("/get-pay-sumry",getPay);
-router.post("/add-pay-request", payRrequest);
-router.post("/hold-payment", holdpay);
-router.get("/get-pay-summary", getPaySummary);
-router.get("/hold-pay-summary", hold);
+router.get("/get-pay-sumrY",getPay);
+router.post("/add-pay-requesT", payRrequest);
+router.post("/hold-paymenT", holdpay);
+router.get("/get-pay-summarY", getPaySummary);
+router.get("/hold-pay-summarY", hold);
 router.put("/acc-matched", account_matched);
 router.put("/utr-update", utrUpdate);
 router.put("/account-approve", accApproved);
@@ -172,19 +172,19 @@ router.get("/get-single-excel-data/:_id", getExcelDataById);
 router.get("/get-pay-smry",getpy);
 
 // add-Bill
-router.post("/add-bill", addBill);
-router.get("/get-all-bill", getBill);
+router.post("/add-bilL", addBill);
+router.get("/get-all-bilL", getBill);
 router.put("/update-bill/:_id", updatebill);
 router.delete("/delete-credit-amount/:_id", deletecredit);
 router.delete("/delete-bill/:_id", deleteBill);
 router.put("/accepted-by",bill_approved);
 
 //subtractmoney-debitmoney
-router.post("/debit-money", subtractmoney);
-router.get("/get-subtract-amount", getsubtractMoney);
+router.post("/debit-moneY", subtractmoney);
+router.get("/get-subtract-amounT", getsubtractMoney);
 router.delete("/delete-debit-money/:_id", deleteDebitMoney);
 router.put("/recovery-debit/:_id", recoveryDebit);//to test for rrecovery subtract money
-router.delete("/delete-subtract-money/:_id", deleteSubtractMoney);
+router.delete("/delete-subtract-moneY/:_id", deleteSubtractMoney);
 
 
 
