@@ -195,8 +195,6 @@ router.get("/get-po-balance", total_po_balance);
 router.get("/get-total-billed", total_billed_value);
 router.post("/get-total-credit-single", project_credit_amount);
 router.post("/get-total-debit-single",project_debit_amount);
-// router.post("/get-group-balance", group_blanace);
-// router.get("/get-balance",groupbalance);
 
 //commOffer
 router.post("/create-offer", createOffer);
