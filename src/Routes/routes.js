@@ -114,11 +114,11 @@ router.delete("/delete-useR/:_id", deleteUser);
 router.get("/get-single-useR/:_id", getSingleUser);
 
 //project router
-router.post("/add-new-project", createProject);
-router.put("/update-project/:_id", updateProject);
-router.get("/get-all-project", getallproject);
-router.delete("/delete-by-id/:_id", deleteProjectById); //delete project by id
-router.get("/get-project-id/:_id", getProjectById); //get project by id
+router.post("/add-new-projecT", createProject);
+router.put("/update-projecT/:_id", updateProject);
+router.get("/get-all-projecT", getallproject);
+router.delete("/delete-by-iD/:_id", deleteProjectById); //delete project by id
+router.get("/get-project-iD/:_id", getProjectById); //get project by id
 
 //addMoney APi
 router.post("/Add-Money", addMoney);
