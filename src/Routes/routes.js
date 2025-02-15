@@ -121,9 +121,9 @@ router.delete("/delete-by-iD/:_id", deleteProjectById); //delete project by id
 router.get("/get-project-iD/:_id", getProjectById); //get project by id
 
 //addMoney APi
-router.post("/Add-Money", addMoney);
-router.get("/all-bill", allbill);
-router.post("/get-bill", credit_amount);
+router.post("/Add-MoneY", addMoney);
+router.get("/all-bilL", allbill);
+router.post("/get-bilL", credit_amount);
 router.delete("/delete-crdit-amount/:_id",deleteCreditAmount);
 
 
