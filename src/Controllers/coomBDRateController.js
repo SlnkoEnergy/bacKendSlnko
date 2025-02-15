@@ -8,17 +8,12 @@ const addCommBDRate = async function (req, res) {
         spv_modules_580,
         spv_modules_550,
         spv_modules_585,
-        
-      
         module_mounting_structure,
        
         transmission_line_11kv,
         transmission_line_33kv,
-       
-        
-        slnko_charges,
-       
-        submitted_by,  } = req.body;
+       slnko_charges,
+       submitted_by,  } = req.body;
     try {
         let commBDRate = new CommBDRate({
             offer_id,

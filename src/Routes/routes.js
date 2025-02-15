@@ -105,13 +105,13 @@ const{ addCommBDRate, editCommBDRate, getCommBDRate, deleteCommBDRate }=require(
 
 
 // Admin router
-router.post("/user-registration", userRegister);
-router.post("/login", login);
-router.get("/get-all-user", getalluser);
-router.post("/forget-password-send-otp", forgettpass);
-router.post("/received-email", verifyandSendPass);
-router.delete("/delete-user/:_id", deleteUser);
-router.get("/get-single-user/:_id", getSingleUser);
+router.post("/user-registratioN", userRegister);
+router.post("/logiN", login);
+router.get("/get-all-useR", getalluser);
+router.post("/forget-password-send-otP", forgettpass);
+router.post("/received-emaiL", verifyandSendPass);
+router.delete("/delete-useR/:_id", deleteUser);
+router.get("/get-single-useR/:_id", getSingleUser);
 
 //project router
 router.post("/add-new-project", createProject);
