@@ -844,6 +844,13 @@ const getPay = async (req, res) => {
     }
   
   };
+  
+
+  const getpy = async function (req,res) {
+    const data = await payRequestModells.find();
+    res.status(200).json({msg: "All pay request", data: data});
+    
+  };
 
 
 
@@ -869,4 +876,5 @@ module.exports = {
   hold_approve_pending,
   updateExceData,
   getExcelDataById,
+  getpy,
 };
