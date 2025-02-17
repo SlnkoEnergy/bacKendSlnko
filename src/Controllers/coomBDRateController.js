@@ -4,28 +4,28 @@ const CommBDRate = require('../Modells/commBDRateModells');
 const addCommBDRate = async function (req, res) {
     const {
         offer_id,
-        spv_modules_555,
-        spv_modules_580,
-        spv_modules_550,
-        spv_modules_585,
-        module_mounting_structure,
+        spv_modules_555_BD,
+        spv_modules_580_BD,
+        spv_modules_550_BD,
+        spv_modules_585_BD,
+        module_mounting_structure_BD,
        
-        transmission_line_11kv,
-        transmission_line_33kv,
-       slnko_charges,
-       submitted_by,  } = req.body;
+        transmission_line_11kv_BD,
+        transmission_line_33kv_BD,
+       slnko_charges_BD,
+       submitted_by_BD,  } = req.body;
     try {
         let commBDRate = new CommBDRate({
             offer_id,
-            spv_modules_555,
-            spv_modules_580,
-            spv_modules_550,
-            spv_modules_585,
-            module_mounting_structure,
-            transmission_line_11kv,
-            transmission_line_33kv,
-            slnko_charges,
-            submitted_by,
+            spv_modules_555_BD,
+            spv_modules_580_BD,
+            spv_modules_550_BD,
+            spv_modules_585_BD,
+            module_mounting_structure_BD,
+            transmission_line_11kv_BD,
+            transmission_line_33kv_BD,
+            slnko_charges_BD,
+            submitted_by_BD,
         });
         await commBDRate.save();
         res.status(200).json({ msg: "Comm Rate added successfully", commBDRate : commBDRate});
