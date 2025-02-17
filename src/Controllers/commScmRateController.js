@@ -39,7 +39,7 @@ const addCommScmRate = async function (req, res) {
     abt_meter_11kv_Other,
     abt_meter_33kv_Other,
     vcb_kiosk,
-    slnko_charges,
+    slnko_charges_scm,
     installation_commissioing, 
     submitted_by_scm,
   } = req.body;
@@ -80,7 +80,7 @@ const addCommScmRate = async function (req, res) {
       abt_meter_11kv_Other,
       abt_meter_33kv_Other,
       vcb_kiosk,
-      slnko_charges,
+      slnko_charges_scm,
       installation_commissioing,
       submitted_by_scm,
     });
