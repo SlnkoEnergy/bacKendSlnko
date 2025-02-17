@@ -45,6 +45,7 @@ alt_number:{
     updated_on: { type: String },
 
     service: { type: String },
+    submitted_by: { type: String },
   },
   { timestamps: true }
 );
