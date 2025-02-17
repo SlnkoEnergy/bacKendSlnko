@@ -41,7 +41,7 @@ const addCommScmRate = async function (req, res) {
     vcb_kiosk,
     slnko_charges,
     installation_commissioing, 
-    submitted_by,
+    submitted_by_scm,
   } = req.body;
   try {
     let commScmRate = new commScmRateModells({
@@ -82,7 +82,7 @@ const addCommScmRate = async function (req, res) {
       vcb_kiosk,
       slnko_charges,
       installation_commissioing,
-      submitted_by,
+      submitted_by_scm,
     });
     await commScmRate.save();
     res

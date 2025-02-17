@@ -49,7 +49,7 @@ const commScmRateSchema = new mongoose.Schema(
     // labour_works: { type: String },
     // machinery: { type: String },
     // civil_material: { type: String },
-    submitted_by: { type: String },
+    submitted_by_scm: { type: String },
   },
   { timestamps: true }
 );
