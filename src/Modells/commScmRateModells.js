@@ -40,7 +40,7 @@ const commScmRateSchema = new mongoose.Schema(
      abt_meter_33kv_Other: { type: String,default:" " },
     
     vcb_kiosk: { type: String },
-    slnko_charges: { type: String },
+    slnko_charges_scm: { type: String },
     installation_commissioing: {
       labour_works: { type: String },
       machinery: { type: String },
