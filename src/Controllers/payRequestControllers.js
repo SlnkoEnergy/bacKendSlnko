@@ -414,11 +414,11 @@ const accApproved = async function (req, res) {
 
 //Update UTR number
 const utrUpdate = async function (req, res) {
-  const { pay_id, utr } = req.body;
+  const { pay_id, utr,  utr_submitted_by} = req.body;
   try {
     const payment = await payRequestModells.findOneAndUpdate(
       { pay_id, acc_match: "matched" }, // Matching criteria
-      { $set: { utr } }, // Update action
+      { $set: { utr,utr_submitted_by } }, // Update action
       { new: true } // Return the updated document
     );
 
