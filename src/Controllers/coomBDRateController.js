@@ -82,7 +82,7 @@ const deleteCommBDRate = async function (req, res) {
 const getCommBdRateHistory = async function (req, res) {
     try {
         const commBdRateHistory = await CommBdRateHistory.find();
-        return res.status(200).json(commBdRateHistory);
+        return res.status(200).json({msg:"BD Rate History Log",data:commBdRateHistory});
     } catch (error) {
         return res.status(500).json({ msg: error.message });
     }
