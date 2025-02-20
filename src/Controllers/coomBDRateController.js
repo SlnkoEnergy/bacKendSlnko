@@ -77,9 +77,21 @@ const deleteCommBDRate = async function (req, res) {
         return res.status(500).json({ msg: error.message });
     }
 };
+
+//get all commbdRateHistory
+const getCommBdRateHistory = async function (req, res) {
+    try {
+        const commBdRateHistory = await CommBdRateHistory.find();
+        return res.status(200).json(commBdRateHistory);
+    } catch (error) {
+        return res.status(500).json({ msg: error.message });
+    }
+};
+
 module.exports = {
     addCommBDRate,
     getCommBDRate,
     editCommBDRate,
-    deleteCommBDRate
+    deleteCommBDRate,
+    getCommBdRateHistory
 };
