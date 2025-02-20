@@ -1,4 +1,5 @@
 const CommBDRate = require('../Modells/commBDRateModells');
+const CommBdRateHistory = require('../Modells/commBdRateHistoryModells');
 
 //add commBDRate
 const addCommBDRate = async function (req, res) {
@@ -48,6 +49,16 @@ const editCommBDRate = async function (req, res) {
         if (!data) {
             return res.status(404).json({ msg: "user not found" });
         }
+
+        let commBdRateHistory = new CommBdRateHistory({
+            offer_id: data.offer_id,
+            spv_modules: data.spv_modules,
+            module_mounting_structure: data.module_mounting_structure,
+            transmission_line: data.transmission_line,
+            slnko_charges: data.slnko_charges,
+            submitted_by_BD: data.submitted_by_BD,
+        });
+        await commBdRateHistory.save();
         return res.status(200).json({ msg: "Comm Rate updated successfully", data: data });
     } catch (error) {
         return res.status(500).json({ msg: error.message });
