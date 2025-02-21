@@ -13,6 +13,7 @@ const mongoose = require('mongoose');
     
     
     slnko_charges: { type: String },
+    status: { type: String, default: 'Posted' },
     
     submitted_by_BD: { type: String },
 
