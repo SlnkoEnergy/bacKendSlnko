@@ -40,6 +40,22 @@ const getCommBDRate = async function (req, res) {
         return res.status(500).json({ msg: error.message });
     }
 };
+
+// get bdRate by offer_id
+
+
+const getCommBDRateByOfferId = async function (req, res) {
+    try {
+        const { offer_id } = req.params;
+        const commBDRate = await CommBDRate.find({ offer_id: offer_id });
+        return res.status(200).json(commBDRate);
+    } catch (error) {
+        return res.status(500).json({ msg: error.message });
+    }
+};
+
+
+
 //edit commBDRate
 const editCommBDRate = async function (req, res) {
     try {
@@ -93,5 +109,6 @@ module.exports = {
     getCommBDRate,
     editCommBDRate,
     deleteCommBDRate,
-    getCommBdRateHistory
+    getCommBdRateHistory,
+    getCommBDRateByOfferId,
 };
