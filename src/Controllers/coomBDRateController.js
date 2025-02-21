@@ -46,7 +46,8 @@ const getCommBDRate = async function (req, res) {
 
 const getCommBDRateByOfferId = async function (req, res) {
     try {
-        const { offer_id } = req.params;
+        const { offer_id } = req.body;
+       
         const commBDRate = await CommBDRate.find({ offer_id: offer_id });
         return res.status(200).json(commBDRate);
     } catch (error) {

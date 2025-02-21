@@ -223,7 +223,7 @@ router.put("/edit-bd-rate/:_id", editCommBDRate );
 router.get("/get-comm-bd-rate",getCommBDRate);
 router.delete("/delete-comm-bd-rate/:_id", deleteCommBDRate);
 router.get("/get-bd-rate-history", getCommBdRateHistory);
-router.get("/get-bd-rate-by offer_id/:offer_id", getCommBDRateByOfferId);
+router.get("/get-bd-rate-by-offer_id", getCommBDRateByOfferId);
 
 
 
