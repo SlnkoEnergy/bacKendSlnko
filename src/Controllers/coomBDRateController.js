@@ -1,19 +1,26 @@
 const CommBDRate = require('../Modells/commBDRateModells');
 const CommBdRateHistory = require('../Modells/commBdRateHistoryModells');
+const CommOffer = require("../Modells/commOfferModells");
 
 //add commBDRate
 const addCommBDRate = async function (req, res) {
-    const {
-        offer_id,
-        spv_modules,
+   
        
-        module_mounting_structure,
-       
-        transmission_line,
-       
-       slnko_charges,
-       submitted_by_BD,  } = req.body;
     try {
+        const {
+            offer_id,
+            spv_modules,
+           
+            module_mounting_structure,
+           
+            transmission_line,
+           
+           slnko_charges,
+           submitted_by_BD,  } = req.body;
+           let checkOfferid  = await CommOffer.findOne({ offer_id: offer_id });
+           if(checkOfferid){
+            return res.status(400).json({ msg: "Offer Id already exist" });
+}
         let commBDRate = new CommBDRate({
             offer_id,
             spv_modules,
