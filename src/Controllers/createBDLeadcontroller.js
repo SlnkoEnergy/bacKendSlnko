@@ -44,6 +44,7 @@ const createBDlead = async function (req, res) {
         res.status(400).json({ error: error });
     }
 };
+//get all BDlead
 
 const getBDlead = async function (req, res) {
     try {
@@ -53,7 +54,7 @@ const getBDlead = async function (req, res) {
         res.status(500).json({ error: error });
     }
 };
-
+//edit BDlead
 const editBDlead = async function (req, res) {
     const { _id } = req.params;
     const updateData = req.body;
@@ -67,6 +68,7 @@ const editBDlead = async function (req, res) {
         res.status(400).json({ error: error });
     }
 };
+//delete BDlead
 
 const deleteBDlead = async function (req, res) {
     const { _id } = req.params;
