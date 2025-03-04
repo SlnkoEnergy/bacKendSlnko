@@ -98,7 +98,7 @@ const{ addCommRate, getCommRate, editCommRate, deleteCommRate }=require("../Cont
 const { addCommScmRate, editCommScmRate, getCommScmRate } =require("../Controllers/commScmRateController");
 const{ addCommBDRate, editCommBDRate, getCommBDRate, deleteCommBDRate, getCommBdRateHistory, getCommBDRateByOfferId }=require("../Controllers/coomBDRateController");
 
-const { createBDlead, getBDlead, editBDlead, deleteBDlead }=require("../Controllers/createBdLeadcontroller");
+// const { createBDlead, getBDlead, editBDlead, deleteBDlead }=require("../Controllers/createBdLeadcontroller");
 
 
 
@@ -226,10 +226,10 @@ router.get("/get-bd-rate-history", getCommBdRateHistory);
 router.get("/get-bd-rate-by-offer_id", getCommBDRateByOfferId);
 
 //createBdLead
-router.post("/create-bd-lead", createBDlead);
-router.get("/get-all-bd-lead", getBDlead);
-router.put("/edit-bd-lead/:_id", editBDlead);
-router.delete("/delete-bd-lead/:_id", deleteBDlead);
+// router.post("/create-bd-lead", createBDlead);
+// router.get("/get-all-bd-lead", getBDlead);
+// router.put("/edit-bd-lead/:_id", editBDlead);
+// router.delete("/delete-bd-lead/:_id", deleteBDlead);
 
 
 
