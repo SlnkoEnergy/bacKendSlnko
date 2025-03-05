@@ -13,7 +13,12 @@ const createBDleadSchema = new mongoose.Schema({
     capacity: { type: String },
     distance: { type: String },
     tarrif: { type: String },
-    land: { type: String },
+    land: { 
+        available_land: { type: String },
+        land_type: { type: String },
+        
+
+    },
     entry_date: { type: String },
     interest: { type: String },
     comment:{ type: String },
