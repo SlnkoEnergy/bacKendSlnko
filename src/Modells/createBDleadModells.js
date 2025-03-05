@@ -14,7 +14,9 @@ const createBDleadSchema = new mongoose.Schema({
     distance: { type: String },
     tarrif: { type: String },
     land: { type: String },
-    entry_dtae: { type: String },
+    entry_date: { type: String },
+    intrest: { type: String },
+    comment:{ type: String },
     submitted_by: { type: String },
 }, { timestamps: true });
 module.exports = mongoose.model("createBDlead", createBDleadSchema);

@@ -100,7 +100,7 @@ const{ addCommBDRate, editCommBDRate, getCommBDRate, deleteCommBDRate, getCommBd
 
 // const { createBDlead, getBDlead, editBDlead, deleteBDlead }=require("../Controllers/createBdLeadcontroller");
 
-const{ createeBDlead }=require("../Controllers/bdcreateControllers");
+const{ createeBDlead, getBDleaddata }=require("../Controllers/bdcreateControllers");
 
 
 
@@ -235,7 +235,7 @@ router.get("/get-bd-rate-by-offer_id", getCommBDRateByOfferId);
 
 
 router.post("/create-bd-lead",createeBDlead);
-
+router.get("/get-all-bd-lead",getBDleaddata);
 
 
 

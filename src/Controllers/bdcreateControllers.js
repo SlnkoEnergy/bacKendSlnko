@@ -16,7 +16,9 @@ const createeBDlead = async function (req, res) {
         distance,
         tarrif,
         land,
-        entry_dtae,
+        entry_date,
+        intrest,
+        comment,
         submitted_by,
     } = req.body;
     try {
@@ -35,7 +37,10 @@ const createeBDlead = async function (req, res) {
         distance,
         tarrif,
         land,
-        entry_dtae,
+        entry_date,
+        intrest,
+        comment,
+
         submitted_by,
         });
         await createBDlead.save();
@@ -45,4 +50,15 @@ const createeBDlead = async function (req, res) {
     }
 };
 
-module.exports = { createeBDlead };
+//get all data
+const getBDleaddata = async function (req, res) {
+    try {
+        let getBDlead = await bdmodells.find();
+        res.status(200).json({ message: "Data fetched successfully", Data: getBDlead });
+    } catch (error) {
+        res.status(400).json({ error: error });
+    }
+};
+
+
+module.exports = { createeBDlead,getBDleaddata };
