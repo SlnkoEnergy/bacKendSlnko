@@ -27,6 +27,7 @@ const createOffer = async function (req,res) {
             column_type,
             prepared_by,
             dc_overloading,
+            mob_number,
         } = req.body;
 
         const lastOffer = await conmmOfferModells.findOne().sort({ offer_id: -1 });
@@ -64,6 +65,7 @@ const createOffer = async function (req,res) {
         column_type,
         prepared_by,
         dc_overloading,
+        mob_number,
         });
         const newOffer = await createOffer.save();
         return res.status(200).json(newOffer);

@@ -15,7 +15,7 @@ const createBDleadSchema = new mongoose.Schema({
     tarrif: { type: String },
     land: { type: String },
     entry_date: { type: String },
-    intrest: { type: String },
+    interest: { type: String },
     comment:{ type: String },
     submitted_by: { type: String },
 }, { timestamps: true });

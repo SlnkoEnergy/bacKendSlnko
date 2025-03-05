@@ -17,7 +17,7 @@ const createeBDlead = async function (req, res) {
         tarrif,
         land,
         entry_date,
-        intrest,
+        interest,
         comment,
         submitted_by,
     } = req.body;
@@ -38,7 +38,7 @@ const createeBDlead = async function (req, res) {
         tarrif,
         land,
         entry_date,
-        intrest,
+        interest,
         comment,
 
         submitted_by,

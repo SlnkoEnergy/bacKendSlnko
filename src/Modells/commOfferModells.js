@@ -25,6 +25,7 @@ const conmmOfferModells = new mongoose.Schema({
     prepared_by: { type: String },
     created_on: { type: Date, default: Date.now },
     dc_overloading: { type: String },
+    mob_number: { type: String },
 
     
 },{timestamps:true});
