@@ -15,8 +15,8 @@ const createOffer = async function (req,res) {
             dc_capacity,
             scheme,
             component,
-            rate_original,
-            rate_revised,
+            rate,
+            
             timeline,
             module_capacity,
             module_type,
@@ -54,8 +54,8 @@ const createOffer = async function (req,res) {
         dc_capacity,
         scheme,
         component,
-        rate_original,
-        rate_revised,
+        rate,
+        
         timeline,
         module_capacity,
         module_type,

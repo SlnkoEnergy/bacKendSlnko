@@ -12,8 +12,8 @@ const conmmOfferModells = new mongoose.Schema({
     dc_capacity: { type: Number },
     scheme: { type: String },
     component: { type: String },
-    rate_original: { type: Number },
-    rate_revised: { type: Number },
+    rate: { type: Number},
+   
     timeline: { type: String },
     module_capacity: { type: Number },
     module_type: { type: String },
