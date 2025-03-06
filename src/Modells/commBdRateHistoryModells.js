@@ -14,6 +14,8 @@ const commBdRateHistorySchema = new mongoose.Schema({
     slnko_charges: { type: String },
     
     submitted_by_BD: { type: String },
+    comment: { type: String },
+
 
 
 },{timestamps:true});

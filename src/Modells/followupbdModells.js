@@ -26,4 +26,5 @@ const followupbdSchema = new mongoose.Schema({
     other_remarks: { type: String, default: " " },
     submitted_by: { type: String },
 }, { timestamps: true });   
+
 module.exports = mongoose.model('followUpBdlead', followupbdSchema);
