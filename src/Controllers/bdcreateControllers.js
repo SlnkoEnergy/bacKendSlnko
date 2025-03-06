@@ -1,4 +1,5 @@
 const bdmodells= require("../Modells/createBDleadModells");
+const initialbdleadModells = require("../Modells/initialBdLeadModells");
 
 const createeBDlead = async function (req, res) {
     const {
@@ -19,11 +20,27 @@ const createeBDlead = async function (req, res) {
         entry_date,
         interest,
         comment,
+        loi, 
+        ppa,
+        loa, 
+        other_remarks,
         submitted_by,
     } = req.body;
+
+      const lastid = await bdmodells.findOne().sort({ id: -1 });
+        let nextid;
+        if (lastid && lastid.id) {
+            const lastNumber = parseInt(lastid.id.split("/").pop(), 10);
+            const nextNumber = (lastNumber + 1).toString(); 
+            nextid = `BD/lead/${nextNumber}`;
+        } else {
+            nextid = "BD/lead/1"; 
+        }
+    
+    
     try {
         let createBDlead = new bdmodells({
-        id,
+        id:nextid,
         c_name,
         email,
         mobile,
@@ -40,11 +57,40 @@ const createeBDlead = async function (req, res) {
         entry_date,
         interest,
         comment,
+        loi, 
+        ppa,
+        loa, 
+        other_remarks,
 
         submitted_by,
         });
         await createBDlead.save();
-        res.status(200).json({ message: "Data saved successfully",Data :createBDlead});
+        let initialbdlead = new initialbdleadModells({
+            id:nextid,
+            c_name,
+            email,
+            mobile,
+            alt_mobile,
+            company,
+            village,
+            district,
+            state,
+            scheme,
+            capacity,
+            distance,
+            tarrif,
+            land,
+            entry_date,
+            interest,
+            comment,
+            loi, 
+            ppa,
+            loa, 
+            other_remarks,
+            submitted_by,
+        });
+        await initialbdlead.save();
+        res.status(200).json({ message: "Data saved successfully",Data :createBDlead,initialbdlead:initialbdlead });
     } catch (error) {
         res.status(400).json({ error: error });
     }
@@ -59,6 +105,8 @@ const getBDleaddata = async function (req, res) {
         res.status(400).json({ error: error });
     }
 };
+
+
 
 
 module.exports = { createeBDlead,getBDleaddata };

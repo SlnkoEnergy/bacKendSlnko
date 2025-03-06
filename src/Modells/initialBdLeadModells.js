@@ -1,5 +1,5 @@
-const mongoose = require("mongoose");
-const createBDleadSchema = new mongoose.Schema({
+const mongoose = require('mongoose');
+const initialBdLeadSchema = new mongoose.Schema({
     id: { type: String },
     c_name: { type: String },
     email: { type: String },
@@ -13,20 +13,18 @@ const createBDleadSchema = new mongoose.Schema({
     capacity: { type: String },
     distance: { type: String },
     tarrif: { type: String },
-    land: { 
+    land: {
         available_land: { type: String },
         land_type: { type: String },
-        
-
     },
     entry_date: { type: String },
     interest: { type: String },
-    comment:{ type: String,default:" "},
-    loi: { type: String ,default:" "},
-    ppa: { type: String ,default:" "},
-    loa: { type: String ,default:" "},
-    other_remarks: { type: String ,default:" "},
+    comment: { type: String, default: " " },
+    loi: { type: String, default: " " },
+    ppa: { type: String, default: " " },
+    loa: { type: String, default: " " },
+    other_remarks: { type: String, default: " " },
     submitted_by: { type: String },
 }, { timestamps: true });
-module.exports = mongoose.model("createBDlead", createBDleadSchema);
-   
+
+module.exports = mongoose.model('initialBdLead', initialBdLeadSchema);
