@@ -12,7 +12,8 @@ const conmmOfferModells = new mongoose.Schema({
     dc_capacity: { type: Number },
     scheme: { type: String },
     component: { type: String },
-    rate: { type: Number },
+    rate_original: { type: Number },
+    rate_revised: { type: Number },
     timeline: { type: String },
     module_capacity: { type: Number },
     module_type: { type: String },
@@ -26,6 +27,7 @@ const conmmOfferModells = new mongoose.Schema({
     created_on: { type: Date, default: Date.now },
     dc_overloading: { type: String },
     mob_number: { type: String },
+
 
     
 },{timestamps:true});

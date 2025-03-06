@@ -16,7 +16,8 @@ const addCommBDRate = async function (req, res) {
             transmission_line,
            
            slnko_charges,
-           submitted_by_BD,  } = req.body;
+           submitted_by_BD,
+           comment,  } = req.body;
 //            let checkOfferid  = await CommOffer.findOne({ offer_id: offer_id });
 //            if(checkOfferid){
 //             return res.status(400).json({ msg: "Offer Id already exist" });
@@ -30,6 +31,7 @@ const addCommBDRate = async function (req, res) {
             
             slnko_charges,
             submitted_by_BD,
+            comment,
         });
         await commBDRate.save();
         res.status(200).json({ msg: "Comm Rate added successfully", commBDRate : commBDRate});
@@ -81,6 +83,7 @@ const editCommBDRate = async function (req, res) {
             transmission_line: data.transmission_line,
             slnko_charges: data.slnko_charges,
             submitted_by_BD: data.submitted_by_BD,
+            comment: data.comment,
         });
         await commBdRateHistory.save();
         return res.status(200).json({ msg: "Comm Rate updated successfully", data: data });

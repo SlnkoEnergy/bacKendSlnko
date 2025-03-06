@@ -16,6 +16,7 @@ const mongoose = require('mongoose');
     status: { type: String, default: 'Posted' },
     
     submitted_by_BD: { type: String },
+    comment: { type: String },
 
 
  },{timestamps:true});
