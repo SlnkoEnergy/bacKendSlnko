@@ -25,6 +25,7 @@ const createeBDlead = async function (req, res) {
         loa, 
         other_remarks,
         submitted_by,
+        token_money,
     } = req.body;
 
       const lastid = await bdmodells.findOne().sort({ id: -1 });
@@ -63,6 +64,7 @@ const createeBDlead = async function (req, res) {
         other_remarks,
 
         submitted_by,
+        token_money,
         });
         await createBDlead.save();
         let initialbdlead = new initialbdleadModells({
@@ -88,6 +90,7 @@ const createeBDlead = async function (req, res) {
             loa, 
             other_remarks,
             submitted_by,
+            token_money,
         });
         await initialbdlead.save();
         res.status(200).json({ message: "Data saved successfully",Data :createBDlead,initialbdlead:initialbdlead });

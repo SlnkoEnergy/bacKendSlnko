@@ -25,6 +25,7 @@ const initialBdLeadSchema = new mongoose.Schema({
     loa: { type: String, default: " " },
     other_remarks: { type: String, default: " " },
     submitted_by: { type: String },
+    token_money: { type: String, default: " " },
 }, { timestamps: true });
 
 module.exports = mongoose.model('initialBdLead', initialBdLeadSchema);

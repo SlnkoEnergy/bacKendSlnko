@@ -101,6 +101,7 @@ const{ addCommBDRate, editCommBDRate, getCommBDRate, deleteCommBDRate, getCommBd
 // const { createBDlead, getBDlead, editBDlead, deleteBDlead }=require("../Controllers/createBdLeadcontroller");
 
 const{ createeBDlead, getBDleaddata }=require("../Controllers/bdcreateControllers");
+const{ initialtofollowup }= require("../Controllers/initialbdController");
 
 
 
@@ -233,10 +234,12 @@ router.get("/get-bd-rate-by-offer_id", getCommBDRateByOfferId);
 // router.put("/edit-bd-lead/:_id", editBDlead);
 // router.delete("/delete-bd-lead/:_id", deleteBDlead);
 
-
+//createBdLead
 router.post("/create-bd-lead",createeBDlead);
 router.get("/get-all-bd-lead",getBDleaddata);
 
+//initialbd lead
+router.post("/initial-to-followup", initialtofollowup);
 
 
 
