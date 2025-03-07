@@ -212,10 +212,10 @@ const initialtowon = async function (req, res) {
         const { id } = req.body;
     
         // Find Initial Data
-        const initialData = await initialbdleadModells.findOne({id: id});
-        if (!initialData) {
-          return res.status(404).json({ message: "Data not found" });
-        }
+        if (!initialData.token_money || initialData.token_money.trim() === "") {
+          return res.status(400).json({ message: "Token money not received" });
+      }
+      
    
     
         // Check if loi is "Yes"
