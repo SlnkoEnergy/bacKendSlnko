@@ -26,6 +26,10 @@ const initialBdLeadSchema = new mongoose.Schema({
     other_remarks: { type: String, default: " " },
     submitted_by: { type: String },
     token_money: { type: String, default: " " },
+    group: { type: String,default:" "},
+    reffered_by: { type: String,default:" "},
+    source: { type: String,default:" "},
+    remark: { type: String,default:" "},
 }, { timestamps: true });
 
 module.exports = mongoose.model('initialBdLead', initialBdLeadSchema);

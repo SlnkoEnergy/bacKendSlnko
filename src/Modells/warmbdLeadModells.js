@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const followupbdSchema = new mongoose.Schema({
+const warmbdLeadSchema = new mongoose.Schema({
     id: { type: String },
     c_name: { type: String },
     email: { type: String },
@@ -30,6 +30,7 @@ const followupbdSchema = new mongoose.Schema({
     reffered_by: { type: String,default:" "},
     source: { type: String,default:" "},
     remark: { type: String,default:" "},
-}, { timestamps: true });   
+}, { timestamps: true });
 
-module.exports = mongoose.model('followUpBdlead', followupbdSchema);
+module.exports = mongoose.model('warmbdLead', warmbdLeadSchema);
+

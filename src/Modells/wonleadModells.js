@@ -1,5 +1,6 @@
-const mongoose = require('mongoose');
-const followupbdSchema = new mongoose.Schema({
+const mongoose = require("mongoose");
+
+const wonleadSchema = new mongoose.Schema({
     id: { type: String },
     c_name: { type: String },
     email: { type: String },
@@ -13,23 +14,23 @@ const followupbdSchema = new mongoose.Schema({
     capacity: { type: String },
     distance: { type: String },
     tarrif: { type: String },
-    land: {
+    land: { 
         available_land: { type: String },
         land_type: { type: String },
     },
     entry_date: { type: String },
     interest: { type: String },
-    comment: { type: String, default: " " },
-    loi: { type: String, default: " " },
-    ppa: { type: String, default: " " },
-    loa: { type: String, default: " " },
-    other_remarks: { type: String, default: " " },
+    comment:{ type: String,default:" "},
+    loi: { type: String ,default:" "},
+    ppa: { type: String ,default:" "},
+    loa: { type: String ,default:" "},
+    other_remarks: { type: String ,default:" "},
     submitted_by: { type: String },
-    token_money: { type: String, default: " " },
+    token_money: { type: String,default:" "},
     group: { type: String,default:" "},
     reffered_by: { type: String,default:" "},
     source: { type: String,default:" "},
     remark: { type: String,default:" "},
-}, { timestamps: true });   
+}, { timestamps: true });
 
-module.exports = mongoose.model('followUpBdlead', followupbdSchema);
+module.exports = mongoose.model("wonlead", wonleadSchema);

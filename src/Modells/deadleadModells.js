@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const followupbdSchema = new mongoose.Schema({
+const deadleadSchema = new mongoose.Schema({
     id: { type: String },
     c_name: { type: String },
     email: { type: String },
@@ -32,4 +32,4 @@ const followupbdSchema = new mongoose.Schema({
     remark: { type: String,default:" "},
 }, { timestamps: true });   
 
-module.exports = mongoose.model('followUpBdlead', followupbdSchema);
+module.exports = mongoose.model('deadlead', deadleadSchema);
