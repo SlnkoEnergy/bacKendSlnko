@@ -74,6 +74,18 @@ const initialtofollowup = async function (req, res) {
   
 
 };
+//get all follow up lead
+
+const getallfollowup = async function (req, res) {
+    try {
+        const followUpData = await followUpleadMpodells.find();
+        res.status(200).json({ data: followUpData });
+      } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+      }
+};
+
+
 
 // inital to warm lead
 const initaltowarmup = async function (req, res) {
@@ -204,6 +216,17 @@ const initialtodead = async function (req, res) {
       }
 };
 
+
+//get all dead lead
+const getalldead = async function (req, res) {
+    try {
+        const deaddata = await deadleadModells.find();
+        res.status(200).json({ data: deaddata });
+      } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+      }
+};
+
 //initial to won
 
 const initialtowon = async function (req, res) {
@@ -269,8 +292,18 @@ const initialtowon = async function (req, res) {
       } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
       }
-}
+};
+
+//get alll won lead
+const getallwon = async function (req, res) {
+    try {
+        const wondata = await wonleadModells.find();
+        res.status(200).json({ data: wondata });
+      } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+      }
+};
 
 
-module.exports = { initialtofollowup, initaltowarmup, initialtodead,initialtowon };
+module.exports = { initialtofollowup, initaltowarmup, initialtodead,initialtowon,getallfollowup,getallwon,getalldead};
 
