@@ -145,7 +145,7 @@ const initaltowarmup = async function (req, res) {
         // Delete from Initial Collection
         await initialData.deleteOne({id:id});
     
-        res.status(200).json({ message: "Data moved to warmup successfully" , data: followUpData });
+        res.status(200).json({ message: "Data moved to warmup successfully" , data: warmUpData });
       } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
       }
