@@ -212,6 +212,7 @@ const initialtowon = async function (req, res) {
         const { id } = req.body;
     
         // Find Initial Data
+        const initialData = await initialbdleadModells.findOne({id: id});
         if (!initialData.token_money || initialData.token_money.trim() === "") {
           return res.status(400).json({ message: "Token money not received" });
       }
@@ -219,9 +220,9 @@ const initialtowon = async function (req, res) {
    
     
         // Check if loi is "Yes"
-        if (initialData.token_money!== " ") {
-          return res.status(400).json({ message: "Token money not received" });
-        }
+        // if (initialData.token_money!== " ") {
+        //   return res.status(400).json({ message: "Token money not received" });
+        // }
     
         // Move to FollowUp Collection
         const followUpData = new wonleadModells({
