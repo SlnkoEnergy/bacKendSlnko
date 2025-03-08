@@ -100,16 +100,12 @@ const initaltowarmup = async function (req, res) {
     }
 
     // Check if loi is "Yes"
-    if (
-      initialData.loi !== "Yes" ||
-      (initialData.ppa !== "Yes" && initialData.loa !== "Yes")
-    ) {
-      return res
-        .status(400)
-        .json({
-          message: "LOI must be Yes and at least one of PPA or LOA must be Yes",
-        });
+    if (initialData.ppa !== "Yes" && initialData.loa !== "Yes") {
+      return res.status(400).json({
+        message: "At least one of PPA or LOA must be Yes",
+      });
     }
+    
 
     // Move to FollowUp Collection
     const warmUpData = new warmleadModells({
@@ -245,7 +241,7 @@ const initialtowon = async function (req, res) {
 
     // Find Initial Data
     const initialData = await initialbdleadModells.findOne({ id: id });
-    
+
     if (!initialData.token_money || initialData.token_money.trim() === "") {
       return res.status(400).json({ message: "Token money not received" });
     }
