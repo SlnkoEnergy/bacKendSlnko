@@ -449,8 +449,8 @@ const followuptodead = async function (req, res) {
 
     // Validate conditions for moving data
     if (
-      followUpData.other_remarks.trim() !== "" &&
-      followUpData.remark.trim() !== ""
+      followUpData.other_remarks.trim() === "" &&
+      followUpData.remark.trim() === ""
     ) {
       return res.status(400).json({ message: "remark is not found" });
     }
