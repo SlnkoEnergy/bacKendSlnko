@@ -381,7 +381,7 @@ const followuptowarm = async function (req, res) {
     }
 
     // Validate conditions for moving data
-    if (initialData.ppa !== "Yes" && initialData.loa !== "Yes") {
+    if (followUpData.ppa !== "Yes" && followUpData.loa !== "Yes") {
       return res.status(400).json({
         message: "At least one of PPA or LOA must be Yes",
       });
@@ -514,7 +514,7 @@ const followuptowon = async function (req, res) {
     }
 
     // Validate conditions for moving data
-    if (!followUpData.token_money || followUpData.token_money.trim() === "") {
+    if (!followUpData.token_money || !followUpData.token_money.trim() === "") {
       return res.status(400).json({ message: "Token money not received" });
     }
 
