@@ -563,6 +563,137 @@ const followuptowon = async function (req, res) {
   }
 };
 
+
+//warm to won
+
+const warmuptowon = async function (req, res) {
+  
+  try {
+    const { id } = req.body;
+
+    // Find Follow-Up Data
+    const warmUpData = await warmleadModells.findOne({ id });
+    if (!warmUpData) {
+      return res.status(404).json({ message: "Data not found" });
+    }
+
+    // Validate conditions for moving data
+    if (!warmUpData.token_money || warmUpData.token_money.trim() === "") {
+      return res.status(400).json({ message: "Token money not received" });
+    }
+
+    // Move to FollowUp Collection to won
+    const wonData = new wonleadModells({
+      id: warmUpData.id,
+      c_name: warmUpData.c_name,
+      email: warmUpData.email,
+      mobile: warmUpData.mobile,
+      alt_mobile: warmUpData.alt_mobile,
+      company: warmUpData.company,
+      village: warmUpData.village,
+      district: warmUpData.district,
+      state: warmUpData.state,
+      scheme: warmUpData.scheme,
+      capacity: warmUpData.capacity,
+      distance: warmUpData.distance,
+      tarrif: warmUpData.tarrif,
+      land: {
+        available_land: warmUpData.land.available_land,
+        land_type: warmUpData.land.land_type,
+      },
+      entry_date: warmUpData.entry_date,
+      interest: warmUpData.interest,
+      comment: warmUpData.comment,
+      loi: warmUpData.loi,
+      ppa: warmUpData.ppa,
+      loa: warmUpData.loa,
+      other_remarks: warmUpData.other_remarks,
+      submitted_by: warmUpData.submitted_by,
+      token_money: warmUpData.token_money,
+      group: warmUpData.group,
+      reffered_by: warmUpData.reffered_by,
+      source: warmUpData.source,
+      remark: warmUpData.remark,
+    });
+
+    await wonData.save();
+    await warmUpData.deleteOne({ id });
+
+    res
+      .status(200)
+      .json({ message: "Data moved to won successfully", data: wonData });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+//warm  to dead
+const warmuptodead = async function (req, res) {
+
+  try {
+    const { id } = req.body;
+
+    // Find Follow-Up Data
+    const warmUpData = await warmleadModells.findOne({ id });
+    if (!warmUpData) {
+      return res.status(404).json({ message: "Data not found" });
+    }
+
+    // Validate conditions for moving data
+    if (
+      warmUpData.other_remarks.trim() === "" &&
+      warmUpData.remark.trim() === ""
+    ) {
+      return res.status(400).json({ message: "remark is not found" });
+    }
+
+    // Move to FollowUp Collection to dead
+    const deadData = new deadleadModells({
+      id: warmUpData.id,
+      c_name: warmUpData.c_name,
+      email: warmUpData.email,
+      mobile: warmUpData.mobile,
+      alt_mobile: warmUpData.alt_mobile,
+      company: warmUpData.company,
+      village: warmUpData.village,
+      district: warmUpData.district,
+      state: warmUpData.state,
+      scheme: warmUpData.scheme,
+      capacity: warmUpData.capacity,
+      distance: warmUpData.distance,
+      tarrif: warmUpData.tarrif,
+      land: {
+        available_land: warmUpData.land.available_land,
+        land_type: warmUpData.land.land_type,
+      },
+      entry_date: warmUpData.entry_date,
+      interest: warmUpData.interest,
+      comment: warmUpData.comment,
+      loi: warmUpData.loi,
+      ppa: warmUpData.ppa,
+      loa: warmUpData.loa,
+      other_remarks: warmUpData.other_remarks,
+      submitted_by: warmUpData.submitted_by,
+      token_money: warmUpData.token_money,
+      group: warmUpData.group,
+      reffered_by: warmUpData.reffered_by,
+      source: warmUpData.source,
+      remark: warmUpData.remark,
+    });
+
+    await deadData.save();
+    await warmUpData.deleteOne({ id });
+
+    res
+      .status(200)
+      .json({ message: "Data moved to dead successfully", data: deadData });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
 module.exports = {
   initialtofollowup,
   initaltowarmup,
@@ -575,4 +706,6 @@ module.exports = {
   followuptowarm,
   followuptodead,
   followuptowon,
+  warmuptowon,
+  warmuptodead,
 }
