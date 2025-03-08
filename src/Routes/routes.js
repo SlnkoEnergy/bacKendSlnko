@@ -249,7 +249,7 @@ router.get("/get-all-dead-lead",getalldead);
 
 //followup to all
 router.post("/followup-to-all",followuptoall);
-router.post("/followup-to warm",followuptowarm);
+router.post("/followup-to-warm",followuptowarm);
 router.post("/followup-to-dead", followuptodead);
 router.post("/follow-up-to-won", followuptowon  );
 
