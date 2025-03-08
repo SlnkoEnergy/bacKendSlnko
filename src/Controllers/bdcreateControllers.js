@@ -121,7 +121,18 @@ const getBDleaddata = async function (req, res) {
     }
 };
 
+//get all initiAL lead
+const getallinitialbdlead =async function (req,res) {
+    try {
+            let initial = await initialbdleadModells.find();
+            res.status(200).json({msg:"All Initial Bd Lead", data:initial})
+    } catch (error) {
+        res.status(400).json({ error: error });
+        
+    }
+    
+}
 
 
 
-module.exports = { createeBDlead,getBDleaddata };
+module.exports = { createeBDlead,getBDleaddata,getallinitialbdlead,  };
