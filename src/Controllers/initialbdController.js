@@ -215,7 +215,7 @@ const initialtodead = async function (req, res) {
     res
       .status(200)
       .json({
-        message: "Data moved to FollowUp successfully",
+        message: "Data moved to Dead successfully",
         data: followUpData,
       });
   } catch (error) {
@@ -381,7 +381,7 @@ const followuptowarm = async function (req, res) {
     }
 
     // Validate conditions for moving data
-    if (followUpData.ppa !== "Yes" && followUpData.loa !== "Yes") {
+    if (followUpData.ppa.trim() !== "Yes" && followUpData.loa.trim() !== "Yes") {
       return res.status(400).json({
         message: "At least one of PPA or LOA must be Yes",
       });
@@ -769,7 +769,7 @@ const deadtoinitial = async function (req, res) {
 
     // Check if loa and ppa is "Yes"
     
-    if (deadData.loa === "Yes" && deadData.ppa === "Yes" && deadData.loi.trim() !== "") {
+    if (deadData.loa === "Yes" && deadData.ppa === "Yes" && deadData.loi.trim() === "Yes") {
       return res
         .status(400)
         .json({ message: "LOA and PPA are Yes, cannot move to follow-up" });
