@@ -769,7 +769,7 @@ const deadtoinitial = async function (req, res) {
 
     // Check if loa and ppa is "Yes"
     
-    if (deadData.loa === "Yes" && deadData.ppa === "Yes" && deadData.loi.trim() === "Yes") {
+    if (deadData.loa === "Yes" || deadData.ppa === "Yes" || deadData.loi.trim() !== "Yes") {
       return res
         .status(400)
         .json({ message: "LOA and PPA are Yes, cannot move to follow-up" });
