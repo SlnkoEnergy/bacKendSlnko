@@ -101,7 +101,7 @@ const{ addCommBDRate, editCommBDRate, getCommBDRate, deleteCommBDRate, getCommBd
 // const { createBDlead, getBDlead, editBDlead, deleteBDlead }=require("../Controllers/createBdLeadcontroller");
 
 const{ createeBDlead, getBDleaddata, getallinitialbdlead }=require("../Controllers/bdcreateControllers");
-const{ initialtofollowup, initaltowarmup, initialtodead, initialtowon, getallwon, getallfollowup, getalldead, followuptoall, followuptowarm, followuptodead, followuptowon, warmuptowon, warmuptodead }= require("../Controllers/initialbdController");
+const{ initialtofollowup, initaltowarmup, initialtodead, initialtowon, getallwon, getallfollowup, getalldead, followuptoall, followuptowarm, followuptodead, followuptowon, warmuptowon, warmuptodead, deadtoinitial, deadtofollowup, deadtowarm }= require("../Controllers/initialbdController");
 
 
 
@@ -255,6 +255,11 @@ router.post("/follow-up-to-won", followuptowon  );
 router.post("/warmup-to-won",warmuptowon);
 router.post("/warmup-to-dead",warmuptodead);
 router.get("/get-all-inital-bd-lead",getallinitialbdlead);
+
+//Dead to all
+router.post("/dead-to-initial",deadtoinitial);
+router.post("/dead-to-followup",deadtofollowup);
+router.post("/dead-to-warm",deadtowarm);
 
 
 

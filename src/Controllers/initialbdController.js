@@ -694,6 +694,207 @@ const warmuptodead = async function (req, res) {
 };
 
 
+//dead to initial
+const deadtoinitial = async function (req, res) {
+  try {
+    const { id } = req.body;
+
+    // Find Dead Data
+    const deadData = await deadleadModells.findOne({ id });
+    if (!deadData) {
+      return res.status(404).json({ message: "Data not found" });
+    }
+    if(deadData.loi === "Yes" && deadData.ppa === "Yes" && deadData.loa === "Yes") {
+      return res.status(400).json({ message: "LOA, LOI and PPA are Yes, cannot move" });
+      
+    }
+
+    // Move to Initial Collection
+    const initialData = new initialbdleadModells({
+      id: deadData.id,
+      c_name: deadData.c_name,
+      email: deadData.email,
+      mobile: deadData.mobile,
+      alt_mobile: deadData.alt_mobile,
+      company: deadData.company,
+      village: deadData.village,
+      district: deadData.district,
+      state: deadData.state,
+      scheme: deadData.scheme,
+      capacity: deadData.capacity,
+      distance: deadData.distance,
+      tarrif: deadData.tarrif,
+      land: {
+        available_land: deadData.land.available_land,
+        land_type: deadData.land.land_type,
+      },
+      entry_date: deadData.entry_date,
+      interest: deadData.interest,
+      comment: deadData.comment,
+      loi: deadData.loi,
+      ppa: deadData.ppa,
+      loa: deadData.loa,
+      other_remarks: deadData.other_remarks,
+      submitted_by: deadData.submitted_by,
+      token_money: deadData.token_money,
+      group: deadData.group,
+      reffered_by: deadData.reffered_by,
+      source: deadData.source,
+      remark: deadData.remark,
+    });
+
+    await initialData.save();
+    await deadData.deleteOne({ id });
+
+    res
+      .status(200)
+      .json({ message: "Data moved to initial successfully", data: initialData });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// Dead to Followup
+
+ const deadtofollowup = async function (req, res) {
+  try {
+    const { id } = req.body;
+
+    // Find Dead Data
+    const deadData = await deadleadModells.findOne({ id });
+    if (!deadData) {
+      return res.status(404).json({ message: "Data not found" });
+    }
+
+    // Check if loa and ppa is "Yes"
+    
+    if (deadData.loa === "Yes" && deadData.ppa === "Yes" && deadData.loi.trim() !== "") {
+      return res
+        .status(400)
+        .json({ message: "LOA and PPA are Yes, cannot move to follow-up" });
+    }
+
+    // Move to FollowUp Collection
+    const followUpData = new followUpleadMpodells({
+      id: deadData.id,
+      c_name: deadData.c_name,
+      email: deadData.email,
+      mobile: deadData.mobile,
+      alt_mobile: deadData.alt_mobile,
+      company: deadData.company,
+      village: deadData.village,
+      district: deadData.district,
+      state: deadData.state,
+      scheme: deadData.scheme,
+      capacity: deadData.capacity,
+      distance: deadData.distance,
+      tarrif: deadData.tarrif,
+      land: {
+        available_land: deadData.land.available_land,
+        land_type: deadData.land.land_type,
+      },
+      entry_date: deadData.entry_date,
+      interest: deadData.interest,
+      comment: deadData.comment,
+      loi: deadData.loi,
+      ppa: deadData.ppa,
+      loa: deadData.loa,
+      other_remarks: deadData.other_remarks,
+      submitted_by: deadData.submitted_by,
+      token_money: deadData.token_money,
+      group: deadData.group,
+      reffered_by: deadData.reffered_by,
+      source: deadData.source,
+      remark: deadData.remark,
+    });
+
+    await followUpData.save();
+
+    // Delete from Initial Collection
+    await deadData.deleteOne({ id: id });
+
+    res
+      .status(200)
+      .json({
+        message: "Data moved to FollowUp successfully",
+        data: followUpData,
+      });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });  
+
+
+ }
+ };
+
+ //dead-to-warm
+ const deadtowarm = async function (req, res) {
+  try {
+    const { id } = req.body;
+
+    // Find Dead Data
+    const deadData = await deadleadModells.findOne({ id });
+    if (!deadData) {
+      return res.status(404).json({ message: "Data not found" });
+    }
+
+    // Check if loa and ppa is "Yes"
+    
+    if (deadData.loa !== "Yes" && deadData.ppa !== "Yes" ) {
+      return res
+        .status(400)
+        .json({ message: "LOA and PPA are Not Yes, cannot move to warm-up" });
+    }
+
+    // Move to FollowUp Collection
+    const warmData = new warmleadModells({
+      id: deadData.id,
+      c_name: deadData.c_name,
+      email: deadData.email,
+      mobile: deadData.mobile,
+      alt_mobile: deadData.alt_mobile,
+      company: deadData.company,
+      village: deadData.village,
+      district: deadData.district,
+      state: deadData.state,
+      scheme: deadData.scheme,
+      capacity: deadData.capacity,
+      distance: deadData.distance,
+      tarrif: deadData.tarrif,
+      land: {
+        available_land: deadData.land.available_land,
+        land_type: deadData.land.land_type,
+      },
+      entry_date: deadData.entry_date,
+      interest: deadData.interest,
+      comment: deadData.comment,
+      loi: deadData.loi,
+      ppa: deadData.ppa,
+      loa: deadData.loa,
+      other_remarks: deadData.other_remarks,
+      submitted_by: deadData.submitted_by,
+      token_money: deadData.token_money,
+      group: deadData.group,
+      reffered_by: deadData.reffered_by,
+      source: deadData.source,
+      remark: deadData.remark,
+    });
+
+    await warmData.save();
+
+    // Delete from Initial Collection
+    await deadData.deleteOne({ id: id });
+
+    res
+      .status(200)
+      .json({
+        message: "Data moved to Warm Lead successfully",
+        data: warmData,
+      });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+ }};
+
 module.exports = {
   initialtofollowup,
   initaltowarmup,
@@ -708,4 +909,7 @@ module.exports = {
   followuptowon,
   warmuptowon,
   warmuptodead,
+  deadtoinitial,
+  deadtofollowup,
+  deadtowarm,
 }
