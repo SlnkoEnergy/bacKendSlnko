@@ -38,7 +38,6 @@ const {
   deletePO,
   getpohistory,
   getPOHistoryById,
- 
 } = require("../Controllers/purchaseOrderController");
 const {
   addVendor,
@@ -69,7 +68,6 @@ const {
   updateExceData,
   getExcelDataById,
   getpy,
-  
 } = require("../Controllers/payRequestControllers");
 
 const {
@@ -87,25 +85,70 @@ const {
   deleteSubtractMoney,
 } = require("../Controllers/subtractMoneyController");
 
+const {
+  all_project_balance,
+  all_project_debit,
+  total_po_balance,
+  total_billed_value,
+  total_project_billValue,
+  project_credit_amount,
+  project_debit_amount,
+} = require("../Controllers/balanceController");
 
+const {
+  createOffer,
+  getCommOffer,
+  editOffer,
+  deleteOffer,
+} = require("../Controllers/commOfferController");
 
-const { all_project_balance, all_project_debit, total_po_balance, total_billed_value, total_project_billValue, project_credit_amount, project_debit_amount, } = require("../Controllers/balanceController");
+const {
+  addCommRate,
+  getCommRate,
+  editCommRate,
+  deleteCommRate,
+} = require("../Controllers/commRateController");
 
-const{ createOffer, getCommOffer, editOffer, deleteOffer }=require("../Controllers/commOfferController");
-
-const{ addCommRate, getCommRate, editCommRate, deleteCommRate }=require("../Controllers/commRateController");
-
-const { addCommScmRate, editCommScmRate, getCommScmRate } =require("../Controllers/commScmRateController");
-const{ addCommBDRate, editCommBDRate, getCommBDRate, deleteCommBDRate, getCommBdRateHistory, getCommBDRateByOfferId }=require("../Controllers/coomBDRateController");
+const {
+  addCommScmRate,
+  editCommScmRate,
+  getCommScmRate,
+} = require("../Controllers/commScmRateController");
+const {
+  addCommBDRate,
+  editCommBDRate,
+  getCommBDRate,
+  deleteCommBDRate,
+  getCommBdRateHistory,
+  getCommBDRateByOfferId,
+} = require("../Controllers/coomBDRateController");
 
 // const { createBDlead, getBDlead, editBDlead, deleteBDlead }=require("../Controllers/createBdLeadcontroller");
 
-const{ createeBDlead, getBDleaddata, getallinitialbdlead }=require("../Controllers/bdcreateControllers");
-const{ initialtofollowup, initaltowarmup, initialtodead, initialtowon, getallwon, getallfollowup, getalldead, followuptoall, followuptowarm, followuptodead, followuptowon, warmuptowon, warmuptodead, deadtoinitial, deadtofollowup, deadtowarm }= require("../Controllers/initialbdController");
-
-
-
-
+const {
+  createeBDlead,
+  getBDleaddata,
+  getallinitialbdlead,
+  editinitialbdlead,
+} = require("../Controllers/bdcreateControllers");
+const {
+  initialtofollowup,
+  initaltowarmup,
+  initialtodead,
+  initialtowon,
+  getallwon,
+  getallfollowup,
+  getalldead,
+  followuptoall,
+  followuptowarm,
+  followuptodead,
+  followuptowon,
+  warmuptowon,
+  warmuptodead,
+  deadtoinitial,
+  deadtofollowup,
+  deadtowarm,
+} = require("../Controllers/initialbdController");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -127,8 +170,7 @@ router.get("/get-project-iD-IT/:_id", getProjectById); //get project by id
 router.post("/Add-MoneY-IT", addMoney);
 router.get("/all-bilL-IT", allbill);
 router.post("/get-bilL-IT", credit_amount);
-router.delete("/delete-crdit-amount/:_id",deleteCreditAmount);
-
+router.delete("/delete-crdit-amount/:_id", deleteCreditAmount);
 
 //purchase order controller
 router.post("/Add-purchase-ordeR-IT", addPo);
@@ -138,8 +180,8 @@ router.get("/get-all-pO-IT", getallpo);
 router.post("/export-to-csv", exportCSV);
 router.put("/remove-to-recovery/:_id", moverecovery);
 router.get("/get-po-by-p_id/", getPOByProjectId);
-router.delete("/delete-pO-IT/:_id",deletePO);
-router.get ("/get-po-historY-IT",getpohistory);
+router.delete("/delete-pO-IT/:_id", deletePO);
+router.get("/get-po-historY-IT", getpohistory);
 router.get("/get-po-history-iD/:_id", getPOHistoryById);
 
 //Add vendor
@@ -153,7 +195,7 @@ router.post("/add-iteM-IT", additem);
 router.get("/get-iteM-IT", getItem);
 
 //pay Request api
-router.get("/get-pay-sumrY-IT",getPay);
+router.get("/get-pay-sumrY-IT", getPay);
 router.post("/add-pay-requesT-IT", payRrequest);
 router.post("/hold-paymenT-IT", holdpay);
 router.get("/get-pay-summarY-IT", getPaySummary);
@@ -165,14 +207,14 @@ router.put("/approval", newAppovAccount);
 router.delete("/delete-payrequest/:_id", deletePayRequestById);
 router.put("/update-pay-request/:_id", editPayRequestById); //update pay request
 router.get("/get-pay-request-id/:_id", getPayRequestById); //get pay request by id
-router.get("/get-exceldata",excelData);
-router.put("/update-excel-data",updateExcelData);
-router.put("/restorepayrequest/:_id",restorepayrequest); 
-router.post("/approve-data-send-holdpay",approve_pending);
+router.get("/get-exceldata", excelData);
+router.put("/update-excel-data", updateExcelData);
+router.put("/restorepayrequest/:_id", restorepayrequest);
+router.post("/approve-data-send-holdpay", approve_pending);
 router.post("/hold-payto-payrequest", hold_approve_pending);
-router.put("/update-excel",updateExceData);
+router.put("/update-excel", updateExceData);
 router.get("/get-single-excel-data/:_id", getExcelDataById);
-router.get("/get-pay-smry",getpy);
+router.get("/get-pay-smry", getpy);
 
 // add-Bill
 router.post("/add-bilL-IT", addBill);
@@ -180,50 +222,44 @@ router.get("/get-all-bilL-IT", getBill);
 router.put("/update-bill/:_id", updatebill);
 router.delete("/delete-credit-amount/:_id", deletecredit);
 router.delete("/delete-bill/:_id", deleteBill);
-router.put("/accepted-by",bill_approved);
+router.put("/accepted-by", bill_approved);
 
 //subtractmoney-debitmoney
 router.post("/debit-moneY-IT", subtractmoney);
 router.get("/get-subtract-amounT-IT", getsubtractMoney);
 router.delete("/delete-debit-money/:_id", deleteDebitMoney);
-router.put("/recovery-debit/:_id", recoveryDebit);//to test for rrecovery subtract money
+router.put("/recovery-debit/:_id", recoveryDebit); //to test for rrecovery subtract money
 router.delete("/delete-subtract-moneY/:_id", deleteSubtractMoney);
-
-
 
 //All Balance SUMMARY
 router.get("/get-balance-summary", all_project_balance);
-router.get("/get-debit-balance",all_project_debit);
-router.get("/get-po-balance", total_po_balance); 
+router.get("/get-debit-balance", all_project_debit);
+router.get("/get-po-balance", total_po_balance);
 router.get("/get-total-billed", total_billed_value);
 router.post("/get-total-credit-single", project_credit_amount);
-router.post("/get-total-debit-single",project_debit_amount);
+router.post("/get-total-debit-single", project_debit_amount);
 
 //commOffer
 router.post("/create-offer", createOffer);
 router.get("/get-comm-offer", getCommOffer);
-router.put("/edit-offer/:_id",editOffer);
+router.put("/edit-offer/:_id", editOffer);
 router.delete("/delete-offer/:_id", deleteOffer);
-
-
 
 //commRate
 router.post("/create-rate", addCommRate);
 router.get("/get-comm-rate", getCommRate);
 router.put("/edit-comm-rate/:_id", editCommRate);
-router.delete("/delete-comm-rate/:_id",deleteCommRate);
-
+router.delete("/delete-comm-rate/:_id", deleteCommRate);
 
 //commScmRate
-router.post("/create-scm-rate",addCommScmRate );
-router.put("/edit-scm-rate/:_id", editCommScmRate );
+router.post("/create-scm-rate", addCommScmRate);
+router.put("/edit-scm-rate/:_id", editCommScmRate);
 router.get("/get-comm-scm-rate", getCommScmRate);
 
-
 //commBDRate
-router.post("/create-bd-rate",addCommBDRate );
-router.put("/edit-bd-rate/:_id", editCommBDRate );
-router.get("/get-comm-bd-rate",getCommBDRate);
+router.post("/create-bd-rate", addCommBDRate);
+router.put("/edit-bd-rate/:_id", editCommBDRate);
+router.get("/get-comm-bd-rate", getCommBDRate);
 router.delete("/delete-comm-bd-rate/:_id", deleteCommBDRate);
 router.get("/get-bd-rate-history", getCommBdRateHistory);
 router.get("/get-bd-rate-by-offer_id", getCommBDRateByOfferId);
@@ -235,32 +271,31 @@ router.get("/get-bd-rate-by-offer_id", getCommBDRateByOfferId);
 // router.delete("/delete-bd-lead/:_id", deleteBDlead);
 
 //createBdLead
-router.post("/create-bd-lead",createeBDlead);
-router.get("/get-all-bd-lead",getBDleaddata);
+router.post("/create-bd-lead", createeBDlead);
+router.get("/get-all-bd-lead", getBDleaddata);
+router.put("/edit-initial-bd-lead/:_id",editinitialbdlead);
 
 //initialbd lead
 router.post("/initial-to-followup", initialtofollowup);
-router.post("/inital-to-warmup",initaltowarmup);
-router.post("/inital-to-dead",initialtodead);
+router.post("/inital-to-warmup", initaltowarmup);
+router.post("/inital-to-dead", initialtodead);
 router.post("/initial-to-won", initialtowon);
-router.get("/get-all-won-lead",getallwon);
-router.get("/get-all-followup-lead",getallfollowup);
-router.get("/get-all-dead-lead",getalldead);
+router.get("/get-all-won-lead", getallwon);
+router.get("/get-all-followup-lead", getallfollowup);
+router.get("/get-all-dead-lead", getalldead);
 
 //followup to all
-router.post("/followup-to-all",followuptoall);
-router.post("/followup-to-warm",followuptowarm);
+router.post("/followup-to-all", followuptoall);
+router.post("/followup-to-warm", followuptowarm);
 router.post("/followup-to-dead", followuptodead);
-router.post("/follow-up-to-won", followuptowon  );
-router.post("/warmup-to-won",warmuptowon);
-router.post("/warmup-to-dead",warmuptodead);
-router.get("/get-all-inital-bd-lead",getallinitialbdlead);
+router.post("/follow-up-to-won", followuptowon);
+router.post("/warmup-to-won", warmuptowon);
+router.post("/warmup-to-dead", warmuptodead);
+router.get("/get-all-inital-bd-lead", getallinitialbdlead);
 
 //Dead to all
-router.post("/dead-to-initial",deadtoinitial);
-router.post("/dead-to-followup",deadtofollowup);
-router.post("/dead-to-warm",deadtowarm);
-
-
+router.post("/dead-to-initial", deadtoinitial);
+router.post("/dead-to-followup", deadtofollowup);
+router.post("/dead-to-warm", deadtowarm);
 
 module.exports = router;
