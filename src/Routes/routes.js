@@ -148,6 +148,7 @@ const {
   deadtoinitial,
   deadtofollowup,
   deadtowarm,
+  warmtofollowup,
 } = require("../Controllers/initialbdController");
 
 // Admin router
@@ -290,6 +291,7 @@ router.post("/followup-to-warm", followuptowarm);
 router.post("/followup-to-dead", followuptodead);
 router.post("/follow-up-to-won", followuptowon);
 router.post("/warmup-to-won", warmuptowon);
+router.post("/warmup-to-followup", warmtofollowup);//warm to followup
 router.post("/warmup-to-dead", warmuptodead);
 router.get("/get-all-inital-bd-lead", getallinitialbdlead);
 

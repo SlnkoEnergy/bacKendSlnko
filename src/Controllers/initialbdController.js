@@ -627,6 +627,77 @@ const warmuptowon = async function (req, res) {
   }
 };
 
+//warm to followup
+const warmtofollowup = async function (req, res) {
+
+  
+  try {
+    const { id } = req.body;
+
+    // Find Warm Data
+    const warmData = await warmleadModells.findOne({ id });
+    if (!warmData) {
+      return res.status(404).json({ message: "Data not found" });
+    }
+
+    // Check if loi is not "Yes"
+    
+    if (warmData.loi.trim() !== "Yes") {
+      return res
+        .status(400)
+        .json({ message: "LOI is not Yes, cannot move to follow-up" });
+    }
+
+    // Move to FollowUp Collection
+    const followUpData = new followUpleadMpodells({
+      id: warmData.id,
+      c_name: warmData.c_name,
+      email: warmData.email,
+      mobile: warmData.mobile,
+      alt_mobile: warmData.alt_mobile,
+      company: warmData.company,
+      village: warmData.village,
+      district: warmData.district,
+      state: warmData.state,
+      scheme: warmData.scheme,
+      capacity: warmData.capacity,
+      distance: warmData.distance,
+      tarrif: warmData.tarrif,
+      land: {
+        available_land: warmData.land.available_land,
+        land_type: warmData.land.land_type,
+      },
+      entry_date: warmData.entry_date,
+      interest: warmData.interest,
+      comment: warmData.comment,
+      loi: warmData.loi,
+      ppa: warmData.ppa,
+      loa: warmData.loa,
+      other_remarks: warmData.other_remarks,
+      submitted_by: warmData.submitted_by,
+      token_money: warmData.token_money,
+      group: warmData.group,
+      reffered_by: warmData.reffered_by,
+      source: warmData.source,
+      remark: warmData.remark,
+    });
+
+    await followUpData.save();
+
+    // Delete from Initial Collection
+    await warmData.deleteOne({ id: id });
+
+    res
+      .status(200)
+      .json({
+        message: "Data moved to FollowUp successfully",
+        data: followUpData,
+      });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+
+}
 
 //warm  to dead
 const warmuptodead = async function (req, res) {
@@ -908,6 +979,7 @@ module.exports = {
   followuptodead,
   followuptowon,
   warmuptowon,
+  warmtofollowup,
   warmuptodead,
   deadtoinitial,
   deadtofollowup,

@@ -5,7 +5,7 @@ const CommOffer = require("../Modells/commOfferModells");
 //add commBDRate
 const addCommBDRate = async function (req, res) {
    
-       
+        
     try {
         const {
             offer_id,
