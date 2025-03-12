@@ -151,6 +151,9 @@ const {
   warmtofollowup,
 } = require("../Controllers/initialbdController");
 
+
+const{ addtask, getaddtask }=require("../Controllers/addtaskbdController");
+
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -299,5 +302,10 @@ router.get("/get-all-inital-bd-lead", getallinitialbdlead);
 router.post("/dead-to-initial", deadtoinitial);
 router.post("/dead-to-followup", deadtofollowup);
 router.post("/dead-to-warm", deadtowarm);
+
+
+//add task
+router.post("/add-task",addtask);
+router.get("/get-all-task",getaddtask);
 
 module.exports = router;
