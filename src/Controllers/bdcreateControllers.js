@@ -37,9 +37,9 @@ const createeBDlead = async function (req, res) {
   if (lastid && lastid.id) {
     const lastNumber = parseInt(lastid.id.split("/").pop(), 10);
     const nextNumber = (lastNumber + 1).toString();
-    nextid = `BD/lead/${nextNumber}`;
+    nextid = `BD/Lead/${nextNumber}`;
   } else {
-    nextid = "BD/lead/1";
+    nextid = "BD/Lead/1";
   }
 
   try {
