@@ -966,6 +966,80 @@ const deadtoinitial = async function (req, res) {
     res.status(500).json({ message: "Server error", error: error.message });
  }};
 
+
+ //cretae initial lead
+
+  const iniitalbd = async function (req, res) {
+    try {
+      const {
+        c_name,
+        email,
+        mobile,
+        alt_mobile,
+        company,
+        village,
+        district,
+        state,
+        scheme,
+        capacity,
+        distance,
+        tarrif,
+        land,
+        entry_date,
+        interest,
+        comment,
+        loi,
+        ppa,
+        loa,
+        other_remarks,
+        submitted_by,
+        token_money,
+        group,
+        reffered_by,
+        source,
+        remark,
+      } = req.body;
+  
+      const initialData = new initialbdleadModells({
+        c_name,
+        email,
+        mobile,
+        alt_mobile,
+        company,
+        village,
+        district,
+        state,
+        scheme,
+        capacity,
+        distance,
+        tarrif,
+        land,
+        entry_date,
+        interest,
+        comment,
+        loi,
+        ppa,
+        loa,
+        other_remarks,
+        submitted_by,
+        token_money,
+        group,
+        reffered_by,
+        source,
+        remark,
+      });
+  
+      await initialData.save();
+  
+      res.status(200).json({ message: "Data saved to initial bd lead successfully", data: initialData });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  };
+
+
+  
+
 module.exports = {
   initialtofollowup,
   initaltowarmup,
@@ -984,4 +1058,5 @@ module.exports = {
   deadtoinitial,
   deadtofollowup,
   deadtowarm,
+  iniitalbd,
 }
