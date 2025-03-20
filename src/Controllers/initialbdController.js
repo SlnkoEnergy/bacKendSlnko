@@ -1037,8 +1037,33 @@ const deadtoinitial = async function (req, res) {
     }
   };
 
+  //update initial lead for loi, ppa, loa
+  const updateinitialbd = async function (req, res) {
+    const { id, loi, loa, ppa, token,  other_remarks } = req.body;
 
-  
+    if (!id) {
+        return res.status(400).json({ success: false, message: 'ID is required' });
+    }
+
+    try {
+        const updatedData = await initialbdleadModells.findOneAndUpdate(
+          { id: id },
+            { $set: { loi, loa, ppa, token,  other_remarks } },
+            { new: true }
+        );
+
+        if (!updatedData) {
+            return res.status(404).json({ success: false, message: 'Document not found' });
+        }
+        res.status(200).json({  message: ' initial bd Data updated successfully', data: updatedData });
+
+  }
+  catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }};
+
+
+
 
 module.exports = {
   initialtofollowup,
@@ -1059,4 +1084,5 @@ module.exports = {
   deadtofollowup,
   deadtowarm,
   iniitalbd,
+  updateinitialbd,
 }
