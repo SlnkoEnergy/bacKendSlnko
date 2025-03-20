@@ -32,12 +32,27 @@ const createeBDlead = async function (req, res) {
     remark,
   } = req.body;
 
-  const lastid = await bdmodells.findOne().sort({ id: -1 });
+  const lastid = await bdmodells.
+  aggregate([
+    {
+      $match: { id: { $regex: /^BD\/Lead\// } } // Filter valid IDs
+    },
+    {
+      $addFields: {
+        numericId: { 
+          $toInt: { 
+            $arrayElemAt: [{ $split: ["$id", "/"] }, -1] } 
+        }
+      }
+    },
+    { $sort: { numericId: -1 } }, // Sort by extracted number
+    { $limit: 1 } // Only fetch the latest entry
+  ]);
+  
   let nextid;
-  if (lastid && lastid.id) {
-    const lastNumber = parseInt(lastid.id.split("/").pop(), 10);
-    const nextNumber = (lastNumber + 1).toString();
-    nextid = `BD/Lead/${nextNumber}`;
+  if (lastid.length > 0 && lastid[0].id) {
+    const lastNumber = parseInt(lastid[0].id.split("/").pop(), 10) || 0;
+    nextid = `BD/Lead/${lastNumber + 1}`;
   } else {
     nextid = "BD/Lead/1";
   }
