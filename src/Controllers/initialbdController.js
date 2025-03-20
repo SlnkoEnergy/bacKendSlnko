@@ -233,6 +233,17 @@ const getalldead = async function (req, res) {
   }
 };
 
+
+//get all warm lead
+const getallwarm = async function (req, res) {
+  try {
+    const warmdata = await warmleadModells.find();
+    res.status(200).json({msg:"All Warm lead", data: warmdata });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+}
+
 //initial to won
 
 const initialtowon = async function (req, res) {
@@ -1141,4 +1152,5 @@ module.exports = {
   updateinitialbd,
   updatefollowup,
   updatewarm,
+  getallwarm,
 }

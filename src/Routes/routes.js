@@ -153,6 +153,7 @@ const {
   updateinitialbd,
   updatefollowup,
   updatewarm,
+  getallwarm,
 } = require("../Controllers/initialbdController");
 
 
@@ -291,6 +292,7 @@ router.post("/initial-to-won", initialtowon);
 router.get("/get-all-won-lead", getallwon);
 router.get("/get-all-followup-lead", getallfollowup);
 router.get("/get-all-dead-lead", getalldead);
+router.get("/get-all-warm",getallwarm);
 
 //followup to all
 router.post("/followup-to-all", followuptoall);
