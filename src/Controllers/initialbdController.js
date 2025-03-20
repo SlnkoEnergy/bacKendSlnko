@@ -1039,7 +1039,7 @@ const deadtoinitial = async function (req, res) {
 
   //update initial lead for loi, ppa, loa
   const updateinitialbd = async function (req, res) {
-    const { id, loi, loa, ppa, token,  other_remarks } = req.body;
+    const { id, loi, loa, ppa,  token_money,  other_remarks } = req.body;
 
     if (!id) {
         return res.status(400).json({ success: false, message: 'ID is required' });
@@ -1048,7 +1048,7 @@ const deadtoinitial = async function (req, res) {
     try {
         const updatedData = await initialbdleadModells.findOneAndUpdate(
           { id: id },
-            { $set: { loi, loa, ppa, token,  other_remarks } },
+            { $set: { loi, loa, ppa,  token_money,  other_remarks } },
             { new: true }
         );
 
@@ -1062,6 +1062,60 @@ const deadtoinitial = async function (req, res) {
     res.status(500).json({ message: "Server error", error: error.message });
   }};
 
+
+
+
+  //update followup lead for loi, ppa, loa
+  const updatefollowup = async function (req, res) {
+    const { id, loi, loa, ppa,  token_money,  other_remarks } = req.body;
+
+    if (!id) {
+        return res.status(400).json({ success: false, message: 'ID is required' });
+    }
+
+    try {
+        const updatedData = await followUpleadMpodells.findOneAndUpdate(
+          { id: id },
+            { $set: { loi, loa, ppa,  token_money,  other_remarks } },
+            { new: true }
+        );
+
+        if (!updatedData) {
+            return res.status(404).json({ success: false, message: 'Document not found' });
+        }
+        res.status(200).json({  message: ' Followup Data updated successfully', data: updatedData });
+
+  }
+  catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }};
+
+  //update warm lead for loi, ppa, loa
+
+  const updatewarm = async function (req, res) {
+    const { id, loi, loa, ppa,  token_money,  other_remarks } = req.body;
+
+    if (!id) {
+        return res.status(400).json({ success: false, message: 'ID is required' });
+    }
+
+    try {
+        const updatedData = await warmleadModells.findOneAndUpdate(
+          { id: id },
+            { $set: { loi, loa, ppa,  token_money,  other_remarks } },
+            { new: true }
+        );
+
+        if (!updatedData) {
+            return res.status(404).json({ success: false, message: 'Document not found' });
+        }
+        res.status(200).json({  message: ' warm Data updated successfully', data: updatedData });
+
+  }
+  catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });  
+  }
+  };
 
 
 
@@ -1085,4 +1139,6 @@ module.exports = {
   deadtowarm,
   iniitalbd,
   updateinitialbd,
+  updatefollowup,
+  updatewarm,
 }

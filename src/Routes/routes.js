@@ -151,6 +151,8 @@ const {
   warmtofollowup,
   iniitalbd,
   updateinitialbd,
+  updatefollowup,
+  updatewarm,
 } = require("../Controllers/initialbdController");
 
 
@@ -315,4 +317,6 @@ router.get("/get-all-task",getaddtask);
 
 router.post("/create-initial-bd-lead",iniitalbd);
 router.put("/update-inital",updateinitialbd);
+router.put("/update-followup",updatefollowup);
+router.put("/update-warm",updatewarm);
 module.exports = router;
