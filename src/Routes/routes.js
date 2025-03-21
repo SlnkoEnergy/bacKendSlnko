@@ -159,6 +159,7 @@ const {
 
 const{ addtask, getaddtask }=require("../Controllers/addtaskbdController");
 const { createhandoversheet, gethandoversheetdata } =require("../Controllers/handoversheetController");
+const { addmoduleMaster, getmoduleMasterdata }=require("../Controllers/moduleMasterController");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -330,5 +331,8 @@ router.post("/create-hand-over-sheet",createhandoversheet);
 router.get("/get-all-handover-sheet",gethandoversheetdata);
 
 
+//module master
+router.post("/add-module-master",addmoduleMaster);
+router.get("/get-module-master",getmoduleMasterdata);
 
 module.exports = router;
