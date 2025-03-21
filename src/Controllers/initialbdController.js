@@ -1127,7 +1127,24 @@ const deadtoinitial = async function (req, res) {
     res.status(500).json({ message: "Server error", error: error.message });  
   }
   };
+  
 
+  //edit followup lead
+  const editfollowup = async function (req, res) {
+    const  id  = req.params._id;
+    
+    
+    let userdata = req.body;
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'ID is required' });
+  }
+  try {
+      const followupData = await followUpleadMpodells.findByIdAndUpdate(id, userdata, { new: true });
+      res.status(200).json({ message: 'Followup Data updated successfully', data: followupData });
+  } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+  }
+  };
 
 
 module.exports = {
@@ -1153,4 +1170,5 @@ module.exports = {
   updatefollowup,
   updatewarm,
   getallwarm,
+  editfollowup,
 }
