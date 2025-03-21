@@ -158,6 +158,7 @@ const {
 
 
 const{ addtask, getaddtask }=require("../Controllers/addtaskbdController");
+const { createhandoversheet, gethandoversheetdata } =require("../Controllers/handoversheetController");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -321,6 +322,12 @@ router.post("/create-initial-bd-lead",iniitalbd);
 router.put("/update-inital",updateinitialbd);
 router.put("/update-followup",updatefollowup);
 router.put("/update-warm",updatewarm);
+
+
+
+//handdoversheet 
+router.post("/create-hand-over-sheet",createhandoversheet);
+router.get("/get-all-handover-sheet",gethandoversheetdata);
 
 
 

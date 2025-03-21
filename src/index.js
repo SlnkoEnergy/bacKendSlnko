@@ -1,4 +1,4 @@
-// // // // // // // // // deploy code api.slnkoprotrac.com
+// // // // // // // // // // deploy code api.slnkoprotrac.com
 require("dotenv").config();
 const fs = require('fs');
 const https = require('https');
@@ -95,7 +95,7 @@ startServer();
 
 
 
-// // // // // // localhost server code`
+// // // // // localhost server code`
 
 // const express = require("express");
 
