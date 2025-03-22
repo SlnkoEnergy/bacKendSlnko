@@ -50,6 +50,17 @@ const addinveterMaster = async function (req, res) {
         
     }
 };
+
+//get all inveter master data
+const getinveterMasterdata = async function (req, res) {
+    try {
+        let getinveterMaster = await invetermasterModells.find();
+        res.status(200).json({ message: "Data fetched successfully", data: getinveterMaster });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 module.exports = {
     addinveterMaster,
+    getinveterMasterdata,
 }

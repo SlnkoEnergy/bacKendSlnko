@@ -165,7 +165,7 @@ const { createhandoversheet, gethandoversheetdata, edithandoversheetdata } =requ
 const { addmoduleMaster, getmoduleMasterdata, editmodulemaster, deletemodulemaster }=require("../Controllers/moduleMasterController");
 const { deleteOne } = require("../Modells/moduleMasterModells");
 
-const{ addinveterMaster }=require("../Controllers/inveterMasterController");
+const{ addinveterMaster, getinveterMasterdata }=require("../Controllers/inveterMasterController");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -352,5 +352,6 @@ router.delete("/delete-module-master/:_id",deletemodulemaster);
 
 //inveter master
 router.post("/add-inveter-master",addinveterMaster);
+router.get("/get-master-inverter",getinveterMasterdata);
 
 module.exports = router;
