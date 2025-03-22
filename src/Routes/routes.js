@@ -155,6 +155,8 @@ const {
   updatewarm,
   getallwarm,
   editfollowup,
+  editwarm,
+  deletedead,
 } = require("../Controllers/initialbdController");
 
 
@@ -312,6 +314,7 @@ router.get("/get-all-inital-bd-lead", getallinitialbdlead);
 router.post("/dead-to-initial", deadtoinitial);
 router.post("/dead-to-followup", deadtofollowup);
 router.post("/dead-to-warm", deadtowarm);
+router.delete("/delete-dead-lead/:_id",deletedead);
 
 
 //add task
@@ -328,6 +331,7 @@ router.put("/update-warm",updatewarm);
 
 //edit all bd lead
 router.put("/edit-followup/:_id", editfollowup)
+router.put("/edit-warm/:_id",editwarm);
 
 
 //handdoversheet 

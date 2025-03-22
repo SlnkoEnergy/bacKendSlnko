@@ -1147,6 +1147,37 @@ const deadtoinitial = async function (req, res) {
   };
 
 
+
+  //edit warm lead
+  const editwarm = async function (req, res) {
+    const  id  = req.params._id;
+    let userdata = req.body;
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'ID is required' });
+  }
+  try {
+      const warmData = await warmleadModells.findByIdAndUpdate(id, userdata, { new: true });
+      res.status(200).json({ message: 'Warm Data updated successfully', data: warmData });
+}catch (error) {
+  res.status(500).json({ message: "Server error", error: error.message });
+}}
+
+
+// Delete dead lead
+const deletedead = async function (req, res) {
+  let id  = req.params._id;
+  try {
+      const deadData = await deadleadModells.findByIdAndDelete( id );
+      if (!deadData) {
+          return res.status(404).json({ success: false, message: 'Document not found' });
+      }
+      res.status(200).json({ message: 'Dead Data deleted successfully', data: deadData });
+  }
+  catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   initialtofollowup,
   initaltowarmup,
@@ -1171,4 +1202,6 @@ module.exports = {
   updatewarm,
   getallwarm,
   editfollowup,
+  editwarm,
+  deletedead,
 }
