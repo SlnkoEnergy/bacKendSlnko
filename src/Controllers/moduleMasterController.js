@@ -53,7 +53,7 @@ const getmoduleMasterdata = async function (req, res) {
     let getmoduleMaster = await modeulemsateerModel.find();
     res
       .status(200)
-      .json({ message: "Data fetched successfully", Data: getmoduleMaster });
+      .json({ message: "Data fetched successfully", data: getmoduleMaster });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
