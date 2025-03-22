@@ -31,7 +31,24 @@ const gethandoversheetdata = async function (req,res) {
     
 };
 
+//edit handover sheet data
+const edithandoversheetdata = async function (req,res) {
+    try {
+        let id=req.params._id;
+        let data= req.body;
+        if(!id){
+            res.status(400).json({message:"id not found"});
+        }
+        let edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(id,data,{new:true});
+        res.status(200).json({message:"hand over sheet edited  successfully",Data:edithandoversheet});
+    } catch (error) {
+        res.status(500).json({message:error.message});
+        
+    }
+};
+
  module.exports = {
      createhandoversheet,
      gethandoversheetdata,
+     edithandoversheetdata,
  };

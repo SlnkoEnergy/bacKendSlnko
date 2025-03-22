@@ -161,7 +161,7 @@ const {
 
 
 const{ addtask, getaddtask }=require("../Controllers/addtaskbdController");
-const { createhandoversheet, gethandoversheetdata } =require("../Controllers/handoversheetController");
+const { createhandoversheet, gethandoversheetdata, edithandoversheetdata } =require("../Controllers/handoversheetController");
 const { addmoduleMaster, getmoduleMasterdata, editmodulemaster, deletemodulemaster }=require("../Controllers/moduleMasterController");
 const { deleteOne } = require("../Modells/moduleMasterModells");
 
@@ -337,6 +337,7 @@ router.put("/edit-warm/:_id",editwarm);
 //handdoversheet 
 router.post("/create-hand-over-sheet",createhandoversheet);
 router.get("/get-all-handover-sheet",gethandoversheetdata);
+router.put("/edit-hand-over-sheet/:_id",edithandoversheetdata);
 
 
 //module master
