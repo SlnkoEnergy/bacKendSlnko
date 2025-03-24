@@ -2,8 +2,9 @@ const taskModells =require("../Modells/addtaskbdModells");
 
 const addtask = async function (req,res) {
     try {
-        const {name,date,reference,by_whom,comment} = req.body;
+        const {name,date,reference,by_whom,comment,id} = req.body;
         const task = new taskModells({
+            id,
             name,
             date,
             reference,

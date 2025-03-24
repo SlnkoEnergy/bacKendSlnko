@@ -355,3 +355,4 @@ router.post("/add-inveter-master",addinveterMaster);
 router.get("/get-master-inverter",getinveterMasterdata);
 
 module.exports = router;
+
