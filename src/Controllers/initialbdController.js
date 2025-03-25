@@ -1178,6 +1178,24 @@ const deletedead = async function (req, res) {
   }
 };
 
+
+
+//get all bd lead
+const allbdlead = async function(req,res){
+  try {
+    let initialdata = await initialbdleadModells.find();
+    let followupdata = await followUpleadMpodells.find();
+    let warmdata = await warmleadModells.find();
+    let wondata = await wonleadModells.find();
+    let deaddata = await deadleadModells.find();
+    res.status(200).json({ message: "All BD Lead", lead: {initialdata, followupdata, warmdata, wondata, deaddata} });
+    
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+    
+  }
+}
+
 module.exports = {
   initialtofollowup,
   initaltowarmup,
@@ -1204,4 +1222,6 @@ module.exports = {
   editfollowup,
   editwarm,
   deletedead,
+  allbdlead,
+  
 }

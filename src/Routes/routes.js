@@ -157,6 +157,7 @@ const {
   editfollowup,
   editwarm,
   deletedead,
+  allbdlead,
 } = require("../Controllers/initialbdController");
 
 
@@ -291,6 +292,7 @@ router.get("/get-bd-rate-by-offer_id", getCommBDRateByOfferId);
 router.post("/create-bd-lead", createeBDlead);
 router.get("/get-all-bd-lead", getBDleaddata);
 router.put("/edit-initial-bd-lead/:_id",editinitialbdlead);
+router.get("/get-all-lead",allbdlead);
 
 //initialbd lead
 router.post("/initial-to-followup", initialtofollowup);
