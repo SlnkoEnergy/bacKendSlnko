@@ -161,7 +161,7 @@ const {
 } = require("../Controllers/initialbdController");
 
 
-const{ addtask, getaddtask }=require("../Controllers/addtaskbdController");
+const{ addtask, getaddtask, editComment, gettaskHistory }=require("../Controllers/addtaskbdController");
 const { createhandoversheet, gethandoversheetdata, edithandoversheetdata } =require("../Controllers/handoversheetController");
 const { addmoduleMaster, getmoduleMasterdata, editmodulemaster, deletemodulemaster }=require("../Controllers/moduleMasterController");
 const { deleteOne } = require("../Modells/moduleMasterModells");
@@ -324,6 +324,8 @@ router.delete("/delete-dead-lead/:_id",deletedead);
 //add task
 router.post("/add-task",addtask);
 router.get("/get-all-task",getaddtask);
+router.put("/edit-comment/:_id",editComment);
+router.get("/get-task-history",gettaskHistory);
 
 
 //post bd lead
