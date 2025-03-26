@@ -3,14 +3,15 @@ const taskHistoryModells = require("../Modells/addtaskbdHistoryModells");
 
 const addtask = async function (req,res) {
     try {
-        const {name,date,reference,by_whom,comment,id} = req.body;
+        const {name,date,reference,by_whom,comment,id, submitted_by} = req.body;
         const task = new taskModells({
             id,
             name,
             date,
             reference,
             by_whom,
-            comment
+            comment,
+            submitted_by
         });
         await task.save();
         res.status(201).json({message:"Task Added Successfully",task:task});
@@ -43,7 +44,8 @@ const editComment = async function (req,res) {
             date:task.date,
             reference:task.reference,
             by_whom:task.by_whom,
-            comment:task.comment
+            comment:task.comment,
+            submitted_by:task.submitted_by
         });
         await taskHistory.save();
         res.status(200).json({message:"Comment Updated Successfully",task:task,taskHistory:taskHistory});

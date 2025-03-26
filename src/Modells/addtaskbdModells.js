@@ -24,6 +24,10 @@ const addtaskSchema = new mongoose.Schema({
         type:String,
         default:""
     },
+    submitted_by:{
+        type:String,
+        default:""
+    },
 
 },{timestamps:true});
 module.exports = mongoose.model("addtask",addtaskSchema);           

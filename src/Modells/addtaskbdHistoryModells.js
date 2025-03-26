@@ -24,6 +24,10 @@ const addtaskbdHistorySchema = new mongoose.Schema({
         type:String,
         default:""
     },
+    submitted_by:{
+        type:String,
+        default:""
+    },
 
 },{timestamps:true});
 module.exports = mongoose.model("addtaskbdHistory",addtaskbdHistorySchema);
