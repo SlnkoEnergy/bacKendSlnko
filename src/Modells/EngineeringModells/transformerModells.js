@@ -31,6 +31,10 @@ const transformerSchema = new mongoose.Schema({
         type: String,
         default:"",
     },
+    voltage_variation:{
+        type: String,
+        default:"",
+    },
     ratedCurrentHV:{
         type: String,
         default:"",
