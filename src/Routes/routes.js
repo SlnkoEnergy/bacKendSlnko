@@ -168,6 +168,8 @@ const { deleteOne } = require("../Modells/moduleMasterModells");
 
 const{ addinveterMaster, getinveterMasterdata }=require("../Controllers/inveterMasterController");
 
+const { addTransformer, getTransformer }=require("../Controllers/engineeringController/transformerController");
+
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -357,6 +359,11 @@ router.delete("/delete-module-master/:_id",deletemodulemaster);
 //inveter master
 router.post("/add-inveter-master",addinveterMaster);
 router.get("/get-master-inverter",getinveterMasterdata);
+
+
+//transformer master
+router.post("/add-transformer-master",addTransformer);
+router.get("/get-transformer",getTransformer);
 
 module.exports = router;
 
