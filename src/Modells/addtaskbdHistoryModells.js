@@ -24,6 +24,10 @@ const addtaskbdHistorySchema = new mongoose.Schema({
         type:String,
         default:""
     },
+    task_detail:{
+        type:String,
+        default:""
+    },
     submitted_by:{
         type:String,
         default:""

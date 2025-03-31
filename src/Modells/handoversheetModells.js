@@ -64,6 +64,9 @@ const handoversheetSchema = new mongoose.Schema(
         submitted_by_BD: { type: String },
         
   },
+  status: {
+    type: { type: String, default: "" },
+  }
  
     },{ timestamps: true }
 );

@@ -1,9 +1,9 @@
-const taskModells =require("../Modells/addtaskbdModells");
+const taskModells = require("../Modells/addtaskbdModells");
 const taskHistoryModells = require("../Modells/addtaskbdHistoryModells");
 
 const addtask = async function (req,res) {
     try {
-        const {name,date,reference,by_whom,comment,id, submitted_by} = req.body;
+        const {name,date,reference,by_whom,comment,id, submitted_by, task_detail} = req.body;
         const task = new taskModells({
             id,
             name,
@@ -11,7 +11,8 @@ const addtask = async function (req,res) {
             reference,
             by_whom,
             comment,
-            submitted_by
+            submitted_by,
+            task_detail
         });
         await task.save();
         res.status(201).json({message:"Task Added Successfully",task:task});
@@ -45,6 +46,7 @@ const editComment = async function (req,res) {
             reference:task.reference,
             by_whom:task.by_whom,
             comment:task.comment,
+            task_detail:task.task_detail,
             submitted_by:task.submitted_by
         });
         await taskHistory.save();
