@@ -2,7 +2,7 @@ const hanoversheetmodells= require("../Modells/handoversheetModells");
 
 const createhandoversheet = async function (req,res) {
     try {
-        const{id,customer_details, order_details, project_detail, commercial_details, attached_details, status }=req.body;
+        const{id,customer_details, order_details, project_detail, commercial_details, attached_details}=req.body;
         const handoversheet = new hanoversheetmodells({
             id,
             customer_details,
@@ -10,7 +10,7 @@ const createhandoversheet = async function (req,res) {
             project_detail,
             commercial_details,
             attached_details,
-            status:"done",
+            status_of_handoversheet:"done", 
         });
         await handoversheet.save();
         res.status(200).json({message:"Data saved successfully",Data:handoversheet});
