@@ -32,7 +32,7 @@ const createeBDlead = async function (req, res) {
     remark,
   } = req.body;
 
-  const lastid = await bdmodells.
+  const lastid = await initialbdleadModells.
   aggregate([
     {
       $match: { id: { $regex: /^BD\/Lead\// } } // Filter valid IDs
@@ -58,37 +58,37 @@ const createeBDlead = async function (req, res) {
   }
 
   try {
-    let createBDlead = new bdmodells({
-      id: nextid,
-      c_name,
-      email,
-      mobile,
-      alt_mobile,
-      company,
-      village,
-      district,
-      state,
-      scheme,
-      capacity,
-      distance,
-      tarrif,
-      land,
-      entry_date,
-      interest,
-      comment,
-      loi,
-      ppa,
-      loa,
-      other_remarks,
+    // let createBDlead = new bdmodells({
+    //   id: nextid,
+    //   c_name,
+    //   email,
+    //   mobile,
+    //   alt_mobile,
+    //   company,
+    //   village,
+    //   district,
+    //   state,
+    //   scheme,
+    //   capacity,
+    //   distance,
+    //   tarrif,
+    //   land,
+    //   entry_date,
+    //   interest,
+    //   comment,
+    //   loi,
+    //   ppa,
+    //   loa,
+    //   other_remarks,
 
-      submitted_by,
-      token_money,
-      group,
-      reffered_by,
-      source,
-      remark,
-    });
-    await createBDlead.save();
+    //   submitted_by,
+    //   token_money,
+    //   group,
+    //   reffered_by,
+    //   source,
+    //   remark,
+    // });
+    // await createBDlead.save();
     let initialbdlead = new initialbdleadModells({
       id: nextid,
       c_name,
@@ -123,7 +123,7 @@ const createeBDlead = async function (req, res) {
       .status(200)
       .json({
         message: "Data saved successfully",
-        Data: createBDlead,
+        // Data: createBDlead,
         initialbdlead: initialbdlead,
       });
   } catch (error) {
