@@ -723,7 +723,7 @@ const getExcelDataById = async function (req, res) {
 const getPay = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const pageSize = 200;
+    const pageSize = 10;
     const skip = (page - 1) * pageSize;
 
     const request = await payRequestModells
