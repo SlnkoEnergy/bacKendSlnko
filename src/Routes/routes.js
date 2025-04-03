@@ -158,6 +158,8 @@ const {
   editwarm,
   deletedead,
   allbdlead,
+  wontodead,
+  deadtowon,
 } = require("../Controllers/initialbdController");
 
 
@@ -321,6 +323,12 @@ router.post("/dead-to-initial", deadtoinitial);
 router.post("/dead-to-followup", deadtofollowup);
 router.post("/dead-to-warm", deadtowarm);
 router.delete("/delete-dead-lead/:_id",deletedead);
+
+//won to dead
+router.post("/won-to-dead",wontodead);
+// dead to won
+
+router.post("/dead-to-won", deadtowon);
 
 
 //add task

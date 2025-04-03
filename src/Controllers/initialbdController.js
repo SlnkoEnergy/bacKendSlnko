@@ -978,6 +978,130 @@ const deadtoinitial = async function (req, res) {
  }};
 
 
+ // won to dead //
+  const wontodead = async function (req, res) {
+    try {
+      const { id } = req.body;
+
+      // Find Won Data
+      const wonData = await wonleadModells.findOne({ id });
+      if (!wonData) {
+        return res.status(404).json({ message: "Data not found" });
+      }
+
+      // Check if loi is "Yes"
+      if (wonData.other_remarks.trim() === "" && wonData.remark.trim() === "") {
+        return res.status(400).json({ message: "Comment is not present, cannot move to dead" });
+      }
+
+      // Move to Dead Collection
+      const deadData = new deadleadModells({
+        id: wonData.id,
+        c_name: wonData.c_name,
+        email: wonData.email,
+        mobile: wonData.mobile,
+        alt_mobile: wonData.alt_mobile,
+        company: wonData.company,
+        village: wonData.village,
+        district: wonData.district,
+        state: wonData.state,
+        scheme: wonData.scheme,
+        capacity: wonData.capacity,
+        distance: wonData.distance,
+        tarrif: wonData.tarrif,
+        land: {
+          available_land: wonData.land.available_land,
+          land_type: wonData.land.land_type,
+        },
+        entry_date: wonData.entry_date,
+        interest: wonData.interest,
+        comment: wonData.comment,
+        loi: wonData.loi,
+        ppa: wonData.ppa,
+        loa: wonData.loa,
+        other_remarks: wonData.other_remarks,
+        submitted_by: wonData.submitted_by,
+        token_money: wonData.token_money,
+        group: wonData.group,
+        reffered_by: wonData.reffered_by,
+        source: wonData.source,
+        remark: wonData.remark,
+      });
+
+      await deadData.save();
+
+      // Delete from Won Collection
+      await wonleadModells.deleteOne({ id });
+
+      res.status(200).json({ message: "Moved to Dead successfully", data: deadData });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  };
+
+  //dead to won
+
+  const deadtowon = async function (req, res) {
+    try {
+      const { id } = req.body;
+
+      // Find Dead Data
+      const deadData = await deadleadModells.findOne({ id });
+      if (!deadData) {
+        return res.status(404).json({ message: "Data not found" });
+      }
+
+      // Check if loi is "Yes"
+      if (!deadData.token_money || deadData.token_money.trim() !== "Yes") {
+        return res.status(400).json({ message: "Token money not received" });
+      }
+
+      // Move to Won Collection
+      const wonData = new wonleadModells({
+        id: deadData.id,
+        c_name: deadData.c_name,
+        email: deadData.email,
+        mobile: deadData.mobile,
+        alt_mobile: deadData.alt_mobile,
+        company: deadData.company,
+        village: deadData.village,
+        district: deadData.district,
+        state: deadData.state,
+        scheme: deadData.scheme,
+        capacity: deadData.capacity,
+        distance: deadData.distance,
+        tarrif: deadData.tarrif,
+        land: {
+          available_land: deadData.land.available_land,
+          land_type: deadData.land.land_type,
+        },
+        entry_date: deadData.entry_date,
+        interest: deadData.interest,
+        comment: deadData.comment,
+        loi: deadData.loi,
+        ppa: deadData.ppa,
+        loa: deadData.loa,
+        other_remarks: deadData.other_remarks,
+        submitted_by: deadData.submitted_by,
+        token_money: deadData.token_money,
+        group: deadData.group,
+        reffered_by: deadData.reffered_by,
+        source: deadData.source,
+        remark: deadData.remark,
+      });
+
+      await wonData.save();
+
+      // Delete from Dead Collection
+      await deadleadModells.deleteOne({ id });
+
+      res.status(200).json({ message: "Moved to Won successfully", data: wonData });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+
+  };
+
  //cretae initial lead
 
   const iniitalbd = async function (req, res) {
@@ -1223,5 +1347,7 @@ module.exports = {
   editwarm,
   deletedead,
   allbdlead,
+  wontodead,
+  deadtowon,
   
 }
