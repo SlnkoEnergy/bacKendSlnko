@@ -1251,6 +1251,32 @@ const deadtoinitial = async function (req, res) {
     res.status(500).json({ message: "Server error", error: error.message });  
   }
   };
+
+  //update won
+  const updatewon = async function (req, res) {
+    const { id, loi, loa, ppa,  token_money,  other_remarks,remark } = req.body;
+
+    if (!id) {
+        return res.status(400).json({ success: false, message: 'ID is required' });
+    }
+
+    try {
+        const updatedData = await wonleadModells.findOneAndUpdate(
+          { id: id },
+            { $set: { loi, loa, ppa,  token_money,  other_remarks,remark } },
+            { new: true }
+        );
+
+        if (!updatedData) {
+            return res.status(404).json({ success: false, message: 'Document not found' });
+        }
+        res.status(200).json({  message: ' won Data updated successfully', data: updatedData });
+
+  }
+  catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });  
+  }
+  };
   
 
   //edit followup lead
@@ -1349,5 +1375,6 @@ module.exports = {
   allbdlead,
   wontodead,
   deadtowon,
+  updatewon,
   
 }

@@ -160,6 +160,7 @@ const {
   allbdlead,
   wontodead,
   deadtowon,
+  updatewon,
 } = require("../Controllers/initialbdController");
 
 
@@ -344,6 +345,7 @@ router.post("/create-initial-bd-lead",iniitalbd);
 router.put("/update-inital",updateinitialbd);
 router.put("/update-followup",updatefollowup);
 router.put("/update-warm",updatewarm);
+router.put("/update-won",updatewon);
 
 //edit all bd lead
 router.put("/edit-followup/:_id", editfollowup)
