@@ -3,6 +3,16 @@ const hanoversheetmodells= require("../Modells/handoversheetModells");
 const createhandoversheet = async function (req,res) {
     try {
         const{id,customer_details, order_details, project_detail, commercial_details, attached_details}=req.body;
+        // const { loa_number, ppa_number } = attached_details;
+
+        // Update the query to properly access the fields in attached_details
+        let checkid = await hanoversheetmodells.findOne({ id:id});
+
+        // If a document with the same id and matching loa/ppa exists, return an error
+        if (checkid) {
+            return res.status(400).json({ message: " lead id already exists " });
+        }
+        
         const handoversheet = new hanoversheetmodells({
             id,
             customer_details,
