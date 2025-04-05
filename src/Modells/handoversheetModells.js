@@ -15,6 +15,11 @@ const handoversheetSchema = new mongoose.Schema(
       contact_no: { type: String },
       gst_no: { type: String },
       billing_address: { type: String },
+      gender_of_Loa_holder: { type: String },
+      email: { type: String },
+      pan_no: { type: String },
+      adharNumber_of_loa_holder: { type: String },
+      alt_contact_no: { type: String },
     },
 
     order_details: {
@@ -22,6 +27,8 @@ const handoversheetSchema = new mongoose.Schema(
       tender_name: { type: String },
       discom_name: { type: String },
       design_date: { type: String },
+      feeder_code: { type: String },
+      feeder_name: { type: String },
       
     },
 
@@ -49,6 +56,8 @@ const handoversheetSchema = new mongoose.Schema(
         transmission_line:{type:String},
         substation_name:{type:String},
         overloading:{type:String},
+        proposed_ac_capacity:{type:String},
+        agreement_date:{type:String},
     },
 
     commercial_details: {
