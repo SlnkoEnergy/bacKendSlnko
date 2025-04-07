@@ -153,6 +153,45 @@ const getallinitialbdlead = async function (req, res) {
   }
 };
 
+// get initial bd lead by streams
+
+const getinitalbdleadstreams = async function (req, res) {
+  try {
+    // Set headers for streaming JSON
+    res.setHeader("Content-Type", "application/json");
+    res.write('{"msg":"Streaming Initial BD Leads","data":[');
+
+    let isFirst = true;
+
+    const cursor = initialbdleadModells.find().lean().cursor();
+
+    cursor.on("data", (doc) => {
+      // Avoid comma before first item
+      const json = JSON.stringify(doc);
+      if (!isFirst) {
+        res.write(",");
+      }
+      res.write(json);
+      isFirst = false;
+    });
+
+    cursor.on("end", () => {
+      res.write("]}");
+      res.end();
+    });
+
+    cursor.on("error", (error) => {
+      console.error("Cursor stream error:", error);
+      res.status(500).json({ error: "Error streaming data" });
+    });
+  } catch (error) {
+    console.error("Error in streaming API:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
+
 //edit initial bd lead
 const editinitialbdlead = async function (req, res) {
   try {
@@ -175,4 +214,5 @@ module.exports = {
   getBDleaddata,
   getallinitialbdlead,
   editinitialbdlead,
+  getinitalbdleadstreams,
 };

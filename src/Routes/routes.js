@@ -130,6 +130,7 @@ const {
   getBDleaddata,
   getallinitialbdlead,
   editinitialbdlead,
+  getinitalbdleadstreams,
 } = require("../Controllers/bdcreateControllers");
 const {
   initialtofollowup,
@@ -298,6 +299,7 @@ router.post("/create-bd-lead", createeBDlead);
 router.get("/get-all-bd-lead", getBDleaddata);
 router.put("/edit-initial-bd-lead/:_id",editinitialbdlead);
 router.get("/get-all-lead",allbdlead);
+router.get("/get-initial-bd-lead-streams",getinitalbdleadstreams);
 
 //initialbd lead
 router.post("/initial-to-followup", initialtofollowup);
