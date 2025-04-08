@@ -24,6 +24,7 @@ const createProject = async function (req, res) {
       updated_on,
       service,
       submitted_by,
+      billing_type,
     } = req.body;
 
     const lastProject = await projectModells
@@ -61,6 +62,7 @@ const createProject = async function (req, res) {
       updated_on,
       service,
       submitted_by,
+      billing_type,
     });
 
     // Save the project to the database

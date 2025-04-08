@@ -46,6 +46,10 @@ alt_number:{
 
     service: { type: String },
     submitted_by: { type: String },
+
+    billing_type: {
+      type: String,
+    },
   },
   { timestamps: true }
 );

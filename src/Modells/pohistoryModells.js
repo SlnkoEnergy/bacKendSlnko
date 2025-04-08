@@ -49,6 +49,10 @@ const pohistoryschema = new mongoose.Schema({
       submitted_By: {
         type: String,
       },
+      po_basic: {
+        type: String,
+      },
+      gst:{type:String},
 
 });
 module.exports = mongoose.model('pohistory', pohistoryschema);

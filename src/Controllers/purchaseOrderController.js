@@ -31,6 +31,8 @@ const addPo = async function (req, res) {
       vendor,
       partial_billing,
       submitted_By,
+      po_basic,
+      gst,
     } = req.body;
 
     // Get project ID
@@ -71,6 +73,8 @@ const addPo = async function (req, res) {
       other,
       submitted_By,
       partial_billing,
+      po_basic,
+      gst,
     });
 
     await newPO.save();
@@ -110,6 +114,8 @@ const editPO = async function (req, res) {
       partial_billing: update.partial_billing,
       amount_paid: update.amount_paid,
       comment: update.comment,
+      po_basic: update.po_basic,
+      gst: update.gst,
       updated_on: new Date().toISOString(), // Use current time for updated_on field
       submitted_By: update.submitted_By,
     };

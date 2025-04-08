@@ -50,6 +50,10 @@ const purchaseOrderSchema = new mongoose.Schema(
     submitted_By: {
       type: String,
     },
+    po_basic: {
+      type: String,
+    },
+    gst:{type:String},
   },
   { timestamps: true }
 );
