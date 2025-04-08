@@ -415,37 +415,53 @@ const accApproved = async function (req, res) {
 
 //Update UTR number
 const utrUpdate = async function (req, res) {
-  const { pay_id, utr,  utr_submitted_by} = req.body;
+  const { pay_id, utr, utr_submitted_by } = req.body;
   try {
-    const payment = await payRequestModells.findOneAndUpdate(
-      { pay_id, acc_match: "matched" }, // Matching criteria
-      { $set: { utr,utr_submitted_by } }, // Update action
-      { new: true } // Return the updated document
-    );
+    // Find the payment record based on pay_id and account match
+    const payment = await payRequestModells.findOne({ pay_id, acc_match: "matched" });
 
     if (payment) {
-      let sutractMoney  = new subtractMoneyModells({
-        p_id: payment.p_id,
-      
-        pay_type: payment.pay_type,
-        amount_paid: payment.amount_paid,
-        amt_for_customer: payment.amt_for_customer,
-        dbt_date: payment.dbt_date,
-        paid_for: payment.paid_for,
-        vendor: payment.vendor,
-        po_number: payment.po_number,
-    
-       
-    
-       
-        utr:payment.utr,
-      })
-      await sutractMoney.save();
-      res.status(200).json({
-        message: "UTR number updated successfully!",
-        data: payment,
-        subtractMoney : sutractMoney,
-      });
+      // Check if the UTR is already set in the payment record
+      if (payment.utr) {
+        // If UTR is already present, don't update and return a message
+        return res.status(400).json({
+          message: "UTR number is already present. No update is required.",
+          data: payment,
+        });
+      }
+
+      // If UTR is not already set, proceed with the update
+      const updatedPayment = await payRequestModells.findOneAndUpdate(
+        { pay_id, acc_match: "matched" },
+        { $set: { utr, utr_submitted_by } },
+        { new: true }
+      );
+
+      if (updatedPayment) {
+        // Create and save the subtractMoney document
+        let sutractMoney = new subtractMoneyModells({
+          p_id: updatedPayment.p_id,
+          pay_type: updatedPayment.pay_type,
+          amount_paid: updatedPayment.amount_paid,
+          amt_for_customer: updatedPayment.amt_for_customer,
+          dbt_date: updatedPayment.dbt_date,
+          paid_for: updatedPayment.paid_for,
+          vendor: updatedPayment.vendor,
+          po_number: updatedPayment.po_number,
+          utr: updatedPayment.utr,
+        });
+        await sutractMoney.save();
+
+        res.status(200).json({
+          message: "UTR number updated successfully!",
+          data: updatedPayment,
+          subtractMoney: sutractMoney,
+        });
+      } else {
+        res.status(404).json({
+          message: "No matching record found or account not matched.",
+        });
+      }
     } else {
       res.status(404).json({
         message: "No matching record found or account not matched.",
@@ -458,6 +474,7 @@ const utrUpdate = async function (req, res) {
     });
   }
 };
+
 
 
 
