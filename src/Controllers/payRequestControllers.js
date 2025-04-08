@@ -6,7 +6,8 @@ const vendorModells = require("../Modells/vendorModells");
 const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 const { get } = require("mongoose");
 const exccelDataModells = require("../Modells/excelDataModells");
-const recoverypayrequest = require("../Modells/recoveryPayrequestModells");;
+const recoverypayrequest = require("../Modells/recoveryPayrequestModells");
+const subtractMoneyModells =require("../Modells/debitMoneyModells");
 
 // Request payment
 const payRrequest = async (req, res) => {
@@ -423,9 +424,27 @@ const utrUpdate = async function (req, res) {
     );
 
     if (payment) {
+      let sutractMoney  = new subtractMoneyModells({
+        p_id: payment.p_id,
+      
+        pay_type: payment.pay_type,
+        amount_paid: payment.amount_paid,
+        amt_for_customer: payment.amt_for_customer,
+        dbt_date: payment.dbt_date,
+        paid_for: payment.paid_for,
+        vendor: payment.vendor,
+        po_number: payment.po_number,
+    
+       
+        submitted_by:payment.submitted_by,
+       
+        utr:payment.utr,
+      })
+      await sutractMoney.save();
       res.status(200).json({
         message: "UTR number updated successfully!",
         data: payment,
+        subtractMoney : sutractMoney,
       });
     } else {
       res.status(404).json({
