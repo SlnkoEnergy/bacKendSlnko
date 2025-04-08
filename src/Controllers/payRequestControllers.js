@@ -436,7 +436,7 @@ const utrUpdate = async function (req, res) {
         po_number: payment.po_number,
     
        
-        submitted_by:payment.submitted_by,
+    
        
         utr:payment.utr,
       })
