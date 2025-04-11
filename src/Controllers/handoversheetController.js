@@ -1,4 +1,5 @@
 const hanoversheetmodells= require("../Modells/handoversheetModells");
+const projectModels =require("../Modells/projectModells");
 
 const createhandoversheet = async function (req,res) {
     try {
@@ -23,7 +24,49 @@ const createhandoversheet = async function (req,res) {
             status_of_handoversheet:"done", 
         });
         await handoversheet.save();
-        res.status(200).json({message:"Data saved successfully",Data:handoversheet});
+         // Auto-generate p_id by finding the latest project
+    const latestProject = await projectModels.findOne().sort({ p_id: -1 });
+    const newPid = latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
+
+    // Save to projectmodells
+    const projectData = new projectModels({
+      p_id: newPid,
+      customer: customer_details?.customer || "",
+      name: customer_details?.name || "",
+      p_group: customer_details?.p_group || "",
+      email: customer_details?.email || "",
+      number: customer_details?.number || "",
+      alt_number: customer_details?.alt_number || "",
+      billing_address: {
+        village_name: customer_details?.billing_address?.village_name || "",
+        district_name: customer_details?.billing_address?.district_name || "",
+      },
+      site_address: {
+        village_name: customer_details?.site_address?.village_name || "",
+        district_name: customer_details?.site_address?.district_name || "",
+      },
+      state: customer_details?.state || "",
+      project_category: project_detail?.project_category || "",
+      project_kwp: project_detail?.project_kwp || "",
+      distance: project_detail?.distance || "",
+      tarrif: project_detail?.tarrif || "",
+      land: project_detail?.land || "",
+      code: customer_details?.code || "",
+      project_status: "",
+      updated_on: new Date().toISOString(),
+      service: attached_details?.service || "",
+      submitted_by: req?.user?.name , // Adjust based on your auth
+      billing_type: attached_details?.billing_type || "",
+    });
+
+    await projectData.save();
+
+    res.status(200).json({
+      message: "Data saved successfully",
+      handoversheet,
+      project: projectData,
+    });
+    
         
     } catch (error) {
         res.status(500).json({message:error.message});
