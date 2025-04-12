@@ -4,6 +4,7 @@ const handoversheetSchema = new mongoose.Schema(
 
 
     id: { type: String , default:""},
+    p_id: { type: Number, default:" " },
 
 
     customer_details: {

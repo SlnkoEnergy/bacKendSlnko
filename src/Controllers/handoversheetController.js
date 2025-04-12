@@ -3,7 +3,7 @@ const projectModels =require("../Modells/projectModells");
 
 const createhandoversheet = async function (req,res) {
     try {
-        const{id,customer_details, order_details, project_detail, commercial_details, attached_details}=req.body;
+        const{id, p_id,customer_details, order_details, project_detail, commercial_details, attached_details}=req.body;
         // const { loa_number, ppa_number } = attached_details;
 
         // Update the query to properly access the fields in attached_details
@@ -13,9 +13,14 @@ const createhandoversheet = async function (req,res) {
         if (checkid) {
             return res.status(400).json({ message: " lead id already exists " });
         }
+        const latestProject = await projectModels.findOne().sort({ p_id: -1 });
+        const newPid = latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
+    
+
         
         const handoversheet = new hanoversheetmodells({
             id,
+            p_id: newPid,
             customer_details,
             order_details,
             project_detail,
@@ -25,9 +30,7 @@ const createhandoversheet = async function (req,res) {
         });
         await handoversheet.save();
          // Auto-generate p_id by finding the latest project
-    const latestProject = await projectModels.findOne().sort({ p_id: -1 });
-    const newPid = latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
-
+   
     // Save to projectmodells
     const projectData = new projectModels({
       p_id: newPid,
@@ -88,17 +91,91 @@ const gethandoversheetdata = async function (req,res) {
 
 //edit handover sheet data
 const edithandoversheetdata = async function (req,res) {
-    try {
-        let id=req.params._id;
-        let data= req.body;
-        if(!id){
-            res.status(400).json({message:"id not found"});
-        }
-        let edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(id,data,{new:true});
-        res.status(200).json({message:"hand over sheet edited  successfully",Data:edithandoversheet});
-    } catch (error) {
-        res.status(500).json({message:error.message});
+    // try {
+    //     let id=req.params._id;
+    //     let data= req.body;
+    //     if(!id){
+    //         res.status(400).json({message:"id not found"});
+    //     }
+    //     let edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(id,data,{new:true});
+    //     res.status(200).json({message:"hand over sheet edited  successfully",Data:edithandoversheet});
+    // } catch (error) {
+    //     res.status(500).json({message:error.message});
         
+    // }
+
+
+    try {
+        const {
+            p_id,
+         
+            customer_details,
+            order_details,
+            project_detail,
+            commercial_details,
+            attached_details,
+        } = req.body;
+
+        // Update handover sheet
+        const updatedHandover = await hanoversheetmodells.findOneAndUpdate(
+            { p_id:p_id },
+            {
+                $set: {
+                    customer_details,
+                    order_details,
+                    project_detail,
+                    commercial_details,
+                    attached_details,
+                },
+            },
+            { new: true } // Return updated document
+        );
+
+        // Update project model
+        const updatedProject = await projectModels.findOneAndUpdate(
+            { p_id: p_id },
+            {
+                $set: {
+                    customer: customer_details?.customer || "",
+                    name: customer_details?.name || "",
+                    p_group: customer_details?.p_group || "",
+                    email: customer_details?.email || "",
+                    number: customer_details?.number || "",
+                    alt_number: customer_details?.alt_number || "",
+                    billing_address: {
+                        village_name: customer_details?.billing_address?.village_name || "",
+                        district_name: customer_details?.billing_address?.district_name || "",
+                    },
+                    site_address: {
+                        village_name: customer_details?.site_address?.village_name || "",
+                        district_name: customer_details?.site_address?.district_name || "",
+                    },
+                    state: customer_details?.state || "",
+                    project_category: project_detail?.project_category || "",
+                    project_kwp: project_detail?.project_kwp || "",
+                    distance: project_detail?.distance || "",
+                    tarrif: project_detail?.tarrif || "",
+                    land: project_detail?.land || "",
+                    service: attached_details?.service || "",
+                    billing_type: attached_details?.billing_type || "",
+                    updated_on: new Date().toISOString(),
+                },
+            },
+            { new: true }
+        );
+
+        if (!updatedHandover || !updatedProject) {
+            return res.status(404).json({ message: "Record not found for provided code" });
+        }
+
+        res.status(200).json({
+            message: "Records updated successfully",
+            handoversheet: updatedHandover,
+            project: updatedProject,
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 };
 

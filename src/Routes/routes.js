@@ -357,7 +357,7 @@ router.put("/edit-warm/:_id",editwarm);
 //handdoversheet 
 router.post("/create-hand-over-sheet",createhandoversheet);
 router.get("/get-all-handover-sheet",gethandoversheetdata);
-router.put("/edit-hand-over-sheet/:_id",edithandoversheetdata);
+router.put("/edit-hand-over-sheet",edithandoversheetdata);
 
 
 //module master
