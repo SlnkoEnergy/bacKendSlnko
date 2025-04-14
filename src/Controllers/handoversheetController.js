@@ -115,6 +115,7 @@ const edithandoversheetdata = async function (req,res) {
             project_detail,
             commercial_details,
             attached_details,
+            submitted_by
         } = req.body;
 
         // Update handover sheet
@@ -127,6 +128,7 @@ const edithandoversheetdata = async function (req,res) {
                     project_detail,
                     commercial_details,
                     attached_details,
+                    submitted_by,
                 },
             },
             { new: true } // Return updated document
@@ -160,6 +162,7 @@ const edithandoversheetdata = async function (req,res) {
                     service: attached_details?.service || "",
                     billing_type: attached_details?.billing_type || "",
                     updated_on: new Date().toISOString(),
+                    submitted_by: " ", // Adjust based on your auth
                 },
             },
             { new: true }
