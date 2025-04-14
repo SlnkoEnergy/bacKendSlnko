@@ -58,7 +58,7 @@ const createhandoversheet = async function (req,res) {
       project_status: "",
       updated_on: new Date().toISOString(),
       service: attached_details?.service || "",
-      submitted_by: req?.user?.name , // Adjust based on your auth
+      submitted_by: " " , // Adjust based on your auth
       billing_type: attached_details?.billing_type || "",
     });
 
