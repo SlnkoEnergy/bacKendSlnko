@@ -3,7 +3,7 @@ const projectModels =require("../Modells/projectModells");
 
 const createhandoversheet = async function (req,res) {
     try {
-        const{id, p_id,customer_details, order_details, project_detail, commercial_details, attached_details}=req.body;
+        const{id, p_id,customer_details, order_details, project_detail, commercial_details, attached_details, submitted_by}=req.body;
         // const { loa_number, ppa_number } = attached_details;
 
         // Update the query to properly access the fields in attached_details
@@ -27,6 +27,7 @@ const createhandoversheet = async function (req,res) {
             commercial_details,
             attached_details,
             status_of_handoversheet:"done", 
+            submitted_by,
         });
         await handoversheet.save();
          // Auto-generate p_id by finding the latest project
