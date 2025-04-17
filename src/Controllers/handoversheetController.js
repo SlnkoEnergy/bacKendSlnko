@@ -154,6 +154,7 @@ const edithandoversheetdata = async function (req,res) {
                         district_name: customer_details?.site_address?.district_name || "",
                     },
                     state: customer_details?.state || "",
+                    code: customer_details?.code || "",
                     project_category: project_detail?.project_category || "",
                     project_kwp: project_detail?.project_kwp || "",
                     distance: project_detail?.distance || "",
