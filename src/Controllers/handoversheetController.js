@@ -118,9 +118,15 @@ const edithandoversheetdata = async function (req,res) {
             submitted_by
         } = req.body;
 
+
+        // const status= await hanoversheetmodells.findOne({ status_of_handoversheet:"locked", });
+        // if (status) {
+        //     return res.status(400).json({ message: "This handover sheet is already locked and cannot be edited." });
+        // };
+
         // Update handover sheet
         const updatedHandover = await hanoversheetmodells.findOneAndUpdate(
-            { p_id:p_id },
+            { p_id:p_id, status_of_handoversheet: "done" }, // Find by p_id and status
             {
                 $set: {
                     customer_details,
@@ -129,6 +135,7 @@ const edithandoversheetdata = async function (req,res) {
                     commercial_details,
                     attached_details,
                     submitted_by,
+                    status_of_handoversheet: "locked", // or whatever status you want to set
                 },
             },
             { new: true } // Return updated document
