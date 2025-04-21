@@ -1,5 +1,6 @@
 const hanoversheetmodells= require("../Modells/handoversheetModells");
 const projectModels =require("../Modells/projectModells");
+const userModells = require("../Modells/userModells");
 
 const createhandoversheet = async function (req,res) {
     try {
@@ -191,8 +192,45 @@ const edithandoversheetdata = async function (req,res) {
     }
 };
 
+// status of handover sheet
+const updateStatusOfHandoversheet = async function (req,res) {
+    try {
+        const { p_id, emp_id } = req.body;
+
+        // Fetch user with emp_id
+        const user = await userModells.findOne({ emp_id: emp_id });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Check role
+        if (user.role !== "admin" && user.role !== "superadmin") {
+            return res.status(403).json({ message: "Only admin or superadmin can update the status" });
+        }
+
+        // Update handover status
+        const updatedHandover = await hanoversheetmodells.findOneAndUpdate(
+            { p_id: p_id },
+            { $set: { status_of_handoversheet: "done" } },
+            { new: true }
+        );
+
+        if (!updatedHandover) {
+            return res.status(404).json({ message: "Handover sheet not found for given project ID" });
+        }
+
+        res.status(200).json({ message: "Status updated successfully", Data: updatedHandover.status_of_handoversheet });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
+
+
  module.exports = {
      createhandoversheet,
      gethandoversheetdata,
      edithandoversheetdata,
+     updateStatusOfHandoversheet,
  };
