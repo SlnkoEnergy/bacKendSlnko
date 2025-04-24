@@ -174,6 +174,8 @@ const{ addinveterMaster, getinveterMasterdata }=require("../Controllers/inveterM
 
 const { addTransformer, getTransformer }=require("../Controllers/engineeringController/transformerController");
 
+const { addLTPanel, getLTPanel }=require("../Controllers/engineeringController/LTPanelControllers");
+
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -377,6 +379,12 @@ router.get("/get-master-inverter",getinveterMasterdata);
 //transformer master
 router.post("/add-transformer-master",addTransformer);
 router.get("/get-transformer",getTransformer);
+
+
+
+//LTPanel master
+router.post("/add-ltpanel-master",addLTPanel);
+router.get("/get-ltpanel-master",getLTPanel);
 
 module.exports = router;
 
