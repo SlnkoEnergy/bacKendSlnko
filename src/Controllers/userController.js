@@ -426,7 +426,7 @@ const login = async function (req, res) {
 
 //get-all-user
 const getalluser = async function (req, res) {
-  let user = await userModells.find();
+  let user = await userModells.find().select('-otp -otpExpires -password -id -duration -_id -phone -email');
   res.status(200).json({ data: user });
 };
 
@@ -436,7 +436,7 @@ const getSingleUser = async function (req, res) {
   const userId = req.params._id;
 
   try {
-    const user = await userModells.findById(userId).select('-otp -otpExpires -password  -id  -duration  -_id');
+    const user = await userModells.findById(userId).select('-otp -otpExpires -password  -id  -duration  -_id -phone -email');
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });

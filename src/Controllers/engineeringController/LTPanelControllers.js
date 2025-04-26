@@ -3,11 +3,11 @@ const ltPnaelModells =require("../../Modells/EngineeringModells/LTPanelsModells"
 // Add LT Panel data
 const addLTPanel = async (req, res) => {
     try {
-        const { make, type, voltage, status, submitted_by } = req.body;
+        const { make, type, voltage, status, outgoing, incoming, submitted_by } = req.body;
 
         // Create a new LT Panel entry
         const newLTPanel = new ltPnaelModells({
-            make, type, voltage, status, submitted_by
+            make, type, voltage, status, outgoing, incoming, submitted_by
         });
 
         // Save to database

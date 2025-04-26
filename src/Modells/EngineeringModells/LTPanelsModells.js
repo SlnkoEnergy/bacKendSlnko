@@ -7,6 +7,8 @@ const ltpanelSchema = new mongoose.Schema({
     voltage: { type: String },
   
     status:{type:String},
+    outgoing:{type:String},
+    incoming:{type:String},
     submitted_by:{type:String},
 },{timestamps:true});
 module.exports = mongoose.model("ltpanel", ltpanelSchema);
