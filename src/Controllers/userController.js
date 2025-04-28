@@ -426,7 +426,7 @@ const login = async function (req, res) {
 
 //get-all-user
 const getalluser = async function (req, res) {
-  let user = await userModells.find().select('-otp -otpExpires -password -id -duration -_id -phone -email');
+  let user = await userModells.find();
   res.status(200).json({ data: user });
 };
 
