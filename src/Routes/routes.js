@@ -182,6 +182,8 @@ const { addaccabel, getACCabels }=require("../Controllers/engineeringController/
 
 const { add_dc_cabel, get_dc_cabels }=require("../Controllers/engineeringController/DCCabelController");
 
+const { addbos, getbos }=require("../Controllers/engineeringController/BOSController");
+
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -404,6 +406,10 @@ router.get("/get-accabel-master",getACCabels);
 //DC_Cabel_master
 router.post("/add-dc-cabel-master", add_dc_cabel);
 router.get("/get-dc-cabel-master", get_dc_cabels);
+
+//BOS master
+router.post("/add-bos-master", addbos );
+router.get("/get-bos-master", getbos  );
 
  
 module.exports = router;
