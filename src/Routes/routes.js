@@ -176,6 +176,8 @@ const { addTransformer, getTransformer }=require("../Controllers/engineeringCont
 
 const { addLTPanel, getLTPanel }=require("../Controllers/engineeringController/LTPanelControllers");
 
+const { addHTPanel, getHTPanels } = require("../Controllers/engineeringController/HTPanelController");
+
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -385,6 +387,11 @@ router.get("/get-transformer",getTransformer);
 //LTPanel master
 router.post("/add-ltpanel-master",addLTPanel);
 router.get("/get-ltpanel-master",getLTPanel);
+
+
+//HTPanel master
+router.post("/add-htpanel-master",addHTPanel);
+router.get("/get-htpanel-master",getHTPanels);
 
 module.exports = router;
 
