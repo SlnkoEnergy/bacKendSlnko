@@ -178,6 +178,8 @@ const { addLTPanel, getLTPanel }=require("../Controllers/engineeringController/L
 
 const { addHTPanel, getHTPanels } = require("../Controllers/engineeringController/HTPanelController");
 
+const { addaccabel, getACCabels }=require("../Controllers/engineeringController/ACCabelController");
+
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -393,5 +395,10 @@ router.get("/get-ltpanel-master",getLTPanel);
 router.post("/add-htpanel-master",addHTPanel);
 router.get("/get-htpanel-master",getHTPanels);
 
+//ACCabel master
+router.post("/add-accabel-master",addaccabel);
+router.get("/get-accabel-master",getACCabels);
+
+ 
 module.exports = router;
 
