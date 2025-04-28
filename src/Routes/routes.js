@@ -184,6 +184,8 @@ const { add_dc_cabel, get_dc_cabels }=require("../Controllers/engineeringControl
 
 const { addbos, getbos }=require("../Controllers/engineeringController/BOSController");
 
+const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engineeringController/PoolingStationController");
+
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -411,6 +413,10 @@ router.get("/get-dc-cabel-master", get_dc_cabels);
 router.post("/add-bos-master", addbos );
 router.get("/get-bos-master", getbos  );
 
+
+//pooling station master
+router.post("/add-pooling-station-master", addPoolingStation );
+router.get("/get-pooling-station-master", getAllPoolingStations  );
  
 module.exports = router;
 
