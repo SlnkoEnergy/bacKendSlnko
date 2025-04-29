@@ -186,6 +186,8 @@ const { addbos, getbos }=require("../Controllers/engineeringController/BOSContro
 
 const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engineeringController/PoolingStationController");
 
+const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
+
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -418,5 +420,13 @@ router.get("/get-bos-master", getbos  );
 router.post("/add-pooling-station-master", addPoolingStation );
 router.get("/get-pooling-station-master", getAllPoolingStations  );
  
+
+//BOM master Engineering
+router.post("/add-bom-master",addBOM );
+router.get("/get-bom-master", getBOM );
+
+
+
+
 module.exports = router;
 
