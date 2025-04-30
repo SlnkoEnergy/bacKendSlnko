@@ -38,7 +38,7 @@ const addTransformer = async (req, res) => {
 const getTransformer = async (req, res) => {
     try {
         const transformer = await transformerModells.find();
-        res.json(transformer);
+        res.json({data:transformer});
     } catch (error) {
         res.status(500).json({ message: "Internal server error" });
     }

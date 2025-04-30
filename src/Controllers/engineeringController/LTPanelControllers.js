@@ -22,7 +22,7 @@ const addLTPanel = async (req, res) => {
 const getLTPanel = async (req, res) => {
     try {
         const ltPanel = await ltPnaelModells.find();
-        res.json(ltPanel);
+        res.json({data:ltPanel});
     } catch (error) {
         res.status(500).json({ message: "Internal server error" });
     }
