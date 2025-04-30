@@ -165,7 +165,7 @@ const {
 } = require("../Controllers/initialbdController");
 
 
-const{ addtask, getaddtask, editComment, gettaskHistory }=require("../Controllers/addtaskbdController");
+const{ addtask, getaddtask, editComment, gettaskHistory, updatetaskstatus }=require("../Controllers/addtaskbdController");
 const { createhandoversheet, gethandoversheetdata, edithandoversheetdata, updateStatusOfHandoversheet } =require("../Controllers/handoversheetController");
 const { addmoduleMaster, getmoduleMasterdata, editmodulemaster, deletemodulemaster }=require("../Controllers/moduleMasterController");
 const { deleteOne } = require("../Modells/moduleMasterModells");
@@ -353,6 +353,7 @@ router.post("/add-task",addtask);
 router.get("/get-all-task",getaddtask);
 router.put("/edit-comment/:_id",editComment);
 router.get("/get-task-history",gettaskHistory);
+router.put("/update-task-status",updatetaskstatus);
 
 
 //post bd lead
