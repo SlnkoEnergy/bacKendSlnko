@@ -28,6 +28,14 @@ const addtaskSchema = new mongoose.Schema({
         type:String,
         default:""
     },
+    notification_message:{
+        type:String,
+        default:""
+    },
+    status:{
+        type:String,
+        
+    },
     submitted_by:{
         type:String,
         default:""

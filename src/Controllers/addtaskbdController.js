@@ -4,6 +4,14 @@ const taskHistoryModells = require("../Modells/addtaskbdHistoryModells");
 const addtask = async function (req,res) {
     try {
         const {name,date,reference,by_whom,comment,id, submitted_by, task_detail} = req.body;
+
+        let notification_message = '';
+        if (reference && reference.toLowerCase() === 'by meeting') {
+          notification_message = `Hi ${by_whom}, a new task "${name}" has been assigned to you from a meeting.`;;
+        }
+    
+
+
         const task = new taskModells({
             id,
             name,
@@ -12,7 +20,9 @@ const addtask = async function (req,res) {
             by_whom,
             comment,
             submitted_by,
-            task_detail
+            task_detail,
+            status:"Add",
+            notification_message:notification_message
         });
         await task.save();
         res.status(201).json({message:"Task Added Successfully",task:task});
