@@ -41,12 +41,13 @@ const addtask = async function (req, res) {
 //update task status
 const updatetaskstatus = async function (req, res) {
   try {
-    const { by_whom } = req.body; 
-    if (!by_whom) {
-      return res.status(400).json({ message: "by_whom is required" });
+    const { _id } = req.body; 
+    
+    if (!_id) {
+      return res.status(400).json({ message: "_id is required" });
     }
     const update = await taskModells.findOneAndUpdate(
-      { by_whom:by_whom, status: "Add" },
+      {_id:_id, status: "Add" },
       { $set: { status: "" } },
       { new: true } 
     );
