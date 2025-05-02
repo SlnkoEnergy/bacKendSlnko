@@ -13,6 +13,7 @@ const adjustmentRequestSchema = new mongoose.Schema({
         adj_type: { type: String },
         adj_amount: { type: String },
         remark: { type: String },
+        adj_date: { type: String },
    
       
       
