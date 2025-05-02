@@ -70,6 +70,9 @@ const {
   getpy,
 } = require("../Controllers/payRequestControllers");
 
+
+const { addAdjustmentRequest, getAdjustmentRequest } =require("../Controllers/adjustmentRequestController");
+
 const {
   addBill,
   getBill,
@@ -253,6 +256,12 @@ router.post("/hold-payto-payrequest", hold_approve_pending);
 router.put("/update-excel", updateExceData);
 router.get("/get-single-excel-data/:_id", getExcelDataById);
 router.get("/get-pay-smry", getpy);
+
+//adjustment request
+router.post("/add-adjustment-request", addAdjustmentRequest);
+router.get("/get-adjustment-request", getAdjustmentRequest);
+
+
 
 // add-Bill
 router.post("/add-bilL-IT", addBill);
