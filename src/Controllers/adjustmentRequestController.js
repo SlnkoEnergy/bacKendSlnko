@@ -4,10 +4,13 @@ const adjustmentRequestModells = require("../Modells/adjustmentRequestModells");
 //add adjustment request
 const addAdjustmentRequest = async (req, res) => {
 try {
-    const { p_id, pay_id, pay_type, amount_paid, dbt_date, paid_for, vendor, po_number, po_value, adj_type, adj_amount, remark, adj_date, submitted_by, comment } = req.body;
+    const { p_id, pay_id, pay_type, amount_paid, dbt_date, paid_for, vendor, po_number, po_value, adj_type, adj_amount, remark, adj_date, name,customer, p_group, submitted_by, comment } = req.body;
     const adjustmentRequest = new adjustmentRequestModells({
         p_id,
         pay_id,
+        name,
+        customer,
+        p_group,
         pay_type,
         amount_paid,
         dbt_date,

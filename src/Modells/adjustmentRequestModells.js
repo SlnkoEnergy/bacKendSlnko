@@ -1,6 +1,9 @@
 const mongoose =require("mongoose");
 const adjustmentRequestSchema = new mongoose.Schema({
      p_id: { type: Number },
+     name: { type: String },
+     customer: { type: String },
+     p_group: { type: String },
         pay_id: { type: String },
         pay_type: { type: String },
         amount_paid: { type: String },
