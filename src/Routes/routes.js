@@ -1,5 +1,5 @@
 var router = require("express").Router();
-
+const jwtMW =require("../Authentication/auth");
 const {
   addMoney,
   getCreditAmount,
@@ -427,8 +427,8 @@ router.get("/get-bos-master", getbos  );
 
 
 //pooling station master
-router.post("/add-pooling-station-master", addPoolingStation );
-router.get("/get-pooling-station-master", getAllPoolingStations  );
+router.post("/add-pooling-station-master",jwtMW.authentication,jwtMW.authorization, addPoolingStation );
+router.get("/get-pooling-station-master",jwtMW.authentication,jwtMW.authorization, getAllPoolingStations  );
  
 
 //BOM master Engineering
