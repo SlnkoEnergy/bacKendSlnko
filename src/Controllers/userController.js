@@ -1,5 +1,6 @@
 const userModells = require("../Modells/userModells");
 const jwt = require("jsonwebtoken");
+//const reseend = require("resend").default;
 
 const JWT_SECRET = " your-secret-key";
 const nodemailer = require("nodemailer");
@@ -7,6 +8,12 @@ const { config } = require("dotenv");
 config({
   path: "./.env",
 });
+
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+
+//const resend = reseend(process.env.RESEND_API_KEY);
 
 //user Registration
 const userRegister = async function (req, res) {
@@ -448,6 +455,57 @@ const getSingleUser = async function (req, res) {
   }
 };
 
+//send password to email through resend
+const forgetpassword = async function (req, res) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+
+    const user = await userModells.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    user.otp = otp;
+    user.otpExpires = Date.now() + 15 * 60 * 1000;
+    await user.save();
+
+    const htmlContent = `
+      <div>
+        <h2>Hello from SLNKO Energy</h2>
+        <p>Your OTP for password reset is: <strong>${otp}</strong></p>
+      </div>
+    `;
+
+    const { data, error } = await resend.emails.send({
+      from: 'SLNKO Energy <it@slnkoenergy.com>', // Must match your verified sender domain in Resend
+      to: email,
+      subject: "Your OTP for Password Reset",
+      html: htmlContent,
+    });
+
+    if (error) {
+      console.error(error);
+      return res.status(500).json({ message: "Failed to send email", error: error.message });
+    }
+
+    res.status(200).json({
+      message: "OTP sent successfully. Please check your email.",
+      email,
+      userID: user._id,
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "An error occurred. Please try again.", error: error.message });
+  }
+};
+
+
 module.exports = {
   userRegister,
   login,
@@ -456,4 +514,5 @@ module.exports = {
   verifyandSendPass,
   deleteUser,
   getSingleUser,
+  forgetpassword
 };

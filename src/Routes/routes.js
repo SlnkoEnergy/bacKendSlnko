@@ -25,6 +25,7 @@ const {
   verifyandSendPass,
   deleteUser,
   getSingleUser,
+  forgetpassword,
 } = require("../Controllers/userController");
 
 const {
@@ -71,7 +72,7 @@ const {
 } = require("../Controllers/payRequestControllers");
 
 
-const { addAdjustmentRequest, getAdjustmentRequest } =require("../Controllers/adjustmentRequestController");
+const { addAdjustmentRequest, getAdjustmentRequest, deleteAdjustmentRequest } =require("../Controllers/adjustmentRequestController");
 
 const {
   addBill,
@@ -200,6 +201,9 @@ router.post("/received-emaiL-IT", verifyandSendPass);
 router.delete("/delete-useR-IT/:_id", deleteUser);
 router.get("/get-single-useR-IT/:_id", getSingleUser);
 
+//forget pass through resend
+router.post("/forget-password",forgetpassword);
+
 //project router
 router.post("/add-new-projecT-IT", createProject);
 router.put("/update-projecT-IT/:_id", updateProject);
@@ -260,6 +264,7 @@ router.get("/get-pay-smry", getpy);
 //adjustment request
 router.post("/add-adjustment-request", addAdjustmentRequest);
 router.get("/get-adjustment-request", getAdjustmentRequest);
+router.delete("/delete-adjustment-request/:_id", deleteAdjustmentRequest);
 
 
 

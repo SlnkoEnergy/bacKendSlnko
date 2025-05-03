@@ -49,8 +49,24 @@ const getAdjustmentRequest = async (req, res) => {
     }
 };
 
+//Delete adjustment request
+
+const deleteAdjustmentRequest = async (req, res) => {
+    try {
+        const { _id } = req.params;
+        const adjustmentRequest = await adjustmentRequestModells.findByIdAndDelete(_id);
+        if (!adjustmentRequest) {
+            return res.status(404).json({ message: "Adjustment request not found" });
+        }
+        res.status(200).json({ message: "Adjustment request deleted successfully" ,data:adjustmentRequest});
+    } catch (error) {
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 module.exports = {
     addAdjustmentRequest,
-    getAdjustmentRequest
+    getAdjustmentRequest,
+    deleteAdjustmentRequest
 };
 
