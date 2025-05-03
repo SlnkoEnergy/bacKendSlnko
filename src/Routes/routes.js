@@ -202,7 +202,7 @@ router.delete("/delete-useR-IT/:_id", deleteUser);
 router.get("/get-single-useR-IT/:_id", getSingleUser);
 
 //forget pass through resend
-router.post("/forget-password",forgetpassword);
+// router.post("/forget-password",forgetpassword);
 
 //project router
 router.post("/add-new-projecT-IT", createProject);
