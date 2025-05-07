@@ -69,6 +69,7 @@ const createhandoversheet = async function (req,res) {
 
     // Save to bdhandoversheetModells
     const bdhandoversheet = new bdhandoversheetModells({
+        id,
         p_id: newPid,
         customer_details,
         order_details,
