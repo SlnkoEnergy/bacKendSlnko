@@ -1,6 +1,7 @@
 const hanoversheetmodells= require("../Modells/handoversheetModells");
 const projectModels =require("../Modells/projectModells");
 const userModells = require("../Modells/userModells");
+const bdhandoversheetModells = require("../Modells/BDHandovesheetModells");
 
 const createhandoversheet = async function (req,res) {
     try {
@@ -66,10 +67,24 @@ const createhandoversheet = async function (req,res) {
 
     await projectData.save();
 
+    // Save to bdhandoversheetModells
+    const bdhandoversheet = new bdhandoversheetModells({
+        p_id: newPid,
+        customer_details,
+        order_details,
+        project_detail,
+        commercial_details,
+        attached_details,
+        status_of_handoversheet:"done", 
+        submitted_by,
+    })
+    await bdhandoversheet.save();
+
     res.status(200).json({
       message: "Data saved successfully",
       handoversheet,
       project: projectData,
+        bdhandoversheet : bdhandoversheet,
     });
     
         
@@ -79,6 +94,19 @@ const createhandoversheet = async function (req,res) {
     }
     
 };
+
+// get  bd handover sheet data
+const getbdhandoversheetdata = async function (req,res) {
+    try {
+        let getbdhandoversheet = await bdhandoversheetModells.find();
+        res.status(200).json({message:"Data fetched successfully",Data:getbdhandoversheet});
+        
+    } catch (error) {
+        res.status(500).json({message:error.message});
+        
+    }
+};
+
 const gethandoversheetdata = async function (req,res) {
     try {
         let gethandoversheet = await hanoversheetmodells.find();
@@ -233,4 +261,5 @@ const updateStatusOfHandoversheet = async function (req,res) {
      gethandoversheetdata,
      edithandoversheetdata,
      updateStatusOfHandoversheet,
+     getbdhandoversheetdata,
  };
