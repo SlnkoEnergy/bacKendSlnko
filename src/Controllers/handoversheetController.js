@@ -5,7 +5,7 @@ const bdhandoversheetModells = require("../Modells/BDHandovesheetModells");
 
 const createhandoversheet = async function (req,res) {
     try {
-        const{id, p_id,customer_details, order_details, project_detail, commercial_details, attached_details, submitted_by}=req.body;
+        const{id, p_id,customer_details, order_details, project_detail, commercial_details, attached_details,invoice_detail, submitted_by}=req.body;
         // const { loa_number, ppa_number } = attached_details;
 
         // Update the query to properly access the fields in attached_details
@@ -28,6 +28,7 @@ const createhandoversheet = async function (req,res) {
             project_detail,
             commercial_details,
             attached_details,
+            invoice_detail,
             status_of_handoversheet:"done", 
             submitted_by,
         });
@@ -76,6 +77,7 @@ const createhandoversheet = async function (req,res) {
         project_detail,
         commercial_details,
         attached_details,
+        invoice_detail,
         status_of_handoversheet:"done", 
         submitted_by,
     })
@@ -145,6 +147,7 @@ const edithandoversheetdata = async function (req,res) {
             project_detail,
             commercial_details,
             attached_details,
+            invoice_detail,
             submitted_by
         } = req.body;
 
@@ -164,6 +167,7 @@ const edithandoversheetdata = async function (req,res) {
                     project_detail,
                     commercial_details,
                     attached_details,
+                    invoice_detail,
                     submitted_by,
                     status_of_handoversheet: "locked", // or whatever status you want to set
                 },
@@ -221,7 +225,7 @@ const edithandoversheetdata = async function (req,res) {
     }
 };
 
-// status of handover sheet
+// status of handover sheet cam
 const updateStatusOfHandoversheet = async function (req,res) {
     try {
         const { p_id, emp_id } = req.body;
