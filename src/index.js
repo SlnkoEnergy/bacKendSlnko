@@ -38,7 +38,6 @@ try {
     console.log(`Slnko app is running on port ${PORT}`);
   });
 
-
   process.on("SIGINT", () => {
     console.log("Gracefully shutting down...");
     mongoose.connection.close(() => {
