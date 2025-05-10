@@ -170,7 +170,7 @@ const {
 
 
 const{ addtask, getaddtask, editComment, gettaskHistory, updatetaskstatus }=require("../Controllers/addtaskbdController");
-const { createhandoversheet, gethandoversheetdata, edithandoversheetdata, updateStatusOfHandoversheet, getbdhandoversheetdata } =require("../Controllers/handoversheetController");
+const { createhandoversheet, gethandoversheetdata, edithandoversheetdata, updateStatusOfHandoversheet, getbdhandoversheetdata, updateStatusHandoversheet } =require("../Controllers/handoversheetController");
 const { addmoduleMaster, getmoduleMasterdata, editmodulemaster, deletemodulemaster }=require("../Controllers/moduleMasterController");
 const { deleteOne } = require("../Modells/moduleMasterModells");
 
@@ -389,6 +389,7 @@ router.get("/get-all-handover-sheet",gethandoversheetdata);
 router.put("/edit-hand-over-sheet",edithandoversheetdata);
 router.put("/update-status-of-handoversheet",updateStatusOfHandoversheet);
 router.get("/get-all-bd-handoversheet",getbdhandoversheetdata);
+router.put("/updatestatus",updateStatusHandoversheet);
 
 
 //module master

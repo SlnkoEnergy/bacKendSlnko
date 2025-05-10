@@ -5,7 +5,7 @@ const bdhandoversheetModells = require("../Modells/BDHandovesheetModells");
 
 const createhandoversheet = async function (req,res) {
     try {
-        const{id, p_id,customer_details, order_details, project_detail, commercial_details, attached_details, submitted_by}=req.body;
+        const{id, p_id,customer_details, order_details, project_detail, commercial_details, attached_details, invoice_detail, submitted_by}=req.body;
         // const { loa_number, ppa_number } = attached_details;
 
         // Update the query to properly access the fields in attached_details
@@ -28,7 +28,8 @@ const createhandoversheet = async function (req,res) {
             project_detail,
             commercial_details,
             attached_details,
-            status_of_handoversheet:"done", 
+             invoice_detail,
+            status_of_handoversheet:"draft", 
             submitted_by,
         });
         await handoversheet.save();
@@ -68,24 +69,24 @@ const createhandoversheet = async function (req,res) {
     await projectData.save();
 
     // Save to bdhandoversheetModells
-    const bdhandoversheet = new bdhandoversheetModells({
-        id,
-        p_id: newPid,
-        customer_details,
-        order_details,
-        project_detail,
-        commercial_details,
-        attached_details,
-        status_of_handoversheet:"done", 
-        submitted_by,
-    })
-    await bdhandoversheet.save();
+    // const bdhandoversheet = new bdhandoversheetModells({
+    //     id,
+    //     p_id: newPid,
+    //     customer_details,
+    //     order_details,
+    //     project_detail,
+    //     commercial_details,
+    //     attached_details,
+    //     status_of_handoversheet:"done", 
+    //     submitted_by,
+    // })
+    // await bdhandoversheet.save();
 
     res.status(200).json({
       message: "Data saved successfully",
       handoversheet,
       project: projectData,
-        bdhandoversheet : bdhandoversheet,
+       // bdhandoversheet : bdhandoversheet,
     });
     
         
@@ -145,6 +146,7 @@ const edithandoversheetdata = async function (req,res) {
             project_detail,
             commercial_details,
             attached_details,
+             invoice_detail,
             submitted_by
         } = req.body;
 
@@ -156,7 +158,10 @@ const edithandoversheetdata = async function (req,res) {
 
         // Update handover sheet
         const updatedHandover = await hanoversheetmodells.findOneAndUpdate(
-            { p_id:p_id, status_of_handoversheet: "done" }, // Find by p_id and status
+            { p_id: p_id,
+                status_of_handoversheet: { $in: ["approved", "submitted"] }
+ 
+            },
             {
                 $set: {
                     customer_details,
@@ -164,10 +169,12 @@ const edithandoversheetdata = async function (req,res) {
                     project_detail,
                     commercial_details,
                     attached_details,
+                     invoice_detail,
                     submitted_by,
-                    status_of_handoversheet: "locked", // or whatever status you want to set
-                },
+                    status_of_handoversheet: "submitted", // or whatever status you want to set
+                }
             },
+            
             { new: true } // Return updated document
         );
 
@@ -254,6 +261,30 @@ const updateStatusOfHandoversheet = async function (req,res) {
     }
 };
 
+// statuts of handover sheet appprove or reject
+
+const updateStatusHandoversheet = async function (req,res) {
+    try {
+        const { p_id, status_of_handoversheet } = req.body;
+        const status = await hanoversheetmodells.findOne({ p_id :p_id });
+        if (!status) {
+            return res.status(400).json({ message: "This handover sheet is cannot be edited." });
+        };
+        // Update handover sheet
+        status.status_of_handoversheet = status_of_handoversheet;
+        await status.save();
+        res.status(200).json({ message: "Status updated successfully", Data: status });
+
+        
+     
+    } catch (error) {
+        res.status(500).json({message:error.message});
+        
+    }
+
+
+};
+
 
 
 
@@ -263,4 +294,5 @@ const updateStatusOfHandoversheet = async function (req,res) {
      edithandoversheetdata,
      updateStatusOfHandoversheet,
      getbdhandoversheetdata,
+     updateStatusHandoversheet
  };
