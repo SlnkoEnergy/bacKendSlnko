@@ -170,7 +170,7 @@ const {
 
 
 const{ addtask, getaddtask, editComment, gettaskHistory, updatetaskstatus }=require("../Controllers/addtaskbdController");
-const { createhandoversheet, gethandoversheetdata, edithandoversheetdata, updateStatusOfHandoversheet, getbdhandoversheetdata, updateStatusHandoversheet, updatehandoverbd } =require("../Controllers/handoversheetController");
+const { createhandoversheet, gethandoversheetdata, edithandoversheetdata, updateStatusOfHandoversheet, getbdhandoversheetdata, updateStatusHandoversheet, updatehandoverbd, updatestatus, checkid } =require("../Controllers/handoversheetController");
 const { addmoduleMaster, getmoduleMasterdata, editmodulemaster, deletemodulemaster }=require("../Controllers/moduleMasterController");
 const { deleteOne } = require("../Modells/moduleMasterModells");
 
@@ -386,11 +386,11 @@ router.put("/edit-warm/:_id",editwarm);
 //handdoversheet 
 router.post("/create-hand-over-sheet",createhandoversheet);
 router.get("/get-all-handover-sheet",gethandoversheetdata);
-router.put("/edit-hand-over-sheet",edithandoversheetdata);
-router.put("/update-status-of-handoversheet",updateStatusOfHandoversheet);
-router.get("/get-all-bd-handoversheet",getbdhandoversheetdata);
-router.put("/updatestatus",updateStatusHandoversheet);
-router.put("/update-bd",updatehandoverbd);
+router.put("/edit-hand-over-sheet/:_id",edithandoversheetdata);
+router.put("/update-status/:id",updatestatus);
+router.post("/check",checkid);
+
+
 
 
 //module master
