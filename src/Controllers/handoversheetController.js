@@ -44,7 +44,8 @@ const createhandoversheet = async function (req, res) {
 // get  bd handover sheet data
 const gethandoversheetdata = async function (req, res) {
   try {
-    let getbdhandoversheet = await hanoversheetmodells.find();
+    let page = req.query.page ;
+    let getbdhandoversheet = await hanoversheetmodells.find().skip((page - 1) * 10).limit(100);
     res
       .status(200)
       .json({ message: "Data fetched successfully", Data: getbdhandoversheet });
@@ -71,7 +72,7 @@ const edithandoversheetdata = async function (req, res) {
 // update status of handovesheet
 const updatestatus = async function (req, res) {
   try {
-     const { id } = req.params;
+     const  _id  = req.params._id;
     
      
     
@@ -80,7 +81,7 @@ const updatestatus = async function (req, res) {
   
 
     const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
-      { id: id },
+      { _id: _id },
       { status_of_handoversheet },
       { new: true }
     );
@@ -100,17 +101,12 @@ const updatestatus = async function (req, res) {
 
 const checkid = async function (req, res) {
  try {
-    let id = req.body.id;
+    let _id = req.params._id;
+   
 
-    if (!id) {
-      return res.status(400).json({ status: false, message: "id is required" });
-    }
 
-    const isNumeric = !isNaN(id);
-    const query = isNumeric ? { id: Number(id) } : { id: id };
 
-    let checkid = await hanoversheetmodells.findOne(query);
-
+  let checkid = await hanoversheetmodells.findOne({ _id: _id });
     if (checkid) {
       return res.status(200).json({ status: true });
     } else {
@@ -119,7 +115,28 @@ const checkid = async function (req, res) {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-}
+};
+
+//get bd handover sheet data by id
+const getbyid = async function (req, res) {
+  try {
+    let id = req.params._id;
+    if (!id) {
+      return res.status(400).json({ message: "id not found" });
+    }
+    let getbdhandoversheet = await hanoversheetmodells.findById(id);
+    if (!getbdhandoversheet) {
+      return res.status(404).json({ message: "Data not found" });
+    } 
+    res
+      .status(200)
+      .json({ message: "Data fetched successfully", Data: getbdhandoversheet });
+    }catch (error) {   
+    res.status(500).json({ message: error.message });
+  }};
+
+
+
 
 
 
@@ -137,6 +154,7 @@ module.exports = {
   edithandoversheetdata,
   updatestatus,
   checkid,
+    getbyid,
 
  
 };
