@@ -110,6 +110,13 @@ const handoversheetSchema = new mongoose.Schema(
         project_status: { type: String },
         
   },
+  invoice_detail: {
+    
+    invoice_recipient: {type: String},
+    invoicing_GST_no: {type: String},
+    invoicing_address: {type: String},
+    delivery_address: {type: String},
+  },
     status_of_handoversheet: { type: String, default: "done" },
     submitted_by: { type: String,default:"" },
 

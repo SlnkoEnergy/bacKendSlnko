@@ -2,7 +2,7 @@ const userModells = require("../Modells/userModells");
 const jwt = require("jsonwebtoken");
 //const reseend = require("resend").default;
 
-const JWT_SECRET = " your-secret-key";
+const JWT_SECRET = process.env.PASSKEY;
 const nodemailer = require("nodemailer");
 const { config } = require("dotenv");
 config({

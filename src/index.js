@@ -123,7 +123,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
-const db = process.env.db;
+const db = process.env.DB_DEVELOPMENT_URL;
 //const DBLocal = "mongodb+srv://itslnkoenergy:slnkoit@protrac.e7wnn.mongodb.net/Protrac-Test?retryWrites=true&w=majority&appName=Protrac"
 // https.createServer(Option, app).listen(0, '127.0.0.1', () => {
 //    console.log('Node.js app is running on https://localhost:5000');

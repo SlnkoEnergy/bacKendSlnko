@@ -7,7 +7,7 @@ const authentication = async function (req, res, next) {
       .status(401)
       .send({ status: false, msg: "Token must be present" });
 
-  jwt.verify(token, " your-secret-key", function (err, decodedToken) {
+  jwt.verify(token, process.env.PASSKEY, function (err, decodedToken) {
     if (err)
       return res.status(401).send({ status: false, msg: "Token is invalid" });
 
