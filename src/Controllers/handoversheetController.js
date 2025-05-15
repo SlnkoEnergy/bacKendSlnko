@@ -1,6 +1,5 @@
 const hanoversheetmodells = require("../Modells/handoversheetModells");
 
-
 const createhandoversheet = async function (req, res) {
   try {
     const {
@@ -14,8 +13,8 @@ const createhandoversheet = async function (req, res) {
       invoice_detail,
       submitted_by,
     } = req.body;
-  
-     const handoversheet = new hanoversheetmodells({
+
+    const handoversheet = new hanoversheetmodells({
       id,
       p_id,
       customer_details,
@@ -28,13 +27,10 @@ const createhandoversheet = async function (req, res) {
       submitted_by,
     });
     await handoversheet.save();
-   
 
     res.status(200).json({
       message: "Data saved successfully",
       handoversheet,
-     
-      
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -44,8 +40,11 @@ const createhandoversheet = async function (req, res) {
 // get  bd handover sheet data
 const gethandoversheetdata = async function (req, res) {
   try {
-    let page = req.query.page ;
-    let getbdhandoversheet = await hanoversheetmodells.find().skip((page - 1) * 10).limit(100);
+    let page = req.query.page;
+    let getbdhandoversheet = await hanoversheetmodells
+      .find()
+      .skip((page - 1) * 10)
+      .limit(100);
     res
       .status(200)
       .json({ message: "Data fetched successfully", Data: getbdhandoversheet });
@@ -57,28 +56,33 @@ const gethandoversheetdata = async function (req, res) {
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
   try {
-      let id=req.params._id;
-      let data= req.body;
-      if(!id){
-          res.status(400).json({message:"id not found"});
-      }
-      let edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(id,data,{new:true});
-      res.status(200).json({message:"hand over sheet edited  successfully",Data:edithandoversheet});
+    let id = req.params._id;
+    let data = req.body;
+    if (!id) {
+      res.status(400).json({ message: "id not found" });
+    }
+    let edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(
+      id,
+      data,
+      { new: true }
+    );
+    res
+      .status(200)
+      .json({
+        message: "hand over sheet edited  successfully",
+        Data: edithandoversheet,
+      });
   } catch (error) {
-      res.status(500).json({message:error.message});
-}};
-
+    res.status(500).json({ message: error.message });
+  }
+};
 
 // update status of handovesheet
 const updatestatus = async function (req, res) {
   try {
-     const  _id  = req.params._id;
-    
-     
-    
-    const { status_of_handoversheet } = req.body;
+    const _id = req.params._id;
 
-  
+    const { status_of_handoversheet } = req.body;
 
     const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
       { _id: _id },
@@ -100,13 +104,10 @@ const updatestatus = async function (req, res) {
 };
 
 const checkid = async function (req, res) {
- try {
+  try {
     let _id = req.params._id;
-   
 
-
-
-  let checkid = await hanoversheetmodells.findOne({ _id: _id });
+    let checkid = await hanoversheetmodells.findOne({ _id: _id });
     if (checkid) {
       return res.status(200).json({ status: true });
     } else {
@@ -127,26 +128,34 @@ const getbyid = async function (req, res) {
     let getbdhandoversheet = await hanoversheetmodells.findById(id);
     if (!getbdhandoversheet) {
       return res.status(404).json({ message: "Data not found" });
-    } 
+    }
     res
       .status(200)
       .json({ message: "Data fetched successfully", Data: getbdhandoversheet });
-    }catch (error) {   
+  } catch (error) {
     res.status(500).json({ message: error.message });
-  }};
+  }
+};
 
+//sercher api
 
-
-
-
-
-
-
-
-
-
+const search = async function (req, res) {
   
-
+   
+    const letter = req.params.letter;
+  try {
+    const regex = new RegExp('^' + letter, 'i'); // Case-insensitive regex
+    const items = await hanoversheetmodells.find({
+      $or: [
+        { 'customer_details.name': { $regex: regex } },
+        { 'customer_details.code': { $regex: regex } }
+      ]
+    }).sort({ 'customer_details.name': 1 });
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
 
 module.exports = {
   createhandoversheet,
@@ -154,7 +163,6 @@ module.exports = {
   edithandoversheetdata,
   updatestatus,
   checkid,
-    getbyid,
-
- 
+  getbyid,
+  search,
 };
