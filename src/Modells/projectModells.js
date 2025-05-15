@@ -8,11 +8,9 @@ const projectSchema = new mongoose.Schema(
     p_group: { type: String },
     email: { type: String },
     number: { type: String },
-
     alt_number: {
       type: String,
     },
-
     billing_address: {
       village_name: {
         type: String,
@@ -21,7 +19,6 @@ const projectSchema = new mongoose.Schema(
         type: String,
       },
     },
-
     site_address: {
       village_name: {
         type: String,
@@ -34,7 +31,6 @@ const projectSchema = new mongoose.Schema(
     project_category: {
       type: String,
     },
-
     project_kwp: { type: String },
     distance: { type: String },
     tarrif: { type: String },
@@ -42,10 +38,8 @@ const projectSchema = new mongoose.Schema(
     code: { type: String },
     project_status: { type: String },
     updated_on: { type: String },
-
     service: { type: String },
     submitted_by: { type: String },
-
     billing_type: {
       type: String,
     },

@@ -1,10 +1,8 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const cluster = require("cluster");
-
 const app = express();
 const routes = require("../src/Routes/routes");
-
+const projectBalance = require("../src/Routes/projectBalance");
 const cors = require("cors");
 const { config } = require("dotenv");
 
@@ -13,7 +11,7 @@ config({
 });
 
 app.use(cors({
-  origin: "*", // <-- You already added this, but ensure it’s applied BEFORE routes
+  origin: "*", 
   methods: ["GET", "POST", "PUT","PATCH","DELETE"],
   allowedHeaders: ["Content-Type", "x-auth-token"],
 }));
@@ -33,6 +31,7 @@ try {
 
 
   app.use("/v1", routes);
+  app.use("/v1/projectBalance", projectBalance);
 
   // Start the server
   app.listen(PORT, () => {
