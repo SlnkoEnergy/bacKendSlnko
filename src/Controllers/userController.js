@@ -1,39 +1,50 @@
 const userModells = require("../Modells/userModells");
 const jwt = require("jsonwebtoken");
-//const reseend = require("resend").default;
-
-const JWT_SECRET = process.env.PASSKEY;
+const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const { config } = require("dotenv");
 config({
   path: "./.env",
 });
 
-// const { Resend } = require('resend');
-// const resend = new Resend(process.env.RESEND_API_KEY);
 
-
-//const resend = reseend(process.env.RESEND_API_KEY);
 
 //user Registration
+
+
 const userRegister = async function (req, res) {
   try {
-    let { name, emp_id, email, phone, department, role, password } = req.body;
+    let { username, emp_id, email, phone, department, role, password } = req.body;
+
+    if (!username || !emp_id || !email || !password) {
+      return res.status(400).json({ msg: "All fields are required" });
+    }
+
+    // Check for existing user with same emp_id or email
+    const existingUser = await userModells.findOne({ $or: [{ emp_id }, { email },{emp_id}] });
+    if (existingUser) {
+      return res.status(409).json({ msg: "Employee ID, Email, emp_id already exists" });
+    }
+
+    // Hash the password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
     const newuser = new userModells({
-      name,
+      username,
       emp_id,
       email,
       phone,
       department,
       role,
-      password,
+      password: hashedPassword,
     });
+
     await newuser.save();
 
-    res.status(200).json({ msg: "user register sucessfully", newuser });
+    res.status(200).json({ msg: "User registered successfully" });
   } catch (error) {
-    res.status(500).json({ msg: "server error" + error });
+    res.status(500).json({ msg: "Server error: " + error.message });
   }
 };
 
@@ -415,19 +426,43 @@ html: `
 
 //Login
 const login = async function (req, res) {
-  try {
-    let { name, password, email } = req.body;
-    const user = await userModells.findOne({
-      name: { $regex: `^${name}$`, $options: "i" },
-    });
-    if (!user || user.password !== password) {
-      return res.status(401).json({ error: "Invalid Credentials" });
+ try {
+    const { username, emp_id, email, password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ msg: "Password is required" });
     }
 
-    let token = jwt.sign({ userID: user._id }, JWT_SECRET, { expiresIn: "1h" });
-    res.json({ token, userID: user._id });
+    // Combine all identity fields into a single search term
+    const identity = username || emp_id || email;
+
+    if (!identity) {
+      return res.status(400).json({ msg: "Enter any of username, emp_id, or email" });
+    }
+
+    // Search user where ANY of the fields match the identity value
+    const user = await userModells.findOne({
+      $or: [
+        { username: identity },
+        { emp_id: identity },
+        { email: identity }
+      ]
+    });
+
+    if (!user) {
+      return res.status(401).json({ msg: "Invalid credentials" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ msg: "Invalid credentials" });
+    }
+
+    const token = jwt.sign({ userId: user._id }, process.env.PASSKEY);
+
+    return res.status(200).json({ token, userId: user._id });
   } catch (error) {
-    res.status(400).json({ msg: "Invalid user" + error });
+    res.status(500).json({ msg: "Server error: " + error.message });
   }
 };
 
