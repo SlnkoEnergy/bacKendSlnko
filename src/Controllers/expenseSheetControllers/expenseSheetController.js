@@ -48,65 +48,61 @@ const getExpenseById = async (req, res) => {
 
 const createExpense = async (req, res) => {
   try {
-    // Parse incoming data (handle string or already parsed object)
-    const data = typeof req.body.data === 'string' ? JSON.parse(req.body.data) : req.body.data;
-
+    const data = typeof req.body.data === "string" ? JSON.parse(req.body.data) : req.body.data;
     const user_id = data.user_id || req.body.user_id;
+
     if (!user_id) {
       return res.status(400).json({ message: "User ID is required" });
     }
-    // Generate unique expense code
-    const expense_code = await generateExpenseCode(user_id);
 
-    // Fetch user details
+    const expense_code = await generateExpenseCode(user_id);
     const user = await User.findById(user_id).select("emp_id name role");
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Define folder path based on user role
     const folderType = user.role === "site" ? "onsite" : "offsite";
     const folderPath = `expense_sheet/${folderType}/${user.emp_id}`;
 
-    const uploadedFileURLs = [];
+    const uploadedFileURLs = {};
 
-    // Upload each file and collect URLs
-    for (const file of (req.files || [])) {
+    for (const file of req.files || []) {
+      const match = file.fieldname.match(/^file_(\d+)$/);
+      if (!match) continue;
+
+      const index = parseInt(match[1]);
+
       const form = new FormData();
       form.append("file", file.buffer, {
         filename: file.originalname,
         contentType: file.mimetype,
       });
 
-      // Construct upload URL
       const uploadUrl = `https://upload.slnkoprotrac.com?containerName=protrac&foldername=${folderPath}`;
 
-      // Post file to upload endpoint
       const response = await axios.post(uploadUrl, form, {
         headers: form.getHeaders(),
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
       });
 
-      // Extract URL from response safely
-      const respData = response.data;
-      const url = Array.isArray(respData) && respData.length > 0
-        ? respData[0]
-        : respData.url || respData.fileUrl || (respData.data && respData.data.url) || null;
+      const url = Array.isArray(response.data) && response.data.length > 0
+        ? response.data[0]
+        : response.data.url || response.data.fileUrl || (response.data.data && response.data.data.url) || null;
 
       if (!url) {
-        console.warn(`Warning: No upload URL found for file ${file.originalname}`);
+        console.warn(`No upload URL for file ${file.originalname}`);
       }
-      uploadedFileURLs.push(url);
+
+      uploadedFileURLs[index] = url;
     }
 
-    // Map uploaded URLs back to items, preserving existing attachment URLs if no new upload
     const itemsWithAttachments = (data.items || []).map((item, idx) => ({
       ...item,
       attachment_url: uploadedFileURLs[idx] || item.attachment_url || null,
     }));
 
-    // Create new expense sheet document
     const expense = new ExpenseSheet({
       expense_code,
       user_id,
@@ -116,10 +112,8 @@ const createExpense = async (req, res) => {
       items: itemsWithAttachments,
     });
 
-    // Save to database
     await expense.save();
 
-    // Send success response
     return res.status(201).json({
       message: "Expense Sheet Created Successfully",
       data: expense,
