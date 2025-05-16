@@ -8,24 +8,24 @@ const handoversheetSchema = new mongoose.Schema(
 
 
     customer_details: {
-      // project_id: { type: String },
+      
       code: { type: String },
-      // project_name: { type: String },
+     
       name: { type: String },
       customer: { type: String, default:" " },
       
       epc_developer: { type: String },
-    // site_address_pincode: { type: String },//repalce with site_address
+   
       site_google_coordinates: { type: String },
-      // contact_no: { type: String },
+    
       number: { type: Number },
       gst_no: { type: String },
-      // billing_address: { type: String },//repalce with billing_address
+   
       gender_of_Loa_holder: { type: String },
       email: { type: String },
       pan_no: { type: String },
       adharNumber_of_loa_holder: { type: String },
-      // alt_contact_no: { type: String },
+    
       alt_number: { type: Number },
       p_group: { type: String },
        
@@ -80,7 +80,7 @@ const handoversheetSchema = new mongoose.Schema(
         ceig_ceg:{type:String},
         project_completion_date:{type:String},
         proposed_dc_capacity:{type:String},
-        // transmission_line:{type:String}, // replace with distance
+     
         project_kwp: { type: String },
         distance: { type: String },
         tarrif: { type: String },
@@ -88,7 +88,7 @@ const handoversheetSchema = new mongoose.Schema(
         
         substation_name:{type:String},
         overloading:{type:String},
-       // proposed_ac_capacity:{type:String},replace with project_kwp
+    
         agreement_date:{type:String},
     },
 
