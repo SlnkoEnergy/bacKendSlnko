@@ -54,11 +54,11 @@ const handoversheetSchema = new mongoose.Schema(
       module_capacity: { type: String,  required: true },
       module_type: { type: String,  required: true },
       module_category: { type: String,  required: true },
-      evacuation_voltage: { type: String, required: true },
+      evacuation_voltage: { type: String },
       inverter_make_capacity: { type: String, required: true },
       inverter_make: { type: String,  required: true },
       inverter_type: { type: String,  required: true },
-      inverter_size: { type: String,  required: true },
+      
       
       work_by_slnko: { type: String, required: true },
       topography_survey: { type: String, required: true },
