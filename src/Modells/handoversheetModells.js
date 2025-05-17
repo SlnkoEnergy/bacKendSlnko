@@ -39,6 +39,7 @@ const handoversheetSchema = new mongoose.Schema(
       design_date: { type: String,  },
       feeder_code: { type: String, required: true },
       feeder_name: { type: String, required: true },
+      remarks_for_slnko: { type: String },
     },
 
     project_detail: {
