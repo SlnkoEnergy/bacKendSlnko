@@ -108,6 +108,13 @@ const bdhandovesheetSchema =new mongoose.Schema({
         project_status: { type: String },
         
   },
+
+  invoice_detail: {
+    invoice_recipient: {type: String,default:""},
+    invoicing_GST_no: {type: String,default:""},
+    invoicing_address: {type: String,default:""},
+    delivery_address: {type: String,default:""},
+  },
     status_of_handoversheet: { type: String, default: "done" },
     submitted_by: { type: String,default:"" },
 
