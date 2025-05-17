@@ -9,7 +9,7 @@ const createhandoversheet = async function (req, res) {
       order_details,
       project_detail,
       commercial_details,
-      attached_details,
+      other_details,
       invoice_detail,
       submitted_by,
     } = req.body;
@@ -21,7 +21,8 @@ const createhandoversheet = async function (req, res) {
       order_details,
       project_detail,
       commercial_details,
-      attached_details,
+      other_details,
+      
       invoice_detail,
       status_of_handoversheet: "draft",
       submitted_by,
