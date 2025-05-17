@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const handoversheetSchema = new mongoose.Schema(
   {
-    id: { type: Number },
+    id: { type:String},
     p_id: { type: Number },
 
     customer_details: {
@@ -49,15 +49,15 @@ const handoversheetSchema = new mongoose.Schema(
       },
       loan_scope: { type: String, required: true },
       project_type: { type: String, required: true },
-      module_make_capacity: { type: String, required: true },
-      module_make: { type: String,  required: true },
-      module_capacity: { type: String,  required: true },
-      module_type: { type: String,  required: true },
+      module_make_capacity: { type: String, },
+      module_make: { type: String,  },
+      module_capacity: { type: String,  },
+      module_type: { type: String,  },
       module_category: { type: String,  required: true },
       evacuation_voltage: { type: String },
-      inverter_make_capacity: { type: String, required: true },
-      inverter_make: { type: String,  required: true },
-      inverter_type: { type: String,  required: true },
+      inverter_make_capacity: { type: String,},
+      inverter_make: { type: String, },
+      inverter_type: { type: String, },
       
       
       work_by_slnko: { type: String, required: true },
