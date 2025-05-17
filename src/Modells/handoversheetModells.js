@@ -76,6 +76,7 @@ const handoversheetSchema = new mongoose.Schema(
         ppa_number: { type: String },
         submitted_by_BD: { type: String },
         service: { type: String, required: true },
+        slnko_basic: { type: String, required: true },
         billing_type: {
           type: String,
         },
