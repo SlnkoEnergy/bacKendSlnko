@@ -1,4 +1,5 @@
 const hanoversheetmodells = require("../Modells/handoversheetModells");
+const projectmodells =require("../Modells/projectModells");
 
 const createhandoversheet = async function (req, res) {
   try {
@@ -45,7 +46,7 @@ const gethandoversheetdata = async function (req, res) {
     let getbdhandoversheet = await hanoversheetmodells
       .find()
       .skip((page - 1) * 10)
-      .limit(100);
+      .limit(10);
     res
       .status(200)
       .json({ message: "Data fetched successfully", Data: getbdhandoversheet });
@@ -81,10 +82,11 @@ const edithandoversheetdata = async function (req, res) {
 // update status of handovesheet
 const updatestatus = async function (req, res) {
   try {
-    const _id = req.params._id;
 
+     const _id = req.params._id;
     const { status_of_handoversheet } = req.body;
 
+    // Update the status of the handover sheet
     const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
       { _id: _id },
       { status_of_handoversheet },
@@ -95,10 +97,67 @@ const updatestatus = async function (req, res) {
       return res.status(404).json({ message: "Handoversheet not found" });
     }
 
+    
+    if (status_of_handoversheet === "approved") {
+    
+      const latestProject = await projectmodells.findOne().sort({ p_id: -1 });
+      const newPid = latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
+
+      // Extract necessary details from the updated handover sheet
+      const {
+        customer_details = {},
+        project_detail = {},
+        other_details = {},
+      } = updatedHandoversheet;
+
+      // Construct the project data
+      const projectData = new projectmodells({
+        p_id: newPid,
+        customer: customer_details.customer || "",
+        name: customer_details.name || "",
+        p_group: customer_details.p_group || "",
+        email: customer_details.email || "",
+        number: customer_details.number || "",
+        alt_number: customer_details.alt_number || "",
+        billing_address: {
+          village_name: customer_details.billing_address?.village_name || "",
+          district_name: customer_details.billing_address?.district_name || "",
+        },
+        site_address: {
+          village_name: customer_details.site_address?.village_name || "",
+          district_name: customer_details.site_address?.district_name || "",
+        },
+        state: customer_details.state || "",
+        project_category: project_detail.project_category || "",
+        project_kwp: project_detail.project_kwp || "",
+        distance: project_detail.distance || "",
+        tarrif: project_detail.tarrif || "",
+        land: project_detail.land || "",
+        code: customer_details.code || "",
+        project_status: "",
+        updated_on: new Date().toISOString(),
+        service: other_details.service || "",
+        submitted_by: req?.user?.name || "", // Adjust based on your auth
+        billing_type: other_details.billing_type || "",
+        handoverSheetId: updatedHandoversheet._id,
+      });
+
+      // Save the new project
+      await projectData.save();
+
+      return res.status(200).json({
+        message: "Status updated and project created successfully",
+        handoverSheet: updatedHandoversheet,
+        project: projectData,
+      });
+    }
+
+    // If status is not 'approved', just return the updated handover sheet
     res.status(200).json({
       message: "Status updated successfully",
-      Data: updatedHandoversheet,
+      handoverSheet: updatedHandoversheet,
     });
+    
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
