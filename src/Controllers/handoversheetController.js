@@ -98,7 +98,7 @@ const updatestatus = async function (req, res) {
     }
 
     
-    if (status_of_handoversheet === "approved") {
+    if (status_of_handoversheet === "submitted") {
     
       const latestProject = await projectmodells.findOne().sort({ p_id: -1 });
       const newPid = latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
