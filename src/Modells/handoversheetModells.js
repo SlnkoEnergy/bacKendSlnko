@@ -6,16 +6,16 @@ const handoversheetSchema = new mongoose.Schema(
 
     customer_details: {
       code: { type: String },
-      name: { type: String, required: true },
-      customer: { type: String, default: " ", required: true },
-      epc_developer: { type: String, required: true },
+      name: { type: String },
+      customer: { type: String, default: " " },
+      epc_developer: { type: String },
       site_address: {
         village_name: { type: String  },
         district_name: { type: String  },
       },
-      number: { type: Number, required: true },
+      number: { type: Number },
       p_group: { type: String },
-      state: { type: String, required: true },
+      state: { type: String },
       alt_number: { type: Number },
      
       email: { type: String },
@@ -24,7 +24,7 @@ const handoversheetSchema = new mongoose.Schema(
     },
 
     order_details: {
-      type_business: { type: String, required: true },
+      type_business: { type: String },
       discom_name: { type: String },
       design_date: { type: String },
       feeder_code: { type: String },
@@ -39,19 +39,19 @@ const handoversheetSchema = new mongoose.Schema(
       project_component_other: {
         type: String,
       },
-      project_type: { type: String, required: true },
+      project_type: { type: String },
       module_type: { type: String, },
       module_capacity: { type: String},
       evacuation_voltage: { type: String },
-      work_by_slnko: { type: String, required: true },
-      liaisoning_net_metering: { type: String, required: true },
-      ceig_ceg: { type: String, required: true },
-      proposed_dc_capacity: { type: String, required: true },
-      distance: { type: String, required: true },
-      overloading: { type: String, required: true },
-      project_kwp: { type: String, required: true },
-      transmission_scope: { type: String, required: true },
-      loan_scope: { type: String, required: true },
+      work_by_slnko: { type: String },
+      liaisoning_net_metering: { type: String },
+      ceig_ceg: { type: String },
+      proposed_dc_capacity: { type: String },
+      distance: { type: String },
+      overloading: { type: String },
+      project_kwp: { type: String },
+      transmission_scope: { type: String },
+      loan_scope: { type: String },
       
       module_make_capacity: { type: String, },
       module_make: { type: String,  },
@@ -68,21 +68,21 @@ const handoversheetSchema = new mongoose.Schema(
     },
     
     commercial_details: {
-      type: { type: String, required: true }},
+      type: { type: String }},
       
       other_details: {
         cam_member_name: { type: String},
         loa_number: { type: String },
         ppa_number: { type: String },
         submitted_by_BD: { type: String },
-        service: { type: String, required: true },
-        slnko_basic: { type: String, required: true },
+        service: { type: String },
+        slnko_basic: { type: String },
         billing_type: {
           type: String,
         },
         project_status: { type: String },
-        remark: { type: String, required: true },
-        remarks_for_slnko: { type: String, required: true },
+        remark: { type: String },
+        remarks_for_slnko: { type: String },
       },
       invoice_detail: {
         invoice_recipient: { type: String },
@@ -90,6 +90,7 @@ const handoversheetSchema = new mongoose.Schema(
         invoicing_address: { type: String },
       delivery_address: { type: String },
       msme_reg: { type: String },
+      invoicing_GST_status: { type: String },
     },
     status_of_handoversheet: { type: String, default: " " },
     submitted_by: { type: String, default: "" },
