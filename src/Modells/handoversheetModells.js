@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const handoversheetSchema = new mongoose.Schema(
   {
     id: { type:String},
-    p_id: { type: Number },
+    p_id: { type: Number,default: "" },
 
     customer_details: {
       code: { type: String },

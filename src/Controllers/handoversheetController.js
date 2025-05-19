@@ -5,7 +5,7 @@ const createhandoversheet = async function (req, res) {
   try {
     const {
       id,
-      p_id,
+      
       customer_details,
       order_details,
       project_detail,
@@ -17,7 +17,7 @@ const createhandoversheet = async function (req, res) {
 
     const handoversheet = new hanoversheetmodells({
       id,
-      p_id,
+     
       customer_details,
       order_details,
       project_detail,
@@ -70,7 +70,7 @@ const edithandoversheetdata = async function (req, res) {
     );
 
      if (edithandoversheet.status_of_handoversheet === "submitted") {
-      // Retrieve the latest project to determine the new p_id
+      
       const latestProject = await projectmodells.findOne().sort({ p_id: -1 });
       const newPid = latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
 
@@ -114,7 +114,8 @@ const edithandoversheetdata = async function (req, res) {
       });
 
       // Save the new project
-      await projectData.save();
+      edithandoversheet.p_id = newPid;
+      await edithandoversheet.save();
 
       return res.status(200).json({
         message: "Status updated and project created successfully",
