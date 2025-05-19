@@ -82,12 +82,12 @@ const edithandoversheetdata = async function (req, res) {
 const updatestatus = async function (req, res) {
   try {
     const _id = req.params._id;
-    const { status_of_handoversheet } = req.body;
+    const { status_of_handoversheet,comment } = req.body;
 
   
     const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
       { _id: _id },
-      { status_of_handoversheet },
+      { status_of_handoversheet,comment },
       { new: true }
     );
 
