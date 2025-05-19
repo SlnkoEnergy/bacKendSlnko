@@ -68,38 +68,9 @@ const edithandoversheetdata = async function (req, res) {
       data,
       { new: true }
     );
-    res
-      .status(200)
-      .json({
-        message: "hand over sheet edited  successfully",
-        Data: edithandoversheet,
-      });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
 
-// update status of handovesheet
-const updatestatus = async function (req, res) {
-  try {
-
-     const _id = req.params._id;
-    const { status_of_handoversheet } = req.body;
-
-    // Update the status of the handover sheet
-    const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
-      { _id: _id },
-      { status_of_handoversheet },
-      { new: true }
-    );
-
-    if (!updatedHandoversheet) {
-      return res.status(404).json({ message: "Handoversheet not found" });
-    }
-
-    
-    if (status_of_handoversheet === "submitted") {
-    
+     if (edithandoversheet.status_of_handoversheet === "submitted") {
+      // Retrieve the latest project to determine the new p_id
       const latestProject = await projectmodells.findOne().sort({ p_id: -1 });
       const newPid = latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
 
@@ -108,7 +79,7 @@ const updatestatus = async function (req, res) {
         customer_details = {},
         project_detail = {},
         other_details = {},
-      } = updatedHandoversheet;
+      } = edithandoversheet;
 
       // Construct the project data
       const projectData = new projectmodells({
@@ -139,7 +110,7 @@ const updatestatus = async function (req, res) {
         service: other_details.service || "",
         submitted_by: req?.user?.name || "", // Adjust based on your auth
         billing_type: other_details.billing_type || "",
-        handoverSheetId: updatedHandoversheet._id,
+        handoverSheetId: edithandoversheet._id,
       });
 
       // Save the new project
@@ -147,17 +118,46 @@ const updatestatus = async function (req, res) {
 
       return res.status(200).json({
         message: "Status updated and project created successfully",
-        handoverSheet: updatedHandoversheet,
+        handoverSheet: edithandoversheet,
         project: projectData,
       });
     }
 
-    // If status is not 'approved', just return the updated handover sheet
+    // If status is not 'submitted', just return the updated handover sheet
     res.status(200).json({
       message: "Status updated successfully",
-      handoverSheet: updatedHandoversheet,
+      handoverSheet: edithandoversheet,
     });
+   
     
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// update status of handovesheet
+const updatestatus = async function (req, res) {
+  try {
+
+    const _id = req.params._id;
+    const { status_of_handoversheet } = req.body;
+
+    // Update the status of the handover sheet
+    const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
+      { _id: _id },
+      { status_of_handoversheet },
+      { new: true }
+    );
+
+    if (!updatedHandoversheet) {
+      return res.status(404).json({ message: "Handoversheet not found" });
+    }
+    res.status(200).json({
+      message: "Status updated successfully",
+      Data: updatedHandoversheet,
+    });
+
+   
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
