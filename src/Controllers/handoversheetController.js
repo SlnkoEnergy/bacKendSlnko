@@ -100,7 +100,7 @@ const updatestatus = async function (req, res) {
     if (!updatedHandoversheet) {
       return res.status(404).json({ message: "Handoversheet not found" });
     }
-     if (updatedHandoversheet.status_of_handoversheet === "submitted") {
+     if (updatedHandoversheet.status_of_handoversheet === "Approved") {
       
       const latestProject = await projectmodells.findOne().sort({ p_id: -1 });
       const newPid = latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
