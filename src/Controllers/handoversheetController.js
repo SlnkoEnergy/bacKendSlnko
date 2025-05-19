@@ -1,11 +1,11 @@
 const hanoversheetmodells = require("../Modells/handoversheetModells");
-const projectmodells =require("../Modells/projectModells");
+const projectmodells = require("../Modells/projectModells");
 
 const createhandoversheet = async function (req, res) {
   try {
     const {
       id,
-      
+
       customer_details,
       order_details,
       project_detail,
@@ -17,13 +17,13 @@ const createhandoversheet = async function (req, res) {
 
     const handoversheet = new hanoversheetmodells({
       id,
-     
+
       customer_details,
       order_details,
       project_detail,
       commercial_details,
       other_details,
-      
+
       invoice_detail,
       status_of_handoversheet: "draft",
       submitted_by,
@@ -69,15 +69,10 @@ const edithandoversheetdata = async function (req, res) {
       { new: true }
     );
 
-    
-
-    // If status is not 'submitted', just return the updated handover sheet
     res.status(200).json({
       message: "Status updated successfully",
       handoverSheet: edithandoversheet,
     });
-   
-    
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -86,11 +81,10 @@ const edithandoversheetdata = async function (req, res) {
 // update status of handovesheet
 const updatestatus = async function (req, res) {
   try {
-
     const _id = req.params._id;
     const { status_of_handoversheet } = req.body;
 
-    // Update the status of the handover sheet
+  
     const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
       { _id: _id },
       { status_of_handoversheet },
@@ -100,12 +94,12 @@ const updatestatus = async function (req, res) {
     if (!updatedHandoversheet) {
       return res.status(404).json({ message: "Handoversheet not found" });
     }
-     if (updatedHandoversheet.status_of_handoversheet === "Approved") {
-      
+    if (updatedHandoversheet.status_of_handoversheet === "Approved") {
       const latestProject = await projectmodells.findOne().sort({ p_id: -1 });
-      const newPid = latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
+      const newPid =
+        latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
 
-      // Extract necessary details from the updated handover sheet
+    
       const {
         customer_details = {},
         project_detail = {},
@@ -141,7 +135,7 @@ const updatestatus = async function (req, res) {
         service: other_details.service || "",
         submitted_by: req?.user?.name || "", // Adjust based on your auth
         billing_type: other_details.billing_type || "",
-        handoverSheetId: updatedHandoversheet._id,
+      
       });
 
       // Save the new project
@@ -159,8 +153,6 @@ const updatestatus = async function (req, res) {
       message: "Status updated successfully",
       Data: updatedHandoversheet,
     });
-
-   
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -170,7 +162,7 @@ const checkid = async function (req, res) {
   try {
     let _id = req.params._id;
 
-    let checkid = await hanoversheetmodells.findOne({ _id: _id });
+    let checkid = await projectmodells.findOne({ _id: _id });
     if (checkid) {
       return res.status(200).json({ status: true });
     } else {
@@ -203,22 +195,22 @@ const getbyid = async function (req, res) {
 //sercher api
 
 const search = async function (req, res) {
-  
-   
-    const letter = req.params.letter;
+  const letter = req.params.letter;
   try {
-    const regex = new RegExp('^' + letter, 'i'); // Case-insensitive regex
-    const items = await hanoversheetmodells.find({
-      $or: [
-        { 'customer_details.name': { $regex: regex } },
-        { 'customer_details.code': { $regex: regex } }
-      ]
-    }).sort({ 'customer_details.name': 1 });
+    const regex = new RegExp("^" + letter, "i"); // Case-insensitive regex
+    const items = await hanoversheetmodells
+      .find({
+        $or: [
+          { "customer_details.name": { $regex: regex } },
+          { "customer_details.code": { $regex: regex } },
+        ],
+      })
+      .sort({ "customer_details.name": 1 });
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-}
+};
 
 module.exports = {
   createhandoversheet,

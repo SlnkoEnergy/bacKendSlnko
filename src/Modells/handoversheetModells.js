@@ -34,7 +34,7 @@ const handoversheetSchema = new mongoose.Schema(
     project_detail: {
       project_component: {
         type: String,
-        required: true,
+       
       },
       project_component_other: {
         type: String,
