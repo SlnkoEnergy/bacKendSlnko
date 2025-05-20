@@ -166,6 +166,7 @@ const {
   wontodead,
   deadtowon,
   updatewon,
+  updateWonLead,
 } = require("../Controllers/initialbdController");
 
 
@@ -381,6 +382,7 @@ router.put("/update-won",updatewon);
 //edit all bd lead
 router.put("/edit-followup/:_id", editfollowup)
 router.put("/edit-warm/:_id",editwarm);
+router.put("/edit-won/:_id",updateWonLead);
 
 
 //handdoversheet 
