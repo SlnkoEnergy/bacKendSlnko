@@ -192,6 +192,10 @@ const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engi
 
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
 
+const{ createMaterial, getAllMaterials, deleteMaterial, updateMaterial }=require("../Controllers/engineeringController/materialController");
+
+const{ addMaterialCategory, getAllMaterialCategories, deleteMaterialCategory, updateMaterialCategory }=require("../Controllers/engineeringController/materialCategoryController");
+
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -445,7 +449,17 @@ router.get("/get-pooling-station-master",jwtMW.authentication,jwtMW.authorizatio
 router.post("/add-bom-master",addBOM );
 router.get("/get-bom-master", getBOM );
 
+//material master Engineering
+router.post("/add-material",createMaterial );
+router.get("/get-material",getAllMaterials );
+router.delete("/delete-material/:_id",deleteMaterial);
+router.put("/update-material/:_id",updateMaterial); //get all material categories
 
+//material category master Engineering
+router.post("/add-material-category",addMaterialCategory );
+router.get("/get-material-category", getAllMaterialCategories);
+router.put("/edit-material-category/:_id", updateMaterialCategory); //update material category
+router.delete("/delete-material-category/:_id", deleteMaterialCategory); //delete material category
 
 
 module.exports = router;
