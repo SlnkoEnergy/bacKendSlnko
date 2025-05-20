@@ -83,6 +83,7 @@ const handoversheetSchema = new mongoose.Schema(
         project_status: { type: String },
         remark: { type: String },
         remarks_for_slnko: { type: String },
+        total_gst: { type: String },
       },
       invoice_detail: {
         invoice_recipient: { type: String },
