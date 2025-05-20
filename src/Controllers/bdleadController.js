@@ -130,6 +130,10 @@ const delete_lead = async function (req,res) {
 
 
 
+
+
+
+
 module.exports = {
   createlead,
   all_bd_lead,
