@@ -192,6 +192,11 @@ const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engi
 
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
 
+
+const { createlead, getbdlead, get_all_lead, get_lead_by_id, all_bd_lead, update_lead, delete_lead }= require("../Controllers/bdleadController");
+const { create } = require("../Modells/bdleadsModells");
+
+
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -445,6 +450,13 @@ router.get("/get-pooling-station-master",jwtMW.authentication,jwtMW.authorizatio
 router.post("/add-bom-master",addBOM );
 router.get("/get-bom-master", getBOM );
 
+
+//bd lead new
+router.post("/create-lead",createlead);
+router.get("/all-bd-lead",all_bd_lead);
+router.get("/get-lead-by-id/:_id",get_lead_by_id);
+router.put("/update-lead/:_id",update_lead);
+router.delete("/delete-lead/:_id",delete_lead);
 
 
 
