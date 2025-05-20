@@ -96,6 +96,7 @@ const handoversheetSchema = new mongoose.Schema(
     status_of_handoversheet: { type: String, default: " " },
     submitted_by: { type: String, default: "" },
     comment: { type: String, default: "" },
+    is_locked: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
