@@ -29,7 +29,7 @@ app.use(express.urlencoded({ extended: true }));
 
 
 
-const db = process.env.DB_URL;
+const db = process.env.DB_DEVELOPMENT_URL;
 https.createServer(Option, app).listen(5001, '127.0.0.1', () => {
     console.log('Node.js app is running on https://localhost:5000');
 });
