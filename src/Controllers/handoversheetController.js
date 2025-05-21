@@ -42,11 +42,14 @@ const createhandoversheet = async function (req, res) {
 // get  bd handover sheet data
 const gethandoversheetdata = async function (req, res) {
   try {
-    let page = req.query.page;
+    // const page = req.query.page || 1;    // Current page number, default to 1
+    // const limit = req.query.limit || 10; // Number of items per page, default to 10
+    // const skip = (page - 1) * limit;
     let getbdhandoversheet = await hanoversheetmodells
       .find()
-      .skip((page - 1) * 10)
-      .limit(10);
+      // .skip(skip)
+      // .limit(limit)
+      // .sort({ createdAt: -1 })
     res
       .status(200)
       .json({ message: "Data fetched successfully", Data: getbdhandoversheet });
