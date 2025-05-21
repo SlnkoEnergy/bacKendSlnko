@@ -1,4 +1,4 @@
-const materialCategory = require("../../Modells/EngineeringModells/materialCategoryModells");
+const materialCategory = require("../../../Modells/EngineeringModells/materials/materialCategoryModells");
 
 const addMaterialCategory = async (req, res) => {
   try {

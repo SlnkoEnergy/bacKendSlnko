@@ -192,9 +192,10 @@ const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engi
 
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
 
-const{ createMaterial, getAllMaterials, deleteMaterial, updateMaterial }=require("../Controllers/engineeringController/materialController");
+const{ createMaterial, getAllMaterials, deleteMaterial, updateMaterial }=require("../Controllers/engineeringController/materials/materialController.js");
 
-const{ addMaterialCategory, getAllMaterialCategories, deleteMaterialCategory, updateMaterialCategory }=require("../Controllers/engineeringController/materialCategoryController");
+const{ addMaterialCategory, getAllMaterialCategories, deleteMaterialCategory, updateMaterialCategory }=require("../Controllers/engineeringController/materials/materialCategoryController");
+const { addBoq, getBoqsByProject, updateBoqById, deleteBoqById } = require("../Controllers/engineeringController/boq/boqController.js");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -461,6 +462,12 @@ router.get("/get-material-category", getAllMaterialCategories);
 router.put("/edit-material-category/:_id", updateMaterialCategory); //update material category
 router.delete("/delete-material-category/:_id", deleteMaterialCategory); //delete material category
 
+
+//Boq Routes
+router.post("/add-boq", addBoq);
+router.get("/get-boq", getBoqsByProject);
+router.put("/update-boq/:id", updateBoqById);
+router.delete("/delete-boq/:id", deleteBoqById);
 
 module.exports = router;
 
