@@ -27,7 +27,7 @@ app.use(express.urlencoded({ extended: true }));
 
 
 
-// const PORT = process.env.PORT;   comeentout kiye hai 
+
 
 const db = process.env.DB_URL;
 https.createServer(Option, app).listen(5000, '127.0.0.1', () => {
