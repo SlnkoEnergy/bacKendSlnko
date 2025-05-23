@@ -1,61 +1,72 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
+const updateExpenseStatus = require("../../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
 const expenseSheetSchema = new mongoose.Schema({
-    project_code: {
+  expense_code: { type: String, required: true },
+  items: [
+    {
+      category: {
         type: String,
-        required: true
+        enum: [
+          "Travelling Expenses",
+          "Lodging",
+          "Meal Expenses",
+          "Project Expenses",
+          "Repair and Maintenance",
+          "Courier Charges(porter)",
+          "Medical Expenses",
+          "Printing and stationary",
+          "Office expenses",
+        ],
+      },
+      project_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "projectDetail",
+      },
+      description: { type: String },
+      expense_date: { type: Date, default: Date.now },
+      bill: {
+        bill_number: String,
+        bill_amount: { type: String, required: true },
+      },
+      attachment_url: { type: String },
+      status: { type: String },
+      approved_amount: { type: String },
     },
-    project_name: {
+  ],
+  user_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
+  expense_term: {
+    from: { type: Date },
+    to: { type: Date },
+  },
+  current_status: {
+    type: String,
+    enum: ["draft", "submitted", "hold", "rejected", "approved"],
+  },
+  status_history: [
+    {
+      status: {
         type: String,
-        required: true
+        enum: ["draft", "submitted", "hold", "rejected", "approved"],
+      },
+      remarks: String,
+      user_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      updatedAt: { type: Date, default: Date.now },
     },
-    category: {
-        type: String,
-        required: true
-    },
-    description: {
-        type: String,
-        required: true,
-        maxlength: 20 
-    },
-    submitted_date: {
-        type: Date,
-        required: true
-    },
-    emp_code: {
-        type: String
-    },
-    submitted_by:{
-        type:String
-    },
-    quantity: {
-        type: Number,
-        required: true,
-        default: 1
-    },
-    rate: {
-        type: Number,
-        required: true
-    },
-    total_rate: {
-        type: Number,
-        required: true
-    },
-    approved_amount: {
-        type: Number,
-    },
-    disbursement_date: {
-        type: Date,
-    },
-    status: {
-        type: String,
-        required: true,
-        enum: ['draft', 'submitted', 'rejected', 'approved_by_cam', 'approved_by_hr', 'approved_by_accounts']
-    },
-    attachment_url: {
-        type: String
-    },
-    
-}, { timestamps: true });
+  ],
+  comments: { type: String, required: true },
+}, {timestamps: true});
+
+// ⏱ Auto-update current_status before save
+expenseSheetSchema.pre("save", function (next) {
+  updateExpenseStatus(this);
+  next();
+});
 
 module.exports = mongoose.model("ExpenseSheet", expenseSheetSchema);

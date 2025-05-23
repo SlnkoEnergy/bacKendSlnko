@@ -192,6 +192,9 @@ const { addbos, getbos }=require("../Controllers/engineeringController/BOSContro
 const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engineeringController/PoolingStationController");
 
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
+const allowRoles = require("../middlewares/expenseSheetMiddlewares/allowRoles");
+const { createExpense, updateStatusExpense } = require("../Controllers/expenseSheetControllers/expenseSheetController");
+const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -447,8 +450,12 @@ router.get("/get-pooling-station-master",jwtMW.authentication,jwtMW.authorizatio
 router.post("/add-bom-master",addBOM );
 router.get("/get-bom-master", getBOM );
 
-
-
+//Expense Sheet
+router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, allowRoles("sales"))
+router.get("/get-expense-by-id", jwtMW.authentication, jwtMW.authorization, allowRoles("team_members, manager"))
+router.post("/create-expense", jwtMW.authentication, jwtMW.authorization, allowRoles("sales"), createExpense)
+router.put("/update-expense-status/:_id", jwtMW.authentication, jwtMW.authorization,  allowRoles("sales","manager", "GM-HR", "accounts"), updateStatusExpense);
+router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization);
 
 module.exports = router;
 

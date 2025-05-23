@@ -424,7 +424,7 @@ const login = async function (req, res) {
       return res.status(401).json({ error: "Invalid Credentials" });
     }
 
-    let token = jwt.sign({ userID: user._id }, JWT_SECRET, { expiresIn: "1h" });
+    let token = jwt.sign({ userID: user._id ,role:user.role}, JWT_SECRET, { expiresIn: "1h" });
     res.json({ token, userID: user._id });
   } catch (error) {
     res.status(400).json({ msg: "Invalid user" + error });
