@@ -1,39 +1,76 @@
 const mongoose = require("mongoose");
+const updateLeadStatus =require("../middleware/updateLeadStatus");
 const bdleadsSchema = new mongoose.Schema({
-  
-  id: { type: String },
-  c_name: { type: String },
-  email: { type: String },
-  mobile: { type: String },
-  alt_mobile: { type: String },
-  company: { type: String },
-  village: { type: String },
-  district: { type: String },
-  state: { type: String },
-  scheme: { type: String },
-  capacity: { type: String },
-  distance: { type: String },
-  tarrif: { type: String },
-  land: {
-    available_land: { type: String, default: "" },
-    land_type: { type: String, default: "" }
+  id: String,
+  name: {type: String, required: true},
+  company_name: String,
+  contact_details: {
+    email: String,
+    mobile: {type: Array, required: true},
   },
-  entry_date: { type: String },
-  interest: { type: String },
-  comment: { type: String, default: " " },
-  loi: { type: String, default: " " },
-  ppa: { type: String, default: " " },
-  loa: { type: String, default: " " },
-  other_remarks: { type: String, default: " " },
-  submitted_by: { type: String },
-  token_money: { type: String, default: " " },
-  group: { type: String, default: " " },
-  reffered_by: { type: String, default: " " },
-  source: { type: String, default: " " },
-  remark: { type: String, default: " " },
-  stage: { type: String, default: "Initial Lead" },
-
-
+  address: {
+    line1: String,
+    line2: String,
+    city: {type: String, required: true},
+    district: {type: String, required: true},
+    state: {type: String, required: true},
+    postalCode: String,
+    country: String,
+    geo_codes: {
+      latitude: String,
+      longitude: String
+    }
+  },
+  project_details: {
+    capacity: {type: String, required: true},
+    distance_from_substation: {
+      unit: {type: String, default: 'km'},
+      value: String
+    },
+    tarrif: String,
+    land_type: { type: String, enum: ["Leased", "Owned"] },
+    scheme: { type: String, enum: ["KUSUM A", "KUSUM C", "KUSUM C2", "Other"] },
+  },
+  source: {
+    from: { type: String, enum: ["Referred by", "Social Media", "Marketing", "IVR/My Operator", "Others"], required: true },
+    sub_source: {type: String, required: true},
+  },
+  createdAt: { type: Date, default: Date.now, required: true },
+  comments: {type: String, required: true},
+  status_history: [
+    {
+      name: {
+        type: String,
+        enum: ["Initial", "Follow Up", "Warm", "Won", "Dead"],
+        required: true
+      },
+      stage: {
+        type: String,
+        enum: ["LOI", "LOA", "PPA","Token Money", "Others"]
+      },
+      remarks: String,
+      documents: [String],
+      updatedAt: { type: Date, default: Date.now }
+    }
+  ],
+  current_status: {
+    name: {
+      type: String,
+      enum: ["Initial", "Follow Up", "Warm", "Won", "Dead"],
+      default: "Initial"
+    },
+    stage: {
+      type: String,
+      enum: ["LOI", "LOA", "PPA","Token Money", "Others"]
+    }
+  }
 },{timestamps:true});
+
+// :stopwatch: Auto-update current_status before save
+bdleadsSchema.pre("save", function (next) {
+  updateLeadStatus(this);
+  next();
+});
+
 
 module.exports = mongoose.model("bdleads", bdleadsSchema);

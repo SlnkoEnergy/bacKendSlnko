@@ -193,7 +193,7 @@ const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engi
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
 
 
-const { createlead, getbdlead, get_all_lead, get_lead_by_id, all_bd_lead, update_lead, delete_lead }= require("../Controllers/bdleadController");
+const { createlead, getbdlead, get_all_lead, get_lead_by_id, all_bd_lead, update_lead, delete_lead, updateLeadStatus,  }= require("../Controllers/bdleadController");
 const { create } = require("../Modells/bdleadsModells");
 
 
@@ -457,6 +457,7 @@ router.get("/all-bd-lead",all_bd_lead);
 router.get("/get-lead-by-id/:_id",get_lead_by_id);
 router.put("/update-lead/:_id",update_lead);
 router.delete("/delete-lead/:_id",delete_lead);
+router.put("/update-lead-status/:_id",updateLeadStatus);
 
 
 

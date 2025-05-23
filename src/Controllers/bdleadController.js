@@ -2,72 +2,12 @@ const lead= require("../Modells/bdleadsModells");
 
 const createlead = async function (req, res) {
   try {
-    const {
-        id,
-      c_name,
-      email,
-      mobile,
-      alt_mobile,
-      company,
-      village,
-      district,
-      state,
-      scheme,
-      capacity,
-      distance,
-      tarrif,
-      land,
-      entry_date,
-      interest,
-      comment,
-      loi,
-      ppa,
-      loa,
-      other_remarks,
-      submitted_by,
-      token_money,
-      group,
-      reffered_by,
-      source,
-      stage,
-    } = req.body;
-
-    const bdlead = new lead({
-       id:id,
-     c_name: c_name,
-      email: email,
-      mobile: mobile,
-      alt_mobile: alt_mobile,
-      company: company,
-      village: village,
-      district: district,
-      state: state,
-      scheme: scheme,
-      capacity: capacity,
-      distance: distance,
-      tarrif: tarrif,
-      land: land,
-      entry_date: entry_date,
-      interest: interest,
-      comment: comment,
-      loi: loi,
-      ppa: ppa,
-      loa: loa,
-      other_remarks: other_remarks,
-      submitted_by: submitted_by,
-      token_money: token_money,
-      group: group,
-      reffered_by: reffered_by,
-      source: source,
-      stage: stage,
-    });
-    await bdlead.save();
-    res.status(200).json({ msg: "Lead created successfully", bdlead: bdlead });
+    const leads = await lead.create(req.body);
+    res.status(201).json({ message: "Lead created", leads });
   } catch (error) {
-    res.status(500).json({ message: "Internal server error" + error});
+    res.status(500).json({ error: error.message });
   }
 };
-
 
 
 const all_bd_lead = async function (req, res) {
@@ -127,6 +67,18 @@ const delete_lead = async function (req,res) {
     }
 };
 
+  const updateLeadStatus = async function (req, res) {
+    try {
+    const leads = await lead.findById(req.params._id);
+    if (!leads) return res.status(404).json({ error: "Lead not found" });
+    leads.status_history.push(req.body);
+    await leads.save();
+    res.status(200).json(leads);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+    
+}}
+
 
 
 
@@ -140,4 +92,7 @@ module.exports = {
   get_lead_by_id,
   update_lead,
   delete_lead,
+  updateLeadStatus
+ 
+ 
 };
