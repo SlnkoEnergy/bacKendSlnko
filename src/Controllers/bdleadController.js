@@ -73,6 +73,7 @@ const delete_lead = async function (req,res) {
     const leads = await lead.findById(req.params._id);
     if (!leads) return res.status(404).json({ error: "Lead not found" });
     leads.status_history.push(req.body);
+  
     await leads.save();
     res.status(200).json(leads);
   } catch (err) {

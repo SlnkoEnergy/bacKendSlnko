@@ -10,10 +10,7 @@ const authentication = async function (req, res,next) {
         req.user = decodedToken; // attach user data to request
         next();
       });
-      // if (!decodedToken){
-      //   return res.send({ status: false, msg: "Token is invalid" });
-      // }
-      // else {next()}
+     
   };
 
   

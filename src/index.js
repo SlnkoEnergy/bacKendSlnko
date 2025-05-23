@@ -112,15 +112,15 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
-
+const PORT = process.env.PORT || 4000; // Default to 5000 if PORT is not set
+//const db = process.env.DB_DEVELOPMENT_URL;
+ const DB_DEVELOPMENT_URL="mongodb+srv://it:slnkoEnergy@cluster0.nj3x6.mongodb.net/development?retryWrites=true&w=majority&appName=Cluster0"
 
 
 const startServer = async () => {
 try {
   
-  await mongoose.connect(db, {
+  await mongoose.connect(DB_DEVELOPMENT_URL, {
     
   });
   console.log("SlnkoEnergy database is connected");
