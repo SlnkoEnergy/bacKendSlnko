@@ -7,17 +7,7 @@ const expenseSheetSchema = new mongoose.Schema({
     {
       category: {
         type: String,
-        enum: [
-          "Travelling Expenses",
-          "Lodging",
-          "Meal Expenses",
-          "Project Expenses",
-          "Repair and Maintenance",
-          "Courier Charges(porter)",
-          "Medical Expenses",
-          "Printing and stationary",
-          "Office expenses",
-        ],
+        
       },
       project_id: {
         type: mongoose.Schema.Types.ObjectId,
