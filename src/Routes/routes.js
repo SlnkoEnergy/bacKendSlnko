@@ -193,7 +193,7 @@ const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engi
 
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
 const allowRoles = require("../middlewares/expenseSheetMiddlewares/allowRoles");
-const { createExpense, updateStatusExpense, getAllExpense, getExpenseById, deleteExpense } = require("../Controllers/expenseSheetControllers/expenseSheetController");
+const { createExpense, getAllExpense, getExpenseById, deleteExpense, updateExpenseStatusOverall, updateExpenseStatusItems, exportAllExpenseSheetsCSV, exportExpenseSheetsCSVById } = require("../Controllers/expenseSheetControllers/expenseSheetController");
 const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
 // Admin router
@@ -451,11 +451,16 @@ router.post("/add-bom-master",addBOM );
 router.get("/get-bom-master", getBOM );
 
 //Expense Sheet
-router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, allowRoles("team member","manager", "GM-HR", "accounts members"), getAllExpense)
-router.get("/get-expense-by-id/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("team member", "manager","GM-HR", "accounts members"), getExpenseById)
-router.post("/create-expense", jwtMW.authentication, jwtMW.authorization, allowRoles("team member"), createExpense)
-router.put("/update-expense-status/:_id", jwtMW.authentication, jwtMW.authorization,  allowRoles("team member","manager", "GM-HR", "accounts members"), updateStatusExpense);
-router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("team member"), deleteExpense);
+router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, allowRoles("superadmin","admin", "team member","manager", "GM-HR", "accounts members"), getAllExpense)
+router.get("/get-expense-by-id/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin", "admin","team member", "manager","GM-HR", "accounts members"), getExpenseById)
+router.post("/create-expense", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member"), createExpense)
+router.put("/:_id/status/overall", jwtMW.authentication, jwtMW.authorization,  allowRoles("superadmin","admin","team member","manager", "GM-HR", "accounts members"), updateExpenseStatusOverall);
+router.put("/:sheetId/item/:itemId/status", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member"), updateExpenseStatusItems);
+router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member"), deleteExpense);
+//Export to CSV In expense Sheet
+router.get("/expense-all-csv", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member","manager", "GM-HR", "accounts members"), exportAllExpenseSheetsCSV);
+router.get("/expense-by-id-csv/:_id",jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member","manager", "GM-HR", "accounts members"), exportExpenseSheetsCSVById);
+
 
 module.exports = router;
 

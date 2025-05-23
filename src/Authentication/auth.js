@@ -2,10 +2,11 @@ const jwt = require("jsonwebtoken");
 
 const authentication = async function (req, res, next) {
   const token = req.headers["x-auth-token"];
-  console.log("Token received:", token, "| Type:", typeof token);
 
   if (!token || typeof token !== "string") {
-    return res.status(401).send({ status: false, msg: "Token must be a string and present" });
+    return res
+      .status(401)
+      .send({ status: false, msg: "Token must be a string and present" });
   }
 
   jwt.verify(token, process.env.PASSKEY, (err, decodedToken) => {

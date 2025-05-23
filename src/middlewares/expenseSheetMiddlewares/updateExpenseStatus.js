@@ -10,4 +10,5 @@ function updateExpenseStatus(expenseSheet) {
   }
 }
 
-module.exports = updateExpenseStatus;
+
+module.exports = updateExpenseStatus
