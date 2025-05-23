@@ -451,11 +451,11 @@ router.post("/add-bom-master",addBOM );
 router.get("/get-bom-master", getBOM );
 
 //Expense Sheet
-router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, allowRoles("sales"))
-router.get("/get-expense-by-id", jwtMW.authentication, jwtMW.authorization, allowRoles("team member", "manager"))
+// router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, allowRoles("sales"))
+// router.get("/get-expense-by-id", jwtMW.authentication, jwtMW.authorization, allowRoles("team member", "manager"))
 router.post("/create-expense", jwtMW.authentication, jwtMW.authorization, allowRoles("team member"), createExpense)
 router.put("/update-expense-status/:_id", jwtMW.authentication, jwtMW.authorization,  allowRoles("team member","manager", "GM-HR", "accounts"), updateStatusExpense);
-router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization);
+// router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization);
 
 module.exports = router;
 
