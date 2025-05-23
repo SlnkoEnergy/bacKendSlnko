@@ -25,9 +25,9 @@ const expenseSheetSchema = new mongoose.Schema({
       },
       description: { type: String },
       expense_date: { type: Date, default: Date.now },
-      bill: {
-        bill_number: String,
-        bill_amount: { type: String, required: true },
+      invoice: {
+        invoice_number: String,
+        invoice_amount: { type: String, required: true },
       },
       attachment_url: { type: String },
       status: { type: String },
