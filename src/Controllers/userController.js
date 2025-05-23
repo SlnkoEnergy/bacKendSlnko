@@ -424,7 +424,7 @@ const login = async function (req, res) {
       return res.status(401).json({ error: "Invalid Credentials" });
     }
 
-    let token = jwt.sign({ userID: user._id ,role:user.role}, process.env.PASSKEY, );
+    let token = jwt.sign({ userID: user._id, role:user.role}, process.env.PASSKEY);
     res.json({ token, userID: user._id,role:user.role});
   } catch (error) {
     res.status(400).json({ msg: "Invalid user" + error });

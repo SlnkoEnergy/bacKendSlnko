@@ -69,6 +69,12 @@ const expenseSheetSchema = new mongoose.Schema(
         updatedAt: { type: Date, default: Date.now },
       },
     ],
+    total_requested_amount:{
+      type:String
+    },
+    total_approved_amount:{
+         type:String
+    },
     comments: { type: String, required: true },
   },
   { timestamps: true }

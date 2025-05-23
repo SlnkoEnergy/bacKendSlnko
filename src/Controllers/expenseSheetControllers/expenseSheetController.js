@@ -213,6 +213,7 @@ const deleteExpense = async (req, res) => {
 
 //Export To CSV
 
+
 const exportAllExpenseSheetsCSV = async (req, res) => {
   try {
     const expenseSheets = await ExpenseSheet.aggregate([
@@ -225,20 +226,14 @@ const exportAllExpenseSheetsCSV = async (req, res) => {
         },
       },
       {
-        $unwind: {
-          path: "$userDetails",
-          preserveNullAndEmptyArrays: true,
-        },
+        $unwind: { path: "$userDetails", preserveNullAndEmptyArrays: true },
       },
       {
-        $unwind: {
-          path: "$items",
-          preserveNullAndEmptyArrays: true,
-        },
+        $unwind: { path: "$items", preserveNullAndEmptyArrays: true },
       },
       {
         $project: {
-          _id: 0, // exclude Mongoose's default _id
+          _id: 0,
           "Expense Code": "$expense_code",
           "Sheet Current Status": "$current_status",
           From: {
@@ -274,20 +269,64 @@ const exportAllExpenseSheetsCSV = async (req, res) => {
       },
     ]);
 
+    // Generate main CSV
     const fields = Object.keys(expenseSheets[0] || {});
     const json2csvParser = new Parser({ fields });
-    const csv = json2csvParser.parse(expenseSheets);
+    let csv = json2csvParser.parse(expenseSheets);
 
+    // === 🔽 Build Summary Section ===
+    const summaryMap = {};
+    let totalRequested = 0;
+    let totalApproved = 0;
+
+    for (const row of expenseSheets) {
+      const category = row["Category"] || "Uncategorized";
+      const invoice = parseFloat(row["Invoice Amount"] || 0);
+      const approved = parseFloat(row["Approved Amount"] || 0);
+
+      if (!summaryMap[category]) {
+        summaryMap[category] = { requested: 0, approved: 0 };
+      }
+
+      summaryMap[category].requested += invoice;
+      summaryMap[category].approved += approved;
+
+      totalRequested += invoice;
+      totalApproved += approved;
+    }
+
+    const summaryRows = [
+      "",
+      "",
+      "Summary by Category",
+      "Category,Total Requested Amount,Total Approved Amount",
+    ];
+
+    for (const [category, data] of Object.entries(summaryMap)) {
+      summaryRows.push(
+        `"${category}",${data.requested.toFixed(2)},${data.approved.toFixed(2)}`
+      );
+    }
+
+    // Add final total row
+    summaryRows.push(
+      `"Total",${totalRequested.toFixed(2)},${totalApproved.toFixed(2)}`
+    );
+
+    // Append summary to CSV
+    csv += "\n" + summaryRows.join("\n");
+
+    // Send response
     res.header("Content-Type", "text/csv");
     res.attachment("expenseSheets.csv");
     res.send(csv);
   } catch (err) {
     console.error("CSV Export Error:", err.message);
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: err.message });
+    res.status(500).json({ message: "Internal Server Error", error: err.message });
   }
 };
+
+
 
 const exportExpenseSheetsCSVById = async (req, res) => {
   try {
@@ -353,22 +392,59 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       },
     ]);
 
-    if (expenseSheets.length === 0) {
-      return res.status(404).json({ message: "Expense Sheet not found" });
+     const fields = Object.keys(expenseSheets[0] || {});
+    const json2csvParser = new Parser({ fields });
+    let csv = json2csvParser.parse(expenseSheets);
+
+    // === 🔽 Build Summary Section ===
+    const summaryMap = {};
+    let totalRequested = 0;
+    let totalApproved = 0;
+
+    for (const row of expenseSheets) {
+      const category = row["Category"] || "Uncategorized";
+      const invoice = parseFloat(row["Invoice Amount"] || 0);
+      const approved = parseFloat(row["Approved Amount"] || 0);
+
+      if (!summaryMap[category]) {
+        summaryMap[category] = { requested: 0, approved: 0 };
+      }
+
+      summaryMap[category].requested += invoice;
+      summaryMap[category].approved += approved;
+
+      totalRequested += invoice;
+      totalApproved += approved;
     }
 
-    const fields = Object.keys(expenseSheets[0]);
-    const json2csvParser = new Parser({ fields });
-    const csv = json2csvParser.parse(expenseSheets);
+    const summaryRows = [
+      "",
+      "",
+      "Summary by Category",
+      "Category,Total Requested Amount,Total Approved Amount",
+    ];
 
+    for (const [category, data] of Object.entries(summaryMap)) {
+      summaryRows.push(
+        `"${category}",${data.requested.toFixed(2)},${data.approved.toFixed(2)}`
+      );
+    }
+
+    // Add final total row
+    summaryRows.push(
+      `"Total",${totalRequested.toFixed(2)},${totalApproved.toFixed(2)}`
+    );
+
+    // Append summary to CSV
+    csv += "\n" + summaryRows.join("\n");
+
+    // Send response
     res.header("Content-Type", "text/csv");
-    res.attachment("expenseSheetOne.csv");
+    res.attachment("expenseSheets.csv");
     res.send(csv);
   } catch (err) {
     console.error("CSV Export Error:", err.message);
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: err.message });
+    res.status(500).json({ message: "Internal Server Error", error: err.message });
   }
 };
 
