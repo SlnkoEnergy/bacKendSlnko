@@ -2,7 +2,7 @@ const userModells = require("../Modells/userModells");
 const jwt = require("jsonwebtoken");
 //const reseend = require("resend").default;
 
-const JWT_SECRET = " your-secret-key";
+
 const nodemailer = require("nodemailer");
 const { config } = require("dotenv");
 config({
@@ -424,8 +424,8 @@ const login = async function (req, res) {
       return res.status(401).json({ error: "Invalid Credentials" });
     }
 
-    let token = jwt.sign({ userID: user._id ,role:user.role}, JWT_SECRET, { expiresIn: "1h" });
-    res.json({ token, userID: user._id });
+    let token = jwt.sign({ userID: user._id ,role:user.role}, process.env.PASSKEY, );
+    res.json({ token, userID: user._id,role:user.role});
   } catch (error) {
     res.status(400).json({ msg: "Invalid user" + error });
   }

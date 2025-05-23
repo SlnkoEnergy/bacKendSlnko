@@ -4,7 +4,9 @@ const User = require("../../Modells/userModells")
 
 const getAllExpense = async function (req, res) {
   try {
-    const expense = await ExpenseSheet.find({ user_id: req.user_id });
+    console.log(req.user.userID);
+    const expense = await ExpenseSheet.find({ user_id: req.user.userID  });
+
     res.status(201).json({
       message: "Expense Sheet retrieved Successfully",
       data: expense,
@@ -153,7 +155,7 @@ const updateStatusExpense = async function (req, res) {
 
 const deleteExpense = async (req, res) => {
   try {
-    const deleteExpense = await ExpenseSheet.findByIdAndDelete(req.params.id);
+    const deleteExpense = await ExpenseSheet.findByIdAndDelete(req.params._id);
     res.status(200).json({
       message: "Expense Sheet Deleted Successfully",
       data: deleteExpense,

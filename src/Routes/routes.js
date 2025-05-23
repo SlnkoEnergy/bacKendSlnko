@@ -193,7 +193,7 @@ const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engi
 
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
 const allowRoles = require("../middlewares/expenseSheetMiddlewares/allowRoles");
-const { createExpense, updateStatusExpense } = require("../Controllers/expenseSheetControllers/expenseSheetController");
+const { createExpense, updateStatusExpense, getAllExpense, getExpenseById, deleteExpense } = require("../Controllers/expenseSheetControllers/expenseSheetController");
 const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
 // Admin router
@@ -451,11 +451,11 @@ router.post("/add-bom-master",addBOM );
 router.get("/get-bom-master", getBOM );
 
 //Expense Sheet
-// router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, allowRoles("sales"))
-// router.get("/get-expense-by-id", jwtMW.authentication, jwtMW.authorization, allowRoles("team member", "manager"))
+router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, allowRoles("team member","manager", "GM-HR", "accounts members"), getAllExpense)
+router.get("/get-expense-by-id/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("team member", "manager","GM-HR", "accounts members"), getExpenseById)
 router.post("/create-expense", jwtMW.authentication, jwtMW.authorization, allowRoles("team member"), createExpense)
-router.put("/update-expense-status/:_id", jwtMW.authentication, jwtMW.authorization,  allowRoles("team member","manager", "GM-HR", "accounts"), updateStatusExpense);
-// router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization);
+router.put("/update-expense-status/:_id", jwtMW.authentication, jwtMW.authorization,  allowRoles("team member","manager", "GM-HR", "accounts members"), updateStatusExpense);
+router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("team member"), deleteExpense);
 
 module.exports = router;
 
