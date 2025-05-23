@@ -67,6 +67,7 @@ const delete_lead = async function (req,res) {
     }
 };
 
+
   const updateLeadStatus = async function (req, res) {
     try {
     const leads = await lead.findById(req.params._id);

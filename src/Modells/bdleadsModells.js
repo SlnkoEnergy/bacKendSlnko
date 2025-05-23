@@ -42,7 +42,6 @@ const bdleadsSchema = new mongoose.Schema({
       name: {
         type: String,
         enum: ["Initial", "Follow Up", "Warm", "Won", "Dead"],
-        required: true
       },
       stage: {
         type: String,

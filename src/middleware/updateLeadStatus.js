@@ -14,8 +14,9 @@ function updateCurrentStatus(lead) {
     derivedStatus = "Follow Up";
   } else if (stage === "Token Money") {
     derivedStatus = "Won";
-  } else if (stage === "PPA" || stage === "LOA") {
-    derivedStatus = "Warm";
+  } else if (documents.some(doc => /LOA|PPA/i.test(doc))) {
+      derivedStatus = "Warm";
+
   }
 
   lead.current_status = {
