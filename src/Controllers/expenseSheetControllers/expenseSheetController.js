@@ -6,45 +6,8 @@ const { default: mongoose } = require("mongoose");
 
 const getAllExpense = async (req, res) => {
   try {
-    const userId = new mongoose.Types.ObjectId(req.user.userID);
 
-    // Step 1: Get current user's role and department
-    const userInfo = await User.aggregate([
-      { $match: { _id: userId } },
-      { $project: { role: 1, department: 1 } },
-    ]);
-
-    if (!userInfo.length) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const { role, department } = userInfo[0];
-    const allowedRoles = [
-      "superadmin",
-      "admin",
-      "gm_hr",
-      "accounts",
-      "manager",
-    ];
-
-    let expense;
-
-    if (allowedRoles.includes(role)) {
-      if (role === "manager") {
-        // Step 2: Get user IDs from the same department
-        const usersInDept = await User.find({ department }, "_id");
-        const userIds = usersInDept.map((u) => u._id);
-
-        // Step 3: Get expenses of those users
-        expense = await ExpenseSheet.find({ user_id: { $in: userIds } });
-      } else {
-        // Admin, super_admin, accounts, gm_hr can see all
-        expense = await ExpenseSheet.find({});
-      }
-    } else {
-      // Regular user sees only their own expenses
-      expense = await ExpenseSheet.find({ user_id: req.user.userID });
-    }
+    let expense = await ExpenseSheet.find();
 
     res.status(200).json({
       message: "Expense Sheet retrieved successfully",
