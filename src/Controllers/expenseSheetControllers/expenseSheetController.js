@@ -81,14 +81,20 @@ const createExpense = async (req, res) => {
     const { data, user_id } = req.body;
 
     const expense_code = await generateExpenseCode(user_id);
-
     if (!expense_code) {
       return res.status(400).json({ message: "Expense Code is required" });
+    }
+
+    const user = await User.findById(user_id).select("emp_id name");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
     const expense = new ExpenseSheet({
       expense_code,
       user_id,
+      emp_id: user.emp_id,
+      emp_name: user.name,
       ...data,
     });
 
@@ -105,6 +111,7 @@ const createExpense = async (req, res) => {
     });
   }
 };
+
 
 const updateExpenseStatusOverall = async (req, res) => {
   try {
@@ -202,24 +209,14 @@ const deleteExpense = async (req, res) => {
 const exportAllExpenseSheetsCSV = async (req, res) => {
   try {
     const expenseSheets = await ExpenseSheet.aggregate([
-      {
-        $lookup: {
-          from: "users",
-          localField: "user_id",
-          foreignField: "_id",
-          as: "userDetails",
-        },
-      },
-      {
-        $unwind: { path: "$userDetails", preserveNullAndEmptyArrays: true },
-      },
-      {
-        $unwind: { path: "$items", preserveNullAndEmptyArrays: true },
-      },
+      { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
       {
         $project: {
           _id: 0,
           "Expense Code": "$expense_code",
+          "Emp Code": "$emp_id",
+          "Employee Name": "$emp_name",
+          "Project Code": { $toString: "$items.project_id" },
           "Sheet Current Status": "$current_status",
           From: {
             $dateToString: { format: "%d/%m/%Y", date: "$expense_term.from" },
@@ -228,10 +225,7 @@ const exportAllExpenseSheetsCSV = async (req, res) => {
             $dateToString: { format: "%d/%m/%Y", date: "$expense_term.to" },
           },
           "Sheet Remarks": "$comments",
-          "Emp Code": "$userDetails.emp_id",
-          "Employee Name": "$userDetails.name",
           Category: "$items.category",
-          "Project Code": { $toString: "$items.project_id" },
           Description: "$items.description",
           "Expense Date": {
             $cond: [
@@ -254,12 +248,10 @@ const exportAllExpenseSheetsCSV = async (req, res) => {
       },
     ]);
 
-    // Generate main CSV
     const fields = Object.keys(expenseSheets[0] || {});
     const json2csvParser = new Parser({ fields });
     let csv = json2csvParser.parse(expenseSheets);
 
-    // === 🔽 Build Summary Section ===
     const summaryMap = {};
     let totalRequested = 0;
     let totalApproved = 0;
@@ -293,23 +285,18 @@ const exportAllExpenseSheetsCSV = async (req, res) => {
       );
     }
 
-    // Add final total row
     summaryRows.push(
       `"Total",${totalRequested.toFixed(2)},${totalApproved.toFixed(2)}`
     );
 
-    // Append summary to CSV
     csv += "\n" + summaryRows.join("\n");
 
-    // Send response
     res.header("Content-Type", "text/csv");
     res.attachment("expenseSheets.csv");
     res.send(csv);
   } catch (err) {
     console.error("CSV Export Error:", err.message);
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: err.message });
+    res.status(500).json({ message: "Internal Server Error", error: err.message });
   }
 };
 
@@ -319,30 +306,14 @@ const exportExpenseSheetsCSVById = async (req, res) => {
 
     const expenseSheets = await ExpenseSheet.aggregate([
       { $match: { _id: new mongoose.Types.ObjectId(sheetId) } },
-      {
-        $lookup: {
-          from: "users",
-          localField: "user_id",
-          foreignField: "_id",
-          as: "userDetails",
-        },
-      },
-      {
-        $unwind: {
-          path: "$userDetails",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $unwind: {
-          path: "$items",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
+      { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
       {
         $project: {
           _id: 0,
           "Expense Code": "$expense_code",
+          "Emp Code": "$emp_id",
+          "Employee Name": "$emp_name",
+          "Project Code": { $toString: "$items.project_id" },
           "Sheet Current Status": "$current_status",
           From: {
             $dateToString: { format: "%d/%m/%Y", date: "$expense_term.from" },
@@ -351,10 +322,7 @@ const exportExpenseSheetsCSVById = async (req, res) => {
             $dateToString: { format: "%d/%m/%Y", date: "$expense_term.to" },
           },
           "Sheet Remarks": "$comments",
-          "Emp Code": "$userDetails.emp_id",
-          "Employee Name": "$userDetails.name",
           Category: "$items.category",
-          "Project Code": { $toString: "$items.project_id" },
           Description: "$items.description",
           "Expense Date": {
             $cond: [
@@ -381,7 +349,7 @@ const exportExpenseSheetsCSVById = async (req, res) => {
     const json2csvParser = new Parser({ fields });
     let csv = json2csvParser.parse(expenseSheets);
 
-    // === 🔽 Build Summary Section ===
+    // Summary by Category
     const summaryMap = {};
     let totalRequested = 0;
     let totalApproved = 0;
@@ -415,15 +383,12 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       );
     }
 
-    // Add final total row
     summaryRows.push(
       `"Total",${totalRequested.toFixed(2)},${totalApproved.toFixed(2)}`
     );
 
-    // Append summary to CSV
     csv += "\n" + summaryRows.join("\n");
 
-    // Send response
     res.header("Content-Type", "text/csv");
     res.attachment("expenseSheets.csv");
     res.send(csv);
@@ -434,6 +399,7 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
+
 
 module.exports = {
   getAllExpense,

@@ -47,6 +47,12 @@ const expenseSheetSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    emp_id:{
+      type:String
+    },
+    emp_name:{
+      type:String
+    },
     expense_term: {
       from: { type: Date },
       to: { type: Date },
