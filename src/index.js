@@ -19,7 +19,7 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 const db = process.env.DB_DEVELOPMENT_URL;
 
 const startServer = async () => {
