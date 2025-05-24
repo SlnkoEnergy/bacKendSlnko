@@ -192,6 +192,9 @@ const { addbos, getbos }=require("../Controllers/engineeringController/BOSContro
 const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engineeringController/PoolingStationController");
 
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
+const allowRoles = require("../middlewares/expenseSheetMiddlewares/allowRoles");
+const { createExpense, getAllExpense, getExpenseById, deleteExpense, updateExpenseStatusOverall, updateExpenseStatusItems, exportAllExpenseSheetsCSV, exportExpenseSheetsCSVById } = require("../Controllers/expenseSheetControllers/expenseSheetController");
+const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -447,7 +450,16 @@ router.get("/get-pooling-station-master",jwtMW.authentication,jwtMW.authorizatio
 router.post("/add-bom-master",addBOM );
 router.get("/get-bom-master", getBOM );
 
-
+//Expense Sheet
+router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, allowRoles("superadmin","admin", "team member","manager", "GM-HR", "accounts members"), getAllExpense)
+router.get("/get-expense-by-id/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin", "admin","team member", "manager","GM-HR", "accounts members"), getExpenseById)
+router.post("/create-expense", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin", "admin","team member", "manager","GM-HR", "accounts members"), createExpense)
+router.put("/:_id/status/overall", jwtMW.authentication, jwtMW.authorization,  allowRoles("superadmin","admin","team member","manager", "GM-HR", "accounts members"), updateExpenseStatusOverall);
+router.put("/:sheetId/item/:itemId/status", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member"), updateExpenseStatusItems);
+router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member"), deleteExpense);
+//Export to CSV In expense Sheet
+router.get("/expense-all-csv", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member","manager", "GM-HR", "accounts members"), exportAllExpenseSheetsCSV);
+router.get("/expense-by-id-csv/:_id",jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member","manager", "GM-HR", "accounts members"), exportExpenseSheetsCSVById);
 
 
 module.exports = router;
