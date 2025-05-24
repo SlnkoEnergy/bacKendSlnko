@@ -4,7 +4,6 @@ const User = require("../../Modells/userModells");
 const { Parser } = require("json2csv");
 const { default: mongoose } = require("mongoose");
 
-
 const getAllExpense = async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.user.userID);
@@ -12,7 +11,7 @@ const getAllExpense = async (req, res) => {
     // Step 1: Get current user's role and department
     const userInfo = await User.aggregate([
       { $match: { _id: userId } },
-      { $project: { role: 1, department: 1 } }
+      { $project: { role: 1, department: 1 } },
     ]);
 
     if (!userInfo.length) {
@@ -20,16 +19,21 @@ const getAllExpense = async (req, res) => {
     }
 
     const { role, department } = userInfo[0];
-    console.log(role, department);
-    const allowedRoles = ['superadmin', 'admin', 'gm_hr', 'accounts', 'manager'];
+    const allowedRoles = [
+      "superadmin",
+      "admin",
+      "gm_hr",
+      "accounts",
+      "manager",
+    ];
 
     let expense;
 
     if (allowedRoles.includes(role)) {
-      if (role === 'manager') {
+      if (role === "manager") {
         // Step 2: Get user IDs from the same department
-        const usersInDept = await User.find({ department }, '_id');
-        const userIds = usersInDept.map(u => u._id);
+        const usersInDept = await User.find({ department }, "_id");
+        const userIds = usersInDept.map((u) => u._id);
 
         // Step 3: Get expenses of those users
         expense = await ExpenseSheet.find({ user_id: { $in: userIds } });
@@ -54,7 +58,6 @@ const getAllExpense = async (req, res) => {
   }
 };
 
-
 const getExpenseById = async (req, res) => {
   try {
     const expenseId = req.params._id;
@@ -67,19 +70,6 @@ const getExpenseById = async (req, res) => {
       });
     }
 
-    if (req.user.role === "team_members") {
-      if (expense.user_id.toString() !== req.user._id.toString()) {
-        return res.status(403).json({ message: "Access denied" });
-      }
-    }
-
-    // If manager, allow only if the user belongs to same department
-    if (req.user.role === "manager") {
-      const expenseUser = await User.findById(expense.user_id);
-      if (!expenseUser || expenseUser.department !== req.user.department) {
-        return res.status(403).json({ message: "Access denied" });
-      }
-    }
     res.status(200).json({
       message: "Expense retrieved successfully",
       data: expense,
@@ -125,7 +115,7 @@ async function generateExpenseCode(userId) {
 
 const createExpense = async (req, res) => {
   try {
-    const { user_id, items, expense_term, comments } = req.body;
+    const { data, user_id } = req.body;
 
     const expense_code = await generateExpenseCode(user_id);
 
@@ -135,13 +125,12 @@ const createExpense = async (req, res) => {
 
     const expense = new ExpenseSheet({
       expense_code,
-      items,
       user_id,
-      expense_term,
-      comments,
+      ...data,
     });
 
     await expense.save();
+
     res.status(201).json({
       message: "Expense Sheet Created Successfully",
       data: expense,
@@ -246,7 +235,6 @@ const deleteExpense = async (req, res) => {
 };
 
 //Export To CSV
-
 
 const exportAllExpenseSheetsCSV = async (req, res) => {
   try {
@@ -356,7 +344,9 @@ const exportAllExpenseSheetsCSV = async (req, res) => {
     res.send(csv);
   } catch (err) {
     console.error("CSV Export Error:", err.message);
-    res.status(500).json({ message: "Internal Server Error", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: err.message });
   }
 };
 
@@ -424,7 +414,7 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       },
     ]);
 
-     const fields = Object.keys(expenseSheets[0] || {});
+    const fields = Object.keys(expenseSheets[0] || {});
     const json2csvParser = new Parser({ fields });
     let csv = json2csvParser.parse(expenseSheets);
 
@@ -476,7 +466,9 @@ const exportExpenseSheetsCSVById = async (req, res) => {
     res.send(csv);
   } catch (err) {
     console.error("CSV Export Error:", err.message);
-    res.status(500).json({ message: "Internal Server Error", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: err.message });
   }
 };
 

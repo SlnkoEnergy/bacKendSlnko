@@ -453,7 +453,7 @@ router.get("/get-bom-master", getBOM );
 //Expense Sheet
 router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, allowRoles("superadmin","admin", "team member","manager", "GM-HR", "accounts members"), getAllExpense)
 router.get("/get-expense-by-id/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin", "admin","team member", "manager","GM-HR", "accounts members"), getExpenseById)
-router.post("/create-expense", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member"), createExpense)
+router.post("/create-expense", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin", "admin","team member", "manager","GM-HR", "accounts members"), createExpense)
 router.put("/:_id/status/overall", jwtMW.authentication, jwtMW.authorization,  allowRoles("superadmin","admin","team member","manager", "GM-HR", "accounts members"), updateExpenseStatusOverall);
 router.put("/:sheetId/item/:itemId/status", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member"), updateExpenseStatusItems);
 router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member"), deleteExpense);

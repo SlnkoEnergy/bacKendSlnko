@@ -75,7 +75,10 @@ const expenseSheetSchema = new mongoose.Schema(
     total_approved_amount:{
          type:String
     },
-    comments: { type: String, required: true },
+    disbursement_date:{
+      type:Date
+    },
+    comments: { type: String },
   },
   { timestamps: true }
 );
