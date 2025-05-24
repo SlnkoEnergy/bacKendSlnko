@@ -31,9 +31,9 @@ const authorization = async function (req, res, next) {
   } catch (err) {
     return res.status(401).send({ status: false, msg: "Invalid token" });
   }
-
  if (req.params.userId && String(decodedToken.userId) !== String(req.params.userId)) {
     return res.status(403).send({ status: false, msg: "UserId or token is wrong" });
+
   }
   req.user = decodedToken;
   next();

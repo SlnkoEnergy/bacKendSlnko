@@ -166,13 +166,14 @@ const {
   wontodead,
   deadtowon,
   updatewon,
+  updateWonLead,
 } = require("../Controllers/initialbdController");
 
 
 const{ addtask, getaddtask, editComment, gettaskHistory, updatetaskstatus }=require("../Controllers/addtaskbdController");
-const { createhandoversheet, gethandoversheetdata, edithandoversheetdata, updateStatusOfHandoversheet, getbdhandoversheetdata } =require("../Controllers/handoversheetController");
+const { createhandoversheet, gethandoversheetdata, edithandoversheetdata, updateStatusOfHandoversheet, getbdhandoversheetdata, updateStatusHandoversheet, updatehandoverbd, updatestatus, checkid, getbyid, search } =require("../Controllers/handoversheetController");
 const { addmoduleMaster, getmoduleMasterdata, editmodulemaster, deletemodulemaster }=require("../Controllers/moduleMasterController");
-const { deleteOne } = require("../Modells/moduleMasterModells");
+// const { deleteOne } = require("../Modells/moduleMasterModells");
 
 const{ addinveterMaster, getinveterMasterdata }=require("../Controllers/inveterMasterController");
 
@@ -191,6 +192,9 @@ const { addbos, getbos }=require("../Controllers/engineeringController/BOSContro
 const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engineeringController/PoolingStationController");
 
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
+const allowRoles = require("../middlewares/expenseSheetMiddlewares/allowRoles");
+const { createExpense, getAllExpense, getExpenseById, deleteExpense, updateExpenseStatusOverall, updateExpenseStatusItems, exportAllExpenseSheetsCSV, exportExpenseSheetsCSVById } = require("../Controllers/expenseSheetControllers/expenseSheetController");
+// const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
 // Admin router
 router.post("/user-registratioN-IT",userRegister);
@@ -384,11 +388,12 @@ router.put("/edit-warm/:_id",jwtMW.authentication,jwtMW.authorization,editwarm);
 
 
 //handdoversheet 
-router.post("/create-hand-over-sheet",jwtMW.authentication,jwtMW.authorization,createhandoversheet);
-router.get("/get-all-handover-sheet",jwtMW.authentication,jwtMW.authorization,gethandoversheetdata);
-router.put("/edit-hand-over-sheet",jwtMW.authentication,jwtMW.authorization,edithandoversheetdata);
-router.put("/update-status-of-handoversheet",jwtMW.authentication,jwtMW.authorization,updateStatusOfHandoversheet);
-router.get("/get-all-bd-handoversheet",jwtMW.authentication,jwtMW.authorization,getbdhandoversheetdata);
+// router.post("/create-hand-over-sheet",jwtMW.authentication,jwtMW.authorization,createhandoversheet);
+// router.get("/get-all-handover-sheet",jwtMW.authentication,jwtMW.authorization,gethandoversheetdata);
+// router.put("/edit-hand-over-sheet",jwtMW.authentication,jwtMW.authorization,edithandoversheetdata);
+// router.put("/update-status-of-handoversheet",jwtMW.authentication,jwtMW.authorization, updatestatus);
+// router.get("/get-all-bd-handoversheet",jwtMW.authentication,jwtMW.authorization, getbdhandoversheetdata);
+
 
 
 //module master
@@ -401,7 +406,7 @@ router.delete("/delete-module-master/:_id",jwtMW.authentication,jwtMW.authorizat
 
 //inveter master
 router.post("/add-inveter-master",jwtMW.authentication,jwtMW.authorization,addinveterMaster);
-router.get("/get-master-inverter",getinveterMasterdata);
+router.get("/get-master-inverter",jwtMW.authentication,jwtMW.authorization,getinveterMasterdata);
 
 
 //transformer master
@@ -412,7 +417,7 @@ router.get("/get-transformer",jwtMW.authentication,jwtMW.authorization,getTransf
 
 //LTPanel master
 router.post("/add-ltpanel-master",jwtMW.authentication,jwtMW.authorization,addLTPanel);
-router.get("/get-ltpanel-master",getLTPanel);
+router.get("/get-ltpanel-master",jwtMW.authentication,jwtMW.authorization,getLTPanel);
 
 
 //HTPanel master
@@ -441,7 +446,16 @@ router.get("/get-pooling-station-master",jwtMW.authentication,jwtMW.authorizatio
 router.post("/add-bom-master",jwtMW.authentication,jwtMW.authorization,addBOM );
 router.get("/get-bom-master", jwtMW.authentication,jwtMW.authorization,getBOM );
 
-
+//Expense Sheet
+router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, allowRoles("superadmin","admin", "team member","manager", "GM-HR", "accounts members"), getAllExpense)
+router.get("/get-expense-by-id/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin", "admin","team member", "manager","GM-HR", "accounts members"), getExpenseById)
+router.post("/create-expense", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin", "admin","team member", "manager","GM-HR", "accounts members"), createExpense)
+router.put("/:_id/status/overall", jwtMW.authentication, jwtMW.authorization,  allowRoles("superadmin","admin","team member","manager", "GM-HR", "accounts members"), updateExpenseStatusOverall);
+router.put("/:sheetId/item/:itemId/status", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member"), updateExpenseStatusItems);
+router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member"), deleteExpense);
+//Export to CSV In expense Sheet
+router.get("/expense-all-csv", jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member","manager", "GM-HR", "accounts members"), exportAllExpenseSheetsCSV);
+router.get("/expense-by-id-csv/:_id",jwtMW.authentication, jwtMW.authorization, allowRoles("superadmin","admin","team member","manager", "GM-HR", "accounts members"), exportExpenseSheetsCSVById);
 
 
 module.exports = router;

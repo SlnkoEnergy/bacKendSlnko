@@ -1,9 +1,6 @@
-
 const express = require("express");
-
 const mongoose = require("mongoose");
 const cluster = require("cluster");
-
 
 const app = express();
 const routes = require("../src/Routes/routes");
@@ -24,8 +21,6 @@ app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
 const db = process.env.DB_DEVELOPMENT_URL;
-
-
 
 const startServer = async () => {
 try {
