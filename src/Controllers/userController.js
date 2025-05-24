@@ -14,9 +14,9 @@ config({
 
 const userRegister = async function (req, res) {
   try {
-    let { username, emp_id, email, phone, department, role, password } = req.body;
+    let { name, emp_id, email, phone, department, role, password } = req.body;
 
-    if (!username || !emp_id || !email || !password) {
+    if (!name || !emp_id || !email || !password) {
       return res.status(400).json({ msg: "All fields are required" });
     }
 
@@ -31,7 +31,7 @@ const userRegister = async function (req, res) {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newuser = new userModells({
-      username,
+      name,
       emp_id,
       email,
       phone,
@@ -427,14 +427,14 @@ html: `
 //Login
 const login = async function (req, res) {
  try {
-    const { username, emp_id, email, password } = req.body;
+    const { name, emp_id, email, password } = req.body;
 
     if (!password) {
       return res.status(400).json({ msg: "Password is required" });
     }
 
     // Combine all identity fields into a single search term
-    const identity = username || emp_id || email;
+    const identity = name || emp_id || email;
 
     if (!identity) {
       return res.status(400).json({ msg: "Enter any of username, emp_id, or email" });
@@ -443,7 +443,7 @@ const login = async function (req, res) {
     // Search user where ANY of the fields match the identity value
     const user = await userModells.findOne({
       $or: [
-        { username: identity },
+        { name: identity },
         { emp_id: identity },
         { email: identity }
       ]
