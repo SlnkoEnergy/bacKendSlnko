@@ -1,0 +1,13 @@
+FROM node:16-alpine
+WORKDIR /protrac/backend
+COPY package.json ./
+RUN npm install
+COPY . .
+ENV DB_URL=${DB_URL}
+ENV DB_DEVELOPMENT_URL=${DB_DEVELOPMENT_URL}
+ENV USER=${USER}
+ENV PASS=${PASS}
+ENV PASSKEY=${PASSKEY}
+ENV PORT=${PORT}
+EXPOSE 8080
+CMD ["npm", "start"]
