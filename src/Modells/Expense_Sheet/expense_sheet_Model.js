@@ -59,13 +59,13 @@ const expenseSheetSchema = new mongoose.Schema(
     },
     current_status: {
       type: String,
-      enum: ["draft", "submitted", "hold", "rejected", "approved"],
+      enum: ["draft", "submitted", "hold", "rejected", "manager approval", "hr approval", "final approval"],
     },
     status_history: [
       {
         status: {
           type: String,
-          enum: ["draft", "submitted", "hold", "rejected", "approved"],
+          enum: ["draft", "submitted", "hold", "rejected", "manager approval", "hr approval", "final approval"],
         },
         remarks: { type: String },
         user_id: {
