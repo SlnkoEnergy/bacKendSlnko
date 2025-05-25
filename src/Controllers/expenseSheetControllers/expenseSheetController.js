@@ -112,6 +112,23 @@ const createExpense = async (req, res) => {
   }
 };
 
+const updateExpenseSheet = async(req, res) => {
+  try {
+    const expense = await ExpenseSheet.findByIdAndUpdate(req.params._id,
+      req.body,
+      {new:true}
+    );
+    res.status(201).json({
+      message:"Expense Sheet Updated Successfully",
+      data: expense
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message
+    });
+  }
+}
 
 const updateExpenseStatusOverall = async (req, res) => {
   try {
@@ -405,6 +422,7 @@ module.exports = {
   getAllExpense,
   getExpenseById,
   createExpense,
+  updateExpenseSheet,
   updateExpenseStatusOverall,
   updateExpenseStatusItems,
   deleteExpense,
