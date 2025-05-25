@@ -3,10 +3,12 @@ const moment = require("moment");
 const User = require("../../Modells/userModells");
 const { Parser } = require("json2csv");
 const { default: mongoose } = require("mongoose");
+const generateExpenseCode = require("../../utils/generateExpenseCode");
+const generateExpenseSheet = require("../../utils/generateExpensePdf");
+const fs = require("fs");
 
 const getAllExpense = async (req, res) => {
   try {
-
     let expense = await ExpenseSheet.find();
 
     res.status(200).json({
@@ -45,37 +47,6 @@ const getExpenseById = async (req, res) => {
   }
 };
 
-async function generateExpenseCode(userId) {
-  // Find user for emp_id
-  const user = await User.findById(userId);
-  if (!user) throw new Error("User not found");
-
-  // Get current date info
-  const now = moment();
-
-  // Get month full name in uppercase, e.g. MAY
-  const monthName = now.format("MMMM").toUpperCase(); // 'May' => 'MAY'
-
-  // Calculate week of month (1-based)
-  const weekOfMonth = Math.ceil(now.date() / 7);
-  const week = weekOfMonth < 10 ? "0" + weekOfMonth : weekOfMonth.toString();
-
-  // Count existing expense sheets this month for user
-  const count = await ExpenseSheet.countDocuments({
-    user_id: userId,
-    createdAt: {
-      $gte: now.startOf("month").toDate(),
-      $lt: now.endOf("month").toDate(),
-    },
-  });
-
-  // Auto number padded
-  const autoNumber = (count + 1).toString().padStart(3, "0");
-
-  // Format: EXP/MAY-01/EMP_ID/001
-  return `EXP/${monthName}-${week}/${user.emp_id}/${autoNumber}`;
-}
-
 const createExpense = async (req, res) => {
   try {
     const { data, user_id } = req.body;
@@ -112,23 +83,24 @@ const createExpense = async (req, res) => {
   }
 };
 
-const updateExpenseSheet = async(req, res) => {
+const updateExpenseSheet = async (req, res) => {
   try {
-    const expense = await ExpenseSheet.findByIdAndUpdate(req.params._id,
+    const expense = await ExpenseSheet.findByIdAndUpdate(
+      req.params._id,
       req.body,
-      {new:true}
+      { new: true }
     );
     res.status(201).json({
-      message:"Expense Sheet Updated Successfully",
-      data: expense
+      message: "Expense Sheet Updated Successfully",
+      data: expense,
     });
   } catch (error) {
     res.status(500).json({
       message: "Internal Server Error",
-      error: error.message
+      error: error.message,
     });
   }
-}
+};
 
 const updateExpenseStatusOverall = async (req, res) => {
   try {
@@ -313,7 +285,9 @@ const exportAllExpenseSheetsCSV = async (req, res) => {
     res.send(csv);
   } catch (err) {
     console.error("CSV Export Error:", err.message);
-    res.status(500).json({ message: "Internal Server Error", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: err.message });
   }
 };
 
@@ -417,6 +391,38 @@ const exportExpenseSheetsCSVById = async (req, res) => {
   }
 };
 
+const getExpensePdf = async (req, res) => {
+  try {
+    // Populate project_id inside items to get project details
+    const sheet = await ExpenseSheet.findById(req.params._id).populate([
+  { path: "items.project_id" },
+  { path: "user_id" }
+]);
+
+  //  console.log("sheet:", sheet);
+    if (!sheet) {
+      return res.status(404).json({ message: "Expense Sheet not found" });
+    }
+  
+   const department = sheet.user_id.department || "";
+   const pdfBuffer = await generateExpenseSheet(sheet, { department });
+
+
+    // Optional: save locally
+    fs.writeFileSync("expense.pdf", pdfBuffer);
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="Expense_${sheet.expense_code}.pdf"`,
+      "Content-Length": pdfBuffer.length,
+    });
+
+    res.send(pdfBuffer);
+  } catch (error) {
+    res.status(500).json({ message: "Error generating PDF", error: error.message });
+  }
+};
+
 
 module.exports = {
   getAllExpense,
@@ -428,4 +434,5 @@ module.exports = {
   deleteExpense,
   exportAllExpenseSheetsCSV,
   exportExpenseSheetsCSVById,
+  getExpensePdf,
 };

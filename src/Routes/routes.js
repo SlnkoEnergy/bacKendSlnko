@@ -193,7 +193,7 @@ const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engi
 
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
 const allowRoles = require("../middlewares/expenseSheetMiddlewares/allowRoles");
-const { createExpense, getAllExpense, getExpenseById, deleteExpense, updateExpenseStatusOverall, updateExpenseStatusItems, exportAllExpenseSheetsCSV, exportExpenseSheetsCSVById, updateExpenseSheet } = require("../Controllers/expenseSheetControllers/expenseSheetController");
+const { createExpense, getAllExpense, getExpenseById, deleteExpense, updateExpenseStatusOverall, updateExpenseStatusItems, exportAllExpenseSheetsCSV, exportExpenseSheetsCSVById, updateExpenseSheet, getExpensePdf } = require("../Controllers/expenseSheetControllers/expenseSheetController");
 // const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
 // Admin router
@@ -457,6 +457,7 @@ router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization,
 //Export to CSV In expense Sheet
 router.get("/expense-all-csv", jwtMW.authentication, jwtMW.authorization, exportAllExpenseSheetsCSV);
 router.get("/expense-by-id-csv/:_id",jwtMW.authentication, jwtMW.authorization, exportExpenseSheetsCSVById);
+router.get("/generate-pdf/:_id", jwtMW.authentication, jwtMW.authorization, getExpensePdf)
 
 
 module.exports = router;

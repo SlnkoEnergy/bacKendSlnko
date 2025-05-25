@@ -14,6 +14,12 @@ const expenseSheetSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "projectDetail",
         },
+        project_code:{
+          type:String
+        },
+        project_name:{
+          type: String
+        },
         description: { type: String },
         expense_date: { type: Date, default: Date.now },
         invoice: {
