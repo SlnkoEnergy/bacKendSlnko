@@ -447,19 +447,17 @@ router.get("/get-pooling-station-master",jwtMW.authentication,jwtMW.authorizatio
  
 
 //BOM master Engineering
-router.post("/add-bom-master",addBOM );
-router.get("/get-bom-master", getBOM );
+router.post("/add-bom-master", addBOM);
+router.get("/get-bom-master",  getBOM);
 
 
 //bd lead new
-router.post("/create-lead",createlead);
-router.get("/all-bd-lead",all_bd_lead);
-router.get("/get-lead-by-id/:_id",get_lead_by_id);
-router.put("/update-lead/:_id",update_lead);
-router.delete("/delete-lead/:_id",delete_lead);
-router.put("/update-lead-status/:_id",updateLeadStatus);
-
-
+router.post("/create-lead", jwtMW.authentication, jwtMW.authorization, createlead);
+router.get("/all-bd-lead", jwtMW.authentication, jwtMW.authorization, all_bd_lead);
+router.get("/get-lead-by-id/:_id", jwtMW.authentication, jwtMW.authorization, get_lead_by_id);
+router.put("/update-lead/:_id",jwtMW.authentication, jwtMW.authorization, update_lead);
+router.delete("/delete-lead/:_id",jwtMW.authentication, jwtMW.authorization, delete_lead);
+router.put("/update-lead/:_id/status", jwtMW.authentication, jwtMW.authorization, updateLeadStatus);
 
 module.exports = router;
 
