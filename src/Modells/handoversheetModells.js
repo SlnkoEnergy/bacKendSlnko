@@ -3,57 +3,31 @@ const handoversheetSchema = new mongoose.Schema(
   {
     id: { type:String},
     p_id: { type: Number, default: " ", },
-
     customer_details: {
-      // project_id: { type: String },
       code: { type: String },
-      // project_name: { type: String },
       name: { type: String },
       customer: { type: String, default: " " },
       epc_developer: { type: String },
-    // site_address_pincode: { type: String },//repalce with site_address
-      site_google_coordinates: { type: String },
-      // contact_no: { type: String },
+      site_address: {
+        village_name: { type: String  },
+        district_name: { type: String  },
+      },
       number: { type: Number },
-      gst_no: { type: String },
-      // billing_address: { type: String },//repalce with billing_address
-      gender_of_Loa_holder: { type: String },
+      p_group: { type: String },
+      state: { type: String },
+      alt_number: { type: Number },
+     
       email: { type: String },
       pan_no: { type: String },
       adharNumber_of_loa_holder: { type: String },
-      // alt_contact_no: { type: String },
-      alt_number: { type: Number },
-      p_group: { type: String },
-       
-    billing_address: {
-      village_name: {
-        type: String,
-      },
-      district_name: {
-        type: String,
-      },
     },
-
-    site_address: {
-      village_name: {
-        type: String,
-      },
-      district_name: {
-        type: String,
-      },
-    },
-    state: { type: String },
-    },
-
     order_details: {
       type_business: { type: String },
       discom_name: { type: String },
       design_date: { type: String },
       feeder_code: { type: String },
       feeder_name: { type: String },
-      
     },
-
     project_detail:{
         project_type:{type:String},
         module_make_capacity:{type:String},
@@ -89,7 +63,6 @@ const handoversheetSchema = new mongoose.Schema(
     
     commercial_details: {
       type: { type: String }},
-      
       other_details: {
         cam_member_name: { type: String},
         loa_number: { type: String },
@@ -116,6 +89,7 @@ const handoversheetSchema = new mongoose.Schema(
     status_of_handoversheet: { type: String, default: " " },
     submitted_by: { type: String, default: "" },
     comment: { type: String, default: "" },
+    is_locked: { type: String, default: "locked" },
   },
   { timestamps: true }
 );

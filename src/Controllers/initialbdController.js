@@ -1346,6 +1346,25 @@ const allbdlead = async function(req,res){
   }
 }
 
+//updater won lead
+
+const updateWonLead = async function (req, res) {
+  let _id  = req.params._id;
+  let data = req.body;
+  if (!_id) {
+    return res.status(400).json({ success: false, message: 'ID is required' });
+  }
+  try {
+    const updatedData = await wonleadModells.findByIdAndUpdate(_id, data, { new: true });
+    if (!updatedData) {   
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+    res.status(200).json({ message: 'Won Data updated successfully', data: updatedData });
+  } catch (error) { 
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+ };
+
 module.exports = {
   initialtofollowup,
   initaltowarmup,
@@ -1376,5 +1395,6 @@ module.exports = {
   wontodead,
   deadtowon,
   updatewon,
+  updateWonLead,
   
 }
