@@ -5,11 +5,13 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src index.js"
+    "start": "node src index.js",
+    "dev": "nodemon src index.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",
@@ -22,6 +24,7 @@
     "mongoose": "^8.8.2",
     "nodemailer": "^6.9.16",
     "nodemon": "^3.1.7",
+    "puppeteer": "^24.9.0",
     "resend": "^4.5.0"
   }
 }
