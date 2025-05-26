@@ -28,6 +28,12 @@ const createhandoversheet = async function (req, res) {
       status_of_handoversheet: "draft",
       submitted_by,
     });
+    
+    cheched_id = await hanoversheetmodells.findOne({ id: id });
+    if (cheched_id) {
+      return res.status(400).json({ message: "Handoversheet already exists" });
+    }
+
     await handoversheet.save();
 
     res.status(200).json({
