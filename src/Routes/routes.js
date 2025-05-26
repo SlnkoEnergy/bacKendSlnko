@@ -1,5 +1,5 @@
 var router = require("express").Router();
-const jwtMW =require("../Authentication/auth");
+const jwtMW =require("../middlewares/auth");
 const {
   addMoney,
   getCreditAmount,

@@ -19,7 +19,6 @@ const authentication = async function (req, res, next) {
 
 const authorization = async function (req, res, next) {
 
-
     const token = req.headers["x-auth-token"];
   if (!token) {
     return res.status(401).send({ status: false, msg: "Token must be provided" });
