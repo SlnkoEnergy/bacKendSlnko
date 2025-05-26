@@ -5,7 +5,6 @@ const createhandoversheet = async function (req, res) {
   try {
     const {
       id,
-
       customer_details,
       order_details,
       project_detail,
@@ -42,11 +41,16 @@ const createhandoversheet = async function (req, res) {
 // get  bd handover sheet data
 const gethandoversheetdata = async function (req, res) {
   try {
-    let page = req.query.page;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 1000; 
+    const skip = (page - 1) * limit;
+
     let getbdhandoversheet = await hanoversheetmodells
       .find()
-      .skip((page - 1) * 10)
-      .limit(10);
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
     res
       .status(200)
       .json({ message: "Data fetched successfully", Data: getbdhandoversheet });
@@ -94,7 +98,7 @@ const updatestatus = async function (req, res) {
     if (!updatedHandoversheet) {
       return res.status(404).json({ message: "Handoversheet not found" });
     }
-    if (updatedHandoversheet.status_of_handoversheet === "Approved") {
+    if (updatedHandoversheet.status_of_handoversheet === "Approved" && updatedHandoversheet.is_locked ==="locked") {
       const latestProject = await projectmodells.findOne().sort({ p_id: -1 });
       const newPid =
         latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;

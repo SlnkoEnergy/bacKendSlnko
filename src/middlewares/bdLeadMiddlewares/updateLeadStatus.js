@@ -18,7 +18,7 @@ function  updateCurrentStatus(lead) {
       name: derivedStatus,
       stage: stage || null
     };
-    console.log(derivedStatus)
+    // console.log(derivedStatus)
   };
 
 module.exports = updateCurrentStatus;
