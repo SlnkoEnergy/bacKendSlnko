@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
-const updateLeadStatus =require("../middleware/updateLeadStatus");
+const updateLeadStatus = require("../middlewares/bdLeadMiddlewares/updateLeadStatus");
+
 const bdleadsSchema = new mongoose.Schema({
   id: String,
   name: {type: String, required: true},

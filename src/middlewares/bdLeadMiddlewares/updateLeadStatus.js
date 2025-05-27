@@ -11,13 +11,14 @@ function  updateCurrentStatus(lead) {
       derivedStatus = "Follow Up";
     } else if (stage === "Token Money") {
       derivedStatus = "Won";
-    } else if (documents.some(doc => /LOA|PPA/i.test(doc))) {
+    } else if (documents.some(doc => /LOA|PPA/i.test(doc)) || stage === "PPA" || stage === "LOA") {
       derivedStatus = "Warm";
     }
     lead.current_status = {
       name: derivedStatus,
       stage: stage || null
     };
+    // console.log(derivedStatus)
   };
 
 module.exports = updateCurrentStatus;
