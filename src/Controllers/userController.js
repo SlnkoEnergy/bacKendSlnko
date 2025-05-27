@@ -11,7 +11,6 @@ config({
 
 //user Registration
 
-
 const userRegister = async function (req, res) {
   try {
     let { name, emp_id, email, phone, department, role, password } = req.body;

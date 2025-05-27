@@ -102,15 +102,17 @@ const updateExpenseSheet = async (req, res) => {
   }
 };
 
-const updateDisbursementDate = async(req, res) => {
+const updateDisbursementDate = async (req, res) => {
   try {
     const expense = await ExpenseSheet.findById(req.params._id);
-    if(!expense) {
+    if (!expense) {
       return res.status(404).json({ error: "Expense Sheet not found" });
     }
 
-    if(expense.current_status !== "final approval"){
-      return res.status(400).json({ error: "Expense Sheet is not in final approval status" });
+    if (expense.current_status !== "final approval") {
+      return res
+        .status(400)
+        .json({ error: "Expense Sheet is not in final approval status" });
     }
 
     const { disbursement_date } = req.body;
@@ -130,9 +132,9 @@ const updateDisbursementDate = async(req, res) => {
     res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
-    })
+    });
   }
-}
+};
 
 const updateExpenseStatusOverall = async (req, res) => {
   try {
@@ -155,8 +157,14 @@ const updateExpenseStatusOverall = async (req, res) => {
     });
 
     // Update each item's status and push to item_status_history
-    if (expense.items && Array.isArray(expense.items)) {
-      expense.items = expense.items.map(item => {
+    if (
+      expense.items &&
+      Array.isArray(expense.items) &&
+      (status === "manager approval" ||
+        status === "rejected" ||
+        status === "hold")
+    ) {
+      expense.items = expense.items.map((item) => {
         item.item_status_history = item.item_status_history || [];
         item.item_status_history.push({
           status,
@@ -181,7 +189,6 @@ const updateExpenseStatusOverall = async (req, res) => {
     });
   }
 };
-
 
 const updateExpenseStatusItems = async (req, res) => {
   try {
@@ -442,18 +449,17 @@ const getExpensePdf = async (req, res) => {
   try {
     // Populate project_id inside items to get project details
     const sheet = await ExpenseSheet.findById(req.params._id).populate([
-  { path: "items.project_id" },
-  { path: "user_id" }
-]);
+      { path: "items.project_id" },
+      { path: "user_id" },
+    ]);
 
-  //  console.log("sheet:", sheet);
+    //  console.log("sheet:", sheet);
     if (!sheet) {
       return res.status(404).json({ message: "Expense Sheet not found" });
     }
-  
-   const department = sheet.user_id.department || "";
-   const pdfBuffer = await generateExpenseSheet(sheet, { department });
 
+    const department = sheet.user_id.department || "";
+    const pdfBuffer = await generateExpenseSheet(sheet, { department });
 
     // Optional: save locally
     fs.writeFileSync("expense.pdf", pdfBuffer);
@@ -466,10 +472,11 @@ const getExpensePdf = async (req, res) => {
 
     res.send(pdfBuffer);
   } catch (error) {
-    res.status(500).json({ message: "Error generating PDF", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error generating PDF", error: error.message });
   }
 };
-
 
 module.exports = {
   getAllExpense,
