@@ -56,7 +56,7 @@ const createExpense = async (req, res) => {
       return res.status(400).json({ message: "Expense Code is required" });
     }
     const existingExpense = await ExpenseSheet.findOne({ expense_code });
-    
+
     if (existingExpense) {
       return res.status(400).json({
         message: "Expense Code already exists",
@@ -148,7 +148,7 @@ const updateExpenseStatusOverall = async (req, res) => {
     if (!expense)
       return res.status(404).json({ error: "Expense Sheet not found" });
 
-    const { status, remarks } = req.body;
+    const { status, remarks, approved_items} = req.body;
 
     if (!status) {
       return res.status(400).json({ error: "Status is required" });
@@ -178,10 +178,19 @@ const updateExpenseStatusOverall = async (req, res) => {
           user_id: req.user._id,
           updatedAt: new Date(),
         });
+    
+      if (status === "manager approval" && Array.isArray(approved_items)) {
+          const match = approved_items.find((a) =>
+            a._id.toString() === item._id.toString()
+          );
+          if (match) {
+            item.approved_amount = match.approved_amount;
+          }
+        }
+
         return item;
       });
     }
-
     await expense.save();
 
     res.status(200).json({
