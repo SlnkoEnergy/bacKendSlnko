@@ -215,7 +215,14 @@ async function generateExpenseSheet(sheet, { department }) {
     </html>
   `;
 
-  const browser = await puppeteer.launch({ headless: "new" });
+ const executablePath = process.env.NODE_ENV === 'production' ? '/usr/bin/chromium' : undefined;
+
+const browser = await puppeteer.launch({
+  headless: 'new',
+  executablePath,
+  args: ['--no-sandbox', '--disable-setuid-sandbox'],
+});
+
   const page = await browser.newPage();
   await page.setContent(htmlContent, { waitUntil: "domcontentloaded" });
 
