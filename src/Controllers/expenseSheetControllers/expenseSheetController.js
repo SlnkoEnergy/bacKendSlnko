@@ -208,7 +208,7 @@ const updateExpenseStatusOverall = async (req, res) => {
 const updateExpenseStatusItems = async (req, res) => {
   try {
     const { sheetId, itemId } = req.params;
-    const { status, remarks } = req.body;
+    const { status, remarks, approved_amount } = req.body;
 
     if (!status) {
       return res.status(400).json({ error: "Status of Item is required" });
@@ -232,6 +232,8 @@ const updateExpenseStatusItems = async (req, res) => {
       updatedAt: new Date(),
     });
 
+
+    item.approved_amount = approved_amount;
     await expenseSheet.save();
 
     res.status(200).json({
