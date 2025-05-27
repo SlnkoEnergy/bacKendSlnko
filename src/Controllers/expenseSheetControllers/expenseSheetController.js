@@ -55,7 +55,13 @@ const createExpense = async (req, res) => {
     if (!expense_code) {
       return res.status(400).json({ message: "Expense Code is required" });
     }
-
+    const existingExpense = await ExpenseSheet.findOne({ expense_code });
+    
+    if (existingExpense) {
+      return res.status(400).json({
+        message: "Expense Code already exists",
+      });
+    }
     const user = await User.findById(user_id).select("emp_id name");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
