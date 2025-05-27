@@ -1,18 +1,8 @@
-FROM node:20-alpine
-RUN apk add --no-cache \
-  chromium \
-  nss \
-  freetype \
-  harfbuzz \
-  ca-certificates \
-  ttf-freefont \
-  udev \
-  bash
+FROM node:16-alpine
 WORKDIR /protrac/backend
 COPY package.json ./
-RUN npm ci
+RUN npm install
 COPY . .
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV DB_URL=${DB_URL}
 ENV DB_DEVELOPMENT_URL=${DB_DEVELOPMENT_URL}
 ENV USER=${USER}
