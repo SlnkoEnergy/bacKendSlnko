@@ -12,7 +12,7 @@ const bdleadsSchema = new mongoose.Schema({
   address: {
     line1: String,
     line2: String,
-    city: {type: String, required: true},
+    village: {type: String, required: true},
     district: {type: String, required: true},
     state: {type: String, required: true},
     postalCode: String,

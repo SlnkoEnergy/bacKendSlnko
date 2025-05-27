@@ -102,6 +102,38 @@ const updateExpenseSheet = async (req, res) => {
   }
 };
 
+const updateDisbursementDate = async(req, res) => {
+  try {
+    const expense = await ExpenseSheet.findById(req.params._id);
+    if(!expense) {
+      return res.status(404).json({ error: "Expense Sheet not found" });
+    }
+
+    if(expense.current_status !== "final approval"){
+      return res.status(400).json({ error: "Expense Sheet is not in final approval status" });
+    }
+
+    const { disbursement_date } = req.body;
+
+    if (!disbursement_date) {
+      return res.status(400).json({ error: "Disbursement date is required" });
+    }
+
+    // Update the disbursement date
+    expense.disbursement_date = disbursement_date;
+    await expense.save();
+    res.status(200).json({
+      message: "Disbursement date updated successfully",
+      data: expense,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    })
+  }
+}
+
 const updateExpenseStatusOverall = async (req, res) => {
   try {
     const expense = await ExpenseSheet.findById(req.params._id);
@@ -114,13 +146,27 @@ const updateExpenseStatusOverall = async (req, res) => {
       return res.status(400).json({ error: "Status is required" });
     }
 
-    // Push to status_history
+    // Update expense status history
     expense.status_history.push({
       status,
       remarks: remarks || "",
       user_id: req.user._id,
       updatedAt: new Date(),
     });
+
+    // Update each item's status and push to item_status_history
+    if (expense.items && Array.isArray(expense.items)) {
+      expense.items = expense.items.map(item => {
+        item.item_status_history = item.item_status_history || [];
+        item.item_status_history.push({
+          status,
+          remarks: remarks || "",
+          user_id: req.user._id,
+          updatedAt: new Date(),
+        });
+        return item;
+      });
+    }
 
     await expense.save();
 
@@ -135,6 +181,7 @@ const updateExpenseStatusOverall = async (req, res) => {
     });
   }
 };
+
 
 const updateExpenseStatusItems = async (req, res) => {
   try {
@@ -429,6 +476,7 @@ module.exports = {
   getExpenseById,
   createExpense,
   updateExpenseSheet,
+  updateDisbursementDate,
   updateExpenseStatusOverall,
   updateExpenseStatusItems,
   deleteExpense,

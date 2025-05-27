@@ -193,7 +193,7 @@ const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engi
 
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
 const allowRoles = require("../middlewares/expenseSheetMiddlewares/allowRoles");
-const { createExpense, getAllExpense, getExpenseById, deleteExpense, updateExpenseStatusOverall, updateExpenseStatusItems, exportAllExpenseSheetsCSV, exportExpenseSheetsCSVById, updateExpenseSheet, getExpensePdf } = require("../Controllers/expenseSheetControllers/expenseSheetController");
+const { createExpense, getAllExpense, getExpenseById, deleteExpense, updateExpenseStatusOverall, updateExpenseStatusItems, exportAllExpenseSheetsCSV, exportExpenseSheetsCSVById, updateExpenseSheet, getExpensePdf, updateDisbursementDate } = require("../Controllers/expenseSheetControllers/expenseSheetController");
 // const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
 
@@ -461,6 +461,7 @@ router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, getAllE
 router.get("/get-expense-by-id/:_id", jwtMW.authentication, jwtMW.authorization, getExpenseById)
 router.post("/create-expense", jwtMW.authentication, jwtMW.authorization, createExpense)
 router.put("/update-expense/:_id", jwtMW.authentication, jwtMW.authorization, updateExpenseSheet);
+router.put("/update-disbursement-date/:_id", jwtMW.authentication, jwtMW.authorization, updateDisbursementDate); //update disbursement date
 router.put("/:_id/status/overall", jwtMW.authentication, jwtMW.authorization,  updateExpenseStatusOverall);
 router.put("/:sheetId/item/:itemId/status", jwtMW.authentication, jwtMW.authorization,  updateExpenseStatusItems);
 router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization, deleteExpense);
