@@ -5,7 +5,6 @@ const createhandoversheet = async function (req, res) {
   try {
     const {
       id,
-
       customer_details,
       order_details,
       project_detail,
