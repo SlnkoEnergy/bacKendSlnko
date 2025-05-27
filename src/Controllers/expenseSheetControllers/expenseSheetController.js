@@ -461,9 +461,6 @@ const getExpensePdf = async (req, res) => {
     const department = sheet.user_id.department || "";
     const pdfBuffer = await generateExpenseSheet(sheet, { department });
 
-    // Optional: save locally
-    fs.writeFileSync("expense.pdf", pdfBuffer);
-
     res.set({
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="Expense_${sheet.expense_code}.pdf"`,
