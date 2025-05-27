@@ -1,10 +1,7 @@
-
-
 const express = require("express");
 const mongoose = require("mongoose");
-const cluster = require("cluster");
-
 const app = express();
+
 const routes = require("../src/Routes/routes");
 
 const cors = require("cors");
