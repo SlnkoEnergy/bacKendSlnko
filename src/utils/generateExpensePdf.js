@@ -1,6 +1,8 @@
 const puppeteer = require("puppeteer");
 const path = require("path");
 const fs = require("fs");
+
+
 async function generateExpenseSheet(sheet, { department }) {
   // Calculate summary amounts by category
   const logoPath = path.resolve(__dirname, "../assets/1.png");

@@ -205,6 +205,8 @@ const{ createMaterial, getAllMaterials, deleteMaterial, updateMaterial }=require
 
 const{ addMaterialCategory, getAllMaterialCategories, deleteMaterialCategory, updateMaterialCategory }=require("../Controllers/engineeringController/materials/materialCategoryController");
 const { addBoq, getBoqsByProject, updateBoqById, deleteBoqById } = require("../Controllers/engineeringController/boq/boqController.js");
+const { default: multipleUpload } = require("../middlewares/multer.js");
+const upload = require("../middlewares/multer.js");
 
 // Admin router
 router.post("/user-registratioN-IT",userRegister);
@@ -459,7 +461,7 @@ router.get("/get-bom-master", jwtMW.authentication,jwtMW.authorization,getBOM );
 //Expense Sheet
 router.get("/get-all-expense", jwtMW.authentication,jwtMW.authorization, getAllExpense)
 router.get("/get-expense-by-id/:_id", jwtMW.authentication, jwtMW.authorization, getExpenseById)
-router.post("/create-expense", jwtMW.authentication, jwtMW.authorization, createExpense)
+router.post("/create-expense", jwtMW.authentication, jwtMW.authorization,upload ,createExpense)
 router.put("/update-expense/:_id", jwtMW.authentication, jwtMW.authorization, updateExpenseSheet);
 router.put("/update-disbursement-date/:_id", jwtMW.authentication, jwtMW.authorization, updateDisbursementDate); //update disbursement date
 router.put("/:_id/status/overall", jwtMW.authentication, jwtMW.authorization,  updateExpenseStatusOverall);
