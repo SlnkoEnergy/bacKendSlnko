@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    otp: {
+        type: Number,
+        trim: true,
+        default: null
+    },
 
 
 
