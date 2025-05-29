@@ -26,6 +26,7 @@ const {
   deleteUser,
   getSingleUser,
   forgetpassword,
+  verifyandResetPassword,
 } = require("../Controllers/userController");
 
 const {
@@ -214,8 +215,8 @@ const { createModuleProject, getModuleProject, getModuleProjectById } = require(
 router.post("/user-registratioN-IT",userRegister);
 router.post("/logiN-IT", login);
 router.get("/get-all-useR-IT",jwtMW.authentication,jwtMW.authorization, getalluser);
-router.post("/forget-password-send-otP-IT", forgettpass);
-router.post("/received-emaiL-IT", verifyandSendPass);
+router.post("/sendOtp", forgettpass);
+router.post("/resetPassword", verifyandResetPassword);
 router.delete("/delete-useR-IT/:_id",jwtMW.authentication,jwtMW.authorization, deleteUser);
 router.get("/get-single-useR-IT/:_id",jwtMW.authentication,jwtMW.authorization, getSingleUser);
 
@@ -501,4 +502,3 @@ router.get('/get-module-project', jwtMW.authentication, jwtMW.authorization, get
 router.get('/get-module-project-id/:_id', jwtMW.authentication, jwtMW.authorization, getModuleProjectById);
 
 module.exports = router;
-
