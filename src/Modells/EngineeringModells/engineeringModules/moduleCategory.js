@@ -1,51 +1,51 @@
 const mongoose = require("mongoose");
+const updateModuleProjectStatus = require("../../../middlewares/engineeringMiddlewares/updateProjectModule");
 
-const moduleCategorySchema = new mongoose.Schema(
+const moduleProjectSchema = new mongoose.Schema(
   {
-    file_upload: {
-      enabled: {
-        type: Boolean,
-        default: false,
-      },
-      max_files: {
-        type: Number,
-        default: 0,
-        validate: {
-          validator: function (value) {
-            return value >= 0;
-          },
-          message: "Max files must be a non-negative number",
+    project_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "projectDetail",
+    },
+    items: [
+      {
+        category_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "moduleCategory",
+        },
+        attachment_url: {
+          type: String,
         },
       },
-    },
-    blockage: {
-      type: mongoose.Schema.ObjectId,
-      default: null,
-    },
-    order: {
-      type: String,
-    },
-    name: {
-      type: String,
-    },
-    description: {
-      type: String,
-    },
-    icon_image: {
-      type: String,
-    },
-    boq: {
-      enabled: {
-        type: Boolean,
-        default: false,
+    ],
+    status_history: [
+      {
+        status: {
+          type: String,
+          enum:["draft", "active", "archived"]
+        },
+        remarks: {
+          type: String,
+        },
+        user_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        updatedAt: { type: Date, default: Date.now },
       },
-      template_category: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "templateCategory",
-      },
+    ],
+    current_status: {
+      type: String,
+      enum:["draft", "active", "archived"]
     },
   },
+
   { timestamps: true }
 );
 
-module.exports = mongoose.model("moduleCategory", moduleCategorySchema);
+moduleProjectSchema.pre("save", function (next){
+  updateModuleProjectStatus(this);
+  next();
+});
+
+module.exports = mongoose.model("moduleProject", moduleProjectSchema);
