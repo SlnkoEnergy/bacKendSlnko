@@ -8,7 +8,7 @@ const { config } = require("dotenv");
 
 const userRegister = async function (req, res) {
   try {
-    let { username, emp_id, email, phone, department, role, password } = req.body;
+    let { name, emp_id, email, phone, department, role, password } = req.body;
 
     if (!name || !emp_id || !email || !password) {
       return res.status(400).json({ msg: "All fields are required" });
@@ -70,7 +70,7 @@ const deleteUser = async function (req, res) {
 //Forget-Password
 const forgettpass = async function (req, res) {
   try {
-    const { email, username } = req.body;
+    const { email, name } = req.body;
 
     if (!email) {
       return res.status(400).json({ message: "Email is required." });
@@ -80,8 +80,8 @@ const forgettpass = async function (req, res) {
       return res.status(404).json({ message: "User not found." });
     }
     // Set default username if missing
-    if (!user.username) {
-      user.username = "defaultUsername";
+    if (!user.name) {
+      user.name = "defaultUsername";
     } // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000);
     user.otp = otp;
@@ -295,7 +295,7 @@ const verifyandResetPassword = async (req, res) => {
 //Login
 const login = async function (req, res) {
  try {
-    const { username, emp_id, email, password } = req.body;
+    const { name, emp_id, email, password } = req.body;
 
     if (!password) {
       return res.status(400).json({ msg: "Password is required" });
