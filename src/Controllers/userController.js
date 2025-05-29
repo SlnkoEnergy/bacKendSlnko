@@ -79,10 +79,8 @@ const forgettpass = async function (req, res) {
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
-    // Set default username if missing
-    if (!user.name) {
-      user.name = "defaultUsername";
-    } // Generate OTP
+   
+   
     const otp = Math.floor(100000 + Math.random() * 900000);
     user.otp = otp;
     user.otpExpires = Date.now() + 15 * 60 * 1000; // OTP valid for 15 minutes
@@ -313,7 +311,7 @@ const login = async function (req, res) {
     // Search user where ANY of the fields match the identity value
     const user = await userModells.findOne({
       $or: [
-        { username: identity },
+        { name: identity },
         { emp_id: identity },
         { email: identity }
       ]
