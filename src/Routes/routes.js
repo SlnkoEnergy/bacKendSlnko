@@ -207,6 +207,7 @@ const{ addMaterialCategory, getAllMaterialCategories, deleteMaterialCategory, up
 const { addBoq, getBoqsByProject, updateBoqById, deleteBoqById } = require("../Controllers/engineeringController/boq/boqController.js");
 const { default: multipleUpload } = require("../middlewares/multer.js");
 const upload = require("../middlewares/multer.js");
+const {createModule, getModuleById, getAllModule, updateModule, deleteModule} = require("../Controllers/engineeringController/engineeringModules/moduleCategoryController.js");
 
 // Admin router
 router.post("/user-registratioN-IT",userRegister);
@@ -485,6 +486,13 @@ router.post("/add-boq", addBoq);
 router.get("/get-boq", getBoqsByProject);
 router.put("/update-boq/:id", updateBoqById);
 router.delete("/delete-boq/:id", deleteBoqById);
+
+//Engineering Modules
+router.post("/create-module",jwtMW.authentication, jwtMW.authorization, createModule);
+router.get("/get-module-by-id/:_id", jwtMW.authentication, jwtMW.authorization, getModuleById);
+router.get('/get-module', jwtMW.authentication, jwtMW.authorization, getAllModule);
+router.put('/update-module/:_id', jwtMW.authentication, jwtMW.authorization, updateModule);
+router.delete('/delete-module/:_id', jwtMW.authentication, jwtMW.authorization, deleteModule);
 
 module.exports = router;
 
