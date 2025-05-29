@@ -1,4 +1,4 @@
-const moduleCategory = require("../../../Modells/EngineeringModells/engineeringModules/moduleCategory");
+const moduleCategory = require("../../../Modells/EngineeringModells/engineeringModules/moduleTemplate");
 
 const createModule = async (req, res) => {
   try {
@@ -87,5 +87,5 @@ module.exports = {
   getModuleById,
   getAllModule,
   updateModule,
-  deleteModule
+  deleteModule,
 };
