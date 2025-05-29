@@ -71,7 +71,7 @@ const deleteUser = async function (req, res) {
 //Forget-Password
 const forgettpass = async function (req, res) {
   try {
-    const { email, username } = req.body;
+    const { email } = req.body;
 
     if (!email) {
       return res.status(400).json({ message: "Email is required." });
