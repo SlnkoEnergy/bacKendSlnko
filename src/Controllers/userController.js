@@ -71,7 +71,7 @@ const deleteUser = async function (req, res) {
 //Forget-Password
 const forgettpass = async function (req, res) {
   try {
-    const { email } = req.body;
+    const { email, username } = req.body;
 
     if (!email) {
       return res.status(400).json({ message: "Email is required." });
@@ -82,8 +82,10 @@ const forgettpass = async function (req, res) {
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
-
-    // Generate OTP
+    // Set default username if missing
+    if (!user.username) {
+      user.username = "defaultUsername";
+    } // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000);
 
     // Save OTP in database (optional: set expiration time)
