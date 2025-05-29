@@ -233,9 +233,7 @@ const forgettpass = async function (req, res) {
       res.status(200).json({
         message: "OTP sent successfully. Please check your email.",
         email,
-        otp, // In production, avoid exposing the OTP in the response.
-        userID: user._id,
-      });
+        });
     });
   } catch (error) {
     console.error(error);
