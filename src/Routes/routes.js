@@ -209,7 +209,8 @@ const { addBoq, getBoqsByProject, updateBoqById, deleteBoqById } = require("../C
 const { default: multipleUpload } = require("../middlewares/multer.js");
 const upload = require("../middlewares/multer.js");
 const {createModule, getModuleById, getAllModule, updateModule, deleteModule} = require("../Controllers/engineeringController/engineeringModules/moduleTemplateController.js");
-const { createModuleProject, getModuleProject, getModuleProjectById } = require("../Controllers/engineeringController/engineeringModules/moduleCategoryContoller.js");
+const { createModuleCategory, getModuleCategory, getModuleCategoryById, updateModuleCategory, updateModuleCategoryStatus } = require("../Controllers/engineeringController/engineeringModules/moduleCategoryContoller.js");
+
 
 // Admin router
 router.post("/user-registratioN-IT",userRegister);
@@ -497,11 +498,11 @@ router.put('/update-module/:_id', jwtMW.authentication, jwtMW.authorization, upd
 router.delete('/delete-module/:_id', jwtMW.authentication, jwtMW.authorization, deleteModule);
 
 // Project Modules
-router.post('/create-module-project', jwtMW.authentication, jwtMW.authorization, createModuleProject);
-router.get('/get-module-project', jwtMW.authentication, jwtMW.authorization, getModuleProject);
-router.get('/get-module-project-id/:_id', jwtMW.authentication, jwtMW.authorization, getModuleProjectById);
+router.post('/create-module-category', jwtMW.authentication, jwtMW.authorization, createModuleCategory);
+router.get('/get-module-category', jwtMW.authentication, jwtMW.authorization, getModuleCategory);
+router.get('/get-module-category-id/:_id', jwtMW.authentication, jwtMW.authorization, getModuleCategoryById);
+router.put('/update-module-category/:_id', jwtMW.authentication, jwtMW.authorization, updateModuleCategory);
+router.put('/:moduleId/item/:itemId/statusModule', jwtMW.authentication, jwtMW.authorization, updateModuleCategoryStatus);
 
 module.exports = router;
 
-
-module.exports = router;

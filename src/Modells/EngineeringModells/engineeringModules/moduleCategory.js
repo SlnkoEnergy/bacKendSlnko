@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const updateModuleProjectStatus = require("../../../middlewares/engineeringMiddlewares/updateProjectModule");
+const updateModuleCategoryStatus = require("../../../middlewares/engineeringMiddlewares/updateModuleCategory");
 
 const moduleProjectSchema = new mongoose.Schema(
   {
@@ -16,35 +16,34 @@ const moduleProjectSchema = new mongoose.Schema(
         attachment_url: {
           type: String,
         },
+        status_history: [
+          {
+            status: {
+              type: String,
+              enum: ["draft", "active", "archived"],
+            },
+            remarks: {
+              type: String,
+            },
+            user_id: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "User",
+            },
+            updatedAt: { type: Date, default: Date.now },
+          },
+        ],
+        current_status: {
+          type: String,
+          enum: ["draft", "active", "archived"],
+        },
       },
     ],
-    status_history: [
-      {
-        status: {
-          type: String,
-          enum:["draft", "active", "archived"]
-        },
-        remarks: {
-          type: String,
-        },
-        user_id: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-        updatedAt: { type: Date, default: Date.now },
-      },
-    ],
-    current_status: {
-      type: String,
-      enum:["draft", "active", "archived"]
-    },
   },
-
   { timestamps: true }
 );
 
-moduleProjectSchema.pre("save", function (next){
-  updateModuleProjectStatus(this);
+moduleProjectSchema.pre("save", function (next) {
+  updateModuleCategoryStatus(this);
   next();
 });
 

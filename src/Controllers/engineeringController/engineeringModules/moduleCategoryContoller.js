@@ -1,6 +1,6 @@
 const moduleProject = require("../../../Modells/EngineeringModells/engineeringModules/moduleCategory");
 
-const createModuleProject = async (req, res) => {
+const createModuleCategory = async (req, res) => {
   try {
     const data = req.body;
     const moduleData = new moduleProject(data);
@@ -18,7 +18,7 @@ const createModuleProject = async (req, res) => {
   }
 };
 
-const getModuleProject = async (req, res) => {
+const getModuleCategory = async (req, res) => {
   try {
     const data = await moduleProject
       .find()
@@ -37,7 +37,7 @@ const getModuleProject = async (req, res) => {
   }
 };
 
-const getModuleProjectById = async (req, res) => {
+const getModuleCategoryById = async (req, res) => {
   try {
     const data = await moduleProject
       .findById(req.params._id)
@@ -56,9 +56,75 @@ const getModuleProjectById = async (req, res) => {
   }
 };
 
+const updateModuleCategory = async(req, res) => {
+  try {
+    const data  = await moduleProject.findByIdAndUpdate(
+      req.params._id,
+      req.body,
+      { new: true }
+    );
+
+    res.status(200).json({
+      message: "Module Category Updated Successfully",
+      data,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+}
+
+const updateModuleCategoryStatus = async (req, res) => {
+  try {
+    const {moduleId, itemId} = req.params;
+    const {status, remarks} = req.body;
+
+    if(!status) {
+      return res.status(400).json({
+        message: "Status is required"
+      });
+    }
+    const moduleCategoryData = await moduleProject.findById(moduleId);
+
+    if (!moduleCategoryData) {
+      return res.status(404).json({
+        message: "Module Category not found"
+      });
+    }
+
+    const item = moduleCategoryData.items.id(itemId);
+    if (!item) {
+      return res.status(404).json({
+        message: "Item not found"
+      });
+    }
+
+    item.status_history.push({
+      status, 
+      remarks,
+      user_id: req.user._id,
+      updatedAt: new Date(),
+    })
+
+    await moduleCategoryData.save();
+    res.status(200).json({
+      message: "Module Category Status Updated Successfully",
+      data: moduleCategoryData,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+}
 
 module.exports = {
-  createModuleProject,
-  getModuleProject,
-  getModuleProjectById
+  createModuleCategory,
+  getModuleCategory,
+  getModuleCategoryById,
+  updateModuleCategory,
+  updateModuleCategoryStatus
 };
