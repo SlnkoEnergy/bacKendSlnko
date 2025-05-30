@@ -209,7 +209,7 @@ const{ addMaterialCategory, getAllMaterialCategories, deleteMaterialCategory, up
 const upload = require("../middlewares/multer.js");
 const {createModule, getModuleById, getAllModule, updateModule, deleteModule} = require("../Controllers/engineeringController/engineeringModules/moduleTemplateController.js");
 const { createModuleCategory, getModuleCategory, getModuleCategoryById, updateModuleCategory, updateModuleCategoryStatus } = require("../Controllers/engineeringController/engineeringModules/moduleCategoryContoller.js");
-const { createBoqTemplate, getBoqTemplateById } = require("../Controllers/engineeringController/boq/boqTemplateController.js");
+const { createBoqTemplate, getBoqTemplateById, getBoqTemplate, updateBoqTemplate } = require("../Controllers/engineeringController/boq/boqTemplateController.js");
 
 
 // Admin router
@@ -502,7 +502,9 @@ router.put('/:moduleId/item/:itemId/statusModule', jwtMW.authentication, jwtMW.a
 
 // Boq Templates
 router.post('/create-boq-template', jwtMW.authentication, jwtMW.authorization, createBoqTemplate);
-router.get('/get-boq-template-by-id/:_id', jwtMW.authentication, jwtMW.authorization, getBoqTemplateById); // Assuming this is the correct endpoint for getting boq template by id
+router.get('/get-boq-template-by-id/:_id', jwtMW.authentication, jwtMW.authorization, getBoqTemplateById); 
+router.get('/get-boq-template', jwtMW.authentication, jwtMW.authorization, getBoqTemplate);
+router.put('/update-boq-template/:_id', jwtMW.authentication, jwtMW.authorization, updateBoqTemplate); 
 
 module.exports = router;
 

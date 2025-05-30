@@ -47,8 +47,35 @@ const getBoqTemplate = async(req, res)=>{
   }
 }
 
+const updateBoqTemplate = async (req, res) => {
+  try {
+    const data = await boqTemplates.findByIdAndUpdate(
+      req.params._id,
+      req.body,
+      { new: true}
+    )
+
+    if (!data) {
+      return res.status(404).json({
+        message: "Boq Template not found",
+      });
+    }
+    res.status(200).json({
+      message: "Boq Template updated successfully",
+      data: data,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   createBoqTemplate,
   getBoqTemplateById,
-  getBoqTemplate
+  getBoqTemplate,
+  updateBoqTemplate
 };
