@@ -3,19 +3,26 @@ const { default: mongoose } = require("mongoose");
 const userSchema = new mongoose.Schema({
     name: {
         type: String,
-        trim: true
+        trim: true,
+        required: true,
+        unique: true
 
     },
     emp_id: {
         type: String,
-        trim: true
+        trim: true,
+        required: true,
+        unique: true
     },
     email: {
         type: String,
-        trim: true
+        trim: true,
+        required: true,
+        unique: true,
     },
         password:{
             type:String,
+            required:true,
         },
     phone: {
         type: Number,
@@ -30,12 +37,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-     otp:{
-        type:Number,
-        default: " "
+    otp: {
+        type: Number,
+        trim: true,
+        default: null
     },
-    otpExpires: { type: Date, default: null },
-
 
 
 
