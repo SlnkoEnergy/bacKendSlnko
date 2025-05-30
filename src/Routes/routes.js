@@ -476,7 +476,6 @@ router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization,
 //Export to CSV In expense Sheet
 router.get("/expense-all-csv", jwtMW.authentication, jwtMW.authorization, exportAllExpenseSheetsCSV);
 router.get("/expense-by-id-csv/:_id",jwtMW.authentication, jwtMW.authorization, exportExpenseSheetsCSVById);
-// router.get("/generate-pdf/:_id", jwtMW.authentication, jwtMW.authorization, getExpensePdf)
 
 //bd lead new
 router.post("/create-lead", jwtMW.authentication, jwtMW.authorization, createlead);
