@@ -1,9 +1,9 @@
-const moduleProject = require("../../../Modells/EngineeringModells/engineeringModules/moduleCategory");
+const moduleCategory = require("../../../Modells/EngineeringModells/engineeringModules/moduleCategory");
 
 const createModuleCategory = async (req, res) => {
   try {
     const data = req.body;
-    const moduleData = new moduleProject(data);
+    const moduleData = new moduleCategory(data);
 
     await moduleData.save();
     res.status(201).json({
@@ -20,7 +20,7 @@ const createModuleCategory = async (req, res) => {
 
 const getModuleCategory = async (req, res) => {
   try {
-    const data = await moduleProject
+    const data = await moduleCategory
       .find()
       .populate("items.category_id")
       .populate("project_id");
@@ -39,7 +39,7 @@ const getModuleCategory = async (req, res) => {
 
 const getModuleCategoryById = async (req, res) => {
   try {
-    const data = await moduleProject
+    const data = await moduleCategory
       .findById(req.params._id)
       .populate("items.category_id")
       .populate("project_id");
@@ -58,7 +58,7 @@ const getModuleCategoryById = async (req, res) => {
 
 const updateModuleCategory = async(req, res) => {
   try {
-    const data  = await moduleProject.findByIdAndUpdate(
+    const data  = await moduleCategory.findByIdAndUpdate(
       req.params._id,
       req.body,
       { new: true }
@@ -86,7 +86,7 @@ const updateModuleCategoryStatus = async (req, res) => {
         message: "Status is required"
       });
     }
-    const moduleCategoryData = await moduleProject.findById(moduleId);
+    const moduleCategoryData = await moduleCategory.findById(moduleId);
 
     if (!moduleCategoryData) {
       return res.status(404).json({

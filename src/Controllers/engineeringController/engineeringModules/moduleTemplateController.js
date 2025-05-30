@@ -1,9 +1,9 @@
-const moduleCategory = require("../../../Modells/EngineeringModells/engineeringModules/moduleTemplate");
+const moduleTemplate = require("../../../Modells/EngineeringModells/engineeringModules/moduleTemplate");
 
 const createModule = async (req, res) => {
   try {
     const data = req.body;
-    const moduleData = new moduleCategory(data);
+    const moduleData = new moduleTemplate(data);
 
     await moduleData.save();
     res.status(201).json({
@@ -20,7 +20,7 @@ const createModule = async (req, res) => {
 
 const getModuleById = async (req, res) => {
   try {
-    const moduleData = await moduleCategory.findById(req.params._id);
+    const moduleData = await moduleTemplate.findById(req.params._id);
     res.status(200).json({
       message: "Module Category Retrieved Successfully",
       data: moduleData,
@@ -35,7 +35,7 @@ const getModuleById = async (req, res) => {
 
 const getAllModule = async (req, res) => {
   try {
-    const moduleData = await moduleCategory.find();
+    const moduleData = await moduleTemplate.find();
     res.status(200).json({
       message: "Module Category Retrieved Successfully",
       data: moduleData,
@@ -50,7 +50,7 @@ const getAllModule = async (req, res) => {
 
 const updateModule = async (req, res) => {
   try {
-    const moduleData = await moduleCategory.findByIdAndUpdate(
+    const moduleData = await moduleTemplate.findByIdAndUpdate(
       req.params._id,
       req.body,
       { new: true }
@@ -69,7 +69,7 @@ const updateModule = async (req, res) => {
 
 const deleteModule = async (req, res) => {
   try {
-    const deleteModule = await moduleCategory.findByIdAndDelete(req.params._id);
+    const deleteModule = await moduleTemplate.findByIdAndDelete(req.params._id);
     res.status(200).json({
       message: "Module Category Deleted Successfully",
       data: deleteModule,

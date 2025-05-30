@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const moduleCategorySchema = new mongoose.Schema(
+const moduleTemplateSchema = new mongoose.Schema(
   {
     file_upload: {
       enabled: {
@@ -48,4 +48,4 @@ const moduleCategorySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("moduleCategory", moduleCategorySchema);
+module.exports = mongoose.model("moduleTemplates", moduleTemplateSchema);

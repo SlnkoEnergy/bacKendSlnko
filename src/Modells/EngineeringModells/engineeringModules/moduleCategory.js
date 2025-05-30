@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const updateModuleCategoryStatus = require("../../../middlewares/engineeringMiddlewares/updateModuleCategory");
 
-const moduleProjectSchema = new mongoose.Schema(
+const moduleCategorySchema = new mongoose.Schema(
   {
     project_id: {
       type: mongoose.Schema.Types.ObjectId,
@@ -42,9 +42,9 @@ const moduleProjectSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-moduleProjectSchema.pre("save", function (next) {
+moduleCategorySchema.pre("save", function (next) {
   updateModuleCategoryStatus(this);
   next();
 });
 
-module.exports = mongoose.model("moduleProject", moduleProjectSchema);
+module.exports = mongoose.model("moduleCategory", moduleCategorySchema);
