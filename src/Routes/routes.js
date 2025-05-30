@@ -501,7 +501,7 @@ router.put('/:moduleId/item/:itemId/statusModule', jwtMW.authentication, jwtMW.a
 
 // Boq Templates
 router.post('/create-boq-template', jwtMW.authentication, jwtMW.authorization, createBoqTemplate);
-router.get('/get-boq-template-by-id/:_id', jwtMW.authentication, jwtMW.authorization, getBoqTemplateById); // Assuming this is the correct endpoint for getting boq template by id
+router.get('/get-boq-template-by-id/:_id', jwtMW.authentication, jwtMW.authorization, getBoqTemplateById); 
 
 module.exports = router;
 
