@@ -237,32 +237,22 @@ const forgettpass = async function (req, res) {
   }
 };
 
-//Verify-OTP-and-Send-Password
-const verifyandResetPassword = async (req, res) => {
+
+//verify-OTP
+const verifyOtp = async (req, res) => {
   try {
-    const { email, otp, newPassword, confirmPassword } = req.body;
+    const { email, otp } = req.body;
 
-    // Validate input
-    if (!email || !otp || !newPassword || !confirmPassword) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Email, OTP, new password, and confirm password are required.",
-        });
-    }
-    if (newPassword !== confirmPassword) {
-      return res
-        .status(400)
-        .json({ message: "New password and confirm password do not match." });
-    }
-
-    // Find user by email
     const user = await userModells.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
 
+    // Validate input
+    if ( !otp) {
+      return res.status(400).json({ message: "OTP are required." });
+    }
+ 
     // Check if OTP matches
     if (user.otp !== parseInt(otp)) {
       return res.status(400).json({ message: "Invalid OTP." });
@@ -271,6 +261,33 @@ const verifyandResetPassword = async (req, res) => {
     // Check if OTP has expired
     if (Date.now() > user.otpExpires) {
       return res.status(400).json({ message: "OTP has expired." });
+    }
+
+    return res.status(200).json({ message: "OTP verified successfully." });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+//Verify-OTP-and-Send-Password
+const verifyandResetPassword = async (req, res) => {
+ try {
+    const { email, newPassword, confirmPassword } = req.body;
+
+    // Validate input
+    if (!email || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: "Email, new password, and confirm password are required." });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: "New password and confirm password do not match." });
+    }
+
+    // Find user by email
+    const user = await userModells.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
     }
 
     // Hash the new password
@@ -282,9 +299,7 @@ const verifyandResetPassword = async (req, res) => {
     user.otpExpires = null;
     await user.save();
 
-    return res
-      .status(200)
-      .json({ message: "Password has been reset successfully." });
+    return res.status(200).json({ message: "Password has been reset successfully." });
   } catch (error) {
     return res.status(500).json({ message: "Internal server error." });
   }
@@ -366,7 +381,9 @@ module.exports = {
   login,
   getalluser,
   forgettpass,
+  verifyOtp,
   verifyandResetPassword,
+ 
   deleteUser,
   getSingleUser,
 };

@@ -27,6 +27,7 @@ const {
   getSingleUser,
   forgetpassword,
   verifyandResetPassword,
+  verifyOtp,
 } = require("../Controllers/userController");
 
 const {
@@ -216,6 +217,7 @@ router.post("/user-registratioN-IT",userRegister);
 router.post("/logiN-IT", login);
 router.get("/get-all-useR-IT",jwtMW.authentication,jwtMW.authorization, getalluser);
 router.post("/sendOtp", forgettpass);
+router.post("/verifyOtp", verifyOtp);
 router.post("/resetPassword", verifyandResetPassword);
 router.delete("/delete-useR-IT/:_id",jwtMW.authentication,jwtMW.authorization, deleteUser);
 router.get("/get-single-useR-IT/:_id",jwtMW.authentication,jwtMW.authorization, getSingleUser);
