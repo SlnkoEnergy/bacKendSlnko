@@ -8,7 +8,7 @@ const boqCategorySchema = new mongoose.Schema({
     },
     module_template:{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'ModuleTemplates',
+        ref: 'moduleTemplates',
         required: true
     },
     data:[
