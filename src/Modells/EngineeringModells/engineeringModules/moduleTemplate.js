@@ -41,7 +41,7 @@ const moduleTemplateSchema = new mongoose.Schema(
       },
       template_category: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "templateCategory",
+        ref: "BoqTemplate",
       },
     },
   },
