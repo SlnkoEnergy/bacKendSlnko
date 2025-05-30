@@ -4,7 +4,6 @@ const User = require("../../Modells/userModells");
 const { Parser } = require("json2csv");
 const { default: mongoose } = require("mongoose");
 const generateExpenseCode = require("../../utils/generateExpenseCode");
-const generateExpenseSheet = require("../../utils/generateExpensePdf");
 const axios = require("axios");
 const fs = require("fs");
 const FormData = require("form-data");
@@ -552,5 +551,4 @@ module.exports = {
   deleteExpense,
   exportAllExpenseSheetsCSV,
   exportExpenseSheetsCSVById,
-  getExpensePdf,
 };
