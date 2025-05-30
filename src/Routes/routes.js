@@ -206,11 +206,10 @@ const { create } = require("../Modells/bdleadsModells");
 const{ createMaterial, getAllMaterials, deleteMaterial, updateMaterial }=require("../Controllers/engineeringController/materials/materialController.js");
 
 const{ addMaterialCategory, getAllMaterialCategories, deleteMaterialCategory, updateMaterialCategory }=require("../Controllers/engineeringController/materials/materialCategoryController");
-const { addBoq, getBoqsByProject, updateBoqById, deleteBoqById } = require("../Controllers/engineeringController/boq/boqController.js");
-const { default: multipleUpload } = require("../middlewares/multer.js");
 const upload = require("../middlewares/multer.js");
 const {createModule, getModuleById, getAllModule, updateModule, deleteModule} = require("../Controllers/engineeringController/engineeringModules/moduleTemplateController.js");
 const { createModuleCategory, getModuleCategory, getModuleCategoryById, updateModuleCategory, updateModuleCategoryStatus } = require("../Controllers/engineeringController/engineeringModules/moduleCategoryContoller.js");
+const { createBoqTemplate, getBoqTemplateById } = require("../Controllers/engineeringController/boq/boqTemplateController.js");
 
 
 // Admin router
@@ -406,12 +405,13 @@ router.put("/edit-warm/:_id",jwtMW.authentication,jwtMW.authorization,editwarm);
 
 
 //handdoversheet 
-// router.post("/create-hand-over-sheet",jwtMW.authentication,jwtMW.authorization,createhandoversheet);
-// router.get("/get-all-handover-sheet",jwtMW.authentication,jwtMW.authorization,gethandoversheetdata);
-// router.put("/edit-hand-over-sheet",jwtMW.authentication,jwtMW.authorization,edithandoversheetdata);
-// router.put("/update-status-of-handoversheet",jwtMW.authentication,jwtMW.authorization, updatestatus);
-// router.get("/get-all-bd-handoversheet",jwtMW.authentication,jwtMW.authorization, getbdhandoversheetdata);
-
+router.post("/create-hand-over-sheet", jwtMW.authentication,jwtMW.authorization,createhandoversheet);
+router.get("/get-all-handover-sheet",jwtMW.authentication,jwtMW.authorization,gethandoversheetdata);
+router.put("/edit-hand-over-sheet/:_id",jwtMW.authentication,jwtMW.authorization,edithandoversheetdata);
+router.put("/update-status/:_id",jwtMW.authentication,jwtMW.authorization,updatestatus);
+router.post("/check/:_id",jwtMW.authentication,jwtMW.authorization,checkid);
+router.get("/get-handoversheet/:_id",jwtMW.authentication,jwtMW.authorization,getbyid);
+router.get("/search/:letter",jwtMW.authentication,jwtMW.authorization,search);
 
 
 //module master
@@ -485,12 +485,6 @@ router.put("/update-lead/:_id",jwtMW.authentication, jwtMW.authorization, update
 router.delete("/delete-lead/:_id",jwtMW.authentication, jwtMW.authorization, delete_lead);
 router.put("/update-lead/:_id/status", jwtMW.authentication, jwtMW.authorization, updateLeadStatus);
 
-//Boq Routes
-router.post("/add-boq", addBoq);
-router.get("/get-boq", getBoqsByProject);
-router.put("/update-boq/:id", updateBoqById);
-router.delete("/delete-boq/:id", deleteBoqById);
-
 //Engineering Modules
 router.post("/create-module",jwtMW.authentication, jwtMW.authorization, createModule);
 router.get("/get-module-by-id/:_id", jwtMW.authentication, jwtMW.authorization, getModuleById);
@@ -504,6 +498,10 @@ router.get('/get-module-category', jwtMW.authentication, jwtMW.authorization, ge
 router.get('/get-module-category-id/:_id', jwtMW.authentication, jwtMW.authorization, getModuleCategoryById);
 router.put('/update-module-category/:_id', jwtMW.authentication, jwtMW.authorization, updateModuleCategory);
 router.put('/:moduleId/item/:itemId/statusModule', jwtMW.authentication, jwtMW.authorization, updateModuleCategoryStatus);
+
+// Boq Templates
+router.post('/create-boq-template', jwtMW.authentication, jwtMW.authorization, createBoqTemplate);
+router.get('/get-boq-template-by-id/:_id', jwtMW.authentication, jwtMW.authorization, getBoqTemplateById); // Assuming this is the correct endpoint for getting boq template by id
 
 module.exports = router;
 
