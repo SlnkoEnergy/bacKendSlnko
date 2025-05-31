@@ -143,11 +143,10 @@ const getpohistory = async function (req, res) {
   // const pageSize = 200;
   // const skip = (page - 1) * pageSize;
 
-  let data = await pohisttoryModells
-    .find()
-    // .sort({ createdAt: -1 }) // Latest first
-    // .skip(skip)
-    // .limit(pageSize);
+  let data = await pohisttoryModells.find();
+  // .sort({ createdAt: -1 }) // Latest first
+  // .skip(skip)
+  // .limit(pageSize);
   res.status(200).json({ msg: "All PO History", data: data });
 };
 
@@ -170,24 +169,138 @@ const getPOHistoryById = async function (req, res) {
   }
 };
 
-
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
-    // const page = parseInt(req.query.page) || 1;
-    // const pageSize = 200;
-    // const skip = (page - 1) * pageSize;
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = 10;
+    const skip = (page - 1) * pageSize;
+    const search = req.query.query || "";
+    const searchRegex = new RegExp(search, "i");
 
-    let data = await purchaseOrderModells.find();
-    // .sort({ createdAt: -1 }) // Latest first
-    // .skip(skip)
-    // .limit(pageSize);
+    // Pipeline without initial $match on po fields
+    const pipeline = [
+      {
+        $lookup: {
+          from: "payrequests",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "pay_requests",
+        },
+      },
+      {
+        $addFields: {
+          filtered_pay_requests: {
+            $filter: {
+              input: "$pay_requests",
+              as: "pr",
+              cond: {
+                $and: [
+                  { $eq: ["$$pr.approved", "Approved"] },
+                  { $ne: ["$$pr.utr", ""] },
+                  { $ne: ["$$pr.utr", null] },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          total_amount_paid: {
+            $sum: {
+              $map: {
+                input: "$filtered_pay_requests",
+                as: "pr",
+                in: { $toDouble: "$$pr.amount_paid" },
+              },
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "biildetails",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "bill_details",
+        },
+      },
+      {
+        $addFields: {
+          total_bill_value: {
+            $sum: {
+              $map: {
+                input: "$bill_details",
+                as: "b",
+                in: { $toDouble: "$$b.bill_value" },
+              },
+            },
+          },
+          bill_types: {
+            $reduce: {
+              input: { $setUnion: ["$bill_details.type", []] },
+              initialValue: "",
+              in: {
+                $cond: [
+                  { $eq: ["$$value", ""] },
+                  "$$this",
+                  { $concat: ["$$value", ", ", "$$this"] },
+                ],
+              },
+            },
+          },
+        },
+      },
+      // Now do single $match combining ALL searchable fields
+      {
+        $match: {
+          $or: [
+            { po_number: { $regex: searchRegex } },
+            { item: { $regex: searchRegex } },
+            { vendor: { $regex: searchRegex } },
+            { bill_types: { $regex: searchRegex } },
+          ],
+        },
+      },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $skip: skip },
+            { $limit: pageSize },
+            {
+              $project: {
+                pay_requests: 0,
+                filtered_pay_requests: 0,
+                bill_details: 0,
+              },
+            },
+          ],
+        },
+      },
+    ];
 
-    res.status(200).json({ msg: "All PO", data: data });
+    const result = await purchaseOrderModells.aggregate(pipeline);
+
+    const total = result[0].metadata.length > 0 ? result[0].metadata[0].total : 0;
+    const data = result[0].data;
+
+    res.status(200).json({
+      msg: "All PO",
+      data,
+      meta: {
+        total,
+        page,
+        count: data.length,
+      },
+    });
   } catch (error) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
+
+
 
 //Move-Recovery
 const moverecovery = async function (req, res) {
