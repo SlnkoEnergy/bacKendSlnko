@@ -48,7 +48,7 @@ const createhandoversheet = async function (req, res) {
 const gethandoversheetdata = async function (req, res) {
   try {
     const page = parseInt(req.query.page, 10) || 1;
-    const limit = 1000; 
+    const limit = 10; 
     const skip = (page - 1) * limit;
 
     let getbdhandoversheet = await hanoversheetmodells
