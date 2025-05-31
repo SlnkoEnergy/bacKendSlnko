@@ -2,17 +2,17 @@ const { default: mongoose } = require("mongoose");
 
 const projectSchema = new mongoose.Schema(
   {
-    p_id: { type: Number, default:" " },
-    customer: { type: String, default:" " },
-    name: { type: String, default:" "  },
+    p_id: { type: Number, default: " " },
+    customer: { type: String, default: " " },
+    name: { type: String, default: " " },
     p_group: { type: String },
     email: { type: String },
     number: { type: String },
-    
-alt_number:{
-  type:String
-},
-   
+
+    alt_number: {
+      type: String,
+    },
+
     billing_address: {
       village_name: {
         type: String,
@@ -35,7 +35,6 @@ alt_number:{
       type: String,
     },
 
-   
     project_kwp: { type: String },
     distance: { type: String },
     tarrif: { type: String },

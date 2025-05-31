@@ -2,15 +2,12 @@ const mongoose = require("mongoose");
 const bosSchema = new mongoose.Schema({
   category: {
     type: String,
-    
   },
   itemName: {
     type: String,
-   
   },
   rating: {
     type: String,
-    
   },
  technicalSpecification: {
     type: String,

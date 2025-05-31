@@ -1,47 +1,57 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const cors = require("cors");
-const { config } = require("dotenv");
-const routes = require("../src/Routes/routes");
-
-// Load environment variables
-config();
+const cluster = require("cluster");
 
 const app = express();
+const routes = require("../src/Routes/routes");
 
-// Middleware
-app.use(cors());
+const cors = require("cors");
+const { config } = require("dotenv");
+
+config({
+ path: "./.env"
+});
+
+app.use(cors({
+  origin: "*", // <-- You already added this, but ensure it’s applied BEFORE routes
+  methods: ["GET", "POST", "PUT","PATCH","DELETE"],
+  allowedHeaders: ["Content-Type", "x-auth-token"],
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const PORT = process.env.PORT || 3000;
-const DB_URI = process.env.DB_DEVELOPMENT_URL;
+const PORT = process.env.PORT;
+const db = process.env.DB_DEVELOPMENT_URL;
 
 const startServer = async () => {
-  try {
-    // Clean Mongoose connection
-    await mongoose.connect(DB_URI);
-    console.log("✅ MongoDB connected");
+try {
 
-    // Routes
-    app.use("/v1", routes);
+  
+  await mongoose.connect(db, {
+  });
+  console.log("SlnkoEnergy database is connected");
 
-    // Start server
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
 
-    // Graceful shutdown
-    process.on("SIGINT", async () => {
-      console.log("\n🛑 Gracefully shutting down...");
-      await mongoose.connection.close();
-      console.log("✅ MongoDB connection closed");
+  app.use("/v1", routes);
+
+  // Start the server
+  app.listen(PORT, () => {
+    console.log(`Slnko app is running on port ${PORT}`);
+  });
+
+
+  process.on("SIGINT", () => {
+    console.log("Gracefully shutting down...");
+    mongoose.connection.close(() => {
+      console.log("MongoDB connection closed");
       process.exit(0);
     });
-  } catch (error) {
-    console.error("❌ Server failed to start:", error);
-    process.exit(1);
-  }
+  });
+} catch (err) {
+  console.error("Failed to start server:", err);
+  process.exit(1);
+}
 };
 
+// Start the server
 startServer();
