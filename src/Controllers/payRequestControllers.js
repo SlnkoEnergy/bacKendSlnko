@@ -762,18 +762,38 @@ const getPay = async (req, res) => {
     const pageSize = 10;
     const skip = (page - 1) * pageSize;
 
-    const request = await payRequestModells
-      .find()
-      .sort({ createdAt: -1 }) // Latest first
-      .skip(skip)
-      .limit(pageSize);
+const request = await payRequestModells.aggregate([
+  { $sort: { createdAt: -1 } },
+  { $skip: skip },
+  { $limit: pageSize },
+  {
+    $lookup: {
+      from: 'projectdetails', // Correct collection name
+      localField: 'p_id',
+      foreignField: 'p_id',
+      as: 'project'
+    }
+  },
+  { $unwind: { path: '$project', preserveNullAndEmptyArrays: true } },
+  {
+    $addFields: {
+      customer_name: '$project.customer'
+    }
+  },
+  {
+    $project: {
+      project: 0 // Exclude the full joined project object if not needed
+    }
+  }
+]);
 
     res.status(200).json({ msg: "all-pay-summary", data: request });
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: "Error retrieving data", error: err.message });
-  };
+  }
 }
+
 
 //Acount Approved is = pending data save to hold payment
   const approve_pending = async function (req, res) {
