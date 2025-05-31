@@ -761,38 +761,96 @@ const getPay = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const pageSize = 10;
     const skip = (page - 1) * pageSize;
+    const query = req.query.query?.trim() || '';
 
-const request = await payRequestModells.aggregate([
-  { $sort: { createdAt: -1 } },
-  { $skip: skip },
-  { $limit: pageSize },
-  {
-    $lookup: {
-      from: 'projectdetails', // Correct collection name
-      localField: 'p_id',
-      foreignField: 'p_id',
-      as: 'project'
-    }
-  },
-  { $unwind: { path: '$project', preserveNullAndEmptyArrays: true } },
-  {
-    $addFields: {
-      customer_name: '$project.customer'
-    }
-  },
-  {
-    $project: {
-      project: 0 // Exclude the full joined project object if not needed
-    }
-  }
-]);
+    const searchRegex = new RegExp(query, 'i');
 
-    res.status(200).json({ msg: "all-pay-summary", data: request });
+    const lookupStage = {
+      $lookup: {
+        from: 'projectdetails',
+        localField: 'p_id',
+        foreignField: 'p_id',
+        as: 'project'
+      }
+    };
+
+    const paginatedPipeline = [
+      lookupStage,
+      { $unwind: { path: '$project', preserveNullAndEmptyArrays: true } },
+
+      ...(query
+        ? [
+            {
+              $match: {
+                $or: [
+                  { pay_id: { $regex: searchRegex } },
+                  { paid_for: { $regex: searchRegex } },
+                  { approved: { $regex: searchRegex } },
+                  { 'project.customer': { $regex: searchRegex } }
+                ]
+              }
+            }
+          ]
+        : []),
+
+      {
+        $addFields: {
+          customer_name: '$project.customer'
+        }
+      },
+
+      {
+        $project: { project: 0 }
+      },
+
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: pageSize }
+    ];
+
+    const countPipeline = [
+      lookupStage,
+      { $unwind: { path: '$project', preserveNullAndEmptyArrays: true } },
+
+      ...(query
+        ? [
+            {
+              $match: {
+                $or: [
+                  { pay_id: { $regex: searchRegex } },
+                  { paid_for: { $regex: searchRegex } },
+                  { approved: { $regex: searchRegex } },
+                  { 'project.customer': { $regex: searchRegex } }
+                ]
+              }
+            }
+          ]
+        : []),
+
+      { $count: 'total' }
+    ];
+
+    const [request, totalArr] = await Promise.all([
+      payRequestModells.aggregate(paginatedPipeline),
+      payRequestModells.aggregate(countPipeline)
+    ]);
+
+    const total = totalArr[0]?.total || 0;
+
+    res.status(200).json({
+      msg: 'all-pay-summary',
+      meta: {
+        total,
+        page,
+        count: request.length
+      },
+      data: request
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ msg: "Error retrieving data", error: err.message });
+    res.status(500).json({ msg: 'Error retrieving data', error: err.message });
   }
-}
+};
 
 
 //Acount Approved is = pending data save to hold payment
