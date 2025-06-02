@@ -163,11 +163,9 @@ const verifyandResetPassword = async (req, res) => {
 
     // Validate input
     if (!email || !newPassword || !confirmPassword) {
-      return res
-        .status(400)
-        .json({
-          message: "Email, new password, and confirm password are required.",
-        });
+      return res.status(400).json({
+        message: "Email, new password, and confirm password are required.",
+      });
     }
 
     if (newPassword !== confirmPassword) {
@@ -185,7 +183,6 @@ const verifyandResetPassword = async (req, res) => {
     // Hash the new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update user record
     user.password = hashedPassword;
     user.otp = null;
     user.otpExpires = null;
@@ -208,7 +205,6 @@ const login = async function (req, res) {
       return res.status(400).json({ msg: "Password is required" });
     }
 
-    // Combine all identity fields into a single search term
     const identity = name || emp_id || email;
 
     if (!identity) {
@@ -241,7 +237,16 @@ const login = async function (req, res) {
 
 //get-all-user
 const getalluser = async function (req, res) {
-  let user = await userModells.find();
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
+
+  let user = await userModells
+    .find()
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
+
   res.status(200).json({ data: user });
 };
 

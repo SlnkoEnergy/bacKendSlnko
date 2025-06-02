@@ -46,21 +46,79 @@ const createhandoversheet = async function (req, res) {
 
 // get  bd handover sheet data
 const gethandoversheetdata = async function (req, res) {
-  try {
+ try {
     const page = parseInt(req.query.page, 10) || 1;
-    const limit = 1000; 
+    const limit = 10;
     const skip = (page - 1) * limit;
 
-    let getbdhandoversheet = await hanoversheetmodells
-      .find()
-      .skip(skip)
-      .limit(limit)
-      .sort({ createdAt: -1 });
+    const search = req.query.search || "";
 
-    res
-      .status(200)
-      .json({ message: "Data fetched successfully", Data: getbdhandoversheet });
+    const matchStage = search
+      ? {
+          $match: {
+            $or: [
+              { "customer_details.code": { $regex: search, $options: "i" } },
+              { "customer_details.name": { $regex: search, $options: "i" } },
+              { "customer_details.state": { $regex: search, $options: "i" } },
+              { "leadDetails.scheme": { $regex: search, $options: "i" } }
+            ]
+          }
+        }
+      : null;
+
+    const pipeline = [
+      {
+        $addFields: {
+          id: { $toString: "$id" }
+        }
+      },
+      {
+        $lookup: {
+          from: "wonleads",
+          localField: "id",
+          foreignField: "id",
+          as: "leadDetails"
+        }
+      },
+      {
+        $unwind: {
+          path: "$leadDetails",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      ...(matchStage ? [matchStage] : []),
+      {
+        $sort: { createdAt: -1 }
+      },
+      {
+        $skip: skip
+      },
+      {
+        $limit: limit
+      },
+      {
+        $project: {
+          _id: 1,
+          id: 1,
+          createdAt: 1,
+          leadId: 1,
+          otherField1: 1,
+          otherField2: 1,
+          customer_details: 1,
+          scheme: "$leadDetails.scheme",
+          leadDetails: 1
+        }
+      }
+    ];
+
+    const data = await hanoversheetmodells.aggregate(pipeline);
+
+    res.status(200).json({
+      message: "Data fetched successfully",
+      Data: data
+    });
   } catch (error) {
+    console.error("Error:", error);
     res.status(500).json({ message: error.message });
   }
 };

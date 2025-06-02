@@ -41,22 +41,24 @@ const addtask = async function (req, res) {
 //update task status
 const updatetaskstatus = async function (req, res) {
   try {
-    const { _id } = req.body; 
-    
+    const { _id } = req.body;
+
     if (!_id) {
       return res.status(400).json({ message: "_id is required" });
     }
     const update = await taskModells.findOneAndUpdate(
-      {_id:_id, status: "Add" },
+      { _id: _id, status: "Add" },
       { $set: { status: "" } },
-      { new: true } 
+      { new: true }
     );
     if (!update) {
       return res.status(404).json({ message: "Task not found" });
     }
-    res.status(200).json({ message: "Task status updated successfully", update });
+    res
+      .status(200)
+      .json({ message: "Task status updated successfully", update });
   } catch (error) {
-    res.status(500).json({ message: "Internal Server Error" +error});
+    res.status(500).json({ message: "Internal Server Error" + error });
   }
 };
 
@@ -87,13 +89,11 @@ const editComment = async function (req, res) {
       submitted_by: task.submitted_by,
     });
     await taskHistory.save();
-    res
-      .status(200)
-      .json({
-        message: "Comment Updated Successfully",
-        task: task,
-        taskHistory: taskHistory,
-      });
+    res.status(200).json({
+      message: "Comment Updated Successfully",
+      task: task,
+      taskHistory: taskHistory,
+    });
   } catch (error) {
     res.status(500).json({ message: "Internal Server Error" + error });
   }
@@ -102,11 +102,25 @@ const editComment = async function (req, res) {
 //get task history
 const gettaskHistory = async function (req, res) {
   try {
-    const taskHistory = await taskHistoryModells.find();
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 10;
+    const skip = (page - 1) * limit;
+    const taskHistory = await taskHistoryModells
+      .find()
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
     res.status(200).json(taskHistory);
   } catch (error) {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-module.exports = { addtask, getaddtask, editComment, gettaskHistory, updatetaskstatus };
+module.exports = {
+  addtask,
+  getaddtask,
+  editComment,
+  gettaskHistory,
+  updatetaskstatus,
+};

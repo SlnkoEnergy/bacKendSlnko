@@ -32,23 +32,23 @@ const createeBDlead = async function (req, res) {
     remark,
   } = req.body;
 
-  const lastid = await bdmodells.
-  aggregate([
+  const lastid = await bdmodells.aggregate([
     {
-      $match: { id: { $regex: /^BD\/Lead\// } } // Filter valid IDs
+      $match: { id: { $regex: /^BD\/Lead\// } }, // Filter valid IDs
     },
     {
       $addFields: {
-        numericId: { 
-          $toInt: { 
-            $arrayElemAt: [{ $split: ["$id", "/"] }, -1] } 
-        }
-      }
+        numericId: {
+          $toInt: {
+            $arrayElemAt: [{ $split: ["$id", "/"] }, -1],
+          },
+        },
+      },
     },
     { $sort: { numericId: -1 } }, // Sort by extracted number
-    { $limit: 1 } // Only fetch the latest entry
+    { $limit: 1 }, // Only fetch the latest entry
   ]);
-  
+
   let nextid;
   if (lastid.length > 0 && lastid[0].id) {
     const lastNumber = parseInt(lastid[0].id.split("/").pop(), 10) || 0;
@@ -119,13 +119,11 @@ const createeBDlead = async function (req, res) {
       remark,
     });
     await initialbdlead.save();
-    res
-      .status(200)
-      .json({
-        message: "Data saved successfully",
-        Data: createBDlead,
-        initialbdlead: initialbdlead,
-      });
+    res.status(200).json({
+      message: "Data saved successfully",
+      Data: createBDlead,
+      initialbdlead: initialbdlead,
+    });
   } catch (error) {
     res.status(400).json({ error: error });
   }
@@ -134,7 +132,14 @@ const createeBDlead = async function (req, res) {
 //get all data
 const getBDleaddata = async function (req, res) {
   try {
-    let getBDlead = await bdmodells.find();
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 10;
+    const skip = (page - 1) * limit;
+    let getBDlead = await bdmodells
+      .find()
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
     res
       .status(200)
       .json({ message: "Data fetched successfully", Data: getBDlead });
@@ -146,7 +151,14 @@ const getBDleaddata = async function (req, res) {
 //get all initiAL lead
 const getallinitialbdlead = async function (req, res) {
   try {
-    let initial = await initialbdleadModells.find();
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 10;
+    const skip = (page - 1) * limit;
+    let initial = await initialbdleadModells
+      .find()
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
     res.status(200).json({ msg: "All Initial Bd Lead", data: initial });
   } catch (error) {
     res.status(400).json({ error: error });
@@ -190,19 +202,15 @@ const getinitalbdleadstreams = async function (req, res) {
   }
 };
 
-
-
 //edit initial bd lead
 const editinitialbdlead = async function (req, res) {
   try {
     let { _id } = req.params;
 
     let data = req.body;
-    let editdata = await initialbdleadModells.findByIdAndUpdate(
-      {  _id },
-      data,
-      { new: true }
-    );
+    let editdata = await initialbdleadModells.findByIdAndUpdate({ _id }, data, {
+      new: true,
+    });
     res.status(200).json({ msg: "Data updated successfully", data: editdata });
   } catch (error) {
     res.status(400).json({ error: error });

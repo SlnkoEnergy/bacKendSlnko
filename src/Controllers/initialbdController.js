@@ -81,7 +81,14 @@ const initialtofollowup = async function (req, res) {
 
 const getallfollowup = async function (req, res) {
   try {
-    const followUpData = await followUpleadMpodells.find();
+     const page = parseInt(req.query.page, 10) || 1;
+     const limit = 10;
+     const skip = (page - 1) * limit;
+
+    const followUpData = await followUpleadMpodells.find()
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });;
     res.status(200).json({ data: followUpData });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -226,7 +233,13 @@ const initialtodead = async function (req, res) {
 //get all dead lead
 const getalldead = async function (req, res) {
   try {
-    const deaddata = await deadleadModells.find();
+     const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
+    const deaddata = await deadleadModells.find()
+     .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
     res.status(200).json({ data: deaddata });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -237,7 +250,13 @@ const getalldead = async function (req, res) {
 //get all warm lead
 const getallwarm = async function (req, res) {
   try {
-    const warmdata = await warmleadModells.find();
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
+    const warmdata = await warmleadModells.find().skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
+;
     res.status(200).json({msg:"All Warm lead", data: warmdata });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -309,8 +328,15 @@ const initialtowon = async function (req, res) {
 
 //get alll won lead
 const getallwon = async function (req, res) {
-  try {
-    const wondata = await wonleadModells.find();
+  try { 
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
+
+    const wondata = await wonleadModells.find().skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
+;
     res.status(200).json({ data: wondata });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });

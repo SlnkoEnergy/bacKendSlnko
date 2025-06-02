@@ -4,19 +4,7 @@ const iteamModells = require("../Modells/iteamModells");
 const recoveryPurchaseOrder = require("../Modells/recoveryPurchaseOrderModells");
 const pohisttoryModells = require("../Modells/pohistoryModells");
 
-const moment = require("moment");
-const { Parser } = require("json2csv");
-const fs = require("fs");
-const path = require("path");
-const { error } = require("console");
-//TO DATE FROMATE
-// const isoToCustomFormat = (isoDate) => {
-//   const date = new Date(isoDate);
-//   const day = String(date.getDate()).padStart(2, "0");
-//   const month = String(date.getMonth() + 1).padStart(2, "0");
-//   const year = date.getFullYear();
-//   return `${year}-${day}-${month}`;
-// };
+
 
 //Add-Purchase-Order
 const addPo = async function (req, res) {
@@ -35,28 +23,14 @@ const addPo = async function (req, res) {
       gst,
     } = req.body;
 
-    // Get project ID
-    // const project = await projectModells.find({ p_id: p_id });
-
-    // if (!project) {
-    //   return res.status(404).send({ message: "Project not found!" });
-    // }
-
-    // Resolve item value
-    let resolvedItem = item === "Other" ? other : item;
-    // // Validate and format date using moment
-    // const formattedDate = moment(date, "YYYY-MM-DD", true);
-    // if (!formattedDate.isValid()) {
-    //   return res
-    //     .status(400)
-    //     .send({ message: "Invalid date format. Expected format: YYYY-MM-DD." });
-    // }
+   let resolvedItem = item === "Other" ? other : item;
+    
 
     // Check partial billing
     const partialItem = await iteamModells.findOne({ item: resolvedItem });
     const partal_billing = partialItem ? partialItem.partial_billing : "";
 
-    // Check if PO Number exists
+  
     const existingPO = await purchaseOrderModells.findOne({ po_number });
     if (existingPO) {
       return res.status(400).send({ message: "PO Number already used!" });
@@ -139,15 +113,15 @@ const getPO = async function (req, res) {
 
 //get PO History
 const getpohistory = async function (req, res) {
-  // const page = parseInt(req.query.page) || 1;
-  // const pageSize = 200;
-  // const skip = (page - 1) * pageSize;
-
+ const page = parseInt(req.query.page) || 1;
+    const pageSize = 10;
+    const limit = 10; 
+    const skip = (page - 1) * pageSize;
   let data = await pohisttoryModells
-    .find()
-    // .sort({ createdAt: -1 }) // Latest first
-    // .skip(skip)
-    // .limit(pageSize);
+      .find()
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
   res.status(200).json({ msg: "All PO History", data: data });
 };
 
@@ -158,8 +132,9 @@ const getPOByProjectId = async function (req, res) {
   res.status(200).json({ msg: "All Purchase Orders", data: data });
 };
 
-//get po history by id
 
+
+//get po history by id
 const getPOHistoryById = async function (req, res) {
   try {
     let id = req.params._id;
@@ -170,19 +145,17 @@ const getPOHistoryById = async function (req, res) {
   }
 };
 
-
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
-    // const page = parseInt(req.query.page) || 1;
-    // const pageSize = 200;
-    // const skip = (page - 1) * pageSize;
-
-    let data = await purchaseOrderModells.find();
-    // .sort({ createdAt: -1 }) // Latest first
-    // .skip(skip)
-    // .limit(pageSize);
-
+   const page = parseInt(req.query.page) || 1;
+    const pageSize = 10;
+    const limit = 10; 
+    const skip = (page - 1) * pageSize;
+    let data = await purchaseOrderModells.find()
+     .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
     res.status(200).json({ msg: "All PO", data: data });
   } catch (error) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
@@ -277,42 +250,7 @@ const deletePO = async function (req, res) {
   }
 };
 
-// //gtpo test
-// const getAllPoTest = async (req, res) => {
-//   try {
-//     // Set up the cursor to stream the data from MongoDB
-//     const cursor = purchaseOrderModells.find()
-//       .lean()  // Lean queries to speed up the process (returns plain JavaScript objects)
-//       .cursor();  // MongoDB cursor to stream data
 
-//     res.setHeader('Content-Type', 'application/json');
-
-//     // Initialize a JSON array to send back in chunks (streamed)
-//     res.write('{"data":[');  // Start the JSON array
-
-//     let first = true;
-//     cursor.on('data', (doc) => {
-//       if (!first) {
-//         res.write(',');  // Add comma between records
-//       }
-//       first = false;
-//       res.write(JSON.stringify(doc));  // Write each document as a JSON object
-//     });
-
-//     cursor.on('end', () => {
-//       res.write(']}');  // Close the JSON array
-//       res.end();  // End the response stream
-//     });
-
-//     cursor.on('error', (err) => {
-//       console.error(err);
-//       res.status(500).json({ msg: 'Error retrieving data', error: err.message });
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ msg: 'Error retrieving data', error: err.message });
-//   }
-// };
 
 module.exports = {
   addPo,
@@ -325,5 +263,5 @@ module.exports = {
   deletePO,
   getpohistory,
   getPOHistoryById,
-  // getAllPoTest,
+  
 };
