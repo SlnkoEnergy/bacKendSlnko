@@ -222,8 +222,6 @@ router.post("/resetPassword", verifyandResetPassword);
 router.delete("/delete-useR-IT/:_id",jwtMW.authentication,jwtMW.authorization, deleteUser);
 router.get("/get-single-useR-IT/:_id",jwtMW.authentication,jwtMW.authorization, getSingleUser);
 
-//forget pass through resend
-// router.post("/forget-password",forgetpassword);
 
 //project router
 router.post("/add-new-projecT-IT",jwtMW.authentication,jwtMW.authorization, createProject);

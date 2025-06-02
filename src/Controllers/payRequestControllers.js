@@ -43,11 +43,6 @@ const payRrequest = async (req, res) => {
       comment,
     } = req.body;
 
-    // Check if pay_id exists
-    // const existingPayment = await payRequestModells.findOne({ pay_id: pay_id });
-    // if (existingPayment) {
-    //   return res.status(400).json({ msg: "Payment ID already used!" });
-    // }
 
     // Get project details by project ID
     const project = await projectModells.findOne({
@@ -61,20 +56,14 @@ const payRrequest = async (req, res) => {
       return res.status(400).json({ msg: "Project code not found!" });
     }
 
-    // console.log("Project code:", project.code); // Debugging log
+ 
+   
+    const projectCode = project.code; 
 
-    // Validation: Amount paid should not exceed PO value
-    // if (amount_paid > po_balance) {
-    //   return res
-    //     .status(400)
-    //     .json({ msg: "Requested Amount is greater than PO Balance!" });
-    // }
-    const projectCode = project.code; // Assuming `code` is a field in projectModells
+   
+    const randomCode = Math.floor(100 + Math.random() * 900); 
 
-    // Generate random three-digit code
-    const randomCode = Math.floor(100 + Math.random() * 900); // Random 3-digit number
-
-    // Append the random code to the project code to form modified p_id
+    
     const modifiedPId = `${projectCode}/${randomCode}`;
 
     let existingPayRequest = await payRequestModells.findOne({
@@ -82,7 +71,7 @@ const payRrequest = async (req, res) => {
     });
 
     while (existingPayRequest) {
-      // If the modifiedPId exists, generate a new one and check again
+     
       modifiedPId = `${projectCode}/${generateRandomCode()}`;
       existingPayRequest = await payRequestModells.findOne({
         pay_id: modifiedPId,
@@ -169,39 +158,18 @@ const holdpay = async function (req, res) {
       comment,
     } = req.body;
 
-    // const existingPayment = await payRequestModells.findOne({ pay_id: pay_id });
-    // if (!existingPayment) {
-    //   return res.status(400).json({ msg: "Payment ID already used!" });
-    // }
-
-    // Get project details by project ID
-    // const project = await projectModells.find({ p_id: p_id });
-    // if (!project) {
-    //   return res.status(400).json({ msg: "Project ID is invalid!" });
-    // }
+    
     const project = await projectModells.findOne({p_id: p_id});
     if (!project) {
       return res.status(400).json({ msg: "Project ID is invalid!" });
     }
 
-    // if (!project.code) {
-    //   return res.status(400).json({ msg: "Project code not found!" });
-    // }
-
-    // console.log("Project code:", project.code); // Debugging log
-
-    // Validation: Amount paid should not exceed PO value
-    // if (amount_paid > po_balance) {
-    //   return res
-    //     .status(400)
-    //     .json({ msg: "Requested Amount is greater than PO Balance!" });
-    // }
-    const projectCode = project.code; // Assuming `code` is a field in projectModells
+   const projectCode = project.code; 
 
     // Generate random three-digit code
-    const randomCode = Math.floor(100 + Math.random() * 900); // Random 3-digit number
+    const randomCode = Math.floor(100 + Math.random() * 900); 
 
-    // Append the random code to the project code to form modified p_id
+
     const modifiedPId = `${projectCode}/${randomCode}`;
 
     let existingPayRequest = await holdPaymentModells.findOne({
@@ -215,18 +183,6 @@ const holdpay = async function (req, res) {
         pay_id: modifiedPId,
       });
     }
-
-
-
-
-
-
-    // Validation: Amount paid should not exceed PO balance
-    // if (amount_paid > po_balance) {
-    //   return res
-    //     .status(400)
-    //     .json({ msg: "Requested Amount is greater than PO_balance!" });
-    // }
 
     const holdPayment = new holdPaymentModells({
       id,
@@ -286,14 +242,14 @@ res.status(200).json({ msg: "all-pay-summary", data: request });
 
 //get all hold pay
 const hold = async function (req, res) {
-  // const page = parseInt(req.query.page) || 1;
-  // const pageSize = 200;
-  // const skip = (page - 1) * pageSize;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = 10;
+  const skip = (page - 1) * pageSize;
 
   let data = await holdPaymentModells.find()
-  // .sort({ createdAt: -1 }) // Latest first
-  // .skip(skip)
-  // .limit(pageSize);
+  .sort({ createdAt: -1 }) 
+  .skip(skip)
+  .limit(pageSize);
 
   res.status(200).json({ msg: "Hold Payment Status", data });
 };
@@ -648,14 +604,14 @@ const getPayRequestById = async function (req, res) {
 
 //get exceldaTa
 const excelData = async function (req, res) { 
-  // const page = parseInt(req.query.page) || 1;
-  // const pageSize = 200;
-  // const skip = (page - 1) * pageSize;
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = 10;
+  const skip = (page - 1) * pageSize;
 
-  let data = await exccelDataModells.find();
-  // .sort({ createdAt: -1 }) // Latest first
-  // .skip(skip)
-  // .limit(pageSize);
+  let data = await exccelDataModells.find()
+  .sort({ createdAt: -1 }) // Latest first
+  .skip(skip)
+  .limit(pageSize);
 
   res.status(200).json({ msg: "All Excel Data", data: data });    
 };
