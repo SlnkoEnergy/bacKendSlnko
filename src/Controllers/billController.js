@@ -20,25 +20,12 @@ const addBill = async function (req, res) {
       approved_by,
     } = req.body;
 
-    // Step 1: Calculate total billed value for the given PO number
-    // const bills = await addBillModells.find({ po_number });
-    // const totalBilled = bills.reduce((sum, bill) => sum + bill.bill_value);
-
-    // Step 2: Fetch the purchase order value
+   
     const purchaseOrder = await purchaseOrderModeslls.findOne({ po_number });
     if (!purchaseOrder) {
       return res.status(404).json({ message: "Purchase Order not found." });
     }
 
-  //  const { po_value, final } = purchaseOrder;
-
-    // Step 3: Check if total billed value exceeds PO value
-    // if (po_value < totalBilled + bill_value) {
-    //   return res.status(400).json({
-    //     message:
-    //       "Total billed amount exceeds the PO value. Please review the billing details.",
-    //   });
-   // }
     const biilnum= await addBillModells.findOne({ bill_number });
     if (biilnum) {
       return res.status(400).send({ message: "Bill Number already used!" });
@@ -86,14 +73,15 @@ const addBill = async function (req, res) {
 
 //GET ALL BILL
 const getBill = async function (req, res) {
-  // const page = parseInt(req.query.page) || 1;
-  // const pageSize = 200;
-  // const skip = (page - 1) * pageSize;
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
 
-  let data = await addBillModells.find();
-  // .sort({ createdAt: -1 }) // Latest first
-  // .skip(skip)
-  // .limit(pageSize);;
+
+  let data = await addBillModells.find()
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
   res.status(200).json({ msg: "All Bill Detail", data });
 };
 

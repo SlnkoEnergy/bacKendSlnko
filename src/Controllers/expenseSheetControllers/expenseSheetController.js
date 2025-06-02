@@ -6,11 +6,16 @@ const generateExpenseCode = require("../../utils/generateExpenseCode");
 const axios = require("axios");
 const FormData = require("form-data");
 
-
 const getAllExpense = async (req, res) => {
   try {
-    let expense = await ExpenseSheet.find();
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 10;
+    const skip = (page - 1) * limit;
 
+    let expense = await ExpenseSheet.find()
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
     res.status(200).json({
       message: "Expense Sheet retrieved successfully",
       data: expense,
@@ -50,7 +55,10 @@ const getExpenseById = async (req, res) => {
 const createExpense = async (req, res) => {
   try {
     // Parse incoming data (handle string or already parsed object)
-    const data = typeof req.body.data === 'string' ? JSON.parse(req.body.data) : req.body.data;
+    const data =
+      typeof req.body.data === "string"
+        ? JSON.parse(req.body.data)
+        : req.body.data;
 
     const user_id = data.user_id || req.body.user_id;
     if (!user_id) {
@@ -72,7 +80,7 @@ const createExpense = async (req, res) => {
     const uploadedFileURLs = [];
 
     // Upload each file and collect URLs
-    for (const file of (req.files || [])) {
+    for (const file of req.files || []) {
       const form = new FormData();
       form.append("file", file.buffer, {
         filename: file.originalname,
@@ -91,12 +99,18 @@ const createExpense = async (req, res) => {
 
       // Extract URL from response safely
       const respData = response.data;
-      const url = Array.isArray(respData) && respData.length > 0
-        ? respData[0]
-        : respData.url || respData.fileUrl || (respData.data && respData.data.url) || null;
+      const url =
+        Array.isArray(respData) && respData.length > 0
+          ? respData[0]
+          : respData.url ||
+            respData.fileUrl ||
+            (respData.data && respData.data.url) ||
+            null;
 
       if (!url) {
-        console.warn(`Warning: No upload URL found for file ${file.originalname}`);
+        console.warn(
+          `Warning: No upload URL found for file ${file.originalname}`
+        );
       }
       uploadedFileURLs.push(url);
     }
@@ -193,7 +207,7 @@ const updateExpenseStatusOverall = async (req, res) => {
     if (!expense)
       return res.status(404).json({ error: "Expense Sheet not found" });
 
-    const { status, remarks, approved_items} = req.body;
+    const { status, remarks, approved_items } = req.body;
 
     if (!status) {
       return res.status(400).json({ error: "Status is required" });
@@ -223,10 +237,10 @@ const updateExpenseStatusOverall = async (req, res) => {
           user_id: req.user._id,
           updatedAt: new Date(),
         });
-    
-      if (status === "manager approval" && Array.isArray(approved_items)) {
-          const match = approved_items.find((a) =>
-            a._id.toString() === item._id.toString()
+
+        if (status === "manager approval" && Array.isArray(approved_items)) {
+          const match = approved_items.find(
+            (a) => a._id.toString() === item._id.toString()
           );
           if (match) {
             item.approved_amount = match.approved_amount;
@@ -276,7 +290,6 @@ const updateExpenseStatusItems = async (req, res) => {
       user_id: req.user._id,
       updatedAt: new Date(),
     });
-
 
     item.approved_amount = approved_amount;
     await expenseSheet.save();
@@ -506,7 +519,6 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
-
 
 module.exports = {
   getAllExpense,

@@ -51,13 +51,15 @@ const addMoney = async function (req, res) {
 //get all bill
 
 const allbill = async function (req, res) {
-  // const page = parseInt(req.query.page) || 1;
-  // const pageSize = 200;
-  // const skip = (page - 1) * pageSize;
-  let bill = await addMoneyModells.find();
-  // .sort({ createdAt: -1 }) // Latest first
-  // .skip(skip)
-  // .limit(pageSize);;
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
+
+  let bill = await addMoneyModells
+    .find()
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
   res.status(200).json({ msg: "all Bill Detail", bill });
 };
 
@@ -89,35 +91,25 @@ const deletecredit = async function (req, res) {
       .status(200)
       .json({ message: "Credit amount deleted successfully." });
   } catch (error) {
-
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-
-
 //Delete -Crerdit Amount IN USE
 
 const deleteCreditAmount = async function (req, res) {
-          let _id = req.params._id;
+  let _id = req.params._id;
   try {
     let credit = await addMoneyModells.findByIdAndDelete(_id);
     if (!credit) {
       return res.status(404).json({ message: "Credit Amount Not Found" });
     }
 
-    res.status(200).json({ msg: "Credit Amount Deleted", credit:credit });
-    
+    res.status(200).json({ msg: "Credit Amount Deleted", credit: credit });
   } catch (error) {
-   
     return res.status(500).json({ message: "Internal Server Error" + error });
-    
   }
- 
 };
-
-
-
 
 //  Credit Amount
 const credit_amount = async function (req, res) {

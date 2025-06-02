@@ -55,7 +55,15 @@ const addVendor = async function (req, res) {
 
 // Get all vendors
 const getVendor = async function (req, res) {
-  let data = await vendorModells.find();
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
+
+  let data = await vendorModells
+    .find()
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
   res.status(200).json({ msg: "all vendor", data });
 };
 

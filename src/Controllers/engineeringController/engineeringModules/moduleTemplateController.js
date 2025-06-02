@@ -35,7 +35,14 @@ const getModuleById = async (req, res) => {
 
 const getAllModule = async (req, res) => {
   try {
-    const moduleData = await moduleTemplate.find();
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 10;
+    const skip = (page - 1) * limit;
+    const moduleData = await moduleTemplate
+      .find()
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
     res.status(200).json({
       message: "Module Category Retrieved Successfully",
       data: moduleData,
