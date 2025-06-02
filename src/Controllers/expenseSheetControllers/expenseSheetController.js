@@ -1,14 +1,10 @@
 const ExpenseSheet = require("../../Modells/Expense_Sheet/expense_sheet_Model");
-const moment = require("moment");
 const User = require("../../Modells/userModells");
 const { Parser } = require("json2csv");
 const { default: mongoose } = require("mongoose");
 const generateExpenseCode = require("../../utils/generateExpenseCode");
-const generateExpenseSheet = require("../../utils/generateExpensePdf");
 const axios = require("axios");
 const FormData = require("form-data");
-
-
 
 const getAllExpense = async (req, res) => {
   try {
@@ -510,35 +506,6 @@ const exportExpenseSheetsCSVById = async (req, res) => {
   }
 };
 
-const getExpensePdf = async (req, res) => {
-  try {
-    // Populate project_id inside items to get project details
-    const sheet = await ExpenseSheet.findById(req.params._id).populate([
-      { path: "items.project_id" },
-      { path: "user_id" },
-    ]);
-
-    //  console.log("sheet:", sheet);
-    if (!sheet) {
-      return res.status(404).json({ message: "Expense Sheet not found" });
-    }
-
-    const department = sheet.user_id.department || "";
-    const pdfBuffer = await generateExpenseSheet(sheet, { department });
-
-    res.set({
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="Expense_${sheet.expense_code}.pdf"`,
-      "Content-Length": pdfBuffer.length,
-    });
-
-    res.send(pdfBuffer);
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error generating PDF", error: error.message });
-  }
-};
 
 module.exports = {
   getAllExpense,
@@ -551,5 +518,4 @@ module.exports = {
   deleteExpense,
   exportAllExpenseSheetsCSV,
   exportExpenseSheetsCSVById,
-  getExpensePdf,
 };

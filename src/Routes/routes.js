@@ -195,7 +195,7 @@ const{ addPoolingStation, getAllPoolingStations } = require("../Controllers/engi
 
 const{ addBOM, getBOM } =require("../Controllers/engineeringController/BOMController");
 const allowRoles = require("../middlewares/expenseSheetMiddlewares/allowRoles");
-const { createExpense, getAllExpense, getExpenseById, deleteExpense, updateExpenseStatusOverall, updateExpenseStatusItems, exportAllExpenseSheetsCSV, exportExpenseSheetsCSVById, updateExpenseSheet, getExpensePdf, updateDisbursementDate } = require("../Controllers/expenseSheetControllers/expenseSheetController");
+const { createExpense, getAllExpense, getExpenseById, deleteExpense, updateExpenseStatusOverall, updateExpenseStatusItems, exportAllExpenseSheetsCSV, exportExpenseSheetsCSVById, updateExpenseSheet, updateDisbursementDate } = require("../Controllers/expenseSheetControllers/expenseSheetController");
 // const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
 
@@ -478,7 +478,6 @@ router.delete("/delete-expense/:_id", jwtMW.authentication, jwtMW.authorization,
 //Export to CSV In expense Sheet
 router.get("/expense-all-csv", jwtMW.authentication, jwtMW.authorization, exportAllExpenseSheetsCSV);
 router.get("/expense-by-id-csv/:_id",jwtMW.authentication, jwtMW.authorization, exportExpenseSheetsCSVById);
-router.get("/generate-pdf/:_id", jwtMW.authentication, jwtMW.authorization, getExpensePdf)
 
 //bd lead new
 router.post("/create-lead", jwtMW.authentication, jwtMW.authorization, createlead);
@@ -513,6 +512,7 @@ router.post('/create-boq-template', jwtMW.authentication, jwtMW.authorization, c
 router.get('/get-boq-template-by-id/:_id', jwtMW.authentication, jwtMW.authorization, getBoqTemplateById); 
 router.get('/get-boq-template', jwtMW.authentication, jwtMW.authorization, getBoqTemplate); 
 router.put('/update-boq-template/:_id', jwtMW.authentication, jwtMW.authorization, updateBoqTemplate); 
+
 
 module.exports = router;
 
