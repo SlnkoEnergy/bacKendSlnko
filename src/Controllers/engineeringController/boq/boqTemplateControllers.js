@@ -1,6 +1,5 @@
 const boqTemplate = require("../../../Modells/EngineeringModells/boq/boqTemplate");
 
-
 const createBoqTemplate = async(req, res) => {
     try {
         const BoqTemplate = new boqTemplate(req.body);

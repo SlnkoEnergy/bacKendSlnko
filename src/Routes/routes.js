@@ -496,7 +496,7 @@ router.put('/update-module/:_id', jwtMW.authentication, jwtMW.authorization, upd
 router.delete('/delete-module/:_id', jwtMW.authentication, jwtMW.authorization, deleteModule);
 
 // Project Modules
-router.post('/create-module-category', jwtMW.authentication, jwtMW.authorization, createModuleCategory);
+router.post('/create-module-category', jwtMW.authentication, jwtMW.authorization,upload,createModuleCategory);
 router.get('/get-module-category', jwtMW.authentication, jwtMW.authorization, getModuleCategory);
 router.get('/get-module-category-id/:_id', jwtMW.authentication, jwtMW.authorization, getModuleCategoryById);
 router.put('/update-module-category/:_id', jwtMW.authentication, jwtMW.authorization, updateModuleCategory);
