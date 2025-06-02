@@ -209,8 +209,9 @@ const{ addMaterialCategory, getAllMaterialCategories, deleteMaterialCategory, up
 const upload = require("../middlewares/multer.js");
 const {createModule, getModuleById, getAllModule, updateModule, deleteModule} = require("../Controllers/engineeringController/engineeringModules/moduleTemplateController.js");
 const { createModuleCategory, getModuleCategory, getModuleCategoryById, updateModuleCategory, updateModuleCategoryStatus } = require("../Controllers/engineeringController/engineeringModules/moduleCategoryContoller.js");
-const { createBoqTemplate, getBoqTemplateById, getBoqTemplate, updateBoqTemplate } = require("../Controllers/engineeringController/boq/boqTemplateController.js");
-const { createBoqCategory, getBoqCategoryById, getBoqCategory, updateBoqCategory } = require("../Controllers/engineeringController/boq/boqCategoryController.js");
+const { createBoqCategory, getBoqCategoryById, getBoqCategory, updateBoqCategory} = require("../Controllers/engineeringController/boq/boqCategoryControllers.js");
+const { createBoqTemplate, getBoqTemplateById, getBoqTemplate, updateBoqTemplate } = require("../Controllers/engineeringController/boq/boqTemplateControllers.js");
+
 
 
 // Admin router
@@ -501,16 +502,17 @@ router.get('/get-module-category-id/:_id', jwtMW.authentication, jwtMW.authoriza
 router.put('/update-module-category/:_id', jwtMW.authentication, jwtMW.authorization, updateModuleCategory);
 router.put('/:moduleId/item/:itemId/statusModule', jwtMW.authentication, jwtMW.authorization, updateModuleCategoryStatus);
 
+// Boq Categories
+router.post('/create-boq-category', jwtMW.authentication, jwtMW.authorization, createBoqCategory);
+router.get('/get-boq-category-by-id/:_id', jwtMW.authentication, jwtMW.authorization, getBoqCategoryById); 
+router.get('/get-boq-category', jwtMW.authentication, jwtMW.authorization, getBoqCategory);
+router.put('/update-boq-category/:_id', jwtMW.authentication, jwtMW.authorization, updateBoqCategory); 
+
 // Boq Templates
 router.post('/create-boq-template', jwtMW.authentication, jwtMW.authorization, createBoqTemplate);
 router.get('/get-boq-template-by-id/:_id', jwtMW.authentication, jwtMW.authorization, getBoqTemplateById); 
-router.get('/get-boq-template', jwtMW.authentication, jwtMW.authorization, getBoqTemplate);
+router.get('/get-boq-template', jwtMW.authentication, jwtMW.authorization, getBoqTemplate); 
 router.put('/update-boq-template/:_id', jwtMW.authentication, jwtMW.authorization, updateBoqTemplate); 
 
-// Boq Category
-router.post('/create-boq-category', jwtMW.authentication, jwtMW.authorization, createBoqCategory);
-router.get('/get-boq-category-by-id/:_id', jwtMW.authentication, jwtMW.authorization, getBoqCategoryById); 
-router.get('/get-boq-category', jwtMW.authentication, jwtMW.authorization, getBoqCategory); 
-router.put('/update-boq-category/:_id', jwtMW.authentication, jwtMW.authorization, updateBoqCategory); 
 module.exports = router;
 

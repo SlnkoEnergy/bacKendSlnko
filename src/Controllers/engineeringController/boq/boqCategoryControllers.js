@@ -1,12 +1,12 @@
-const boqTemplates = require("../../../Modells/EngineeringModells/boq/boqTemplates");
+const boqCategory = require("../../../Modells/EngineeringModells/boq/boqCategory");
 
-const createBoqTemplate = async (req, res) => {
+const createBoqCategory = async (req, res) => {
   try {
-    const BoqData = new boqTemplates(req.body);
+    const BoqData = new boqCategory(req.body);
 
     await BoqData.save();
     res.status(201).json({
-      message: "Boq Template created successfully",
+      message: "Boq Category created successfully",
       data: BoqData,
     });
   } catch (error) {
@@ -17,16 +17,16 @@ const createBoqTemplate = async (req, res) => {
   }
 }
 
-const getBoqTemplateById = async (req, res) => {
+const getBoqCategoryById = async (req, res) => {
   try {
-    const BoqData = await boqTemplates.findById(req.params._id).populate("module_template");
+    const BoqData = await boqCategory.findById(req.params._id);
     if (!BoqData) {
       return res.status(404).json({
-        message: "Boq Template not found",
+        message: "Boq Category not found",
       });
     }
     res.status(200).json({
-      message: "Boq Template Retrieved Successfully",
+      message: "Boq Category Retrieved Successfully",
       data: BoqData,
     });
   } catch (error) {
@@ -37,16 +37,16 @@ const getBoqTemplateById = async (req, res) => {
   }
 };
 
-const getBoqTemplate = async(req, res)=>{
+const getBoqCategory = async(req, res)=>{
   try {
-    const BoqData = await boqTemplates.find().populate("module_template");
+    const BoqData = await boqCategory.find();
     if(!BoqData || BoqData.length === 0) {
       return res.status(404).json({
-        message: "No Boq Templates found",
+        message: "No Boq Category found",
       });
     }
     res.status(200).json({
-      message: "Boq Template Retrieved Successfully",
+      message: "Boq Category Retrieved Successfully",
       data: BoqData,
     });
   } catch (error) {
@@ -57,9 +57,9 @@ const getBoqTemplate = async(req, res)=>{
   }
 }
 
-const updateBoqTemplate = async (req, res) => {
+const updateBoqCategory = async (req, res) => {
   try {
-    const data = await boqTemplates.findByIdAndUpdate(
+    const data = await boqCategory.findByIdAndUpdate(
       req.params._id,
       req.body,
       { new: true}
@@ -67,11 +67,11 @@ const updateBoqTemplate = async (req, res) => {
 
     if (!data) {
       return res.status(404).json({
-        message: "Boq Template not found",
+        message: "Boq Category not found",
       });
     }
     res.status(200).json({
-      message: "Boq Template updated successfully",
+      message: "Boq Category updated successfully",
       data: data,
     });
 
@@ -84,8 +84,8 @@ const updateBoqTemplate = async (req, res) => {
 }
 
 module.exports = {
-  createBoqTemplate,
-  getBoqTemplateById,
-  getBoqTemplate,
-  updateBoqTemplate
+  createBoqCategory,
+  getBoqCategoryById,
+  getBoqCategory,
+  updateBoqCategory
 };
