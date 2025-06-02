@@ -1,16 +1,113 @@
+const { default: axios } = require("axios");
 const moduleCategory = require("../../../Modells/EngineeringModells/engineeringModules/moduleCategory");
+const projectDetail = require("../../../Modells/projectModells");
+const FormData = require("form-data");
+const moduleTemplates = require("../../../Modells/EngineeringModells/engineeringModules/moduleTemplate");
+const mongoose = require("mongoose");
 
 const createModuleCategory = async (req, res) => {
   try {
-    const data = req.body;
-    const moduleData = new moduleCategory(data);
+    const data = req.body.data ? JSON.parse(req.body.data) : req.body;
+    const project_id = data.project_id;
+
+    if (!project_id) {
+      return res.status(400).json({ message: "Project ID is required" });
+    }
+
+    const projectCodeData = await projectDetail.findById(project_id).select("code");
+    const projectCode = projectCodeData?.code;
+
+    if (!projectCode) {
+      return res.status(404).json({ message: "Project Code not found" });
+    }
+
+    const moduleObjectId = new mongoose.Types.ObjectId();
+    const templateConfigs = {};
+    const uploadedFilesMap = {};
+    let fileIndex = 0;
+
+    for (let idx = 0; idx < (data.items || []).length; idx++) {
+      const item = data.items[idx];
+      if (!item) {
+        continue;
+      }
+
+      if (!templateConfigs[item.template_id]) {
+        const templateData = await moduleTemplates.findById(item.template_id).select("name file_upload");
+        templateConfigs[item.template_id] = templateData || {};
+      }
+      const templateData = templateConfigs[item.template_id];
+
+      const moduleTemplateNameRaw = templateData?.name || `template-${idx + 1}`;
+      const moduleTemplateName = moduleTemplateNameRaw.replace(/\s+/g, '_');
+      const maxFiles = templateData?.file_upload?.max_files || 0;
+      const folderName = `engineering/${projectCode}/${moduleTemplateName}`;
+
+      uploadedFilesMap[idx] = [];
+
+      for (let i = 0; i < maxFiles; i++) {
+        if (!req.files || !req.files[fileIndex]) {
+          break;
+        }
+        const file = req.files[fileIndex];
+
+        const form = new FormData();
+        form.append("file", file.buffer, {
+          filename: file.originalname,
+          contentType: file.mimetype,
+        });
+
+        const uploadUrl = `https://upload.slnkoprotrac.com?containerName=protrac&foldername=${folderName}`;
+
+        try {
+          const response = await axios.post(uploadUrl, form, {
+            headers: form.getHeaders(),
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+          });
+
+          const respData = response.data;
+          const url = Array.isArray(respData) && respData.length > 0
+            ? respData[0]
+            : respData.url || respData.fileUrl || (respData.data && respData.data.url) || null;
+
+          if (!url) {
+            console.warn(`No upload URL found for file ${file.originalname}`);
+          } else {
+            uploadedFilesMap[idx].push(url);
+          }
+        } catch (uploadErr) {
+          console.error('Upload failed for', file.originalname, uploadErr.message);
+        }
+
+        fileIndex++;
+      }
+    }
+
+    // Attach uploaded URLs to items
+    const itemsWithAttachments = (data.items || []).map((item, idx) => ({
+      ...item,
+      attachment_url: uploadedFilesMap[idx] && uploadedFilesMap[idx].length > 0
+        ? uploadedFilesMap[idx]
+        : item.attachment_url || [],
+    }));
+
+    const moduleData = new moduleCategory({
+      _id: moduleObjectId,
+      project_id,
+      ...data,
+      items: itemsWithAttachments,
+    });
 
     await moduleData.save();
+
     res.status(201).json({
-      message: "Module Project Created Successfully",
+      message: "Module Category Created Successfully",
       data: moduleData,
     });
+
   } catch (error) {
+    console.error('CreateModuleCategory error:', error);
     res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
@@ -22,7 +119,7 @@ const getModuleCategory = async (req, res) => {
   try {
     const data = await moduleCategory
       .find()
-      .populate("items.category_id")
+      .populate("items.template_id")
       .populate("project_id");
 
     res.status(200).json({
@@ -41,7 +138,7 @@ const getModuleCategoryById = async (req, res) => {
   try {
     const data = await moduleCategory
       .findById(req.params._id)
-      .populate("items.category_id")
+      .populate("items.template_id")
       .populate("project_id");
 
     res.status(200).json({

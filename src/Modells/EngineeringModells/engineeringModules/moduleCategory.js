@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const updateModuleCategoryStatus = require("../../../middlewares/engineeringMiddlewares/updateModuleCategory");
+const moduleTemplate = require("./moduleTemplate");
 
 const moduleCategorySchema = new mongoose.Schema(
   {
@@ -9,13 +10,13 @@ const moduleCategorySchema = new mongoose.Schema(
     },
     items: [
       {
-        category_id: {
+        template_id: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: "moduleCategory",
+          ref: "moduleTemplates",
         },
-        attachment_url: {
+        attachment_url: [{
           type: String,
-        },
+        }],
         status_history: [
           {
             status: {
