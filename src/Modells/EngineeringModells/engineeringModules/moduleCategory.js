@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const updateCurrentStatusItems = require("../../../utils/updateCurrentStatusItems");
+const updateAttachmentUrlStatus = require("../../../middlewares/engineeringMiddlewares/updateAttachementUrlStatus");
 
 const moduleCategorySchema = new mongoose.Schema(
   {
@@ -17,7 +18,6 @@ const moduleCategorySchema = new mongoose.Schema(
           {
             attachment_number: {
               type: Number,
-              required: true,
               default: 0,
             },
             attachment_url: [
@@ -28,12 +28,14 @@ const moduleCategorySchema = new mongoose.Schema(
           },
         ],
         current_attachment: {
-            attachment_url: [{
+          attachment_number: {
+            type: Number,
+          },
+          attachment_url: [
+            {
               type: String,
-            }],
-            attachment_number: {
-              type: Number,
             },
+          ],
         },
         status_history: [
           {
@@ -67,7 +69,8 @@ moduleCategorySchema.pre("save", function (next) {
 });
 
 moduleCategorySchema.pre("save", function (next) {
-  updateCurrentStatusItems(this, "attachment_urls", "current_attachment");
+  updateAttachmentUrlStatus(this, "attachment_urls", "current_attachment");
+  next();
 });
 
 module.exports = mongoose.model("moduleCategory", moduleCategorySchema);

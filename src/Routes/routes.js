@@ -1434,7 +1434,7 @@ router.put(
   updateModuleCategoryStatus
 );
 router.put(
-  "/:moduleId/item/:itemId/status",
+  "/:categoryId/item/:itemId/statusAttachment",
   jwtMW.authentication,
   jwtMW.authorization,
   updateAttachmentUrl

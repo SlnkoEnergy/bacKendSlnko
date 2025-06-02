@@ -129,19 +129,18 @@ const mongoose = require("mongoose");
 
 const createModuleCategory = async (req, res) => {
   try {
-    const response = new moduleCategory(req.body);
-    await response.save();
+    const response = await moduleCategory.create(req.body);
     res.status(201).json({
       message: "Module Category Created Successfully",
       data: response,
-    })
+    });
   } catch (error) {
     res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
     });
   }
-}
+};
 
 const getModuleCategory = async (req, res) => {
   try {
@@ -270,11 +269,9 @@ const updateAttachmentUrl = async (req, res) => {
       });
     }
 
-    attachmentUrls.forEach((url, index) => {
-      item.attachment_urls.push({
-        attachment_number: item.attachment_urls.length + 1,
-        attachment_url: [url],
-      });
+    item.attachment_urls.push({
+      attachment_number: item.attachment_urls.length + 1,
+      attachment_url: attachmentUrls,
     });
 
     await moduleCategoryData.save();
