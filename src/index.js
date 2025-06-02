@@ -12,7 +12,11 @@ config({
  path: "./.env"
 });
 
-app.use(cors({ origin: "*" })); 
+app.use(cors({
+  origin: "*", // <-- You already added this, but ensure it’s applied BEFORE routes
+  methods: ["GET", "POST", "PUT","PATCH","DELETE"],
+  allowedHeaders: ["Content-Type", "x-auth-token"],
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
