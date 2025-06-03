@@ -7,7 +7,7 @@ const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 const { get } = require("mongoose");
 const exccelDataModells = require("../Modells/excelDataModells");
 const recoverypayrequest = require("../Modells/recoveryPayrequestModells");
-const subtractMoneyModells =require("../Modells/debitMoneyModells");
+const subtractMoneyModells = require("../Modells/debitMoneyModells");
 
 // Request payment
 const payRrequest = async (req, res) => {
@@ -133,9 +133,6 @@ const payRrequest = async (req, res) => {
   }
 };
 
-
-
-
 //Hold payment
 const holdpay = async function (req, res) {
   try {
@@ -179,7 +176,7 @@ const holdpay = async function (req, res) {
     // if (!project) {
     //   return res.status(400).json({ msg: "Project ID is invalid!" });
     // }
-    const project = await projectModells.findOne({p_id: p_id});
+    const project = await projectModells.findOne({ p_id: p_id });
     if (!project) {
       return res.status(400).json({ msg: "Project ID is invalid!" });
     }
@@ -215,11 +212,6 @@ const holdpay = async function (req, res) {
         pay_id: modifiedPId,
       });
     }
-
-
-
-
-
 
     // Validation: Amount paid should not exceed PO balance
     // if (amount_paid > po_balance) {
@@ -270,19 +262,11 @@ const holdpay = async function (req, res) {
   }
 };
 
-
-
 //get alll pay summary
 const getPaySummary = async (req, res) => {
-let request = await payRequestModells.find()
-res.status(200).json({ msg: "all-pay-summary", data: request });
+  let request = await payRequestModells.find();
+  res.status(200).json({ msg: "all-pay-summary", data: request });
 };
-
-
-
-
-
-
 
 //get all hold pay
 const hold = async function (req, res) {
@@ -290,7 +274,7 @@ const hold = async function (req, res) {
   // const pageSize = 200;
   // const skip = (page - 1) * pageSize;
 
-  let data = await holdPaymentModells.find()
+  let data = await holdPaymentModells.find();
   // .sort({ createdAt: -1 }) // Latest first
   // .skip(skip)
   // .limit(pageSize);
@@ -298,21 +282,22 @@ const hold = async function (req, res) {
   res.status(200).json({ msg: "Hold Payment Status", data });
 };
 
-
-
 //Account matched
 const account_matched = async function (req, res) {
-  const { pay_id, acc_number, ifsc,submitted_by } = req.body;
-  const accNumberStr = String(acc_number);  // Match as string
-  const accNumberNum = Number(acc_number);  // Match as number (integer or float)
+  const { pay_id, acc_number, ifsc, submitted_by } = req.body;
+  const accNumberStr = String(acc_number); // Match as string
+  const accNumberNum = Number(acc_number); // Match as number (integer or float)
   const accNumberDouble = parseFloat(acc_number); // Ensure floating point match
   try {
     const payment = await payRequestModells.findOneAndUpdate(
-      { pay_id,  ifsc, 
+      {
+        pay_id,
+        ifsc,
         $or: [
-          { acc_number: accNumberStr },  // Match as string
-          { acc_number: accNumberNum },  // Match as number (integer or float)
-          { acc_number: accNumberDouble }]
+          { acc_number: accNumberStr }, // Match as string
+          { acc_number: accNumberNum }, // Match as number (integer or float)
+          { acc_number: accNumberDouble },
+        ],
       }, // Matching criteria
       { $set: { acc_match: "matched" } }, // Update action
       { new: true } // Return the updated document
@@ -323,7 +308,7 @@ const account_matched = async function (req, res) {
         message: "Account matched successfully!",
         data: payment,
       });
-      
+
       const newExcelData = new exccelDataModells({
         id: payment.id,
         p_id: payment.p_id,
@@ -353,12 +338,8 @@ const account_matched = async function (req, res) {
         other: payment.other,
         comment: payment.comment,
         status: "Not-paid",
-
-      })
+      });
       await newExcelData.save();
-
-
-
     } else {
       res.status(404).json({
         message: "No matching record found.",
@@ -371,8 +352,6 @@ const account_matched = async function (req, res) {
     });
   }
 };
-
-
 
 // account approved
 const accApproved = async function (req, res) {
@@ -411,14 +390,15 @@ const accApproved = async function (req, res) {
   }
 };
 
-
-
 //Update UTR number
 const utrUpdate = async function (req, res) {
   const { pay_id, utr, utr_submitted_by } = req.body;
   try {
     // Find the payment record based on pay_id and account match
-    const payment = await payRequestModells.findOne({ pay_id, acc_match: "matched" });
+    const payment = await payRequestModells.findOne({
+      pay_id,
+      acc_match: "matched",
+    });
 
     if (payment) {
       // Check if the UTR is already set in the payment record
@@ -475,9 +455,6 @@ const utrUpdate = async function (req, res) {
   }
 };
 
-
-
-
 //new-appov-account
 const newAppovAccount = async function (req, res) {
   const { pay_id, status } = req.body;
@@ -515,7 +492,6 @@ const newAppovAccount = async function (req, res) {
   }
 };
 
-
 //detete payment request by ID
 const deletePayRequestById = async function (req, res) {
   try {
@@ -533,18 +509,12 @@ const deletePayRequestById = async function (req, res) {
   }
 };
 
-
 // Move payment request to recovery collection
 const restorepayrequest = async function (req, res) {
-  const {_id} = req.params._id;
+  const { _id } = req.params._id;
   try {
-    
+    const data = await payRequestModells.findOneAndReplace(_id);
 
-     const data  = await payRequestModells.findOneAndReplace(_id);
-   
-
-    
-  
     if (!data) {
       return res.status(404).json({ msg: "User Not fornd" });
     }
@@ -576,30 +546,21 @@ const restorepayrequest = async function (req, res) {
       total_advance_paid: data.total_advance_paid,
       other: data.other,
       comment: data.comment,
-      createdAt:data.createdAt,
-      updatedAt:data.updatedAt,
-      created_on:data.created_on,
-      
-      
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+      created_on: data.created_on,
     });
     await recoveryItem.save();
-   await payRequestModells.deleteOne(_id);
+    await payRequestModells.deleteOne(_id);
 
-  
-   
     res.json({
       message: "Item moved to recovery collection successfully",
       item: recoveryItem,
     });
-
   } catch (error) {
     res.status(500).json({ message: "Error deleting item" + error });
-    
   }
-
 };
-
-
 
 // Edit payment request by ID
 const editPayRequestById = async function (req, res) {
@@ -623,8 +584,6 @@ const editPayRequestById = async function (req, res) {
   }
 };
 
-
-
 // Get payment request by ID
 const getPayRequestById = async function (req, res) {
   try {
@@ -644,10 +603,8 @@ const getPayRequestById = async function (req, res) {
   }
 };
 
-
-
 //get exceldaTa
-const excelData = async function (req, res) { 
+const excelData = async function (req, res) {
   // const page = parseInt(req.query.page) || 1;
   // const pageSize = 200;
   // const skip = (page - 1) * pageSize;
@@ -657,21 +614,17 @@ const excelData = async function (req, res) {
   // .skip(skip)
   // .limit(pageSize);
 
-  res.status(200).json({ msg: "All Excel Data", data: data });    
+  res.status(200).json({ msg: "All Excel Data", data: data });
 };
-
-
-
-
 
 //update excel data
 const updateExcelData = async function (req, res) {
   try {
-    const status = req.body; 
+    const status = req.body;
 
     // Perform update operation
     const result = await exccelDataModells.updateMany(
-      { status,status: "Not-paid" }, // Query for documents with status "Not-paid"
+      { status, status: "Not-paid" }, // Query for documents with status "Not-paid"
       { $set: { status: "Deleted" } } // Update the status to "Deleted"
     );
 
@@ -695,8 +648,6 @@ const updateExcelData = async function (req, res) {
   }
 };
 
-
-
 //
 const updateExceData = async function (req, res) {
   try {
@@ -714,7 +665,9 @@ const updateExceData = async function (req, res) {
     }
 
     if (document.status !== "Not-paid") {
-      return res.status(400).json({ message: "Status is not 'Not-paid', update not allowed." });
+      return res
+        .status(400)
+        .json({ message: "Status is not 'Not-paid', update not allowed." });
     }
 
     // Perform update operation
@@ -730,10 +683,11 @@ const updateExceData = async function (req, res) {
     }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "An error occurred while updating the item status." });
+    res
+      .status(500)
+      .json({ message: "An error occurred while updating the item status." });
   }
 };
-
 
 // Get Excel data by id
 
@@ -751,8 +705,7 @@ const getExcelDataById = async function (req, res) {
   } catch (error) {
     return res.status(500).json({ message: "Error fetching data" });
   }
-}
-
+};
 
 //get-all-payRequest
 
@@ -761,22 +714,22 @@ const getPay = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const pageSize = 10;
     const skip = (page - 1) * pageSize;
-    const query = req.query.query?.trim() || '';
+    const query = req.query.query?.trim() || "";
 
-    const searchRegex = new RegExp(query, 'i');
+    const searchRegex = new RegExp(query, "i");
 
     const lookupStage = {
       $lookup: {
-        from: 'projectdetails',
-        localField: 'p_id',
-        foreignField: 'p_id',
-        as: 'project'
-      }
+        from: "projectdetails",
+        localField: "p_id",
+        foreignField: "p_id",
+        as: "project",
+      },
     };
 
     const paginatedPipeline = [
       lookupStage,
-      { $unwind: { path: '$project', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
 
       ...(query
         ? [
@@ -786,31 +739,33 @@ const getPay = async (req, res) => {
                   { pay_id: { $regex: searchRegex } },
                   { paid_for: { $regex: searchRegex } },
                   { approved: { $regex: searchRegex } },
-                  { 'project.customer': { $regex: searchRegex } }
-                ]
-              }
-            }
+                  { vendor: { $regex: searchRegex } },
+                  { utr: { $regex: searchRegex } },
+                  { "project.customer": { $regex: searchRegex } },
+                ],
+              },
+            },
           ]
         : []),
 
       {
         $addFields: {
-          customer_name: '$project.customer'
-        }
+          customer_name: "$project.customer",
+        },
       },
 
       {
-        $project: { project: 0 }
+        $project: { project: 0 },
       },
 
       { $sort: { createdAt: -1 } },
       { $skip: skip },
-      { $limit: pageSize }
+      { $limit: pageSize },
     ];
 
     const countPipeline = [
       lookupStage,
-      { $unwind: { path: '$project', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
 
       ...(query
         ? [
@@ -819,155 +774,164 @@ const getPay = async (req, res) => {
                 $or: [
                   { pay_id: { $regex: searchRegex } },
                   { paid_for: { $regex: searchRegex } },
+                  { vendor: { $regex: searchRegex } },
                   { approved: { $regex: searchRegex } },
-                  { 'project.customer': { $regex: searchRegex } }
-                ]
-              }
-            }
+                  { utr: { $regex: searchRegex } },
+                  { "project.customer": { $regex: searchRegex } },
+                ],
+              },
+            },
           ]
         : []),
 
-      { $count: 'total' }
+      { $count: "total" },
     ];
 
     const [request, totalArr] = await Promise.all([
       payRequestModells.aggregate(paginatedPipeline),
-      payRequestModells.aggregate(countPipeline)
+      payRequestModells.aggregate(countPipeline),
     ]);
 
     const total = totalArr[0]?.total || 0;
 
     res.status(200).json({
-      msg: 'all-pay-summary',
+      msg: "all-pay-summary",
       meta: {
         total,
         page,
-        count: request.length
+        count: request.length,
       },
-      data: request
+      data: request,
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ msg: 'Error retrieving data', error: err.message });
+    res.status(500).json({ msg: "Error retrieving data", error: err.message });
   }
 };
 
-
 //Acount Approved is = pending data save to hold payment
-  const approve_pending = async function (req, res) {
-   
-    try {
-     const {pay_id , approved }   = req.body;
-    const data = await payRequestModells.findOne({ pay_id:pay_id, approved:"Pending"});
-      if (!data) {
-        return res.status(404).json({ message: "No pending payment request found." });
-      }
-      if (data) {
-        const newData = new holdPaymentModells({
-          id: data.id,
-          p_id: data.p_id,
-          pay_id: data.pay_id,
-          pay_type: data.pay_type,
-          amount_paid: data.amount_paid,
-          amt_for_customer: data.amt_for_customer,
-          dbt_date: data.dbt_date,
-          paid_for: data.paid_for,
-          vendor: data.vendor,
-          po_number: data.po_number,
-          po_value: data.po_value,
-          po_balance: data.po_balance,
-          pay_mode: data.pay_mode,
-          paid_to: data.paid_to,
-          ifsc: data.ifsc,
-          benificiary: data.benificiary,
-          acc_number: data.acc_number,
-          branch: data.branch,
-          created_on: data.created_on,
-          submitted_by: data.submitted_by,
-          approved: data.approved,
-          disable: data.disable,
-          acc_match: data.acc_match,
-          utr: data.utr,
-          total_advance_paid: data.total_advance_paid,
-          other: data.other,
-          comment: data.comment,
-        });
-        await payRequestModells.deleteOne({ pay_id: pay_id, approved: "Pending" });
+const approve_pending = async function (req, res) {
+  try {
+    const { pay_id, approved } = req.body;
+    const data = await payRequestModells.findOne({
+      pay_id: pay_id,
+      approved: "Pending",
+    });
+    if (!data) {
+      return res
+        .status(404)
+        .json({ message: "No pending payment request found." });
+    }
+    if (data) {
+      const newData = new holdPaymentModells({
+        id: data.id,
+        p_id: data.p_id,
+        pay_id: data.pay_id,
+        pay_type: data.pay_type,
+        amount_paid: data.amount_paid,
+        amt_for_customer: data.amt_for_customer,
+        dbt_date: data.dbt_date,
+        paid_for: data.paid_for,
+        vendor: data.vendor,
+        po_number: data.po_number,
+        po_value: data.po_value,
+        po_balance: data.po_balance,
+        pay_mode: data.pay_mode,
+        paid_to: data.paid_to,
+        ifsc: data.ifsc,
+        benificiary: data.benificiary,
+        acc_number: data.acc_number,
+        branch: data.branch,
+        created_on: data.created_on,
+        submitted_by: data.submitted_by,
+        approved: data.approved,
+        disable: data.disable,
+        acc_match: data.acc_match,
+        utr: data.utr,
+        total_advance_paid: data.total_advance_paid,
+        other: data.other,
+        comment: data.comment,
+      });
+      await payRequestModells.deleteOne({
+        pay_id: pay_id,
+        approved: "Pending",
+      });
 
-         await newData.save();
-        
+      await newData.save();
 
-        res.status(200).json({ message: "Data saved to hold payment", data: newData });
-       
-      }
-      
-    } catch (error) {
-      res.status(500).json({ message: "Error deleting item" + error });
-      }
- };
-
-
- //hold pay approved data to payrequest
-
-  const hold_approve_pending = async function (req, res) {
-    try {
-      const {pay_id , approved }   = req.body;
-      const data = await holdPaymentModells.findOne({ pay_id:pay_id, approved:"Pending"});
-        if (!data) {
-          return res.status(404).json({ message: "No pending payment request found." });
-        }
-        if (data) {
-          const newData = new payRequestModells({
-            id: data.id,
-            p_id: data.p_id,
-            pay_id: data.pay_id,
-            pay_type: data.pay_type,
-            amount_paid: data.amount_paid,
-            amt_for_customer: data.amt_for_customer,
-            dbt_date: data.dbt_date,
-            paid_for: data.paid_for,
-            vendor: data.vendor,
-            po_number: data.po_number,
-            po_value: data.po_value,
-            po_balance: data.po_balance,
-            pay_mode: data.pay_mode,
-            paid_to: data.paid_to,
-            ifsc: data.ifsc,
-            benificiary: data.benificiary,
-            acc_number: data.acc_number,
-            branch: data.branch,
-            created_on: data.created_on,
-            submitted_by: data.submitted_by,
-            approved: data.approved,
-            disable: data.disable,
-            acc_match: data.acc_match,
-            utr: data.utr,
-            total_advance_paid: data.total_advance_paid,
-            other: data.other,
-            comment: data.comment,
-          });
-          await holdPaymentModells.deleteOne({ pay_id: pay_id, approved: "Pending" });
-    
-            await newData.save();
-          
-          res.status(200).json({ message: "Data saved to pay Request", data: newData });
-          
-        }
+      res
+        .status(200)
+        .json({ message: "Data saved to hold payment", data: newData });
+    }
   } catch (error) {
     res.status(500).json({ message: "Error deleting item" + error });
+  }
+};
+
+//hold pay approved data to payrequest
+
+const hold_approve_pending = async function (req, res) {
+  try {
+    const { pay_id, approved } = req.body;
+    const data = await holdPaymentModells.findOne({
+      pay_id: pay_id,
+      approved: "Pending",
+    });
+    if (!data) {
+      return res
+        .status(404)
+        .json({ message: "No pending payment request found." });
     }
-  
-  };
-  
+    if (data) {
+      const newData = new payRequestModells({
+        id: data.id,
+        p_id: data.p_id,
+        pay_id: data.pay_id,
+        pay_type: data.pay_type,
+        amount_paid: data.amount_paid,
+        amt_for_customer: data.amt_for_customer,
+        dbt_date: data.dbt_date,
+        paid_for: data.paid_for,
+        vendor: data.vendor,
+        po_number: data.po_number,
+        po_value: data.po_value,
+        po_balance: data.po_balance,
+        pay_mode: data.pay_mode,
+        paid_to: data.paid_to,
+        ifsc: data.ifsc,
+        benificiary: data.benificiary,
+        acc_number: data.acc_number,
+        branch: data.branch,
+        created_on: data.created_on,
+        submitted_by: data.submitted_by,
+        approved: data.approved,
+        disable: data.disable,
+        acc_match: data.acc_match,
+        utr: data.utr,
+        total_advance_paid: data.total_advance_paid,
+        other: data.other,
+        comment: data.comment,
+      });
+      await holdPaymentModells.deleteOne({
+        pay_id: pay_id,
+        approved: "Pending",
+      });
 
-  const getpy = async function (req,res) {
-    const data = await payRequestModells.find();
-    res.status(200).json({msg: "All pay request", data: data});
-    
-  };
+      await newData.save();
 
+      res
+        .status(200)
+        .json({ message: "Data saved to pay Request", data: newData });
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting item" + error });
+  }
+};
 
-
+const getpy = async function (req, res) {
+  const data = await payRequestModells.find();
+  res.status(200).json({ msg: "All pay request", data: data });
+};
 
 module.exports = {
   payRrequest,
