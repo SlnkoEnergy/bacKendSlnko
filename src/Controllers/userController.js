@@ -163,11 +163,9 @@ const verifyandResetPassword = async (req, res) => {
 
     // Validate input
     if (!email || !newPassword || !confirmPassword) {
-      return res
-        .status(400)
-        .json({
-          message: "Email, new password, and confirm password are required.",
-        });
+      return res.status(400).json({
+        message: "Email, new password, and confirm password are required.",
+      });
     }
 
     if (newPassword !== confirmPassword) {
@@ -209,7 +207,10 @@ const login = async function (req, res) {
     }
 
     // Combine all identity fields into a single search term
-    const identity = name || emp_id || email;
+    const identity =
+      (name && name.toLowerCase()) ||
+      (emp_id && emp_id.toLowerCase()) ||
+      (email && email.toLowerCase());
 
     if (!identity) {
       return res
