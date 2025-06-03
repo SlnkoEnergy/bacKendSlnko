@@ -47,12 +47,11 @@ const createModuleCategory = async (req, res) => {
 
       let revisionNumber = "R0";
       revisionNumber = `R${item.attachment_urls?.length || 0}`;
-      console.log(item.attachement_urls?.length, "item.attachment_urls");
       const folderName = `engineering/${projectCode}/${moduleTemplateName}/${revisionNumber}`;
       const attachmentUrlsArray = [];
 
       const urlsForAttachment = [];
-
+  
       for (
         let i = 0;
         i < maxFiles && fileIndex < (req.files?.length || 0);
@@ -75,6 +74,7 @@ const createModuleCategory = async (req, res) => {
           });
 
           const respData = response.data;
+
           const url =
             Array.isArray(respData) && respData.length > 0
             
@@ -311,7 +311,6 @@ const updateModuleCategory = async (req, res) => {
         attachment_number: revisionNumber,
         attachment_url: urlsForAttachment,
       });
-
       moduleData.items[itemIndex] = existingItem;
     } else {
       // Create new item

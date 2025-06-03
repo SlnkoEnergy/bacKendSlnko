@@ -313,6 +313,13 @@ const {
   getBoqTemplate,
   updateBoqTemplate,
 } = require("../Controllers/engineeringController/boq/boqTemplateControllers.js");
+const {
+  createBoqProject,
+  getAllBoqProject,
+  getBoqProjectById,
+  updateBoqProject,
+  deleteBoqProject,
+} = require("../Controllers/engineeringController/boq/boqProjectControllers.js");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -1441,7 +1448,6 @@ router.put(
   updateAttachmentUrl
 );
 
-
 // Boq Categories
 router.post(
   "/create-boq-category",
@@ -1492,6 +1498,40 @@ router.put(
   jwtMW.authentication,
   jwtMW.authorization,
   updateBoqTemplate
+);
+
+// Boq Projects
+router.post(
+  "/create-boq-project",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  createBoqProject
+);
+
+router.get(
+  "/get-all-boq-projects",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllBoqProject
+);
+
+router.get(
+  "/get-boq-project-by-id/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getBoqProjectById
+);
+router.put(
+  "/:boqId/item/:itemId/updateBoq",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateBoqProject
+);
+router.delete(
+  "/:boqId/item/:itemId/deleteBoq",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  deleteBoqProject
 );
 
 module.exports = router;
