@@ -10,11 +10,10 @@ const boqTemplateSchema = new mongoose.Schema({
     {
       _id: false,
       name: { type: String},
-      fields: [
+      values: [
         {
           _id: false,
-          name: { type: String},
-          value: { type: String},
+          input_values: { type: String},
         },
       ],
     },
