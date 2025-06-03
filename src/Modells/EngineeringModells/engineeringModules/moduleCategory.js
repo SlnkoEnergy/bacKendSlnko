@@ -17,8 +17,7 @@ const moduleCategorySchema = new mongoose.Schema(
         attachment_urls: [
           {
             attachment_number: {
-              type: Number,
-              default: 0,
+              type: String,
             },
             attachment_url: [
               {
@@ -29,7 +28,7 @@ const moduleCategorySchema = new mongoose.Schema(
         ],
         current_attachment: {
           attachment_number: {
-            type: Number,
+            type: String,
           },
           attachment_url: [
             {

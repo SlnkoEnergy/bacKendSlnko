@@ -1422,9 +1422,10 @@ router.get(
   getModuleCategoryById
 );
 router.put(
-  "/update-module-category/:_id",
+  "/update-module-category",
   jwtMW.authentication,
   jwtMW.authorization,
+  upload,
   updateModuleCategory
 );
 router.put(
@@ -1439,6 +1440,7 @@ router.put(
   jwtMW.authorization,
   updateAttachmentUrl
 );
+
 
 // Boq Categories
 router.post(
