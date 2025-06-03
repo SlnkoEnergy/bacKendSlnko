@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-const updateModuleCategoryStatus = require("../../../middlewares/engineeringMiddlewares/updateModuleCategory");
-const moduleTemplate = require("./moduleTemplate");
+const updateCurrentStatusItems = require("../../../utils/updateCurrentStatusItems");
+const updateAttachmentUrlStatus = require("../../../middlewares/engineeringMiddlewares/updateAttachementUrlStatus");
 
 const moduleCategorySchema = new mongoose.Schema(
   {
@@ -14,9 +14,29 @@ const moduleCategorySchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "moduleTemplates",
         },
-        attachment_url: [{
-          type: String,
-        }],
+        attachment_urls: [
+          {
+            attachment_number: {
+              type: Number,
+              default: 0,
+            },
+            attachment_url: [
+              {
+                type: String,
+              },
+            ],
+          },
+        ],
+        current_attachment: {
+          attachment_number: {
+            type: Number,
+          },
+          attachment_url: [
+            {
+              type: String,
+            },
+          ],
+        },
         status_history: [
           {
             status: {
@@ -44,7 +64,12 @@ const moduleCategorySchema = new mongoose.Schema(
 );
 
 moduleCategorySchema.pre("save", function (next) {
-  updateModuleCategoryStatus(this);
+  updateCurrentStatusItems(this, "status_history", "current_status");
+  next();
+});
+
+moduleCategorySchema.pre("save", function (next) {
+  updateAttachmentUrlStatus(this, "attachment_urls", "current_attachment");
   next();
 });
 

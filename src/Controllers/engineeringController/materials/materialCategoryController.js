@@ -108,6 +108,8 @@ const deleteMaterialCategory = async (req, res) => {
       });
   }
 };
+
+
 module.exports = {
   addMaterialCategory,
   getAllMaterialCategories,
