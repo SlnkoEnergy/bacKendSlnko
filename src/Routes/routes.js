@@ -1406,7 +1406,7 @@ router.post(
   "/create-module-category",
   jwtMW.authentication,
   jwtMW.authorization,
-  // upload,
+  upload,
   createModuleCategory
 );
 router.get(
