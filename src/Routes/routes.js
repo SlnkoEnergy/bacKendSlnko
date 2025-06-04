@@ -292,6 +292,7 @@ const {
   getAllModule,
   updateModule,
   deleteModule,
+  updateModuleTemplateCategoryId,
 } = require("../Controllers/engineeringController/engineeringModules/moduleTemplateController.js");
 const {
   createModuleCategory,
@@ -1406,6 +1407,12 @@ router.delete(
   jwtMW.authentication,
   jwtMW.authorization,
   deleteModule
+);
+router.put(
+  "/update-template-category/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateModuleTemplateCategoryId
 );
 
 // Engineering Modules Categories

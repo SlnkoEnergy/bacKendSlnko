@@ -54,7 +54,6 @@ const getAllModule = async (req, res) => {
   }
 };
 
-
 const updateModule = async (req, res) => {
   try {
     const moduleData = await moduleTemplate.findByIdAndUpdate(
@@ -89,10 +88,35 @@ const deleteModule = async (req, res) => {
   }
 };
 
+const updateModuleTemplateCategoryId = async (req, res) => {
+  try {
+    const id = req.params._id;
+    const { template_category } = req.body;
+
+    const updatedModule = await moduleTemplate.findByIdAndUpdate(
+      id,
+      { $push: { 'boq.template_category': template_category } },
+      { new: true }
+    );
+
+    res.status(200).json({
+      message: "Module Template Category ID Updated Successfully",
+      data: updatedModule,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+
 module.exports = {
   createModule,
   getModuleById,
   getAllModule,
   updateModule,
   deleteModule,
+  updateModuleTemplateCategoryId
 };
