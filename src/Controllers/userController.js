@@ -206,11 +206,7 @@ const login = async function (req, res) {
       return res.status(400).json({ msg: "Password is required" });
     }
 
-    // Combine all identity fields into a single search term
-    const identity =
-      (name && name.toLowerCase()) ||
-      (emp_id && emp_id.toLowerCase()) ||
-      (email && email.toLowerCase());
+    const identity = name || emp_id || email;
 
     if (!identity) {
       return res
