@@ -173,8 +173,20 @@ const getPOHistoryById = async function (req, res) {
 
 const getallpo = async function (req, res) {
   try {
-    const data = await purchaseOrderModells.aggregate([
-      // Lookup advance paid from payrequests
+    const { p_id, vendor, po_number, page = 1, limit = 10 } = req.query;
+
+    // Dynamic search filter
+    const matchStage = {};
+    if (p_id) matchStage.p_id = p_id;
+    if (vendor) matchStage.vendor = { $regex: vendor, $options: "i" };
+    if (po_number) matchStage.po_number = { $regex: po_number, $options: "i" };
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const result = await purchaseOrderModells.aggregate([
+      { $match: matchStage },
+
+      // All previous lookups and calculations here
       {
         $lookup: {
           from: "payrequests",
@@ -208,14 +220,11 @@ const getallpo = async function (req, res) {
           }
         }
       },
-      {
-        $project: { advanceData: 0 }
-      },
+      { $project: { advanceData: 0 } },
 
-      // Lookup total bill value and type from biildetails
       {
         $lookup: {
-          from: "biildetails", // Ensure correct spelling in MongoDB
+          from: "biildetails",
           let: { po_number: "$po_number" },
           pipeline: [
             {
@@ -227,7 +236,7 @@ const getallpo = async function (req, res) {
               $group: {
                 _id: null,
                 totalBillValue: { $sum: "$bill_value" },
-                type: { $first: "$type" } // or use $addToSet if multiple types expected
+                type: { $first: "$type" }
               }
             }
           ],
@@ -244,13 +253,8 @@ const getallpo = async function (req, res) {
           }
         }
       },
-      {
-        $project: {
-          billData: 0
-        }
-      },
+      { $project: { billData: 0 } },
 
-      // Final projection
       {
         $project: {
           _id: 0,
@@ -264,10 +268,41 @@ const getallpo = async function (req, res) {
           advance_paid: 1,
           bill_type: 1
         }
+      },
+
+      // Pagination with facet
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $skip: skip },
+            { $limit: parseInt(limit) }
+          ]
+        }
+      },
+      {
+        $unwind: {
+          path: "$metadata",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          total: "$metadata.total",
+          data: "$data"
+        }
       }
     ]);
 
-    res.status(200).json({ msg: "All PO", data });
+    const finalResult = result[0] || { total: 0, data: [] };
+
+    res.status(200).json({
+      msg: "All PO",
+      total: finalResult.total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      data: finalResult.data
+    });
   } catch (error) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
