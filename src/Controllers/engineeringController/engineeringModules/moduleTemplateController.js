@@ -20,7 +20,10 @@ const createModule = async (req, res) => {
 
 const getModuleById = async (req, res) => {
   try {
-    const moduleData = await moduleTemplate.findById(req.params._id);
+    const moduleData = await moduleTemplate
+      .findById(req.params._id)
+      .populate('boq.template_category', 'name description');
+
     res.status(200).json({
       message: "Module Category Retrieved Successfully",
       data: moduleData,
@@ -35,7 +38,10 @@ const getModuleById = async (req, res) => {
 
 const getAllModule = async (req, res) => {
   try {
-    const moduleData = await moduleTemplate.find();
+    const moduleData = await moduleTemplate
+      .find()
+      .populate('boq.template_category', 'name description');
+
     res.status(200).json({
       message: "Module Category Retrieved Successfully",
       data: moduleData,
@@ -47,6 +53,7 @@ const getAllModule = async (req, res) => {
     });
   }
 };
+
 
 const updateModule = async (req, res) => {
   try {
