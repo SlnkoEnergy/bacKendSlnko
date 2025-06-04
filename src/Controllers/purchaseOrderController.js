@@ -171,23 +171,111 @@ const getPOHistoryById = async function (req, res) {
 };
 
 
-//get ALLPO
 const getallpo = async function (req, res) {
   try {
-    // const page = parseInt(req.query.page) || 1;
-    // const pageSize = 200;
-    // const skip = (page - 1) * pageSize;
+    const data = await purchaseOrderModells.aggregate([
+      // Lookup advance paid from payrequests
+      {
+        $lookup: {
+          from: "payrequests",
+          let: { po_number: "$po_number" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$po_number", "$$po_number"] },
+                    { $ne: ["$utr", null] },
+                    { $ne: ["$utr", ""] }
+                  ]
+                }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalAdvancePaid: { $sum: "$amount_paid" }
+              }
+            }
+          ],
+          as: "advanceData"
+        }
+      },
+      {
+        $addFields: {
+          advance_paid: {
+            $ifNull: [{ $first: "$advanceData.totalAdvancePaid" }, 0]
+          }
+        }
+      },
+      {
+        $project: { advanceData: 0 }
+      },
 
-    let data = await purchaseOrderModells.find();
-    // .sort({ createdAt: -1 }) // Latest first
-    // .skip(skip)
-    // .limit(pageSize);
+      // Lookup total bill value and type from biildetails
+      {
+        $lookup: {
+          from: "biildetails", // Ensure correct spelling in MongoDB
+          let: { po_number: "$po_number" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$po_number", "$$po_number"] }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalBillValue: { $sum: "$bill_value" },
+                type: { $first: "$type" } // or use $addToSet if multiple types expected
+              }
+            }
+          ],
+          as: "billData"
+        }
+      },
+      {
+        $addFields: {
+          total_billed: {
+            $ifNull: [{ $first: "$billData.totalBillValue" }, 0]
+          },
+          bill_type: {
+            $ifNull: [{ $first: "$billData.type" }, "NA"]
+          }
+        }
+      },
+      {
+        $project: {
+          billData: 0
+        }
+      },
 
-    res.status(200).json({ msg: "All PO", data: data });
+      // Final projection
+      {
+        $project: {
+          _id: 0,
+          p_id: 1,
+          po_number: 1,
+          item: 1,
+          vendor: 1,
+          po_value: 1,
+          partial_billing_item: 1,
+          total_billed: 1,
+          advance_paid: 1,
+          bill_type: 1
+        }
+      }
+    ]);
+
+    res.status(200).json({ msg: "All PO", data });
   } catch (error) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
+
+
+
+   
 
 //Move-Recovery
 const moverecovery = async function (req, res) {
@@ -277,42 +365,6 @@ const deletePO = async function (req, res) {
   }
 };
 
-// //gtpo test
-// const getAllPoTest = async (req, res) => {
-//   try {
-//     // Set up the cursor to stream the data from MongoDB
-//     const cursor = purchaseOrderModells.find()
-//       .lean()  // Lean queries to speed up the process (returns plain JavaScript objects)
-//       .cursor();  // MongoDB cursor to stream data
-
-//     res.setHeader('Content-Type', 'application/json');
-
-//     // Initialize a JSON array to send back in chunks (streamed)
-//     res.write('{"data":[');  // Start the JSON array
-
-//     let first = true;
-//     cursor.on('data', (doc) => {
-//       if (!first) {
-//         res.write(',');  // Add comma between records
-//       }
-//       first = false;
-//       res.write(JSON.stringify(doc));  // Write each document as a JSON object
-//     });
-
-//     cursor.on('end', () => {
-//       res.write(']}');  // Close the JSON array
-//       res.end();  // End the response stream
-//     });
-
-//     cursor.on('error', (err) => {
-//       console.error(err);
-//       res.status(500).json({ msg: 'Error retrieving data', error: err.message });
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ msg: 'Error retrieving data', error: err.message });
-//   }
-// };
 
 module.exports = {
   addPo,
@@ -325,5 +377,5 @@ module.exports = {
   deletePO,
   getpohistory,
   getPOHistoryById,
-  // getAllPoTest,
+
 };
