@@ -1,3 +1,4 @@
+const handoversheetModells = require("../Modells/handoversheetModells");
 const hanoversheetmodells = require("../Modells/handoversheetModells");
 const projectmodells = require("../Modells/projectModells");
 
@@ -64,6 +65,21 @@ const gethandoversheetdata = async function (req, res) {
     res.status(500).json({ message: error.message });
   }
 };
+
+const getAllhandoversheetdata = async (req, res) => {
+  try {
+     const response = await handoversheetModells.find();
+    res.status(200).json({
+      message: "All handover sheets fetched successfully",
+      Data: response,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+}
 
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
@@ -225,6 +241,7 @@ const search = async function (req, res) {
 module.exports = {
   createhandoversheet,
   gethandoversheetdata,
+  getAllhandoversheetdata,
   edithandoversheetdata,
   updatestatus,
   checkid,

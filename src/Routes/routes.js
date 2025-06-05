@@ -173,7 +173,7 @@ const {
 
 
 const{ addtask, getaddtask, editComment, gettaskHistory, updatetaskstatus }=require("../Controllers/addtaskbdController");
-const { createhandoversheet, gethandoversheetdata, edithandoversheetdata, updateStatusOfHandoversheet, getbdhandoversheetdata, updateStatusHandoversheet, updatehandoverbd, updatestatus, checkid, getbyid, search } =require("../Controllers/handoversheetController");
+const { createhandoversheet, gethandoversheetdata, edithandoversheetdata, updateStatusOfHandoversheet, getbdhandoversheetdata, updateStatusHandoversheet, updatehandoverbd, updatestatus, checkid, getbyid, search, getAllhandoversheetdata } =require("../Controllers/handoversheetController");
 const { addmoduleMaster, getmoduleMasterdata, editmodulemaster, deletemodulemaster }=require("../Controllers/moduleMasterController");
 // const { deleteOne } = require("../Modells/moduleMasterModells");
 
@@ -407,6 +407,7 @@ router.put("/edit-warm/:_id",jwtMW.authentication,jwtMW.authorization,editwarm);
 //handdoversheet 
 router.post("/create-hand-over-sheet", jwtMW.authentication,jwtMW.authorization,createhandoversheet);
 router.get("/get-all-handover-sheet",jwtMW.authentication,jwtMW.authorization,gethandoversheetdata);
+router.get("/get-handover-sheet-all", jwtMW.authentication,jwtMW.authorization,getAllhandoversheetdata);
 router.put("/edit-hand-over-sheet/:_id",jwtMW.authentication,jwtMW.authorization,edithandoversheetdata);
 router.put("/update-status/:_id",jwtMW.authentication,jwtMW.authorization,updatestatus);
 router.post("/check/:_id",jwtMW.authentication,jwtMW.authorization,checkid);
