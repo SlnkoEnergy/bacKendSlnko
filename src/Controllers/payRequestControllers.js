@@ -708,7 +708,6 @@ const getExcelDataById = async function (req, res) {
 };
 
 //get-all-payRequest
-
 const getPay = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -726,11 +725,9 @@ const getPay = async (req, res) => {
         as: "project",
       },
     };
-
     const paginatedPipeline = [
       lookupStage,
       { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
-
       ...(query
         ? [
             {
