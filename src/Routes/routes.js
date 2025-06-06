@@ -172,6 +172,7 @@ const {
   deadtowon,
   updatewon,
   updateWonLead,
+  getwonbyleadid
 } = require("../Controllers/initialbdController");
 
 
@@ -892,6 +893,12 @@ router.get(
   jwtMW.authorization,
   getallwarm
 );
+router.get(
+  "/get-won",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getwonbyleadid
+)
 
 //followup to all
 router.post(

@@ -352,6 +352,31 @@ const getallwon = async function (req, res) {
   }
 };
 
+//get won by lead id
+const getwonbyleadid = async function (req, res) { 
+  try {
+    const {id, leadId} = req.query;
+
+    if(!id && !leadId) {
+      return res.status(400).json({ message: "Please provide either id or leadId" });
+    }
+
+    let query = {};
+    if (id) {
+      query._id = id;
+    }
+    if (leadId) {
+      query.id = leadId;
+    }
+    const wonData = await wonleadModells.findOne(query);
+    res.status(200).json({message:"Won Data fetched Successfully", data: wonData });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server error", error: error.message });
+  }
+}
+
+
+
 //followup to warm, dead, won
 
 const followuptoall = async function (req, res) {
@@ -1431,5 +1456,5 @@ module.exports = {
   deadtowon,
   updatewon,
   updateWonLead,
-  
+  getwonbyleadid
 }
