@@ -47,39 +47,91 @@ const createhandoversheet = async function (req, res) {
 
 // get  bd handover sheet data
 const gethandoversheetdata = async function (req, res) {
-  try {
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = 10; 
-    const skip = (page - 1) * limit;
+try {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = 10;
+  const skip = (page - 1) * limit;
+  const search = req.query.search || '';
 
-    let getbdhandoversheet = await hanoversheetmodells
-      .find()
-      .skip(skip)
-      .limit(limit)
-      .sort({ createdAt: -1 });
+  const matchConditions = search
+    ? {
+        $or: [
+          { 'customer_details.code': { $regex: search, $options: 'i' } },
+          { 'customer_details.name': { $regex: search, $options: 'i' } },
+          { 'customer_details.state': { $regex: search, $options: 'i' } },
+          { 'leadDetails.scheme': { $regex: search, $options: 'i' } }
+        ]
+      }
+    : {};
 
-    res
-      .status(200)
-      .json({ message: "Data fetched successfully", Data: getbdhandoversheet });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+  const pipeline = [
+    {
+      $addFields: {
+        id: { $toString: '$id' }
+      }
+    },
+    {
+      $lookup: {
+        from: 'handoversheet',
+        localField: 'id',
+        foreignField: 'id',
+        as: 'leadDetails'
+      }
+    },
+    {
+      $unwind: {
+        path: '$leadDetails',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $match: matchConditions
+    },
+    {
+      $facet: {
+        metadata: [{ $count: 'total' }],
+        data: [
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 1,
+              id: 1,
+              createdAt: 1,
+              leadId: 1,
+              otherField1: 1,
+              otherField2: 1,
+              customer_details: 1,
+              scheme: '$leadDetails.scheme',
+              leadDetails: 1
+            }
+          }
+        ]
+      }
+    }
+  ];
 
-const getAllhandoversheetdata = async (req, res) => {
-  try {
-     const response = await handoversheetModells.find();
-    res.status(200).json({
-      message: "All handover sheets fetched successfully",
-      Data: response,
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
-    });
-  }
+  const result = await hanoversheetmodells.aggregate(pipeline);
+  const total = result[0].metadata[0]?.total || 0;
+  const data = result[0].data;
+
+  res.status(200).json({
+    message: 'Data fetched successfully',
+    meta: {
+      total,
+      page,
+      pageSize: limit,
+      count: data.length
+    },
+    data
+  });
+} catch (error) {
+  console.error('Error:', error);
+  res.status(500).json({ message: error.message });
 }
+
+};
 
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
@@ -199,24 +251,31 @@ const checkid = async function (req, res) {
   }
 };
 
-//get bd handover sheet data by id
-const getbyid = async function (req, res) {
+//get bd handover sheet data by id or leadId
+const getByIdOrLeadId = async function (req, res) {
   try {
-    let id = req.params._id;
-    if (!id) {
-      return res.status(400).json({ message: "id not found" });
+    const { id, leadId } = req.query;
+
+    if (!id && !leadId) {
+      return res.status(400).json({ message: "id or leadId is required" });
     }
-    let getbdhandoversheet = await hanoversheetmodells.findById(id);
-    if (!getbdhandoversheet) {
+
+    let query = {};
+    if (id) query._id = id;
+    if (leadId) query.id = leadId;
+
+    const handoverSheet = await hanoversheetmodells.findOne(query);
+
+    if (!handoverSheet) {
       return res.status(404).json({ message: "Data not found" });
     }
-    res
-      .status(200)
-      .json({ message: "Data fetched successfully", Data: getbdhandoversheet });
+
+    res.status(200).json({ message: "Data fetched successfully", data: handoverSheet });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 //sercher api
 
@@ -241,10 +300,9 @@ const search = async function (req, res) {
 module.exports = {
   createhandoversheet,
   gethandoversheetdata,
-  getAllhandoversheetdata,
+  getByIdOrLeadId,
   edithandoversheetdata,
   updatestatus,
   checkid,
-  getbyid,
   search,
 };
