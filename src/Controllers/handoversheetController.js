@@ -100,8 +100,6 @@ const gethandoversheetdata = async function (req, res) {
                 id: 1,
                 createdAt: 1,
                 leadId: 1,
-                otherField1: 1,
-                otherField2: 1,
                 customer_details: 1,
                 scheme: "$leadDetails.scheme",
                 submitted_by:"$leadDetails.submitted_by",
