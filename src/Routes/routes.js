@@ -71,6 +71,7 @@ const {
   updateExceData,
   getExcelDataById,
   getpy,
+  newPaymentApproval,
 } = require("../Controllers/payRequestControllers");
 
 const {
@@ -593,6 +594,7 @@ router.get(
   getExcelDataById
 );
 router.get("/get-pay-smry", jwtMW.authentication, jwtMW.authorization, getpy);
+router.get("/payment-Approval",newPaymentApproval);
 
 //adjustment request
 router.post(

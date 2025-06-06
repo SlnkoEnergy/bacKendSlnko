@@ -888,6 +888,170 @@ const getPay = async (req, res) => {
     
   };
 
+  //NEW Payment Approval
+const newPaymentApproval = async function (req, res) {
+  try {
+    // Read query params from req.query
+    const searchProjectId = req.query.code|| '';
+    const searchClientName = req.query.name || '';
+    const searchGroupName = req.query.p_group || '';
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const data = await payRequestModells.aggregate([
+      // 1️⃣ Lookup to projectdetails collection
+      {
+        $lookup: {
+          from: "projectdetails",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "project"
+        }
+      },
+
+      // 2️⃣ Unwind the project array
+      {
+        $unwind: {
+          path: "$project",
+         
+        }
+      },
+
+      // 3️⃣ Lookup total credits per project
+      {
+        $lookup: {
+          from: "addmoneys",
+          let: { projectId: "$p_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$p_id", "$$projectId"] } } },
+            {
+              $group: {
+                _id: "$p_id",
+                totalCredit: { $sum: { $toDouble: "$cr_amount" } }
+              }
+            }
+          ],
+          as: "creditData"
+        }
+      },
+      { $unwind: { path: "$creditData",  } },
+
+      // 4️⃣ Lookup total debits per project
+      {
+        $lookup: {
+          from: "subtract moneys",
+          let: { projectId: "$p_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$p_id", "$$projectId"] } } },
+            {
+              $group: {
+                _id: "$p_id",
+                totalDebit: { $sum: { $toDouble: "$amount_paid" } }
+              }
+            }
+          ],
+          as: "debitData"
+        }
+      },
+      { $unwind: { path: "$debitData", } },
+
+      // 5️⃣ Add Available_Amount per payment/project
+      {
+        $addFields: {
+          aggregateCredit: { $ifNull: ["$creditData.totalCredit", 0] },
+          aggregateDebit: { $ifNull: ["$debitData.totalDebit", 0] },
+          Available_Amount: {
+            $subtract: [
+              { $ifNull: ["$creditData.totalCredit", 0] },
+              { $ifNull: ["$debitData.totalDebit", 0] }
+            ]
+          }
+        }
+      },
+
+      // 6️⃣ Group by project group to compute group totals
+      {
+        $group: {
+          _id: "$project.p_group",
+          groupCredit: { $sum: "$aggregateCredit" },
+          groupDebit: { $sum: "$aggregateDebit" },
+          payments: {
+            $push: {
+              payment_id: "$pay_id",
+              request_date: "$dbt_date",
+              request_for: "$paid_for",
+              payment_description: "$comment",
+              amount_requested: "$amt_for_customer",
+              project_id: "$project.code",
+              client_name: "$project.name",
+              group_name: "$project.p_group",
+              aggregateCredit: "$aggregateCredit",
+              aggregateDebit: "$aggregateDebit",
+              Available_Amount: "$Available_Amount"
+            }
+          }
+        }
+      },
+
+      // 7️⃣ Add groupBalance
+      {
+        $addFields: {
+          groupBalance: { $subtract: ["$groupCredit", "$groupDebit"] }
+        }
+      },
+
+      // 8️⃣ Unwind payments → so we can return one row per payment with groupBalance attached
+      { $unwind: "$payments" },
+
+      // 9️⃣ Final projection → flatten structure
+      {
+        $project: {
+          _id: 0,
+          payment_id: "$payments.payment_id",
+          request_date: "$payments.request_date",
+          request_for: "$payments.request_for",
+          payment_description: "$payments.payment_description",
+          amount_requested: "$payments.amount_requested",
+          project_id: "$payments.project_id",
+          client_name: "$payments.client_name",
+          group_name: "$payments.group_name",
+          //aggregateCredit: "$payments.aggregateCredit",
+          //aggregateDebit: "$payments.aggregateDebit",
+          ClientBalance: "$payments.Available_Amount",
+          groupBalance: "$groupBalance"
+        }
+      },
+
+      // 🔍 10️⃣ Match stage → Search
+      {
+        $match: {
+          project_id: { $regex: searchProjectId, $options: 'i' },
+          client_name: { $regex: searchClientName, $options: 'i' },
+          group_name: { $regex: searchGroupName, $options: 'i' }
+        }
+      },
+
+      // 11️⃣ Pagination → skip & limit
+      { $skip: skip },
+      { $limit: limit }
+    ]);
+
+    // Send response
+    res.json({
+      page,
+      limit,
+      data
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "An error occurred while processing the request." });
+  }
+};
+
+
 
 
 
@@ -913,4 +1077,5 @@ module.exports = {
   updateExceData,
   getExcelDataById,
   getpy,
+  newPaymentApproval
 };
