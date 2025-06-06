@@ -60,7 +60,7 @@ router.get(
   getModuleCategory
 );
 router.get(
-  "/get-module-category-id/:_id",
+  "/get-module-category-id",
   jwtMW.authentication,
   jwtMW.authorization,
   getModuleCategoryById

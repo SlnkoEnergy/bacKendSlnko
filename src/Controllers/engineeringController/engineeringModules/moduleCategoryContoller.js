@@ -157,14 +157,24 @@ const getModuleCategory = async (req, res) => {
 
 const getModuleCategoryById = async (req, res) => {
   try {
-    const data = await moduleCategory
-      .findById(req.params._id)
+    const { id, projectId } = req.query;
+    if (!id && !projectId) {
+      return res.status(400).json({ message: "id or projectId is required" });
+    }
+    let query = {};
+    if (id) query._id = id;
+    if (projectId) query.project_id = projectId;
+    const moduleData = await moduleCategory
+      .findOne(query)
       .populate("items.template_id")
       .populate("project_id");
 
+    if (!moduleData) {
+      return res.status(404).json({ message: "Data not found" });
+    }
     res.status(200).json({
       message: "Module Project fetched Successfully",
-      data,
+      data: moduleData,
     });
   } catch (error) {
     res.status(500).json({
