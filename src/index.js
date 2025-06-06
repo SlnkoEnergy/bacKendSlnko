@@ -1,10 +1,8 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const cluster = require("cluster");
-
 const app = express();
 const routes = require("../src/Routes/routes");
-
+const engineeringRoutes = require("../src/Routes/engineering/engineeringRoutes");
 const cors = require("cors");
 const { config } = require("dotenv");
 
@@ -25,6 +23,7 @@ const startServer = async () => {
     console.log("SlnkoEnergy database is connected");
 
     app.use("/v1", routes);
+    app.use("/v1/engineering", engineeringRoutes);
 
     // Start the server
     app.listen(PORT, () => {
