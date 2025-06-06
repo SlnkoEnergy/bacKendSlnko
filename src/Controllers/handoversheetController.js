@@ -1,3 +1,4 @@
+const handoversheetModells = require("../Modells/handoversheetModells");
 const hanoversheetmodells = require("../Modells/handoversheetModells");
 const projectmodells = require("../Modells/projectModells");
 
@@ -71,7 +72,7 @@ try {
     },
     {
       $lookup: {
-        from: 'wonleads',
+        from: 'handoversheet',
         localField: 'id',
         foreignField: 'id',
         as: 'leadDetails'
@@ -250,24 +251,31 @@ const checkid = async function (req, res) {
   }
 };
 
-//get bd handover sheet data by id
-const getbyid = async function (req, res) {
+//get bd handover sheet data by id or leadId
+const getByIdOrLeadId = async function (req, res) {
   try {
-    let id = req.params._id;
-    if (!id) {
-      return res.status(400).json({ message: "id not found" });
+    const { id, leadId } = req.query;
+
+    if (!id && !leadId) {
+      return res.status(400).json({ message: "id or leadId is required" });
     }
-    let getbdhandoversheet = await hanoversheetmodells.findById(id);
-    if (!getbdhandoversheet) {
+
+    let query = {};
+    if (id) query._id = id;
+    if (leadId) query.id = leadId;
+
+    const handoverSheet = await hanoversheetmodells.findOne(query);
+
+    if (!handoverSheet) {
       return res.status(404).json({ message: "Data not found" });
     }
-    res
-      .status(200)
-      .json({ message: "Data fetched successfully", Data: getbdhandoversheet });
+
+    res.status(200).json({ message: "Data fetched successfully", data: handoverSheet });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 //sercher api
 
@@ -292,9 +300,9 @@ const search = async function (req, res) {
 module.exports = {
   createhandoversheet,
   gethandoversheetdata,
+  getByIdOrLeadId,
   edithandoversheetdata,
   updatestatus,
   checkid,
-  getbyid,
   search,
 };
