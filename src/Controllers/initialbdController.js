@@ -310,8 +310,69 @@ const initialtowon = async function (req, res) {
 //get alll won lead
 const getallwon = async function (req, res) {
   try {
-    const wondata = await wonleadModells.find();
-    res.status(200).json({ data: wondata });
+    const { page = 1, limit = 10, search = "" } = req.query;
+    const skip = (page - 1) * limit;
+
+    const wondata = await wonleadModells.aggregate([
+      {
+        $match: {
+          $or: [
+            { c_name: { $regex: search, $options: "i" } },
+            { mobile: { $regex: search, $options: "i" } },
+            { state: { $regex: search, $options: "i" } },
+            { scheme: { $regex: search, $options: "i" } }
+          ]
+        }
+      },
+      {
+        $lookup: {
+          from: "handoversheets",
+          localField: "id",
+          foreignField: "id",
+          as: "handoverDetails"
+        }
+      },
+      {
+        $unwind: {
+          path: "$handoverDetails",
+          
+        }
+      },
+      {
+        $project: {
+          leadId: "$id",
+          customer: "$c_name",
+          mobile: 1,
+          state: 1,
+          scheme: 1,
+          capacity: "$capacity_mw",
+          substationDistance: "$distance",
+          date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          status: "$handoverDetails.status_of_handoversheet",
+          comment: "$handoverDetails.comment",
+          submittedBy: "$handoverDetails.submitted_by"
+        }
+      },
+      { $sort: { createdAt: -1 } },
+      { $skip: parseInt(skip) },
+      { $limit: parseInt(limit) }
+    ]);
+
+    const total = await wonleadModells.countDocuments({
+      $or: [
+        { c_name: { $regex: search, $options: "i" } },
+        { mobile: { $regex: search, $options: "i" } },
+        { state: { $regex: search, $options: "i" } },
+        { scheme: { $regex: search, $options: "i" } }
+      ]
+    });
+
+    res.status(200).json({
+      data: wondata,
+      currentPage: Number(page),
+      totalPages: Math.ceil(total / limit),
+      totalRecords: total
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
