@@ -52,17 +52,30 @@ const gethandoversheetdata = async function (req, res) {
     const limit = 10;
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
+    const statusFilter = req.query.status;
 
-    const matchConditions = search
-      ? {
-          $or: [
-            { "customer_details.code": { $regex: search, $options: "i" } },
-            { "customer_details.name": { $regex: search, $options: "i" } },
-            { "customer_details.state": { $regex: search, $options: "i" } },
-            { "leadDetails.scheme": { $regex: search, $options: "i" } },
-          ],
-        }
-      : {};
+    // Build match conditions
+    const matchConditions = { $and: [] };
+
+    if (search) {
+      matchConditions.$and.push({
+        $or: [
+          { "customer_details.code": { $regex: search, $options: "i" } },
+          { "customer_details.name": { $regex: search, $options: "i" } },
+          { "customer_details.state": { $regex: search, $options: "i" } },
+          { "leadDetails.scheme": { $regex: search, $options: "i" } },
+        ],
+      });
+    }
+
+    if (statusFilter) {
+      matchConditions.$and.push({
+        status_of_handoversheet: statusFilter,
+      });
+    }
+
+    // If no conditions were added, match everything
+    const finalMatch = matchConditions.$and.length > 0 ? matchConditions : {};
 
     const pipeline = [
       {
@@ -85,7 +98,7 @@ const gethandoversheetdata = async function (req, res) {
         },
       },
       {
-        $match: matchConditions,
+        $match: finalMatch,
       },
       {
         $facet: {
@@ -104,6 +117,7 @@ const gethandoversheetdata = async function (req, res) {
                 scheme: "$leadDetails.scheme",
                 submitted_by:"$leadDetails.submitted_by",
                 leadDetails: 1,
+                status_of_handoversheet: 1,
               },
             },
           ],
