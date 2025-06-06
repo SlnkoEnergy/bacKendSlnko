@@ -12,16 +12,50 @@ const createlead = async function (req, res) {
 
 const all_bd_lead = async function (req, res) {
   try {
-    const all_lead =await lead.find();
-    if (!all_lead) {
-      return res.status(404).json({ msg: "No leads found" });
+    // Read search params (or empty string if not provided)
+    const searchName = req.query.name || '';
+    const searchStatus = req.query.current_status || '';
+    const searchState = req.query.state || '';
+    const searchMobile = req.query.mobile || '';
+
+    // Pagination params
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Search filter
+    const filter = {
+      name: { $regex: searchName, $options: 'i' },
+      'current_status.name': { $regex: searchStatus, $options: 'i' },
+      'address.state': { $regex: searchState, $options: 'i' },
+    };
+
+    // For mobile array field
+    if (searchMobile) {
+      filter['contact_details.mobile'] = { $elemMatch: { $regex: searchMobile, $options: 'i' } };
     }
-    res.status(200).json({ msg: "All leads data", data: all_lead });
-}
-    catch (error) {
-        res.status(500).json({ message: "Internal server error" });
-    }
+
+    // Get leads with filter and pagination
+    const leads = await lead.find(filter).skip(skip).limit(limit);
+
+    // Get total count for pagination
+    const totalCount = await lead.countDocuments(filter);
+
+    // Return response
+    res.status(200).json({
+      msg: "All leads data",
+      page,
+      limit,
+      totalCount,
+      data: leads
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
+
 
 // get lead by id 
 

@@ -11,7 +11,7 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const PORT = process.env.PORT || 4000; 
+const PORT = process.env.PORT;
 
 
 const DB_DEVELOPMENT_URL = process.env.DB_DEVELOPMENT_URL;
