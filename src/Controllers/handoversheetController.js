@@ -51,44 +51,45 @@ const gethandoversheetdata = async function (req, res) {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = 10;
     const skip = (page - 1) * limit;
-    const search = req.query.search || '';
+    const search = req.query.search || "";
 
     const matchConditions = search
       ? {
           $or: [
-            { 'customer_details.code': { $regex: search, $options: 'i' } },
-            { 'customer_details.name': { $regex: search, $options: 'i' } },
-            { 'customer_details.state': { $regex: search, $options: 'i' } },
-            { 'leadDetails.scheme': { $regex: search, $options: 'i' } }
-          ]
+            { "customer_details.code": { $regex: search, $options: "i" } },
+            { "customer_details.name": { $regex: search, $options: "i" } },
+            { "customer_details.state": { $regex: search, $options: "i" } },
+            { "leadDetails.scheme": { $regex: search, $options: "i" } },
+          ],
         }
       : {};
 
     const pipeline = [
       {
         $addFields: {
-          id: { $toString: '$id' }
-        }
+          id: { $toString: "$id" },
+        },
       },
       {
         $lookup: {
-          from: 'wonleads', // updated collection name
-          localField: 'id',
-          foreignField: 'id',
-          as: 'leadDetails'
-        }
+          from: "wonleads",
+          localField: "id",
+          foreignField: "id",
+          as: "leadDetails",
+        },
       },
       {
         $unwind: {
-          path: '$leadDetails',
-        }
+          path: "$leadDetails",
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
-        $match: matchConditions
+        $match: matchConditions,
       },
       {
         $facet: {
-          metadata: [{ $count: 'total' }],
+          metadata: [{ $count: "total" }],
           data: [
             { $sort: { createdAt: -1 } },
             { $skip: skip },
@@ -99,15 +100,17 @@ const gethandoversheetdata = async function (req, res) {
                 id: 1,
                 createdAt: 1,
                 leadId: 1,
+                otherField1: 1,
+                otherField2: 1,
                 customer_details: 1,
-                scheme: '$leadDetails.scheme',
-                submitted_by: '$leadDetails.submitted_by',
-                leadDetails: 1
-              }
-            }
-          ]
-        }
-      }
+                scheme: "$leadDetails.scheme",
+                submitted_by:"$leadDetails.submitted_by",
+                leadDetails: 1,
+              },
+            },
+          ],
+        },
+      },
     ];
 
     const result = await hanoversheetmodells.aggregate(pipeline);
@@ -115,20 +118,21 @@ const gethandoversheetdata = async function (req, res) {
     const data = result[0].data;
 
     res.status(200).json({
-      message: 'Data fetched successfully',
+      message: "Data fetched successfully",
       meta: {
         total,
         page,
         pageSize: limit,
-        count: data.length
+        count: data.length,
       },
-      data
+      data,
     });
   } catch (error) {
-    console.error('Error:', error);
+    console.error("Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
+
 
 
 //edit handover sheet data
