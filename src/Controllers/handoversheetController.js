@@ -28,7 +28,7 @@ const createhandoversheet = async function (req, res) {
       status_of_handoversheet: "draft",
       submitted_by,
     });
-    
+
     cheched_id = await hanoversheetmodells.findOne({ id: id });
     if (cheched_id) {
       return res.status(400).json({ message: "Handoversheet already exists" });
@@ -52,11 +52,11 @@ const gethandoversheetdata = async function (req, res) {
     const limit = 10;
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
-    const statusFilter = req.query.status;
+    const statusFilter = req.query.status; // e.g., "submitted,approved"
 
-    // Build match conditions
     const matchConditions = { $and: [] };
 
+    // Keyword search
     if (search) {
       matchConditions.$and.push({
         $or: [
@@ -68,10 +68,23 @@ const gethandoversheetdata = async function (req, res) {
       });
     }
 
+    // Status filter supporting multiple values
     if (statusFilter) {
-      matchConditions.$and.push({
-        status_of_handoversheet: statusFilter,
-      });
+      // Split by comma, trim whitespace, and filter out empty strings
+      const statuses = statusFilter
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      if (statuses.length === 1) {
+        // Single status filter
+        matchConditions.$and.push({ status_of_handoversheet: statuses[0] });
+      } else if (statuses.length > 1) {
+        // Filter for any of the given statuses
+        matchConditions.$and.push({
+          status_of_handoversheet: { $in: statuses },
+        });
+      }
     }
 
     // If no conditions were added, match everything
@@ -119,7 +132,7 @@ const gethandoversheetdata = async function (req, res) {
                 project_kwp: "$project_detail.project_kwp",
                 total_gst: "$other_details.total_gst",
                 service: "$other_details.service",
-                submitted_by:"$leadDetails.submitted_by",
+                submitted_by: "$leadDetails.submitted_by",
                 leadDetails: 1,
                 status_of_handoversheet: 1,
               },
@@ -149,8 +162,6 @@ const gethandoversheetdata = async function (req, res) {
   }
 };
 
-
-
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
   try {
@@ -178,24 +189,25 @@ const edithandoversheetdata = async function (req, res) {
 const updatestatus = async function (req, res) {
   try {
     const _id = req.params._id;
-    const { status_of_handoversheet,comment } = req.body;
+    const { status_of_handoversheet, comment } = req.body;
 
-  
     const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
       { _id: _id },
-      { status_of_handoversheet,comment },
+      { status_of_handoversheet, comment },
       { new: true }
     );
 
     if (!updatedHandoversheet) {
       return res.status(404).json({ message: "Handoversheet not found" });
     }
-    if (updatedHandoversheet.status_of_handoversheet === "Approved" && updatedHandoversheet.is_locked ==="locked") {
+    if (
+      updatedHandoversheet.status_of_handoversheet === "Approved" &&
+      updatedHandoversheet.is_locked === "locked"
+    ) {
       const latestProject = await projectmodells.findOne().sort({ p_id: -1 });
       const newPid =
         latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
 
-    
       const {
         customer_details = {},
         project_detail = {},
@@ -231,7 +243,6 @@ const updatestatus = async function (req, res) {
         service: other_details.service || "",
         submitted_by: req?.user?.name || "", // Adjust based on your auth
         billing_type: other_details.billing_type || "",
-      
       });
 
       // Save the new project
@@ -288,12 +299,13 @@ const getByIdOrLeadId = async function (req, res) {
       return res.status(404).json({ message: "Data not found" });
     }
 
-    res.status(200).json({ message: "Data fetched successfully", data: handoverSheet });
+    res
+      .status(200)
+      .json({ message: "Data fetched successfully", data: handoverSheet });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 //sercher api
 
