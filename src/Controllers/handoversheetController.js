@@ -47,91 +47,91 @@ const createhandoversheet = async function (req, res) {
 
 // get  bd handover sheet data
 const gethandoversheetdata = async function (req, res) {
-try {
-  const page = parseInt(req.query.page, 10) || 1;
-  const limit = 10;
-  const skip = (page - 1) * limit;
-  const search = req.query.search || '';
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
 
-  const matchConditions = search
-    ? {
-        $or: [
-          { 'customer_details.code': { $regex: search, $options: 'i' } },
-          { 'customer_details.name': { $regex: search, $options: 'i' } },
-          { 'customer_details.state': { $regex: search, $options: 'i' } },
-          { 'leadDetails.scheme': { $regex: search, $options: 'i' } }
-        ]
-      }
-    : {};
+    const matchConditions = search
+      ? {
+          $or: [
+            { "customer_details.code": { $regex: search, $options: "i" } },
+            { "customer_details.name": { $regex: search, $options: "i" } },
+            { "customer_details.state": { $regex: search, $options: "i" } },
+            { "leadDetails.scheme": { $regex: search, $options: "i" } },
+          ],
+        }
+      : {};
 
-  const pipeline = [
-    {
-      $addFields: {
-        id: { $toString: '$id' }
-      }
-    },
-    {
-      $lookup: {
-        from: 'handoversheet',
-        localField: 'id',
-        foreignField: 'id',
-        as: 'leadDetails'
-      }
-    },
-    {
-      $unwind: {
-        path: '$leadDetails',
-        preserveNullAndEmptyArrays: true
-      }
-    },
-    {
-      $match: matchConditions
-    },
-    {
-      $facet: {
-        metadata: [{ $count: 'total' }],
-        data: [
-          { $sort: { createdAt: -1 } },
-          { $skip: skip },
-          { $limit: limit },
-          {
-            $project: {
-              _id: 1,
-              id: 1,
-              createdAt: 1,
-              leadId: 1,
-              otherField1: 1,
-              otherField2: 1,
-              customer_details: 1,
-              scheme: '$leadDetails.scheme',
-              leadDetails: 1
-            }
-          }
-        ]
-      }
-    }
-  ];
+    const pipeline = [
+      {
+        $addFields: {
+          id: { $toString: "$id" },
+        },
+      },
+      {
+        $lookup: {
+          from: "wonleads",
+          localField: "id",
+          foreignField: "id",
+          as: "leadDetails",
+        },
+      },
+      {
+        $unwind: {
+          path: "$leadDetails",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $match: matchConditions,
+      },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                _id: 1,
+                id: 1,
+                createdAt: 1,
+                leadId: 1,
+                customer_details: 1,
+                scheme: "$leadDetails.scheme",
+                submitted_by:"$leadDetails.submitted_by",
+                leadDetails: 1,
+              },
+            },
+          ],
+        },
+      },
+    ];
 
-  const result = await hanoversheetmodells.aggregate(pipeline);
-  const total = result[0].metadata[0]?.total || 0;
-  const data = result[0].data;
+    const result = await hanoversheetmodells.aggregate(pipeline);
+    const total = result[0].metadata[0]?.total || 0;
+    const data = result[0].data;
 
-  res.status(200).json({
-    message: 'Data fetched successfully',
-    meta: {
-      total,
-      page,
-      pageSize: limit,
-      count: data.length
-    },
-    data
-  });
-} catch (error) {
-  console.error('Error:', error);
-  res.status(500).json({ message: error.message });
-}
-
+    res.status(200).json({
+      message: "Data fetched successfully",
+      meta: {
+        total,
+        page,
+        pageSize: limit,
+        count: data.length,
+      },
+      data,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: error.message });
+  }
 };
+
+
 
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
