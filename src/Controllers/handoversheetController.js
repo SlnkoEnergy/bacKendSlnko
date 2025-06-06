@@ -135,6 +135,9 @@ const gethandoversheetdata = async function (req, res) {
                 submitted_by: "$leadDetails.submitted_by",
                 leadDetails: 1,
                 status_of_handoversheet: 1,
+                is_locked: 1,
+                comment: 1,
+                p_id: 1
               },
             },
           ],
