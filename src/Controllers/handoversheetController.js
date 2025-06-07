@@ -1,5 +1,3 @@
-const moduleCategory = require("../Modells/EngineeringModells/engineeringModules/moduleCategory");
-const moduleTemplate = require("../Modells/EngineeringModells/engineeringModules/moduleTemplate");
 const handoversheetModells = require("../Modells/handoversheetModells");
 const hanoversheetmodells = require("../Modells/handoversheetModells");
 const projectmodells = require("../Modells/projectModells");
@@ -54,17 +52,43 @@ const gethandoversheetdata = async function (req, res) {
     const limit = 10;
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
+    const statusFilter = req.query.status; // e.g., "submitted,approved"
 
-    const matchConditions = search
-      ? {
-          $or: [
-            { "customer_details.code": { $regex: search, $options: "i" } },
-            { "customer_details.name": { $regex: search, $options: "i" } },
-            { "customer_details.state": { $regex: search, $options: "i" } },
-            { "leadDetails.scheme": { $regex: search, $options: "i" } },
-          ],
-        }
-      : {};
+    const matchConditions = { $and: [] };
+
+    // Keyword search
+    if (search) {
+      matchConditions.$and.push({
+        $or: [
+          { "customer_details.code": { $regex: search, $options: "i" } },
+          { "customer_details.name": { $regex: search, $options: "i" } },
+          { "customer_details.state": { $regex: search, $options: "i" } },
+          { "leadDetails.scheme": { $regex: search, $options: "i" } },
+        ],
+      });
+    }
+
+    // Status filter supporting multiple values
+    if (statusFilter) {
+      // Split by comma, trim whitespace, and filter out empty strings
+      const statuses = statusFilter
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      if (statuses.length === 1) {
+        // Single status filter
+        matchConditions.$and.push({ status_of_handoversheet: statuses[0] });
+      } else if (statuses.length > 1) {
+        // Filter for any of the given statuses
+        matchConditions.$and.push({
+          status_of_handoversheet: { $in: statuses },
+        });
+      }
+    }
+
+    // If no conditions were added, match everything
+    const finalMatch = matchConditions.$and.length > 0 ? matchConditions : {};
 
     const pipeline = [
       {
@@ -74,7 +98,7 @@ const gethandoversheetdata = async function (req, res) {
       },
       {
         $lookup: {
-          from: "handoversheet",
+          from: "wonleads",
           localField: "id",
           foreignField: "id",
           as: "leadDetails",
@@ -87,7 +111,7 @@ const gethandoversheetdata = async function (req, res) {
         },
       },
       {
-        $match: matchConditions,
+        $match: finalMatch,
       },
       {
         $facet: {
@@ -102,11 +126,18 @@ const gethandoversheetdata = async function (req, res) {
                 id: 1,
                 createdAt: 1,
                 leadId: 1,
-                otherField1: 1,
-                otherField2: 1,
                 customer_details: 1,
                 scheme: "$leadDetails.scheme",
+                proposed_dc_capacity: "$project_detail.proposed_dc_capacity",
+                project_kwp: "$project_detail.project_kwp",
+                total_gst: "$other_details.total_gst",
+                service: "$other_details.service",
+                submitted_by: "$leadDetails.submitted_by",
                 leadDetails: 1,
+                status_of_handoversheet: 1,
+                is_locked: 1,
+                comment: 1,
+                p_id: 1
               },
             },
           ],
@@ -222,24 +253,10 @@ const updatestatus = async function (req, res) {
       updatedHandoversheet.p_id = newPid;
       await updatedHandoversheet.save();
 
-      const allTemplates = await moduleTemplate.find({}, "_id"); // assuming templateModel is your template collection
-      const templateIds = allTemplates.map((t) => t._id);
-
-      // Step 2: Use these IDs to create moduleCategoryData
-      const moduleCategoryData = new moduleCategory({
-        project_id: projectData._id,
-        items: templateIds.map((id) => ({
-          template_id: id
-        })),
-      });
-       
-      await moduleCategoryData.save();
-
       return res.status(200).json({
         message: "Status updated and project created successfully",
         handoverSheet: updatedHandoversheet,
         project: projectData,
-        moduleCategory: moduleCategoryData,
       });
     }
     res.status(200).json({
@@ -294,6 +311,7 @@ const getByIdOrLeadId = async function (req, res) {
 };
 
 //sercher api
+
 const search = async function (req, res) {
   const letter = req.params.letter;
   try {
