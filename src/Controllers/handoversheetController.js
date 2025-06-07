@@ -1,3 +1,5 @@
+const moduleCategory = require("../Modells/EngineeringModells/engineeringModules/moduleCategory");
+const moduleTemplate = require("../Modells/EngineeringModells/engineeringModules/moduleTemplate");
 const handoversheetModells = require("../Modells/handoversheetModells");
 const hanoversheetmodells = require("../Modells/handoversheetModells");
 const projectmodells = require("../Modells/projectModells");
@@ -264,17 +266,29 @@ const updatestatus = async function (req, res) {
       await projectData.save();
       updatedHandoversheet.p_id = newPid;
       await updatedHandoversheet.save();
+      const allTemplates = await moduleTemplate.find({}, "_id");
+
+      // Prepare items array
+      const items = allTemplates.map((tpl) => ({
+        template_id: tpl._id,
+      }));
+
+      // Create moduleCategory document
+      const moduleCategoryData = new moduleCategory({
+        project_id: projectData._id,
+        items,
+      });
+
+      await moduleCategoryData.save();
 
       return res.status(200).json({
-        message: "Status updated and project created successfully",
+        message: "Status updated, project and moduleCategory created successfully",
         handoverSheet: updatedHandoversheet,
         project: projectData,
+        moduleCategory: moduleCategoryData,
       });
     }
-    res.status(200).json({
-      message: "Status updated successfully",
-      Data: updatedHandoversheet,
-    });
+    
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
