@@ -266,47 +266,6 @@ const {
   updateMaterialCategory,
 } = require("../Controllers/engineeringController/materials/materialCategoryController");
 const upload = require("../middlewares/multer.js");
-const {
-  createModule,
-  getModuleById,
-  getAllModule,
-  updateModule,
-  deleteModule,
-<<<<<<< HEAD
-  updateModuleTemplateCategoryId,
-=======
->>>>>>> ab840f6ebfd972cdd9758b49c6b4d12369fd7ff5
-} = require("../Controllers/engineeringController/engineeringModules/moduleTemplateController.js");
-const {
-  createModuleCategory,
-  getModuleCategory,
-  getModuleCategoryById,
-  updateModuleCategory,
-  updateModuleCategoryStatus,
-  updateAttachmentUrl,
-} = require("../Controllers/engineeringController/engineeringModules/moduleCategoryContoller.js");
-const {
-  createBoqCategory,
-  getBoqCategoryById,
-  getBoqCategory,
-  updateBoqCategory,
-} = require("../Controllers/engineeringController/boq/boqCategoryControllers.js");
-const {
-  createBoqTemplate,
-  getBoqTemplateById,
-  getBoqTemplate,
-  updateBoqTemplate,
-} = require("../Controllers/engineeringController/boq/boqTemplateControllers.js");
-<<<<<<< HEAD
-const {
-  createBoqProject,
-  getAllBoqProject,
-  getBoqProjectById,
-  updateBoqProject,
-  deleteBoqProject,
-} = require("../Controllers/engineeringController/boq/boqProjectControllers.js");
-=======
->>>>>>> ab840f6ebfd972cdd9758b49c6b4d12369fd7ff5
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);

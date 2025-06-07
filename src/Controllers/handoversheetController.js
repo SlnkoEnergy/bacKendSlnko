@@ -52,7 +52,7 @@ const gethandoversheetdata = async function (req, res) {
     const limit = 10;
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
-    const statusFilter = req.query.status; // e.g., "submitted,approved"
+    const statusFilter = req.query.status;
 
     const matchConditions = { $and: [] };
 
@@ -68,26 +68,22 @@ const gethandoversheetdata = async function (req, res) {
       });
     }
 
-    // Status filter supporting multiple values
+    // Status filter
     if (statusFilter) {
-      // Split by comma, trim whitespace, and filter out empty strings
       const statuses = statusFilter
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
 
       if (statuses.length === 1) {
-        // Single status filter
         matchConditions.$and.push({ status_of_handoversheet: statuses[0] });
       } else if (statuses.length > 1) {
-        // Filter for any of the given statuses
         matchConditions.$and.push({
           status_of_handoversheet: { $in: statuses },
         });
       }
     }
 
-    // If no conditions were added, match everything
     const finalMatch = matchConditions.$and.length > 0 ? matchConditions : {};
 
     const pipeline = [
@@ -107,6 +103,20 @@ const gethandoversheetdata = async function (req, res) {
       {
         $unwind: {
           path: "$leadDetails",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "projectdetails", 
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "projectInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$projectInfo",
           preserveNullAndEmptyArrays: true,
         },
       },
@@ -137,7 +147,8 @@ const gethandoversheetdata = async function (req, res) {
                 status_of_handoversheet: 1,
                 is_locked: 1,
                 comment: 1,
-                p_id: 1
+                p_id: 1,
+                project_id: "$projectInfo._id", 
               },
             },
           ],
@@ -164,6 +175,7 @@ const gethandoversheetdata = async function (req, res) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
