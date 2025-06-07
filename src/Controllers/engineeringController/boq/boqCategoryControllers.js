@@ -1,13 +1,26 @@
 const boqCategory = require("../../../Modells/EngineeringModells/boq/boqCategory");
+const moduleTemplates = require("../../../Modells/EngineeringModells/engineeringModules/moduleTemplate");
 
 const createBoqCategory = async (req, res) => {
   try {
-    const BoqData = new boqCategory(req.body);
+    const { module_template } = req.query;
 
-    await BoqData.save();
+    const boqData = new boqCategory(req.body);
+    await boqData.save();
+
+    if (module_template) {
+      await moduleTemplates.findByIdAndUpdate(
+        module_template,
+        {
+          $addToSet: { "boq.template_category": boqData._id }, 
+        },
+        { new: true }
+      );
+    }
+
     res.status(201).json({
       message: "Boq Category created successfully",
-      data: BoqData,
+      data: boqData,
     });
   } catch (error) {
     res.status(500).json({
@@ -15,7 +28,8 @@ const createBoqCategory = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
+
 
 const getBoqCategoryById = async (req, res) => {
   try {

@@ -171,14 +171,14 @@ const getModuleCategoryById = async (req, res) => {
       { $unwind: "$items" },
       {
         $lookup: {
-          from: "moduletemplates", // collection name in lowercase
+          from: "moduletemplates",
           localField: "items.template_id",
           foreignField: "_id",
           as: "templateInfo",
         },
       },
       { $unwind: "$templateInfo" },
-      // Filter based on engineering_category if provided
+
       ...(engineering
         ? [
             {
@@ -188,6 +188,37 @@ const getModuleCategoryById = async (req, res) => {
             },
           ]
         : []),
+
+      {
+        $lookup: {
+          from: "boqcategories",
+          localField: "templateInfo.boq.template_category",
+          foreignField: "_id",
+          as: "boqCategories",
+        },
+      },
+
+      {
+        $lookup: {
+          from: "boqtemplates",
+          let: {
+            categoryIds: {
+              $ifNull: ["$templateInfo.boq.template_category", []],
+            },
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $in: ["$boq_category", "$$categoryIds"],
+                },
+              },
+            },
+          ],
+          as: "boqTemplates",
+        },
+      },
+
       {
         $lookup: {
           from: "projects",
@@ -196,7 +227,13 @@ const getModuleCategoryById = async (req, res) => {
           as: "projectData",
         },
       },
-      { $unwind: { path: "$projectData", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: {
+          path: "$projectData",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
       {
         $group: {
           _id: "$_id",
@@ -206,9 +243,14 @@ const getModuleCategoryById = async (req, res) => {
           updatedAt: { $first: "$updatedAt" },
           items: {
             $push: {
-              ...{
-                $mergeObjects: ["$items", { template_id: "$templateInfo" }],
-              },
+              $mergeObjects: [
+                "$items",
+                {
+                  template_id: "$templateInfo",
+                  boq_categories: "$boqCategories",
+                  boq_templates: "$boqTemplates",
+                },
+              ],
             },
           },
         },
@@ -232,6 +274,8 @@ const getModuleCategoryById = async (req, res) => {
     });
   }
 };
+
+
 
 
 const updateModuleCategory = async (req, res) => {
