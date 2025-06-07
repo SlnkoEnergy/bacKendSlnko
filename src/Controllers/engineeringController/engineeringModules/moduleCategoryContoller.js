@@ -237,10 +237,13 @@ const getModuleCategoryById = async (req, res) => {
 const updateModuleCategory = async (req, res) => {
   try {
     const data = req.body.data ? JSON.parse(req.body.data) : req.body;
-    const { project_id, items } = data;
+    const { items } = data;
+    const { projectId, id } = req.query;
 
-    if (!project_id) {
-      return res.status(400).json({ message: "Project ID is required" });
+    if (!projectId && !id) {
+      return res
+        .status(400)
+        .json({ message: "Either 'projectId' or 'id' must be provided in query" });
     }
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -249,25 +252,33 @@ const updateModuleCategory = async (req, res) => {
         .json({ message: "Items array with template_id required" });
     }
 
-    // Find the template_id inside items (take the first one with template_id)
     const templateItem = items.find((item) => item.template_id);
     if (!templateItem) {
-      return res.status(400).json({ message: "No template_id found in items" });
+      return res
+        .status(400)
+        .json({ message: "No template_id found in items" });
     }
 
     const template_id = templateItem.template_id;
 
-    const moduleData = await moduleCategory.findOne({ project_id });
+    let moduleData;
+    if (id) {
+      moduleData = await moduleCategory.findById(id);
+    } else {
+      moduleData = await moduleCategory.findOne({ project_id: projectId });
+    }
+    
     if (!moduleData) {
       return res
         .status(404)
-        .json({ message: "Module Category not found for this project" });
+        .json({ message: "Module Category not found for given id or projectId" });
     }
 
     const projectCodeData = await projectDetail
-      .findById(project_id)
+      .findById(projectId || moduleData.project_id)
       .select("code");
     const projectCode = projectCodeData?.code;
+
     if (!projectCode) {
       return res.status(404).json({ message: "Project Code not found" });
     }
@@ -275,6 +286,7 @@ const updateModuleCategory = async (req, res) => {
     let templateData = await moduleTemplates
       .findById(template_id)
       .select("name file_upload");
+
     if (!templateData) {
       templateData = new moduleTemplates({
         _id: template_id,
@@ -288,7 +300,6 @@ const updateModuleCategory = async (req, res) => {
     const moduleTemplateName = moduleTemplateNameRaw.replace(/\s+/g, "_");
     const maxFiles = templateData.file_upload?.max_files || 0;
 
-    // Find existing item index for this template_id
     const itemIndex = moduleData.items.findIndex(
       (item) =>
         item.template_id &&
@@ -296,7 +307,6 @@ const updateModuleCategory = async (req, res) => {
         item.template_id.toString() === template_id.toString()
     );
 
-    // Calculate revision number
     let revisionNumber = "R0";
     if (itemIndex !== -1) {
       const existingItem = moduleData.items[itemIndex];
@@ -355,13 +365,12 @@ const updateModuleCategory = async (req, res) => {
     }
 
     if (urlsForAttachment.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "No files uploaded or uploaded files have no URLs" });
+      return res.status(400).json({
+        message: "No files uploaded or uploaded files have no URLs",
+      });
     }
 
     if (itemIndex !== -1) {
-      // Append to existing item
       const existingItem = moduleData.items[itemIndex];
       if (!Array.isArray(existingItem.attachment_urls)) {
         existingItem.attachment_urls = [];
@@ -371,9 +380,9 @@ const updateModuleCategory = async (req, res) => {
         attachment_number: revisionNumber,
         attachment_url: urlsForAttachment,
       });
+
       moduleData.items[itemIndex] = existingItem;
     } else {
-      // Create new item
       const newItem = {
         template_id: new mongoose.Types.ObjectId(template_id),
         attachment_urls: [
@@ -401,6 +410,8 @@ const updateModuleCategory = async (req, res) => {
     });
   }
 };
+
+
 
 const updateModuleCategoryStatus = async (req, res) => {
   try {
