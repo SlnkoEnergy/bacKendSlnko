@@ -267,7 +267,6 @@ const {
 } = require("../Controllers/engineeringController/materials/materialCategoryController");
 const upload = require("../middlewares/multer.js");
 
-
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
