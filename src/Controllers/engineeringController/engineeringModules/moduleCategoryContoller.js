@@ -277,7 +277,7 @@ const updateModuleCategory = async (req, res) => {
     const projectCodeData = await projectDetail
       .findById(projectId || moduleData.project_id)
       .select("code");
-    const projectCode = projectCodeData?.code;
+    const projectCode = projectCodeData?.code?.replace(/\//g, "_");
 
     if (!projectCode) {
       return res.status(404).json({ message: "Project Code not found" });
