@@ -1372,6 +1372,18 @@ const deadtoinitial = async function (req, res) {
   res.status(500).json({ message: "Server error", error: error.message });
 }}
 
+// edit won lead
+const editwon = async(req, res) => {
+   try {
+    const response = await wonleadModells.findByIdAndUpdate(req.params._id, req.body, { new: true });
+    if (!response) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+    res.status(200).json({ message: 'Won Data updated successfully', data: response });
+   } catch (error) {
+    res.status(500).json({ message: "Internal Server error", error: error.message });
+   }
+}
 
 // Delete dead lead
 const deletedead = async function (req, res) {
@@ -1450,6 +1462,7 @@ module.exports = {
   getallwarm,
   editfollowup,
   editwarm,
+  editwon,
   deletedead,
   allbdlead,
   wontodead,
