@@ -310,12 +310,72 @@ const initialtowon = async function (req, res) {
 //get alll won lead
 const getallwon = async function (req, res) {
   try {
-    const wondata = await wonleadModells.find();
-    res.status(200).json({ data: wondata });
+    const wondata = await wonleadModells.aggregate([
+      {
+        $lookup: {
+          from: "handoversheets",
+          localField: "id",
+          foreignField: "id",
+          as: "handoverDetails"
+        }
+      },
+      {
+        $unwind: {
+          path: "$handoverDetails",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          leadId: "$id",
+          customer: "$c_name",
+          mobile: 1,
+          state: 1,
+          scheme: 1,
+          capacity: "$capacity",
+          substationDistance: "$distance",
+          date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          status: "$handoverDetails.status_of_handoversheet",
+          comment: "$handoverDetails.comment",
+          submittedBy: "$handoverDetails.submitted_by"
+        }
+      },
+      { $sort: { createdAt: -1 } }
+    ]);
+
+    res.status(200).json({
+      data: wondata,
+      totalRecords: wondata.length
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+//get won by lead id
+const getwonbyleadid = async function (req, res) { 
+  try {
+    const {id, leadId} = req.query;
+
+    if(!id && !leadId) {
+      return res.status(400).json({ message: "Please provide either id or leadId" });
+    }
+
+    let query = {};
+    if (id) {
+      query._id = id;
+    }
+    if (leadId) {
+      query.id = leadId;
+    }
+    const wonData = await wonleadModells.findOne(query);
+    res.status(200).json({message:"Won Data fetched Successfully", data: wonData });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server error", error: error.message });
+  }
+}
+
+
 
 //followup to warm, dead, won
 
@@ -1312,6 +1372,18 @@ const deadtoinitial = async function (req, res) {
   res.status(500).json({ message: "Server error", error: error.message });
 }}
 
+// edit won lead
+const editwon = async(req, res) => {
+   try {
+    const response = await wonleadModells.findByIdAndUpdate(req.params._id, req.body, { new: true });
+    if (!response) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+    res.status(200).json({ message: 'Won Data updated successfully', data: response });
+   } catch (error) {
+    res.status(500).json({ message: "Internal Server error", error: error.message });
+   }
+}
 
 // Delete dead lead
 const deletedead = async function (req, res) {
@@ -1390,11 +1462,12 @@ module.exports = {
   getallwarm,
   editfollowup,
   editwarm,
+  editwon,
   deletedead,
   allbdlead,
   wontodead,
   deadtowon,
   updatewon,
   updateWonLead,
-  
+  getwonbyleadid
 }

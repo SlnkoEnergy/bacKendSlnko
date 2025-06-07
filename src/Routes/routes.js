@@ -172,6 +172,8 @@ const {
   deadtowon,
   updatewon,
   updateWonLead,
+  getwonbyleadid,
+  editwon
 } = require("../Controllers/initialbdController");
 
 
@@ -270,7 +272,10 @@ const {
   getAllModule,
   updateModule,
   deleteModule,
+<<<<<<< HEAD
   updateModuleTemplateCategoryId,
+=======
+>>>>>>> ab840f6ebfd972cdd9758b49c6b4d12369fd7ff5
 } = require("../Controllers/engineeringController/engineeringModules/moduleTemplateController.js");
 const {
   createModuleCategory,
@@ -292,6 +297,7 @@ const {
   getBoqTemplate,
   updateBoqTemplate,
 } = require("../Controllers/engineeringController/boq/boqTemplateControllers.js");
+<<<<<<< HEAD
 const {
   createBoqProject,
   getAllBoqProject,
@@ -299,6 +305,8 @@ const {
   updateBoqProject,
   deleteBoqProject,
 } = require("../Controllers/engineeringController/boq/boqProjectControllers.js");
+=======
+>>>>>>> ab840f6ebfd972cdd9758b49c6b4d12369fd7ff5
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -900,6 +908,18 @@ router.get(
   jwtMW.authorization,
   getallwarm
 );
+router.get(
+  "/get-won",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getwonbyleadid
+)
+router.put(
+  "/edit-won/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  editwon
+)
 
 //followup to all
 router.post(
@@ -1070,7 +1090,6 @@ router.put("/update-status/:_id",jwtMW.authentication,jwtMW.authorization,update
 router.post("/check/:_id",jwtMW.authentication,jwtMW.authorization,checkid);
 router.get("/get-handoversheet",jwtMW.authentication,jwtMW.authorization,getByIdOrLeadId);
 router.get("/search/:letter",jwtMW.authentication,jwtMW.authorization,search);
-
 
 //module master
 router.post(
@@ -1325,5 +1344,131 @@ router.put(
   jwtMW.authorization,
   updateLeadStatus
 );
+<<<<<<< HEAD
+=======
+
+//Engineering Modules Templates
+router.post(
+  "/create-module",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  createModule
+);
+router.get(
+  "/get-module-by-id/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getModuleById
+);
+router.get(
+  "/get-module",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllModule
+);
+router.put(
+  "/update-module/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateModule
+);
+router.delete(
+  "/delete-module/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  deleteModule
+);
+
+// Engineering Modules Categories
+router.post(
+  "/create-module-category",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  // upload,
+  createModuleCategory
+);
+router.get(
+  "/get-module-category",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getModuleCategory
+);
+router.get(
+  "/get-module-category-id/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getModuleCategoryById
+);
+router.put(
+  "/update-module-category/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateModuleCategory
+);
+router.put(
+  "/:moduleId/item/:itemId/statusModule",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateModuleCategoryStatus
+);
+router.put(
+  "/:categoryId/item/:itemId/statusAttachment",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateAttachmentUrl
+);
+
+// Boq Categories
+router.post(
+  "/create-boq-category",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  createBoqCategory
+);
+router.get(
+  "/get-boq-category-by-id/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getBoqCategoryById
+);
+router.get(
+  "/get-boq-category",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getBoqCategory
+);
+router.put(
+  "/update-boq-category/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateBoqCategory
+);
+
+// Boq Templates
+router.post(
+  "/create-boq-template",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  createBoqTemplate
+);
+router.get(
+  "/get-boq-template-by-id/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getBoqTemplateById
+);
+router.get(
+  "/get-boq-template",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getBoqTemplate
+);
+router.put(
+  "/update-boq-template/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateBoqTemplate
+);
+>>>>>>> ab840f6ebfd972cdd9758b49c6b4d12369fd7ff5
 
 module.exports = router;
