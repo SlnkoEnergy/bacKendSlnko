@@ -3,6 +3,7 @@ const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 const iteamModells = require("../Modells/iteamModells");
 const recoveryPurchaseOrder = require("../Modells/recoveryPurchaseOrderModells");
 const pohisttoryModells = require("../Modells/pohistoryModells");
+const payrequest = require("../Modells/payRequestModells");
 
 const moment = require("moment");
 const { Parser } = require("json2csv");
@@ -170,61 +171,80 @@ const getPOHistoryById = async function (req, res) {
   }
 };
 
-
 const getallpo = async function (req, res) {
   try {
     const { p_id, vendor, po_number, page = 1, limit = 10 } = req.query;
 
-    // Dynamic search filter
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    // Build dynamic filter for PO history collection
     const matchStage = {};
     if (p_id) matchStage.p_id = p_id;
     if (vendor) matchStage.vendor = { $regex: vendor, $options: "i" };
     if (po_number) matchStage.po_number = { $regex: po_number, $options: "i" };
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
     const result = await purchaseOrderModells.aggregate([
       { $match: matchStage },
 
-      // All previous lookups and calculations here
+      // Lookup payrequests to sum amount_paid where utr != "" and acc_matched == true for the same p_id
       {
         $lookup: {
           from: "payrequests",
-          let: { po_number: "$po_number" },
+         $eq: ["$p_id", "$$p_id"], 
           pipeline: [
             {
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: ["$po_number", "$$po_number"] },
-                    { $ne: ["$utr", null] },
-                    { $ne: ["$utr", ""] }
+                    { $eq: ["$p_id", "$$p_id"] },
+                    { $ne: ["$utr", ""] },
+                    { $eq: ["$acc_matched", true] }
                   ]
                 }
+              }
+            },
+            // Convert amount_paid string to number before grouping
+            {
+              $addFields: {
+                amount_paid_num: { $toDouble: "$amount_paid" }
               }
             },
             {
               $group: {
                 _id: null,
-                totalAdvancePaid: { $sum: "$amount_paid" }
+                total_amount_paid: { $sum: "$amount_paid_num" }
               }
             }
           ],
           as: "advanceData"
         }
       },
+
+      // Add advance_paid field from lookup result
       {
         $addFields: {
           advance_paid: {
-            $ifNull: [{ $first: "$advanceData.totalAdvancePaid" }, 0]
+            $ifNull: [
+              {
+                $getField: {
+                  field: "total_amount_paid",
+                  input: { $arrayElemAt: ["$advanceData", 0] }
+                }
+              },
+              0
+            ]
           }
         }
       },
+
       { $project: { advanceData: 0 } },
 
+      // Lookup bill details
       {
         $lookup: {
-          from: "biildetails",
+          from: "billdetails", // ensure collection name is correct
           let: { po_number: "$po_number" },
           pipeline: [
             {
@@ -243,49 +263,48 @@ const getallpo = async function (req, res) {
           as: "billData"
         }
       },
+
       {
         $addFields: {
-          total_billed: {
-            $ifNull: [{ $first: "$billData.totalBillValue" }, 0]
-          },
-          bill_type: {
-            $ifNull: [{ $first: "$billData.type" }, "NA"]
-          }
+          total_billed: { $ifNull: [{ $arrayElemAt: ["$billData.totalBillValue", 0] }, 0] },
+          bill_type: { $ifNull: [{ $arrayElemAt: ["$billData.type", 0] }, "NA"] }
         }
       },
+
       { $project: { billData: 0 } },
 
+      // Final projection with renamed fields
       {
         $project: {
           _id: 0,
-          p_id: 1,
-          po_number: 1,
-          item: 1,
-          vendor: 1,
-          po_value: 1,
-          partial_billing_item: 1,
-          total_billed: 1,
-          advance_paid: 1,
-          bill_type: 1
+          "Project ID": "$p_id",
+          "PO Number": "$po_number",
+          "PO Date": "$po_date",
+          "Partial Billing": "$partial_billing_item",
+          "Item Name": "$item",
+          "Vendor": "$vendor",
+          "PO Value with GST": "$po_value",
+          "Advance Paid": "$advance_paid",
+          "Bill Status": "$bill_type",
+          "Total Billed": "$total_billed"
         }
       },
 
-      // Pagination with facet
+      // Pagination using facet
       {
         $facet: {
           metadata: [{ $count: "total" }],
-          data: [
-            { $skip: skip },
-            { $limit: parseInt(limit) }
-          ]
+          data: [{ $skip: skip }, { $limit: limitNumber }]
         }
       },
+
       {
         $unwind: {
           path: "$metadata",
           preserveNullAndEmptyArrays: true
         }
       },
+
       {
         $project: {
           total: "$metadata.total",
@@ -296,15 +315,15 @@ const getallpo = async function (req, res) {
 
     const finalResult = result[0] || { total: 0, data: [] };
 
-    res.status(200).json({
-      msg: "All PO",
+    return res.status(200).json({
+      msg: "POs with advance paid from payrequests",
       total: finalResult.total,
-      page: parseInt(page),
-      limit: parseInt(limit),
+      page: pageNumber,
+      limit: limitNumber,
       data: finalResult.data
     });
   } catch (error) {
-    res.status(500).json({ msg: "Error fetching data", error: error.message });
+    return res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
 
