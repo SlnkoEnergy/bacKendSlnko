@@ -52,7 +52,7 @@ const gethandoversheetdata = async function (req, res) {
     const limit = 10;
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
-    const statusFilter = req.query.status;
+    const statusFilter = req.query.status; // e.g., "submitted,approved"
 
     const matchConditions = { $and: [] };
 
