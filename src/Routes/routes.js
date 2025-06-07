@@ -172,7 +172,8 @@ const {
   deadtowon,
   updatewon,
   updateWonLead,
-  getwonbyleadid
+  getwonbyleadid,
+  editwon
 } = require("../Controllers/initialbdController");
 
 
@@ -898,6 +899,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getwonbyleadid
+)
+router.put(
+  "/edit-won/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  editwon
 )
 
 //followup to all
