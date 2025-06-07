@@ -171,6 +171,8 @@ const getPOHistoryById = async function (req, res) {
   }
 };
 
+
+
 const getallpo = async function (req, res) {
   try {
     const { p_id, vendor, po_number, page = 1, limit = 10 } = req.query;
@@ -188,57 +190,45 @@ const getallpo = async function (req, res) {
     const result = await purchaseOrderModells.aggregate([
       { $match: matchStage },
 
-      // Lookup payrequests to sum amount_paid where utr != "" and acc_matched == true for the same p_id
+      // Lookup payrequests WITHOUT let, using localField/foreignField
       {
         $lookup: {
           from: "payrequests",
-         $eq: ["$p_id", "$$p_id"], 
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$p_id", "$$p_id"] },
-                    { $ne: ["$utr", ""] },
-                    { $eq: ["$acc_matched", true] }
-                  ]
-                }
-              }
-            },
-            // Convert amount_paid string to number before grouping
-            {
-              $addFields: {
-                amount_paid_num: { $toDouble: "$amount_paid" }
-              }
-            },
-            {
-              $group: {
-                _id: null,
-                total_amount_paid: { $sum: "$amount_paid_num" }
-              }
-            }
-          ],
+          localField: "p_id",    // field in PO
+          foreignField: "p_id",  // field in payrequests
           as: "advanceData"
         }
       },
 
-      // Add advance_paid field from lookup result
+      // Add advance_paid by filtering advanceData and summing amount_paid
       {
         $addFields: {
           advance_paid: {
-            $ifNull: [
-              {
-                $getField: {
-                  field: "total_amount_paid",
-                  input: { $arrayElemAt: ["$advanceData", 0] }
+            $sum: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: "$advanceData",
+                    as: "item",
+                    cond: {
+                      $and: [
+                        { $ne: ["$$item.utr", ""] },
+                        { $eq: ["$$item.acc_matched", true] }
+                      ]
+                    }
+                  }
+                },
+                as: "filteredItem",
+                in: {
+                  $toDouble: "$$filteredItem.amount_paid"
                 }
-              },
-              0
-            ]
+              }
+            }
           }
         }
       },
 
+      // Optionally remove advanceData if not needed
       { $project: { advanceData: 0 } },
 
       // Lookup bill details
@@ -266,8 +256,12 @@ const getallpo = async function (req, res) {
 
       {
         $addFields: {
-          total_billed: { $ifNull: [{ $arrayElemAt: ["$billData.totalBillValue", 0] }, 0] },
-          bill_type: { $ifNull: [{ $arrayElemAt: ["$billData.type", 0] }, "NA"] }
+          total_billed: {
+            $ifNull: [{ $arrayElemAt: ["$billData.totalBillValue", 0] }, 0]
+          },
+          bill_type: {
+            $ifNull: [{ $arrayElemAt: ["$billData.type", 0] }, "NA"]
+          }
         }
       },
 
@@ -326,6 +320,7 @@ const getallpo = async function (req, res) {
     return res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
+
 
 
 
