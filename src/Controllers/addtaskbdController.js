@@ -65,7 +65,10 @@ const updatetaskstatus = async function (req, res) {
 //get add task
 const getaddtask = async function (req, res) {
   try {
-    const task = await taskModells.find();
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 10;
+    const skip = (page - 1) * limit;
+    const task = await taskModells.find().skip(skip).limit(limit).sort({ createdAt: -1 });            
     res.status(200).json(task);
   } catch (error) {
     res.status(500).json({ message: "Internal Server Error" });
