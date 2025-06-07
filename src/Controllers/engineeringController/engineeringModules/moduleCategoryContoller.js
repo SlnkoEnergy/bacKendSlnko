@@ -157,24 +157,73 @@ const getModuleCategory = async (req, res) => {
 
 const getModuleCategoryById = async (req, res) => {
   try {
-    const { id, projectId } = req.query;
+    const { id, projectId, engineering } = req.query;
     if (!id && !projectId) {
       return res.status(400).json({ message: "id or projectId is required" });
     }
-    let query = {};
-    if (id) query._id = id;
-    if (projectId) query.project_id = projectId;
-    const moduleData = await moduleCategory
-      .findOne(query)
-      .populate("items.template_id")
-      .populate("project_id");
 
-    if (!moduleData) {
+    let matchStage = {};
+    if (id) matchStage._id = new mongoose.Types.ObjectId(id);
+    if (projectId) matchStage.project_id = new mongoose.Types.ObjectId(projectId);
+
+    const pipeline = [
+      { $match: matchStage },
+      { $unwind: "$items" },
+      {
+        $lookup: {
+          from: "moduletemplates", // collection name in lowercase
+          localField: "items.template_id",
+          foreignField: "_id",
+          as: "templateInfo",
+        },
+      },
+      { $unwind: "$templateInfo" },
+      // Filter based on engineering_category if provided
+      ...(engineering
+        ? [
+            {
+              $match: {
+                "templateInfo.engineering_category": engineering,
+              },
+            },
+          ]
+        : []),
+      {
+        $lookup: {
+          from: "projects",
+          localField: "project_id",
+          foreignField: "_id",
+          as: "projectData",
+        },
+      },
+      { $unwind: { path: "$projectData", preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: "$_id",
+          project_id: { $first: "$project_id" },
+          projectData: { $first: "$projectData" },
+          createdAt: { $first: "$createdAt" },
+          updatedAt: { $first: "$updatedAt" },
+          items: {
+            $push: {
+              ...{
+                $mergeObjects: ["$items", { template_id: "$templateInfo" }],
+              },
+            },
+          },
+        },
+      },
+    ];
+
+    const result = await moduleCategory.aggregate(pipeline);
+
+    if (!result.length) {
       return res.status(404).json({ message: "Data not found" });
     }
+
     res.status(200).json({
       message: "Module Project fetched Successfully",
-      data: moduleData,
+      data: result[0],
     });
   } catch (error) {
     res.status(500).json({
@@ -183,6 +232,7 @@ const getModuleCategoryById = async (req, res) => {
     });
   }
 };
+
 
 const updateModuleCategory = async (req, res) => {
   try {
