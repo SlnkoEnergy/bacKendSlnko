@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-const updateExpenseStatus = require("../../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
-const updateExpenseStatusItems = require("../../middlewares/expenseSheetMiddlewares/updateExpenseStatusItems");
+const updateCurrentStatus = require("../../utils/updateCurrentStatus");
+const updateCurrentStatusItems = require("../../utils/updateCurrentStatusItems");
 
 const expenseSheetSchema = new mongoose.Schema(
   {
@@ -14,11 +14,11 @@ const expenseSheetSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "projectDetail",
         },
-        project_code:{
-          type:String
+        project_code: {
+          type: String,
         },
-        project_name:{
-          type: String
+        project_name: {
+          type: String,
         },
         description: { type: String },
         expense_date: { type: Date, default: Date.now },
@@ -53,11 +53,11 @@ const expenseSheetSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
-    emp_id:{
-      type:String
+    emp_id: {
+      type: String,
     },
-    emp_name:{
-      type:String
+    emp_name: {
+      type: String,
     },
     expense_term: {
       from: { type: Date },
@@ -65,13 +65,29 @@ const expenseSheetSchema = new mongoose.Schema(
     },
     current_status: {
       type: String,
-      enum: ["draft", "submitted", "hold", "rejected", "manager approval", "hr approval", "final approval"],
+      enum: [
+        "draft",
+        "submitted",
+        "hold",
+        "rejected",
+        "manager approval",
+        "hr approval",
+        "final approval",
+      ],
     },
     status_history: [
       {
         status: {
           type: String,
-          enum: ["draft", "submitted", "hold", "rejected", "manager approval", "hr approval", "final approval"],
+          enum: [
+            "draft",
+            "submitted",
+            "hold",
+            "rejected",
+            "manager approval",
+            "hr approval",
+            "final approval",
+          ],
         },
         remarks: { type: String },
         user_id: {
@@ -81,14 +97,14 @@ const expenseSheetSchema = new mongoose.Schema(
         updatedAt: { type: Date, default: Date.now },
       },
     ],
-    total_requested_amount:{
-      type:String
+    total_requested_amount: {
+      type: String,
     },
-    total_approved_amount:{
-         type:String
+    total_approved_amount: {
+      type: String,
     },
-    disbursement_date:{
-      type:Date
+    disbursement_date: {
+      type: Date,
     },
     comments: { type: String },
   },
@@ -97,12 +113,12 @@ const expenseSheetSchema = new mongoose.Schema(
 
 // ⏱ Auto-update current_status before save
 expenseSheetSchema.pre("save", function (next) {
-  updateExpenseStatus(this);
+  updateCurrentStatus(this, "status_history", "current_status");
   next();
 });
 
-expenseSheetSchema.pre("save", function(next){
-  updateExpenseStatusItems(this);
+expenseSheetSchema.pre("save", function (next) {
+  updateCurrentStatusItems(this, "item_status_history", "item_current_status");
   next();
 });
 

@@ -6,7 +6,6 @@ const generateExpenseCode = require("../../utils/generateExpenseCode");
 const axios = require("axios");
 const FormData = require("form-data");
 
-
 const getAllExpense = async (req, res) => {
   try {
     let expense = await ExpenseSheet.find();

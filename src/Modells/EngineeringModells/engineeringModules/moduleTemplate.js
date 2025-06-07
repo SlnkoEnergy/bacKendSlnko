@@ -39,10 +39,10 @@ const moduleTemplateSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
-      template_category: {
+      template_category: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "BoqTemplate",
-      },
+      }],
     },
   },
   { timestamps: true }
