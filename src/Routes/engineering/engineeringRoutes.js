@@ -4,6 +4,8 @@ const { deleteBoqProject, updateBoqProject, getBoqProjectById, getAllBoqProject,
 const { updateBoqTemplate, getBoqTemplate, getBoqTemplateById, createBoqTemplate } = require('../../Controllers/engineeringController/boq/boqTemplateControllers');
 const { updateAttachmentUrl, updateModuleCategoryStatus, updateModuleCategory, getModuleCategoryById, getModuleCategory, createModuleCategory } = require('../../Controllers/engineeringController/engineeringModules/moduleCategoryContoller');
 const { updateModuleTemplateCategoryId, deleteModule, updateModule, getAllModule, getModuleById, createModule } = require('../../Controllers/engineeringController/engineeringModules/moduleTemplateController');
+const { addMaterialCategory, getAllMaterialCategories, updateMaterialCategory, deleteMaterialCategory } = require('../../Controllers/engineeringController/materials/materialCategoryController');
+const { createMaterial, getAllMaterials, updateMaterial, deleteMaterial } = require('../../Controllers/engineeringController/materials/materialController');
 const jwtMW = require("../../middlewares/auth");
 const upload = require('../../middlewares/multer');
 
@@ -170,5 +172,58 @@ router.delete(
   jwtMW.authorization,
   deleteBoqProject
 );
+
+// material category
+router.post(
+  '/create-material-category',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  addMaterialCategory
+)
+router.get(
+  '/all-material-category',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllMaterialCategories
+)
+router.put(
+  '/material-category/:_id',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateMaterialCategory
+)
+router.delete(
+  '/delete-material-category/:_id',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  deleteMaterialCategory
+)
+
+// Materials
+router.post(
+  '/create-material',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  createMaterial
+)
+router.get(
+  '/all-materials',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllMaterials
+)
+router.put(
+  '/update-material/:_id',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateMaterial
+)
+router.delete(
+  '/delete-material/:_id',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  deleteMaterial
+)
+
 
 module.exports = router;
