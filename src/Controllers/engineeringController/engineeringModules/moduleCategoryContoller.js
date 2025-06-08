@@ -276,8 +276,6 @@ const getModuleCategoryById = async (req, res) => {
 };
 
 
-
-
 const updateModuleCategory = async (req, res) => {
   try {
     const data = req.body.data ? JSON.parse(req.body.data) : req.body;

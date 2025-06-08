@@ -153,13 +153,13 @@ router.get(
 );
 
 router.get(
-  "/get-boq-project-by-id/:_id",
+  "/get-boq-project-by-id",
   jwtMW.authentication,
   jwtMW.authorization,
   getBoqProjectById
 );
 router.put(
-  "/:boqId/item/:itemId/updateBoq",
+  "/:projectId/boqtemplate/:BoqtemplateId/updateBoqProject",
   jwtMW.authentication,
   jwtMW.authorization,
   updateBoqProject

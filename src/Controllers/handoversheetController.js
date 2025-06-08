@@ -1,3 +1,5 @@
+const boqProject = require("../Modells/EngineeringModells/boq/boqProject");
+const boqTemplate = require("../Modells/EngineeringModells/boq/boqTemplate");
 const moduleCategory = require("../Modells/EngineeringModells/engineeringModules/moduleCategory");
 const moduleTemplate = require("../Modells/EngineeringModells/engineeringModules/moduleTemplate");
 const handoversheetModells = require("../Modells/handoversheetModells");
@@ -258,7 +260,7 @@ const updatestatus = async function (req, res) {
         project_status: "",
         updated_on: new Date().toISOString(),
         service: other_details.service || "",
-        submitted_by: req?.user?.name || "", // Adjust based on your auth
+        submitted_by: req?.user?.name || "", 
         billing_type: other_details.billing_type || "",
       });
 
@@ -266,7 +268,10 @@ const updatestatus = async function (req, res) {
       await projectData.save();
       updatedHandoversheet.p_id = newPid;
       await updatedHandoversheet.save();
+
       const allTemplates = await moduleTemplate.find({}, "_id");
+
+
 
       // Prepare items array
       const items = allTemplates.map((tpl) => ({
@@ -281,11 +286,25 @@ const updatestatus = async function (req, res) {
 
       await moduleCategoryData.save();
 
+       const boqTemplates = await boqTemplate.find().lean();
+
+      const boqItems = boqTemplates.map((template) => ({
+        boq_template: template._id,
+        module_template_id: template.module_template,
+        data_history: [template.data],
+      }));
+
+      const boqProjectData = new boqProject({
+        project_id: projectData._id,
+        items: boqItems,
+      });
+
+      await boqProjectData.save();
+
       return res.status(200).json({
         message: "Status updated, project and moduleCategory created successfully",
         handoverSheet: updatedHandoversheet,
         project: projectData,
-        moduleCategory: moduleCategoryData,
       });
     }
     
