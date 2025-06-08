@@ -252,19 +252,6 @@ const {
 } = require("../Controllers/bdleadController");
 const { create } = require("../Modells/bdleadsModells");
 
-const {
-  createMaterial,
-  getAllMaterials,
-  deleteMaterial,
-  updateMaterial,
-} = require("../Controllers/engineeringController/materials/materialController.js");
-
-const {
-  addMaterialCategory,
-  getAllMaterialCategories,
-  deleteMaterialCategory,
-  updateMaterialCategory,
-} = require("../Controllers/engineeringController/materials/materialCategoryController");
 const upload = require("../middlewares/multer.js");
 
 // Admin router
