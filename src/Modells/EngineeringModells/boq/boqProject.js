@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const updateAttachmentUrlStatus = require("../../../middlewares/engineeringMiddlewares/updateAttachementUrlStatus");
 
 const boqProjectSchema = new mongoose.Schema({
   project_id: {
@@ -7,15 +8,15 @@ const boqProjectSchema = new mongoose.Schema({
   },
   items: [
     {
-      boq_template_id: {
+      boq_template: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "BoqTemplate",
       },
-      module_template_id: {
+      module_template: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "moduleTemplates",
       },
-      data: [
+      current_data: [
         {
           _id: false,
           name: { type: String },
@@ -27,8 +28,27 @@ const boqProjectSchema = new mongoose.Schema({
           ],
         },
       ],
+      data_history: [
+        [
+          {
+            _id: false,
+            name: { type: String },
+            values: [
+              {
+                _id: false,
+                input_values: { type: String },
+              },
+            ],
+          },
+        ],
+      ],
     },
   ],
 });
+
+boqProjectSchema.pre("save", function(next){
+  updateAttachmentUrlStatus(this, "data_history", "current_data");
+  next();
+})
 
 module.exports = mongoose.model("BoqProject", boqProjectSchema);

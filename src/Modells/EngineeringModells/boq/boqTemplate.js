@@ -6,6 +6,10 @@ const boqTemplateSchema = new mongoose.Schema({
     ref: 'BoqCategory',
     required: true,
   },
+  module_template: {
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'moduleTemplates',
+  },
   data: [
     {
       _id: false,
