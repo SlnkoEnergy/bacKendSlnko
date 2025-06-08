@@ -5,12 +5,12 @@ const materCatergorySchema = new mongoose.Schema(
     description: { type: String, required: true },
     fields: [
       {
-        _id: false, // prevent auto _id for each object in fields array
+        _id: false, 
         name: { type: String, required: true },
         input_type: { type: String, required: true },
         required: { type: Boolean, default: false },
         placeholder: { type: String },
-        key: { type: String }, // For select fields
+        key: { type: String }, 
       },
     ],
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
