@@ -37,15 +37,20 @@ const getAllBoqProject = async (req, res) => {
 
 const getBoqProjectById = async (req, res) => {
   try {
-    const { projectId} = req.query;
+    const { projectId, module_template } = req.query;
+
+    const matchStage = {
+      project_id: new mongoose.Types.ObjectId(projectId),
+    };
 
     const response = await boqProject.aggregate([
+      { $match: matchStage },
+      { $unwind: "$items" },
       {
         $match: {
-          project_id: new mongoose.Types.ObjectId(projectId),
+          "items.module_template": new mongoose.Types.ObjectId(module_template),
         },
       },
-      { $unwind: "$items" },
       {
         $lookup: {
           from: "boqtemplates",
@@ -65,19 +70,27 @@ const getBoqProjectById = async (req, res) => {
       },
       { $unwind: { path: "$boqCategoryDetails", preserveNullAndEmptyArrays: true } },
       {
-        // Merge boqTemplateDetails and boqCategoryDetails into each item
         $addFields: {
           "items.boqCategoryDetails": "$boqCategoryDetails",
         },
       },
       {
-        // Group back all items into an array to reconstruct the document
         $group: {
           _id: "$_id",
           project_id: { $first: "$project_id" },
           items: { $push: "$items" },
         },
       },
+      {
+        $addFields: {
+          items: {
+            $sortArray: {
+              input: "$items",
+              sortBy: { "boqCategoryDetails.name": 1 } 
+            }
+          }
+        }
+      }
     ]);
 
     if (!response.length) {
@@ -95,6 +108,7 @@ const getBoqProjectById = async (req, res) => {
     });
   }
 };
+
 
 
 const updateBoqProject = async (req, res) => {
@@ -140,8 +154,6 @@ const updateBoqProject = async (req, res) => {
     });
   }
 };
-
-
 
 const deleteBoqProject = async (req, res) => {
   try {

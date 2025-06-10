@@ -1,4 +1,6 @@
-const boqTemplate = require("../../../Modells/EngineeringModells/boq/boqTemplate");
+const { default: mongoose } = require("mongoose");
+const BoqTemplate = require("../../../Modells/EngineeringModells/boq/boqTemplate");
+const ModuleTemplate = require("../../../Modells/EngineeringModells/engineeringModules/moduleTemplate");
 
 const createBoqTemplate = async(req, res) => {
     try {
@@ -11,17 +13,69 @@ const createBoqTemplate = async(req, res) => {
     }
 }
 
-const getBoqTemplateById = async(req, res) => {
-    try {
-        const BoqTemplate = await boqTemplate.findById(req.params._id).populate('boq_category');
-        if (!BoqTemplate) {
-            return res.status(404).json({ message: "Boq Template not found" });
-        }
-        res.status(200).json({ message: "Boq Template retrieved successfully", data: BoqTemplate });
-    } catch (error) {
-        res.status(500).json({ message: "Internal Server Error", error: error.message });
+
+const getBoqTemplateByTemplateId = async (req, res) => {
+  try {
+    const { moduleTemplateId } = req.query;
+
+    // Step 1: Find all BoqTemplates linked to this moduleTemplateId
+    const boqTemplates = await BoqTemplate.find({ module_template: moduleTemplateId });
+
+    if (!boqTemplates.length) {
+      return res.status(404).json({ message: "No BoqTemplates found for this Module Template" });
     }
-}
+
+    const boqCategoryIds = boqTemplates.map(bt => bt.boq_category);
+
+    // Step 2: Aggregate ModuleTemplate and match the relevant BoqCategories
+    const moduleTemplate = await ModuleTemplate.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(moduleTemplateId) } },
+      {
+        $lookup: {
+          from: "boqcategories",
+          localField: "boq.template_category",
+          foreignField: "_id",
+          as: "boqCategories"
+        }
+      },
+      {
+        $addFields: {
+          matchedCategories: {
+            $filter: {
+              input: "$boqCategories",
+              as: "cat",
+              cond: { $in: ["$$cat._id", boqCategoryIds] }
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          name: 1,
+          description: 1,
+          boq: 1,
+          matchedCategories: 1
+        }
+      }
+    ]);
+
+    if (!moduleTemplate.length) {
+      return res.status(404).json({ message: "Module Template not found" });
+    }
+
+    return res.status(200).json({
+      message: "Data retrieved successfully",
+      boqTemplates,
+      moduleTemplate: moduleTemplate[0],
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+
 
 const getBoqTemplate = async(req, res)=>{
     try {
@@ -50,7 +104,7 @@ const updateBoqTemplate = async(req, res) => {
 
 module.exports = {
     createBoqTemplate,
-    getBoqTemplateById,
+    getBoqTemplateByTemplateId,
     getBoqTemplate,
     updateBoqTemplate
 };
