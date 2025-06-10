@@ -15,32 +15,22 @@ const moduleCategorySchema = new mongoose.Schema(
           ref: "moduleTemplates",
         },
         attachment_urls: [
-          {
-            attachment_number: {
-              type: String,
-            },
-            attachment_url: [
-              {
-                type: String,
-              },
-            ],
-          },
-        ],
-        current_attachment: {
-          attachment_number: {
-            type: String,
-          },
-          attachment_url: [
+          [
             {
               type: String,
             },
           ],
-        },
+        ],
+        current_attachment: [
+          {
+            type: String,
+          },
+        ],
         status_history: [
           {
             status: {
               type: String,
-              enum: ["draft", "active", "archived"],
+              enum: ["draft", "submitted", "revised", "approved"],
             },
             remarks: {
               type: String,
@@ -54,7 +44,7 @@ const moduleCategorySchema = new mongoose.Schema(
         ],
         current_status: {
           type: String,
-          enum: ["draft", "active", "archived"],
+          enum: ["draft", "submitted", "revised", "approved"],
         },
       },
     ],

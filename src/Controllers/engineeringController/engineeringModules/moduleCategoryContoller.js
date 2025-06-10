@@ -157,124 +157,86 @@ const getModuleCategory = async (req, res) => {
 
 const getModuleCategoryById = async (req, res) => {
   try {
-    const { id, projectId, engineering } = req.query;
-    if (!id && !projectId) {
-      return res.status(400).json({ message: "id or projectId is required" });
+    const { projectId, engineering } = req.query;
+
+    if (!projectId) {
+      return res.status(400).json({ message: "projectId is required" });
     }
 
-    let matchStage = {};
-    if (id) matchStage._id = new mongoose.Types.ObjectId(id);
-    if (projectId) matchStage.project_id = new mongoose.Types.ObjectId(projectId);
-
     const pipeline = [
-      { $match: matchStage },
-      { $unwind: "$items" },
-      {
-        $lookup: {
-          from: "moduletemplates",
-          localField: "items.template_id",
-          foreignField: "_id",
-          as: "templateInfo",
-        },
-      },
-      { $unwind: "$templateInfo" },
-
       ...(engineering
         ? [
             {
               $match: {
-                "templateInfo.engineering_category": engineering,
+                engineering_category: engineering,
               },
             },
           ]
         : []),
-
       {
         $lookup: {
-          from: "boqcategories",
-          localField: "templateInfo.boq.template_category",
-          foreignField: "_id",
-          as: "boqCategories",
-        },
-      },
-
-      {
-        $lookup: {
-          from: "boqtemplates",
-          let: {
-            categoryIds: {
-              $ifNull: ["$templateInfo.boq.template_category", []],
-            },
-          },
+          from: "modulecategories",
+          let: { templateId: "$_id" },
           pipeline: [
+            { $match: { project_id: new mongoose.Types.ObjectId(projectId) } },
+            { $unwind: "$items" },
             {
               $match: {
                 $expr: {
-                  $in: ["$boq_category", "$$categoryIds"],
+                  $eq: ["$items.template_id", "$$templateId"],
                 },
               },
             },
-          ],
-          as: "boqTemplates",
-        },
-      },
-
-      {
-        $lookup: {
-          from: "projects",
-          localField: "project_id",
-          foreignField: "_id",
-          as: "projectData",
-        },
-      },
-      {
-        $unwind: {
-          path: "$projectData",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-
-      {
-        $group: {
-          _id: "$_id",
-          project_id: { $first: "$project_id" },
-          projectData: { $first: "$projectData" },
-          createdAt: { $first: "$createdAt" },
-          updatedAt: { $first: "$updatedAt" },
-          items: {
-            $push: {
-              $mergeObjects: [
-                "$items",
-                {
-                  template_id: "$templateInfo",
-                  boq_categories: "$boqCategories",
-                  boq_templates: "$boqTemplates",
-                },
-              ],
+            {
+              $project: {
+                _id: 0,
+                attachment_urls: "$items.attachment_urls",
+                current_attachment: "$items.current_attachment",
+                current_status: "$items.current_status",
+                status_history: "$items.status_history",
+              },
             },
+          ],
+          as: "itemData",
+        },
+      },
+      {
+        $addFields: {
+          attachment_urls: {
+            $ifNull: [{ $arrayElemAt: ["$itemData.attachment_urls", 0] }, []],
           },
+          current_attachment: {
+            $ifNull: [{ $arrayElemAt: ["$itemData.current_attachment", 0] }, null],
+          },
+          current_status: {
+            $ifNull: [{ $arrayElemAt: ["$itemData.current_status", 0] }, null],
+          },
+          status_history: {
+            $ifNull: [{ $arrayElemAt: ["$itemData.status_history", 0] }, []],
+          },
+        },
+      },
+      {
+        $project: {
+          itemData: 0, 
         },
       },
     ];
 
-    const result = await moduleCategory.aggregate(pipeline);
-
-    if (!result.length) {
-      return res.status(404).json({ message: "Data not found" });
-    }
+    const templates = await mongoose.model("moduleTemplates").aggregate(pipeline);
 
     res.status(200).json({
-      message: "Module Project fetched Successfully",
-      data: result[0],
+      message: "Templates with item data fetched successfully",
+      data: templates,
     });
   } catch (error) {
+    console.error("getModuleCategoryById error:", error);
     res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
     });
   }
 };
-
 
 const updateModuleCategory = async (req, res) => {
   try {
@@ -283,175 +245,122 @@ const updateModuleCategory = async (req, res) => {
     const { projectId, id } = req.query;
 
     if (!projectId && !id) {
-      return res
-        .status(400)
-        .json({ message: "Either 'projectId' or 'id' must be provided in query" });
+      return res.status(400).json({ message: "Either 'projectId' or 'id' must be provided in query" });
     }
 
     if (!Array.isArray(items) || items.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "Items array with template_id required" });
+      return res.status(400).json({ message: "Items array with template_id required" });
     }
 
-    const templateItem = items.find((item) => item.template_id);
-    if (!templateItem) {
-      return res
-        .status(400)
-        .json({ message: "No template_id found in items" });
-    }
+    const moduleData = id
+      ? await moduleCategory.findById(id)
+      : await moduleCategory.findOne({ project_id: projectId });
 
-    const template_id = templateItem.template_id;
-
-    let moduleData;
-    if (id) {
-      moduleData = await moduleCategory.findById(id);
-    } else {
-      moduleData = await moduleCategory.findOne({ project_id: projectId });
-    }
-    
     if (!moduleData) {
-      return res
-        .status(404)
-        .json({ message: "Module Category not found for given id or projectId" });
+      return res.status(404).json({ message: "Module Category not found" });
     }
 
     const projectCodeData = await projectDetail
       .findById(projectId || moduleData.project_id)
       .select("code");
-    const projectCode = projectCodeData?.code?.replace(/\//g, "_");
 
+    const projectCode = projectCodeData?.code?.replace(/\//g, "_");
     if (!projectCode) {
       return res.status(404).json({ message: "Project Code not found" });
     }
 
-    let templateData = await moduleTemplates
-      .findById(template_id)
-      .select("name file_upload");
-
-    if (!templateData) {
-      templateData = new moduleTemplates({
-        _id: template_id,
-        name: `Template_${new Date().getTime()}`,
-        file_upload: { max_files: 0 },
-      });
-      await templateData.save();
+    const files = Array.isArray(req.files) ? req.files : req.files?.files || [];
+    if (!files || files.length === 0) {
+      return res.status(400).json({ message: "No files provided" });
     }
 
-    const moduleTemplateNameRaw = templateData.name || "template";
-    const moduleTemplateName = moduleTemplateNameRaw.replace(/\s+/g, "_");
-    const maxFiles = templateData.file_upload?.max_files || 0;
+    let fileIndex = 0;
 
-    const itemIndex = moduleData.items.findIndex(
-      (item) =>
-        item.template_id &&
-        template_id &&
-        item.template_id.toString() === template_id.toString()
-    );
+    for (let i = 0; i < items.length; i++) {
+      const { template_id } = items[i];
+      if (!template_id) continue;
 
-    let revisionNumber = "R0";
-    if (itemIndex !== -1) {
-      const existingItem = moduleData.items[itemIndex];
-      if (!Array.isArray(existingItem.attachment_urls)) {
-        existingItem.attachment_urls = [];
+      let templateData = await moduleTemplates.findById(template_id).select("name file_upload");
+      if (!templateData) {
+        return res.status(400).json({message:"No Module with this template Id"});
       }
-      revisionNumber = `R${existingItem.attachment_urls.length}`;
-    }
 
-    const folderName = `engineering/${projectCode}/${moduleTemplateName}/${revisionNumber}`;
+      const moduleTemplateName = (templateData.name || "template").replace(/\s+/g, "_");
+      const maxFiles = templateData.file_upload?.max_files || 0;
 
-    const totalFiles = req.files?.length || 0;
-    const filesToUpload = Math.min(maxFiles, totalFiles);
+      const itemIndex = moduleData.items.findIndex(
+        item => item.template_id?.toString() === template_id.toString()
+      );
+      const existingItem = itemIndex !== -1 ? moduleData.items[itemIndex] : null;
+      const revisionIndex = existingItem?.attachment_urls?.length || 0;
+      const revisionNumber = `R${revisionIndex}`;
+      const folderName = `engineering/${projectCode}/${moduleTemplateName}/${revisionNumber}`;
 
-    const urlsForAttachment = [];
+      const uploadedUrls = [];
 
-    for (let i = 0; i < filesToUpload; i++) {
-      const file = req.files[i];
+      for (let count = 0; count < maxFiles && fileIndex < files.length; count++, fileIndex++) {
+        const file = files[fileIndex];
 
-      const form = new FormData();
-      form.append("file", file.buffer, {
-        filename: file.originalname,
-        contentType: file.mimetype,
-      });
+        try {
+          const form = new FormData();
+          form.append("file", file.buffer, {
+            filename: file.originalname,
+            contentType: file.mimetype,
+          });
 
-      const uploadUrl = `https://upload.slnkoprotrac.com?containerName=protrac&foldername=${folderName}`;
+          const uploadUrl = `https://upload.slnkoprotrac.com?containerName=protrac&foldername=${folderName}`;
+          const { data: respData } = await axios.post(uploadUrl, form, {
+            headers: form.getHeaders(),
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+          });
 
-      try {
-        const response = await axios.post(uploadUrl, form, {
-          headers: form.getHeaders(),
-          maxContentLength: Infinity,
-          maxBodyLength: Infinity,
-        });
-
-        const respData = response.data;
-        const url =
-          Array.isArray(respData) && respData.length > 0
+          const url = Array.isArray(respData)
             ? respData[0]
-            : respData.url ||
-              respData.fileUrl ||
-              (respData.data && respData.data.url) ||
-              null;
+            : respData?.url || respData?.fileUrl || respData?.data?.url || null;
 
-        if (url) {
-          urlsForAttachment.push(url);
-        } else {
-          console.warn(`No upload URL found for file ${file.originalname}`);
+          if (url) uploadedUrls.push(url);
+      
+        } catch (err) {
+          console.error(`Upload failed for ${file.originalname}:`, err.message);
         }
-      } catch (uploadErr) {
-        console.error(
-          "Upload failed for",
-          file.originalname,
-          uploadErr.message
-        );
+      }
+
+      if (uploadedUrls.length > 0) {
+        if (existingItem) {
+          if (!Array.isArray(existingItem.attachment_urls)) {
+            existingItem.attachment_urls = [];
+          }
+          existingItem.attachment_urls.push(uploadedUrls);
+          moduleData.items[itemIndex] = existingItem;
+        } else {
+          moduleData.items.push({
+            template_id: new mongoose.Types.ObjectId(template_id),
+            attachment_urls: [uploadedUrls],
+          });
+        }
       }
     }
 
-    if (urlsForAttachment.length === 0) {
-      return res.status(400).json({
-        message: "No files uploaded or uploaded files have no URLs",
-      });
-    }
-
-    if (itemIndex !== -1) {
-      const existingItem = moduleData.items[itemIndex];
-      if (!Array.isArray(existingItem.attachment_urls)) {
-        existingItem.attachment_urls = [];
-      }
-
-      existingItem.attachment_urls.push({
-        attachment_number: revisionNumber,
-        attachment_url: urlsForAttachment,
-      });
-
-      moduleData.items[itemIndex] = existingItem;
-    } else {
-      const newItem = {
-        template_id: new mongoose.Types.ObjectId(template_id),
-        attachment_urls: [
-          {
-            attachment_number: revisionNumber,
-            attachment_url: urlsForAttachment,
-          },
-        ],
-      };
-
-      moduleData.items.push(newItem);
+    if (fileIndex === 0) {
+      return res.status(400).json({ message: "No valid uploaded file URLs found" });
     }
 
     await moduleData.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Module Category Updated Successfully",
       data: moduleData,
     });
   } catch (error) {
-    console.error("UpdateModuleCategory error:", error);
-    res.status(500).json({
+    console.error("updateModuleCategory error:", error);
+    return res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
     });
   }
 };
+
 
 
 

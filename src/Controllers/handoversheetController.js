@@ -269,42 +269,18 @@ const updatestatus = async function (req, res) {
       updatedHandoversheet.p_id = newPid;
       await updatedHandoversheet.save();
 
-      const allTemplates = await moduleTemplate.find({}, "_id");
-
-
-
-      // Prepare items array
-      const items = allTemplates.map((tpl) => ({
-        template_id: tpl._id,
-      }));
-
       // Create moduleCategory document
       const moduleCategoryData = new moduleCategory({
         project_id: projectData._id,
-        items,
       });
 
       await moduleCategoryData.save();
-
-       const boqTemplates = await boqTemplate.find().lean();
-
-      const boqItems = boqTemplates.map((template) => ({
-        boq_template: template._id,
-        module_template_id: template.module_template,
-        data_history: [template.data],
-      }));
-
-      const boqProjectData = new boqProject({
-        project_id: projectData._id,
-        items: boqItems,
-      });
-
-      await boqProjectData.save();
 
       return res.status(200).json({
         message: "Status updated, project and moduleCategory created successfully",
         handoverSheet: updatedHandoversheet,
         project: projectData,
+        data: moduleCategoryData
       });
     }
     
