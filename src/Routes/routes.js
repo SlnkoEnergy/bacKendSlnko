@@ -1031,6 +1031,7 @@ router.put(
 //handdoversheet 
 router.post("/create-hand-over-sheet", jwtMW.authentication,jwtMW.authorization,createhandoversheet);
 router.get("/get-all-handover-sheet",jwtMW.authentication,jwtMW.authorization,gethandoversheetdata);
+router.get("/get-handoversheet", jwtMW.authentication,jwtMW.authorization, getByIdOrLeadId);
 router.put("/edit-hand-over-sheet/:_id",jwtMW.authentication,jwtMW.authorization,edithandoversheetdata);
 router.put("/update-status/:_id",jwtMW.authentication,jwtMW.authorization,updatestatus);
 router.post("/check/:_id",jwtMW.authentication,jwtMW.authorization,checkid);
