@@ -4,9 +4,9 @@ const ModuleTemplate = require("../../../Modells/EngineeringModells/engineeringM
 
 const createBoqTemplate = async(req, res) => {
     try {
-        const BoqTemplate = new boqTemplate(req.body);
-        await BoqTemplate.save();
-        res.status(201).json({ message: "Boq Template created successfully", data: BoqTemplate });
+        const boqTemplate = new BoqTemplate(req.body);
+        await boqTemplate.save();
+        res.status(201).json({ message: "Boq Template created successfully", data: boqTemplate });
 
     } catch (error) {
         res.status(500).json({ message: "Internal Server Error", error: error.message });
@@ -78,7 +78,7 @@ const getBoqTemplateByTemplateId = async (req, res) => {
 
 const getBoqTemplate = async(req, res)=>{
     try {
-        const boqTemplates = await boqTemplate.find().populate('boq_category');
+        const boqTemplates = await BoqTemplate.find().populate('boq_category');
         if (!boqTemplates || boqTemplates.length === 0) {
             return res.status(404).json({ message: "No Boq Templates found" });
         }
@@ -90,7 +90,7 @@ const getBoqTemplate = async(req, res)=>{
 
 const updateBoqTemplate = async(req, res) => {
     try {
-        const data = await boqTemplate.findByIdAndUpdate(req.params._id, req.body, { new: true });
+        const data = await BoqTemplate.findByIdAndUpdate(req.params._id, req.body, { new: true });
         if (!data) {
             return res.status(404).json({ message: "Boq Template not found" });
         }
