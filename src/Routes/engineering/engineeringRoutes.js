@@ -4,7 +4,7 @@ const { deleteBoqProject, updateBoqProject, getBoqProjectById, getAllBoqProject,
 const { updateBoqTemplate, getBoqTemplate, createBoqTemplate, getBoqTemplateByTemplateId } = require('../../Controllers/engineeringController/boq/boqTemplateControllers');
 const { updateAttachmentUrl, updateModuleCategoryStatus, updateModuleCategory, getModuleCategoryById, getModuleCategory, createModuleCategory } = require('../../Controllers/engineeringController/engineeringModules/moduleCategoryContoller');
 const { updateModuleTemplateCategoryId, deleteModule, updateModule, getAllModule, getModuleById, createModule } = require('../../Controllers/engineeringController/engineeringModules/moduleTemplateController');
-const { addMaterialCategory, getAllMaterialCategories, updateMaterialCategory, deleteMaterialCategory } = require('../../Controllers/engineeringController/materials/materialCategoryController');
+const { addMaterialCategory, getAllMaterialCategories, updateMaterialCategory, deleteMaterialCategory, getMaterialCategoryById } = require('../../Controllers/engineeringController/materials/materialCategoryController');
 const { createMaterial, getAllMaterials, updateMaterial, deleteMaterial } = require('../../Controllers/engineeringController/materials/materialController');
 const jwtMW = require("../../middlewares/auth");
 const upload = require('../../middlewares/multer');
@@ -185,6 +185,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getAllMaterialCategories
+)
+router.get(
+  '/material-category-id',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getMaterialCategoryById
 )
 router.put(
   '/material-category/:_id',
