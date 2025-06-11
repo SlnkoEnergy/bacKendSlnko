@@ -1,5 +1,5 @@
 var router = require('express').Router();
-const { updateBoqCategory, getBoqCategory, getBoqCategoryById, createBoqCategory } = require('../../Controllers/engineeringController/boq/boqCategoryControllers');
+const { updateBoqCategory, getBoqCategory, getBoqCategoryById, createBoqCategory, getBoqCategoryByNameandID } = require('../../Controllers/engineeringController/boq/boqCategoryControllers');
 const { deleteBoqProject, updateBoqProject, getBoqProjectById, getAllBoqProject, createBoqProject } = require('../../Controllers/engineeringController/boq/boqProjectControllers');
 const { updateBoqTemplate, getBoqTemplate, createBoqTemplate, getBoqTemplateByTemplateId } = require('../../Controllers/engineeringController/boq/boqTemplateControllers');
 const { updateAttachmentUrl, updateModuleCategoryStatus, updateModuleCategory, getModuleCategoryById, getModuleCategory, createModuleCategory } = require('../../Controllers/engineeringController/engineeringModules/moduleCategoryContoller');
@@ -229,6 +229,10 @@ router.delete(
   jwtMW.authentication,
   jwtMW.authorization,
   deleteMaterial
+)
+router.get('/get-boq-catergories',
+ getBoqCategoryByNameandID 
+
 )
 
 
