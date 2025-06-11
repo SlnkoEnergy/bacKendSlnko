@@ -10,7 +10,7 @@ function updateCurrentStatusItems(
     if (!history || history.length === 0) {
       item[currentStatusKey] = "draft";
     } else {
-      item[currentStatusKey] = history[history.length - 1].status;
+      item[currentStatusKey] = history[history.length - 1];
     }
   });
 }

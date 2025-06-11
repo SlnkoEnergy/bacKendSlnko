@@ -372,41 +372,43 @@ const updateModuleCategory = async (req, res) => {
 };
 
 
-
-
 const updateModuleCategoryStatus = async (req, res) => {
   try {
-    const { moduleId, itemId } = req.params;
+    const { projectId, module_template } = req.params;
     const { status, remarks } = req.body;
 
     if (!status) {
-      return res.status(400).json({
-        message: "Status is required",
-      });
+      return res.status(400).json({ message: "Status is required" });
     }
-    const moduleCategoryData = await moduleCategory.findById(moduleId);
+
+    const moduleCategoryData = await moduleCategory.findOne({ project_id: projectId });
 
     if (!moduleCategoryData) {
-      return res.status(404).json({
-        message: "Module Category not found",
-      });
+      return res.status(404).json({ message: "Module Category not found" });
     }
 
-    const item = moduleCategoryData.items.id(itemId);
-    if (!item) {
-      return res.status(404).json({
-        message: "Item not found",
-      });
+    let templateFound = false;
+
+    for (const item of moduleCategoryData.items) {
+      if (item.template_id?.toString() === module_template?.toString()) {
+        item.status_history.push({
+          status,
+          remarks,
+          user_id: req.user._id,
+          updatedAt: new Date(),
+        });
+
+        templateFound = true;
+        break;
+      }
     }
 
-    item.status_history.push({
-      status,
-      remarks,
-      user_id: req.user._id,
-      updatedAt: new Date(),
-    });
+    if (!templateFound) {
+      return res.status(404).json({ message: "Template not found" });
+    }
 
     await moduleCategoryData.save();
+
     res.status(200).json({
       message: "Module Category Status Updated Successfully",
       data: moduleCategoryData,
@@ -418,6 +420,9 @@ const updateModuleCategoryStatus = async (req, res) => {
     });
   }
 };
+
+
+
 
 const updateAttachmentUrl = async (req, res) => {
   try {

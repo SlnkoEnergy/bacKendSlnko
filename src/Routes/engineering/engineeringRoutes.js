@@ -117,7 +117,7 @@ router.put(
   updateModuleCategory
 );
 router.put(
-  "/:moduleId/item/:itemId/statusModule",
+  "/:projectId/moduletemplate/:module_template/statusModule",
   jwtMW.authentication,
   jwtMW.authorization,
   updateModuleCategoryStatus
