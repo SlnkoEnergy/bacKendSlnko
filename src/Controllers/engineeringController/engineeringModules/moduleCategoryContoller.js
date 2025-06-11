@@ -327,19 +327,29 @@ const updateModuleCategory = async (req, res) => {
       }
 
       if (uploadedUrls.length > 0) {
-        if (existingItem) {
-          if (!Array.isArray(existingItem.attachment_urls)) {
-            existingItem.attachment_urls = [];
-          }
-          existingItem.attachment_urls.push(uploadedUrls);
-          moduleData.items[itemIndex] = existingItem;
-        } else {
-          moduleData.items.push({
-            template_id: new mongoose.Types.ObjectId(template_id),
-            attachment_urls: [uploadedUrls],
-          });
-        }
-      }
+  const statusHistory = items[i]?.status_history || [];
+
+  if (existingItem) {
+    if (!Array.isArray(existingItem.attachment_urls)) {
+      existingItem.attachment_urls = [];
+    }
+    existingItem.attachment_urls.push(uploadedUrls);
+
+    if (!Array.isArray(existingItem.status_history)) {
+      existingItem.status_history = [];
+    }
+    existingItem.status_history.push(...statusHistory);
+
+    moduleData.items[itemIndex] = existingItem;
+  } else {
+    moduleData.items.push({
+      template_id: new mongoose.Types.ObjectId(template_id),
+      attachment_urls: [uploadedUrls],
+      status_history: statusHistory,
+    });
+  }
+}
+
     }
 
     if (fileIndex === 0) {
