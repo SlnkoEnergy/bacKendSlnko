@@ -1,10 +1,10 @@
 var router = require('express').Router();
 const { updateBoqCategory, getBoqCategory, getBoqCategoryById, createBoqCategory } = require('../../Controllers/engineeringController/boq/boqCategoryControllers');
 const { deleteBoqProject, updateBoqProject, getBoqProjectById, getAllBoqProject, createBoqProject } = require('../../Controllers/engineeringController/boq/boqProjectControllers');
-const { updateBoqTemplate, getBoqTemplate, getBoqTemplateById, createBoqTemplate } = require('../../Controllers/engineeringController/boq/boqTemplateControllers');
+const { updateBoqTemplate, getBoqTemplate, createBoqTemplate, getBoqTemplateByTemplateId } = require('../../Controllers/engineeringController/boq/boqTemplateControllers');
 const { updateAttachmentUrl, updateModuleCategoryStatus, updateModuleCategory, getModuleCategoryById, getModuleCategory, createModuleCategory } = require('../../Controllers/engineeringController/engineeringModules/moduleCategoryContoller');
 const { updateModuleTemplateCategoryId, deleteModule, updateModule, getAllModule, getModuleById, createModule } = require('../../Controllers/engineeringController/engineeringModules/moduleTemplateController');
-const { addMaterialCategory, getAllMaterialCategories, updateMaterialCategory, deleteMaterialCategory } = require('../../Controllers/engineeringController/materials/materialCategoryController');
+const { addMaterialCategory, getAllMaterialCategories, updateMaterialCategory, deleteMaterialCategory, getMaterialCategoryById } = require('../../Controllers/engineeringController/materials/materialCategoryController');
 const { createMaterial, getAllMaterials, updateMaterial, deleteMaterial } = require('../../Controllers/engineeringController/materials/materialController');
 const jwtMW = require("../../middlewares/auth");
 const upload = require('../../middlewares/multer');
@@ -121,10 +121,10 @@ router.post(
   createBoqTemplate
 );
 router.get(
-  "/get-boq-template-by-id/:_id",
+  "/get-boq-template-by-id",
   jwtMW.authentication,
   jwtMW.authorization,
-  getBoqTemplateById
+  getBoqTemplateByTemplateId
 );
 router.get(
   "/get-boq-template",
@@ -161,7 +161,7 @@ router.get(
   getBoqProjectById
 );
 router.put(
-  "/:projectId/boqtemplate/:BoqtemplateId/updateBoqProject",
+  "/:projectId/moduletemplate/:moduleTemplateId/updateBoqProject",
   jwtMW.authentication,
   jwtMW.authorization,
   updateBoqProject
@@ -185,6 +185,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getAllMaterialCategories
+)
+router.get(
+  '/material-category-id',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getMaterialCategoryById
 )
 router.put(
   '/material-category/:_id',
