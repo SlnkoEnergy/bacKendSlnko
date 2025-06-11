@@ -1,5 +1,8 @@
 const boqCategory = require("../../../Modells/EngineeringModells/boq/boqCategory");
 const moduleTemplates = require("../../../Modells/EngineeringModells/engineeringModules/moduleTemplate");
+const MaterialCategory = require("../../../Modells/EngineeringModells/materials/materialCategoryModells");
+const Material = require("../../../Modells/EngineeringModells/materials/materialModells");
+const mongoose = require("mongoose");
 
 const createBoqCategory = async (req, res) => {
   try {
@@ -95,11 +98,89 @@ const updateBoqCategory = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
+const getBoqCategoryByIdAndKey = async (req, res) => {
+  try {
+    const { _id, keyname } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(_id)) {
+      return res.status(400).json({ message: "Invalid BOQ ID format" });
+    }
+    if (!keyname || typeof keyname !== 'string' || !keyname.trim()) {
+      return res.status(400).json({ message: "Missing or invalid 'keyname'" });
+    }
+
+    const result = await boqCategory.aggregate([
+      // 1. Match the specified BOQ by _id
+      { $match: { _id: new mongoose.Types.ObjectId(_id) } },
+      { $unwind: '$headers' },
+
+      // 2. Keep only headers whose `key` equals the requested keyname
+      { $match: { 'headers.key': keyname } },
+
+      // 3. Lookup in MaterialCategory matching only by headers.name
+      {
+        $lookup: {
+          from: 'materialcategories',
+          localField: 'name',
+          foreignField: 'name',
+          as: 'matchedMatCat'
+        }
+      },
+      { $unwind: { path: '$matchedMatCat', preserveNullAndEmptyArrays: false } },
+
+      // 4. Lookup in Materials collection using category ID & data.name
+      {
+        $lookup: {
+          from: 'materials',
+          let: { catId: '$matchedMatCat._id', hName: '$headers.name' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$category', '$$catId'] } } },
+            { $unwind: '$data' },
+            { $match: { $expr: { $eq: ['$data.name', '$$hName'] } } },
+            { $unwind: '$data.values' },
+            {
+              $project: {
+                _id: 0,
+                value: '$data.values.input_values'
+              }
+            }
+          ],
+          as: 'materialValues'
+        }
+      },
+
+      // 5. Final projection
+      {
+        $project: {
+          _id: 0,
+          header: '$headers',
+          materialValues: 1
+        }
+      }
+    ]);
+
+    if (!result.length) {
+      return res.status(404).json({
+        message: `No BOQ header found for ID '${_id}' with key '${keyname}', or no matching materials`
+      });
+    }
+
+    const { header, materialValues } = result[0];
+    const values = materialValues.map(v => v.value);
+
+    res.json({ success: true, header, data: values });
+  } catch (err) {
+    console.error("API Error:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
 
 module.exports = {
   createBoqCategory,
   getBoqCategoryById,
   getBoqCategory,
-  updateBoqCategory
+  updateBoqCategory,
+ getBoqCategoryByIdAndKey,
 };
