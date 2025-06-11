@@ -76,7 +76,6 @@ const getBoqTemplateByTemplateId = async (req, res) => {
 };
 
 
-
 const getBoqTemplate = async(req, res)=>{
     try {
         const boqTemplates = await boqTemplate.find().populate('boq_category');

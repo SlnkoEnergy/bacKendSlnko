@@ -109,15 +109,13 @@ const getBoqProjectById = async (req, res) => {
   }
 };
 
-
-
 const updateBoqProject = async (req, res) => {
   try {
-    const { projectId, BoqtemplateId } = req.params;
+    const { projectId, moduleTemplateId } = req.params;
 
     const boq = await boqProject.findOne({
       project_id: projectId,
-      "items.boq_template": BoqtemplateId,
+      "items.module_template": moduleTemplateId,
     });
 
     if (!boq) {
@@ -127,7 +125,7 @@ const updateBoqProject = async (req, res) => {
     }
 
     const item = boq.items.find(
-      (i) => i.boq_template.toString() === BoqtemplateId
+      (i) => i.module_template.toString() === moduleTemplateId
     );
 
     if (!item) {

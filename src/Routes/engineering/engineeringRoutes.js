@@ -161,7 +161,7 @@ router.get(
   getBoqProjectById
 );
 router.put(
-  "/:projectId/boqtemplate/:BoqtemplateId/updateBoqProject",
+  "/:projectId/moduletemplate/:moduleTemplateId/updateBoqProject",
   jwtMW.authentication,
   jwtMW.authorization,
   updateBoqProject
