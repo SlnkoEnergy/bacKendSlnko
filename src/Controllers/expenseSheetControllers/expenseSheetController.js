@@ -313,90 +313,49 @@ const deleteExpense = async (req, res) => {
 const exportAllExpenseSheetsCSV = async (req, res) => {
   try {
     const expenseSheets = await ExpenseSheet.aggregate([
-      { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
+      { $match: { current_status: "hr approval" } },
+
       {
         $project: {
           _id: 0,
           "Expense Code": "$expense_code",
-          "Emp Code": "$emp_id",
+          "Employee Code": "$emp_id",
           "Employee Name": "$emp_name",
-          "Project Code": { $toString: "$items.project_id" },
-          "Sheet Current Status": "$current_status",
-          From: {
-            $dateToString: { format: "%d/%m/%Y", date: "$expense_term.from" },
+          "Requested Amount": {
+            $toDouble: "$total_requested_amount"
           },
-          To: {
-            $dateToString: { format: "%d/%m/%Y", date: "$expense_term.to" },
-          },
-          "Sheet Remarks": "$comments",
-          Category: "$items.category",
-          Description: "$items.description",
-          "Expense Date": {
-            $cond: [
-              { $ifNull: ["$items.expense_date", false] },
-              {
-                $dateToString: {
-                  format: "%d/%m/%Y",
-                  date: "$items.expense_date",
-                },
+          "Approval Amount": {
+            $cond: {
+              if: {
+                $or: [
+                  { $eq: ["$total_approved_amount", "0"] },
+                  { $eq: ["$total_approved_amount", null] },
+                  { $eq: ["$total_approved_amount", ""] },
+                ],
               },
-              "",
-            ],
+              then: { $toDouble: "$total_requested_amount" },
+              else: { $toDouble: "$total_approved_amount" },
+            },
           },
-          "Invoice Number": "$items.invoice.invoice_number",
-          "Invoice Amount": "$items.invoice.invoice_amount",
-          "Approved Amount": "$items.approved_amount",
-          "Item Remarks": "$items.remarks",
-          "Current Status": "$items.item_current_status",
+          Status: "$current_status",
         },
       },
     ]);
 
-    const fields = Object.keys(expenseSheets[0] || {});
-    const json2csvParser = new Parser({ fields });
-    let csv = json2csvParser.parse(expenseSheets);
-
-    const summaryMap = {};
-    let totalRequested = 0;
-    let totalApproved = 0;
-
-    for (const row of expenseSheets) {
-      const category = row["Category"] || "Uncategorized";
-      const invoice = parseFloat(row["Invoice Amount"] || 0);
-      const approved = parseFloat(row["Approved Amount"] || 0);
-
-      if (!summaryMap[category]) {
-        summaryMap[category] = { requested: 0, approved: 0 };
-      }
-
-      summaryMap[category].requested += invoice;
-      summaryMap[category].approved += approved;
-
-      totalRequested += invoice;
-      totalApproved += approved;
-    }
-
-    const summaryRows = [
-      "",
-      "",
-      "Summary by Category",
-      "Category,Total Requested Amount,Total Approved Amount",
+    const fields = [
+      "Expense Code",
+      "Employee Code",
+      "Employee Name",
+      "Requested Amount",
+      "Approval Amount",
+      "Status",
     ];
 
-    for (const [category, data] of Object.entries(summaryMap)) {
-      summaryRows.push(
-        `"${category}",${data.requested.toFixed(2)},${data.approved.toFixed(2)}`
-      );
-    }
-
-    summaryRows.push(
-      `"Total",${totalRequested.toFixed(2)},${totalApproved.toFixed(2)}`
-    );
-
-    csv += "\n" + summaryRows.join("\n");
+    const json2csvParser = new Parser({ fields });
+    const csv = json2csvParser.parse(expenseSheets);
 
     res.header("Content-Type", "text/csv");
-    res.attachment("expenseSheets.csv");
+    res.attachment("HR_Approved_ExpenseSheets.csv");
     res.send(csv);
   } catch (err) {
     console.error("CSV Export Error:", err.message);
@@ -411,7 +370,7 @@ const exportExpenseSheetsCSVById = async (req, res) => {
     const sheetId = req.params._id;
 
     const expenseSheets = await ExpenseSheet.aggregate([
-      { $match: { _id: new mongoose.Types.ObjectId(sheetId) } },
+      { $match: { _id: new mongoose.Types.ObjectId(sheetId), current_status: "hr approval" } },
       { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
       {
         $project: {
@@ -419,7 +378,7 @@ const exportExpenseSheetsCSVById = async (req, res) => {
           "Expense Code": "$expense_code",
           "Emp Code": "$emp_id",
           "Employee Name": "$emp_name",
-          "Project Code": { $toString: "$items.project_id" },
+          "Project Code": { $toString: "$items.project_code" },
           "Sheet Current Status": "$current_status",
           From: {
             $dateToString: { format: "%d/%m/%Y", date: "$expense_term.from" },
@@ -443,15 +402,34 @@ const exportExpenseSheetsCSVById = async (req, res) => {
             ],
           },
           "Invoice Number": "$items.invoice.invoice_number",
-          "Invoice Amount": "$items.invoice.invoice_amount",
-          "Approved Amount": "$items.approved_amount",
+          "Invoice Amount": {
+            $toDouble: "$items.invoice.invoice_amount"
+          },
+          "Approved Amount": {
+            $cond: {
+              if: {
+                $or: [
+                  { $eq: ["$items.approved_amount", "0"] },
+                  { $eq: ["$items.approved_amount", 0] },
+                  { $eq: ["$items.approved_amount", null] },
+                  { $eq: ["$items.approved_amount", ""] },
+                ],
+              },
+              then: { $toDouble: "$items.invoice.invoice_amount" },
+              else: { $toDouble: "$items.approved_amount" },
+            },
+          },
           "Item Remarks": "$items.remarks",
           "Current Status": "$items.item_current_status",
         },
       },
     ]);
 
-    const fields = Object.keys(expenseSheets[0] || {});
+    if (expenseSheets.length === 0) {
+      return res.status(404).json({ message: "No records found or not in HR approval stage." });
+    }
+
+    const fields = Object.keys(expenseSheets[0]);
     const json2csvParser = new Parser({ fields });
     let csv = json2csvParser.parse(expenseSheets);
 
