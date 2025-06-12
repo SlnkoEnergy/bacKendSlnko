@@ -326,6 +326,20 @@ const getallwon = async function (req, res) {
         }
       },
       {
+        $lookup: {
+          from: "createbdleads",
+          localField: "id",
+          foreignField: "id",
+          as: "bdLeadDetails"
+        }
+      },
+      {
+        $unwind: {
+          path: "$bdLeadDetails",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
         $project: {
           leadId: "$id",
           customer: "$c_name",
@@ -337,7 +351,8 @@ const getallwon = async function (req, res) {
           date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
           status: "$handoverDetails.status_of_handoversheet",
           comment: "$handoverDetails.comment",
-          submitted_by: "$handoverDetails.submitted_by"
+          submitted_by: "$handoverDetails.submitted_by",
+          submitted_by_bdlead: "$bdLeadDetails.submitted_by"
         }
       },
       { $sort: { createdAt: -1 } }
