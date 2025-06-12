@@ -337,7 +337,7 @@ const getallwon = async function (req, res) {
           date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
           status: "$handoverDetails.status_of_handoversheet",
           comment: "$handoverDetails.comment",
-          submittedBy: "$handoverDetails.submitted_by"
+          submitted_by: "$handoverDetails.submitted_by"
         }
       },
       { $sort: { createdAt: -1 } }
