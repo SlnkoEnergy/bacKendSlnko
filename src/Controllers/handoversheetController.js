@@ -1,4 +1,4 @@
-const handoversheetModells = require("../Modells/handoversheetModells");
+
 const hanoversheetmodells = require("../Modells/handoversheetModells");
 const projectmodells = require("../Modells/projectModells");
 
@@ -33,6 +33,17 @@ const createhandoversheet = async function (req, res) {
     if (cheched_id) {
       return res.status(400).json({ message: "Handoversheet already exists" });
     }
+
+
+     const projectExists = await hanoversheetmodells.findOne({
+      "customer_details.code": customer_details.code,
+      });
+    if (projectExists) {
+      return res.status(400).json({
+        message: `Project with code '${customer_details.code}' already exists`
+      });
+    }
+
 
     await handoversheet.save();
 
