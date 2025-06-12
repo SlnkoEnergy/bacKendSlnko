@@ -109,6 +109,60 @@ const getBoqProjectById = async (req, res) => {
   }
 };
 
+const getBoqProjectByProject = async (req, res) => {
+  try {
+    const { projectId } = req.query;
+
+    const data = await boqProject.aggregate([
+      {
+        $match: {
+          project_id: new mongoose.Types.ObjectId(projectId),
+        },
+      },
+      {
+        $unwind: "$items",
+      },
+      {
+        $lookup: {
+          from: "boqtemplates",
+          localField: "items.boq_template",
+          foreignField: "_id",
+          as: "boqTemplate",
+        },
+      },
+      {
+        $unwind: "$boqTemplate",
+      },
+      {
+        $lookup: {
+          from: "boqcategories",
+          localField: "boqTemplate.boq_category",
+          foreignField: "_id",
+          as: "boqCategory",
+        },
+      },
+      {
+        $unwind: "$boqCategory",
+      },
+      {
+        $project: {
+          _id: 0,
+          boq_category_name: "$boqCategory.name",
+          item: "$items",
+        },
+      },
+    ]);
+
+    res.status(200).json(data);
+  } catch (error) {
+    console.error("Error fetching BOQ project data:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
+
+
 const updateBoqProject = async (req, res) => {
   try {
     const { projectId, moduleTemplateId } = req.params;
@@ -182,6 +236,7 @@ module.exports = {
   createBoqProject,
   getAllBoqProject,
   getBoqProjectById,
+  getBoqProjectByProject,
   updateBoqProject,
   deleteBoqProject
 };
