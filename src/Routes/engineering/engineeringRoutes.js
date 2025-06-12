@@ -12,6 +12,7 @@ const {
   getBoqProjectById,
   getAllBoqProject,
   createBoqProject,
+  getBoqProjectByProject,
 } = require("../../Controllers/engineeringController/boq/boqProjectControllers");
 const {
   updateBoqTemplate,
@@ -202,6 +203,14 @@ router.get(
   jwtMW.authorization,
   getBoqProjectById
 );
+
+router.get(
+  "/get-boq-project-by-project",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getBoqProjectByProject
+)
+
 router.put(
   "/:projectId/moduletemplate/:moduleTemplateId/updateBoqProject",
   jwtMW.authentication,
