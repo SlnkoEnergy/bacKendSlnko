@@ -1,4 +1,3 @@
-
 const hanoversheetmodells = require("../Modells/handoversheetModells");
 const projectmodells = require("../Modells/projectModells");
 
@@ -34,16 +33,19 @@ const createhandoversheet = async function (req, res) {
       return res.status(400).json({ message: "Handoversheet already exists" });
     }
 
+    let projectExists = null;
 
-     const projectExists = await hanoversheetmodells.findOne({
-      "customer_details.code": customer_details.code,
+    if (customer_details.code) {
+      projectExists = await hanoversheetmodells.findOne({
+        "customer_details.code": customer_details.code,
       });
-    if (projectExists) {
-      return res.status(400).json({
-        message: `Project with code '${customer_details.code}' already exists`
-      });
+
+      if (projectExists) {
+        return res.status(400).json({
+          message: `Project with code '${customer_details.code}' already exists`,
+        });
+      }
     }
-
 
     await handoversheet.save();
 
@@ -148,7 +150,7 @@ const gethandoversheetdata = async function (req, res) {
                 status_of_handoversheet: 1,
                 is_locked: 1,
                 comment: 1,
-                p_id: 1
+                p_id: 1,
               },
             },
           ],
