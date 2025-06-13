@@ -33,19 +33,7 @@ const createhandoversheet = async function (req, res) {
       return res.status(400).json({ message: "Handoversheet already exists" });
     }
 
-    let projectExists = null;
-
-    if (customer_details.code) {
-      projectExists = await hanoversheetmodells.findOne({
-        "customer_details.code": customer_details.code,
-      });
-
-      if (projectExists) {
-        return res.status(400).json({
-          message: `Project with code '${customer_details.code}' already exists`,
-        });
-      }
-    }
+   
 
     await handoversheet.save();
 
@@ -186,6 +174,19 @@ const edithandoversheetdata = async function (req, res) {
     if (!id) {
       res.status(400).json({ message: "id not found" });
     }
+       // Check if code exists in the incoming data
+    if (data?.customer_details?.code) {
+      const existingSheet = await hanoversheetmodells.findOne({
+        "customer_details.code": data.customer_details.code,
+      });
+
+      if (existingSheet) {
+        return res.status(409).json({
+          message: "Code already exists in handover sheet. Update not allowed.",
+        });
+      }
+    }
+
     let edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(
       id,
       data,
@@ -229,6 +230,8 @@ const updatestatus = async function (req, res) {
         project_detail = {},
         other_details = {},
       } = updatedHandoversheet;
+
+
 
       // Construct the project data
       const projectData = new projectmodells({
