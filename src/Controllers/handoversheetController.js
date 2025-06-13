@@ -38,6 +38,20 @@ const createhandoversheet = async function (req, res) {
       return res.status(400).json({ message: "Handoversheet already exists" });
     }
 
+    let projectExists = null;
+
+    if (customer_details.code) {
+      projectExists = await hanoversheetmodells.findOne({
+        "customer_details.code": customer_details.code,
+      });
+
+      if (projectExists) {
+        return res.status(400).json({
+          message: `Project with code '${customer_details.code}' already exists`,
+        });
+      }
+    }
+
     await handoversheet.save();
 
     res.status(200).json({

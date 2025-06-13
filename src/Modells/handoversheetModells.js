@@ -74,6 +74,10 @@ const handoversheetSchema = new mongoose.Schema(
       billing_type: {
         type: String,
       },
+      billing_by:{
+        type: String,
+
+      },
       project_status: { type: String },
       remark: { type: String },
       remarks_for_slnko: { type: String },
