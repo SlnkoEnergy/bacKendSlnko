@@ -321,15 +321,16 @@ const checkid = async function (req, res) {
 //get bd handover sheet data by id or leadId
 const getByIdOrLeadId = async function (req, res) {
   try {
-    const { id, leadId } = req.query;
+    const { id, leadId, p_id } = req.query;
 
-    if (!id && !leadId) {
+    if (!id && !leadId && !p_id) {
       return res.status(400).json({ message: "id or leadId is required" });
     }
 
     let query = {};
     if (id) query._id = id;
     if (leadId) query.id = leadId;
+    if(p_id) query.p_id = p_id
 
     const handoverSheet = await hanoversheetmodells.findOne(query);
 
