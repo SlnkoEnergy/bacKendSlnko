@@ -41,9 +41,12 @@ const moduleTemplateSchema = new mongoose.Schema(
       },
       template_category: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: "BoqTemplate",
+        ref: "BoqCategory",
       }],
     },
+    engineering_category:{
+      type:String
+    }
   },
   { timestamps: true }
 );

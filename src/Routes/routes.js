@@ -182,50 +182,7 @@ const { createhandoversheet, gethandoversheetdata, edithandoversheetdata, update
 const { addmoduleMaster, getmoduleMasterdata, editmodulemaster, deletemodulemaster }=require("../Controllers/moduleMasterController");
 // const { deleteOne } = require("../Modells/moduleMasterModells");
 
-const {
-  addinveterMaster,
-  getinveterMasterdata,
-} = require("../Controllers/inveterMasterController");
 
-const {
-  addTransformer,
-  getTransformer,
-} = require("../Controllers/engineeringController/transformerController");
-
-const {
-  addLTPanel,
-  getLTPanel,
-} = require("../Controllers/engineeringController/LTPanelControllers");
-
-const {
-  addHTPanel,
-  getHTPanels,
-} = require("../Controllers/engineeringController/HTPanelController");
-
-const {
-  addaccabel,
-  getACCabels,
-} = require("../Controllers/engineeringController/ACCabelController");
-
-const {
-  add_dc_cabel,
-  get_dc_cabels,
-} = require("../Controllers/engineeringController/DCCabelController");
-
-const {
-  addbos,
-  getbos,
-} = require("../Controllers/engineeringController/BOSController");
-
-const {
-  addPoolingStation,
-  getAllPoolingStations,
-} = require("../Controllers/engineeringController/PoolingStationController");
-
-const {
-  addBOM,
-  getBOM,
-} = require("../Controllers/engineeringController/BOMController");
 const {
   createExpense,
   getAllExpense,
@@ -252,47 +209,7 @@ const {
 } = require("../Controllers/bdleadController");
 const { create } = require("../Modells/bdleadsModells");
 
-const {
-  createMaterial,
-  getAllMaterials,
-  deleteMaterial,
-  updateMaterial,
-} = require("../Controllers/engineeringController/materials/materialController.js");
-
-const {
-  addMaterialCategory,
-  getAllMaterialCategories,
-  deleteMaterialCategory,
-  updateMaterialCategory,
-} = require("../Controllers/engineeringController/materials/materialCategoryController");
 const upload = require("../middlewares/multer.js");
-const {
-  createModule,
-  getModuleById,
-  getAllModule,
-  updateModule,
-  deleteModule,
-} = require("../Controllers/engineeringController/engineeringModules/moduleTemplateController.js");
-const {
-  createModuleCategory,
-  getModuleCategory,
-  getModuleCategoryById,
-  updateModuleCategory,
-  updateModuleCategoryStatus,
-  updateAttachmentUrl,
-} = require("../Controllers/engineeringController/engineeringModules/moduleCategoryContoller.js");
-const {
-  createBoqCategory,
-  getBoqCategoryById,
-  getBoqCategory,
-  updateBoqCategory,
-} = require("../Controllers/engineeringController/boq/boqCategoryControllers.js");
-const {
-  createBoqTemplate,
-  getBoqTemplateById,
-  getBoqTemplate,
-  updateBoqTemplate,
-} = require("../Controllers/engineeringController/boq/boqTemplateControllers.js");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -1055,17 +972,26 @@ router.put(
 router.put("/update-won", jwtMW.authentication, jwtMW.authorization, updatewon);
 
 //edit all bd lead
-router.put("/edit-followup/:_id",jwtMW.authentication,jwtMW.authorization, editfollowup)
-router.put("/edit-warm/:_id",jwtMW.authentication,jwtMW.authorization,editwarm);
-
+router.put(
+  "/edit-followup/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  editfollowup
+);
+router.put(
+  "/edit-warm/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  editwarm
+);
 
 //handdoversheet 
 router.post("/create-hand-over-sheet", jwtMW.authentication,jwtMW.authorization,createhandoversheet);
 router.get("/get-all-handover-sheet",jwtMW.authentication,jwtMW.authorization,gethandoversheetdata);
-router.get("/get-handoversheet", jwtMW.authentication,jwtMW.authorization, getByIdOrLeadId);
 router.put("/edit-hand-over-sheet/:_id",jwtMW.authentication,jwtMW.authorization,edithandoversheetdata);
 router.put("/update-status/:_id",jwtMW.authentication,jwtMW.authorization,updatestatus);
 router.post("/check/:_id",jwtMW.authentication,jwtMW.authorization,checkid);
+router.get("/get-handoversheet",jwtMW.authentication,jwtMW.authorization,getByIdOrLeadId);
 router.get("/search/:letter",jwtMW.authentication,jwtMW.authorization,search);
 
 //module master
@@ -1094,131 +1020,6 @@ router.delete(
   deletemodulemaster
 );
 
-//inveter master
-router.post(
-  "/add-inveter-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  addinveterMaster
-);
-router.get(
-  "/get-master-inverter",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getinveterMasterdata
-);
-
-//transformer master
-router.post(
-  "/add-transformer-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  addTransformer
-);
-router.get(
-  "/get-transformer",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getTransformer
-);
-
-//LTPanel master
-router.post(
-  "/add-ltpanel-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  addLTPanel
-);
-router.get(
-  "/get-ltpanel-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getLTPanel
-);
-
-//HTPanel master
-router.post(
-  "/add-htpanel-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  addHTPanel
-);
-router.get(
-  "/get-htpanel-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getHTPanels
-);
-
-//ACCabel master
-router.post(
-  "/add-accabel-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  addaccabel
-);
-router.get(
-  "/get-accabel-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getACCabels
-);
-
-//DC_Cabel_master
-router.post(
-  "/add-dc-cabel-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  add_dc_cabel
-);
-router.get(
-  "/get-dc-cabel-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  get_dc_cabels
-);
-
-//BOS master
-router.post(
-  "/add-bos-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  addbos
-);
-router.get(
-  "/get-bos-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getbos
-);
-
-//pooling station master
-router.post(
-  "/add-pooling-station-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  addPoolingStation
-);
-router.get(
-  "/get-pooling-station-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getAllPoolingStations
-);
-
-//BOM master Engineering
-router.post(
-  "/add-bom-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  addBOM
-);
-router.get(
-  "/get-bom-master",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getBOM
-);
 
 //Expense Sheet
 router.get(
@@ -1320,129 +1121,6 @@ router.put(
   jwtMW.authentication,
   jwtMW.authorization,
   updateLeadStatus
-);
-
-//Engineering Modules Templates
-router.post(
-  "/create-module",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  createModule
-);
-router.get(
-  "/get-module-by-id/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getModuleById
-);
-router.get(
-  "/get-module",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getAllModule
-);
-router.put(
-  "/update-module/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updateModule
-);
-router.delete(
-  "/delete-module/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  deleteModule
-);
-
-// Engineering Modules Categories
-router.post(
-  "/create-module-category",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  // upload,
-  createModuleCategory
-);
-router.get(
-  "/get-module-category",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getModuleCategory
-);
-router.get(
-  "/get-module-category-id/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getModuleCategoryById
-);
-router.put(
-  "/update-module-category/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updateModuleCategory
-);
-router.put(
-  "/:moduleId/item/:itemId/statusModule",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updateModuleCategoryStatus
-);
-router.put(
-  "/:categoryId/item/:itemId/statusAttachment",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updateAttachmentUrl
-);
-
-// Boq Categories
-router.post(
-  "/create-boq-category",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  createBoqCategory
-);
-router.get(
-  "/get-boq-category-by-id/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getBoqCategoryById
-);
-router.get(
-  "/get-boq-category",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getBoqCategory
-);
-router.put(
-  "/update-boq-category/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updateBoqCategory
-);
-
-// Boq Templates
-router.post(
-  "/create-boq-template",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  createBoqTemplate
-);
-router.get(
-  "/get-boq-template-by-id/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getBoqTemplateById
-);
-router.get(
-  "/get-boq-template",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getBoqTemplate
-);
-router.put(
-  "/update-boq-template/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updateBoqTemplate
 );
 
 module.exports = router;

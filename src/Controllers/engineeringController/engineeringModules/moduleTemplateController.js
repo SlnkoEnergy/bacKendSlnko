@@ -20,7 +20,10 @@ const createModule = async (req, res) => {
 
 const getModuleById = async (req, res) => {
   try {
-    const moduleData = await moduleTemplate.findById(req.params._id);
+    const moduleData = await moduleTemplate
+      .findById(req.params._id)
+      .populate('boq.template_category', 'name description');
+
     res.status(200).json({
       message: "Module Category Retrieved Successfully",
       data: moduleData,
@@ -35,7 +38,10 @@ const getModuleById = async (req, res) => {
 
 const getAllModule = async (req, res) => {
   try {
-    const moduleData = await moduleTemplate.find();
+    const moduleData = await moduleTemplate
+      .find()
+      .populate('boq.template_category', 'name description');
+
     res.status(200).json({
       message: "Module Category Retrieved Successfully",
       data: moduleData,
@@ -82,10 +88,35 @@ const deleteModule = async (req, res) => {
   }
 };
 
+const updateModuleTemplateCategoryId = async (req, res) => {
+  try {
+    const id = req.params._id;
+    const { template_category } = req.body;
+
+    const updatedModule = await moduleTemplate.findByIdAndUpdate(
+      id,
+      { $push: { 'boq.template_category': template_category } },
+      { new: true }
+    );
+
+    res.status(200).json({
+      message: "Module Template Category ID Updated Successfully",
+      data: updatedModule,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+
 module.exports = {
   createModule,
   getModuleById,
   getAllModule,
   updateModule,
   deleteModule,
+  updateModuleTemplateCategoryId
 };

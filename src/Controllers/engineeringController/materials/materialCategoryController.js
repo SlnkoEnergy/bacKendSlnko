@@ -53,6 +53,32 @@ const getAllMaterialCategories = async (req, res) => {
   }
 };
 
+// Get Material Categories By Id
+const getMaterialCategoryById = async(req, res) => {
+  try {
+    const {id} = req.query;
+    if(!id){
+      return res.status(400).json({message: "id is required"});
+    }
+
+    let query = {};
+    if(id) query._id = id;
+    
+    const materialCategories = await materialCategory.findOne(query);
+
+    if(!materialCategories){
+      return res.status(404).json({ message: "Data not found" });
+    }
+
+    res.status(200).json({
+      message:"Data fetched Successfully",
+      data: materialCategories
+    })
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}
+
 // Update material category
 const updateMaterialCategory = async (req, res) => {
   try {
@@ -113,7 +139,7 @@ const deleteMaterialCategory = async (req, res) => {
 module.exports = {
   addMaterialCategory,
   getAllMaterialCategories,
-  //getMaterialCategoryById,
+  getMaterialCategoryById,
   updateMaterialCategory,
   deleteMaterialCategory,
 };

@@ -1,3 +1,8 @@
+const boqProject = require("../Modells/EngineeringModells/boq/boqProject");
+const boqTemplate = require("../Modells/EngineeringModells/boq/boqTemplate");
+const moduleCategory = require("../Modells/EngineeringModells/engineeringModules/moduleCategory");
+const moduleTemplate = require("../Modells/EngineeringModells/engineeringModules/moduleTemplate");
+const handoversheetModells = require("../Modells/handoversheetModells");
 const hanoversheetmodells = require("../Modells/handoversheetModells");
 const projectmodells = require("../Modells/projectModells");
 
@@ -81,26 +86,22 @@ const gethandoversheetdata = async function (req, res) {
       });
     }
 
-    // Status filter supporting multiple values
+    // Status filter
     if (statusFilter) {
-      // Split by comma, trim whitespace, and filter out empty strings
       const statuses = statusFilter
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
 
       if (statuses.length === 1) {
-        // Single status filter
         matchConditions.$and.push({ status_of_handoversheet: statuses[0] });
       } else if (statuses.length > 1) {
-        // Filter for any of the given statuses
         matchConditions.$and.push({
           status_of_handoversheet: { $in: statuses },
         });
       }
     }
 
-    // If no conditions were added, match everything
     const finalMatch = matchConditions.$and.length > 0 ? matchConditions : {};
 
     const pipeline = [
@@ -120,6 +121,20 @@ const gethandoversheetdata = async function (req, res) {
       {
         $unwind: {
           path: "$leadDetails",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "projectdetails", 
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "projectInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$projectInfo",
           preserveNullAndEmptyArrays: true,
         },
       },
@@ -151,6 +166,7 @@ const gethandoversheetdata = async function (req, res) {
                 is_locked: 1,
                 comment: 1,
                 p_id: 1,
+                project_id: "$projectInfo._id", 
               },
             },
           ],
@@ -177,6 +193,7 @@ const gethandoversheetdata = async function (req, res) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
@@ -257,7 +274,7 @@ const updatestatus = async function (req, res) {
         project_status: "",
         updated_on: new Date().toISOString(),
         service: other_details.service || "",
-        submitted_by: req?.user?.name || "", // Adjust based on your auth
+        submitted_by: req?.user?.name || "", 
         billing_type: other_details.billing_type || "",
       });
 
@@ -266,16 +283,21 @@ const updatestatus = async function (req, res) {
       updatedHandoversheet.p_id = newPid;
       await updatedHandoversheet.save();
 
+      // Create moduleCategory document
+      const moduleCategoryData = new moduleCategory({
+        project_id: projectData._id,
+      });
+
+      await moduleCategoryData.save();
+
       return res.status(200).json({
-        message: "Status updated and project created successfully",
+        message: "Status updated, project and moduleCategory created successfully",
         handoverSheet: updatedHandoversheet,
         project: projectData,
+        data: moduleCategoryData
       });
     }
-    res.status(200).json({
-      message: "Status updated successfully",
-      Data: updatedHandoversheet,
-    });
+    
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
