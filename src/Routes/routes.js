@@ -1284,13 +1284,6 @@ router.get(
   jwtMW.authorization,
   exportExpenseSheetsCSVById
 );
-// Pdf for expense
-router.get(
-  "/generate-pdf/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getExpensePdf
-)
 
 //bd lead new
 router.post(
