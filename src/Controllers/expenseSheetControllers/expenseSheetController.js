@@ -370,7 +370,12 @@ const exportExpenseSheetsCSVById = async (req, res) => {
     const sheetId = req.params._id;
 
     const expenseSheets = await ExpenseSheet.aggregate([
-      { $match: { _id: new mongoose.Types.ObjectId(sheetId), current_status: "hr approval" } },
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(sheetId),
+          current_status: "hr approval",
+        },
+      },
       { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
       {
         $project: {
@@ -403,7 +408,7 @@ const exportExpenseSheetsCSVById = async (req, res) => {
           },
           "Invoice Number": "$items.invoice.invoice_number",
           "Invoice Amount": {
-            $toDouble: "$items.invoice.invoice_amount"
+            $toDouble: "$items.invoice.invoice_amount",
           },
           "Approved Amount": {
             $cond: {
@@ -420,20 +425,55 @@ const exportExpenseSheetsCSVById = async (req, res) => {
             },
           },
           "Item Remarks": "$items.remarks",
-          "Current Status": "$items.item_current_status",
+          "Attachment Available": {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ["$items.attachment_url", null] },
+                  { $ne: ["$items.attachment_url", ""] }
+                ]
+              },
+              "Yes",
+              "No"
+            ]
+          }
         },
       },
     ]);
 
     if (expenseSheets.length === 0) {
-      return res.status(404).json({ message: "No records found or not in HR approval stage." });
+      return res
+        .status(404)
+        .json({ message: "No records found or not in HR approval stage." });
     }
 
-    const fields = Object.keys(expenseSheets[0]);
-    const json2csvParser = new Parser({ fields });
-    let csv = json2csvParser.parse(expenseSheets);
+    const firstRow = expenseSheets[0];
+    const headerSection = [
+      ["Expense Code", firstRow["Expense Code"]],
+      ["Emp Code", firstRow["Emp Code"]],
+      ["Employee Name", firstRow["Employee Name"]],
+      ["From", firstRow["From"]],
+      ["To", firstRow["To"]],
+      ["Sheet Current Status", firstRow["Sheet Current Status"]],
+      "", 
+    ];
 
-    // Summary by Category
+    const fields = Object.keys(firstRow).filter(
+      (field) =>
+        ![
+          "Expense Code",
+          "Emp Code",
+          "Employee Name",
+          "From",
+          "To",
+          "Sheet Current Status",
+          "Current Status",
+        ].includes(field)
+    );
+
+    const json2csvParser = new Parser({ fields });
+    let csvTable = json2csvParser.parse(expenseSheets);
+
     const summaryMap = {};
     let totalRequested = 0;
     let totalApproved = 0;
@@ -471,11 +511,15 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       `"Total",${totalRequested.toFixed(2)},${totalApproved.toFixed(2)}`
     );
 
-    csv += "\n" + summaryRows.join("\n");
+    const headerCSV = headerSection
+      .map((row) => (Array.isArray(row) ? row.join(",") : row))
+      .join("\n");
+
+    const fullCSV = headerCSV + "\n" + csvTable + "\n" + summaryRows.join("\n");
 
     res.header("Content-Type", "text/csv");
     res.attachment("expenseSheets.csv");
-    res.send(csv);
+    res.send(fullCSV);
   } catch (err) {
     console.error("CSV Export Error:", err.message);
     res
@@ -483,7 +527,6 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
-
 
 module.exports = {
   getAllExpense,
@@ -495,5 +538,5 @@ module.exports = {
   updateExpenseStatusItems,
   deleteExpense,
   exportAllExpenseSheetsCSV,
-  exportExpenseSheetsCSVById,
+  exportExpenseSheetsCSVById
 };
