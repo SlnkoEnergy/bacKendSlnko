@@ -237,7 +237,6 @@ const {
   exportExpenseSheetsCSVById,
   updateExpenseSheet,
   updateDisbursementDate,
-  getExpensePdf,
 } = require("../Controllers/expenseSheetControllers/expenseSheetController");
 // const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
