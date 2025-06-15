@@ -52,18 +52,7 @@ const getAllMaterialCategories = async (req, res) => {
       });
   }
 };
-// Get material category by ID
-// const getMaterialCategoryById = async (req, res) => {
-//   try {
-//     const materialCategoryData = await materialCategory.findById(req.params.id).populate("createdBy", "name email").populate("updatedBy", "name email");
-//     if (!materialCategoryData) {
-//       return res.status(404).json({ message: "Material Category not found" });
-//     }
-//     res.status(200).json({ message: "Material Category retrieved successfully", data: materialCategoryData });
-//   } catch (error) {
-//     res.status(500).json({ message: "Error retrieving Material Category", error: error.message });
-//   }
-// };
+
 // Update material category
 const updateMaterialCategory = async (req, res) => {
   try {
