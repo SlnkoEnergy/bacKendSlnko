@@ -294,6 +294,10 @@ const {
   updateBoqTemplate,
 } = require("../Controllers/engineeringController/boq/boqTemplateControllers.js");
 
+const{ createMaterial, getAllMaterials, deleteMaterial, updateMaterial }=require("../Controllers/engineeringController/materialController");
+
+const{ addMaterialCategory, getAllMaterialCategories, deleteMaterialCategory, updateMaterialCategory }=require("../Controllers/engineeringController/materialCategoryController");
+
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -1321,6 +1325,17 @@ router.put(
   jwtMW.authorization,
   updateLeadStatus
 );
+//material master Engineering
+router.post("/add-material",createMaterial );
+router.get("/get-material",getAllMaterials );
+router.delete("/delete-mateial/:_id",deleteMaterial);
+router.put("/update-material/:_id",updateMaterial); //get all material categories
+
+//material category master Engineering
+router.post("/add-material-category",addMaterialCategory );
+router.get("/get-material-category", getAllMaterialCategories);
+router.put("/edit-material-category/:_id", updateMaterialCategory); //update material category
+router.delete("/delete-material-category/:_id", deleteMaterialCategory); //delete material category
 
 //Engineering Modules Templates
 router.post(
