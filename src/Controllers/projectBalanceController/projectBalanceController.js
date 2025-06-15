@@ -1,6 +1,6 @@
 const Project = require("../../Modells/projectModells");
 const AddMoney = require("../../Modells/addMoneyModells");
-const RecoveryPayRequest = require("../../Modells/recoveryPayrequestModells");
+const payRequest = require("../../Modells/payRequestModells");
 const AdjustmentRequest = require("../../Modells/adjustmentRequestModells");
 
 const getProjectBalance = async (req, res) => {
@@ -27,15 +27,26 @@ const getProjectBalance = async (req, res) => {
 
         const creditAgg = await AddMoney.aggregate([
           { $match: { p_id } },
-          { $group: { _id: null, total_credit_amount: { $sum: "$cr_amount" } } },
+          {
+            $group: {
+              _id: null,
+              total_credit_amount: {
+                $sum: {
+                  $toDouble: {
+                    $ifNull: ["$cr_amount", "0"],
+                  },
+                },
+              },
+            },
+          },
         ]);
         const total_credit_amount = creditAgg[0]?.total_credit_amount || 0;
 
-        const debitAgg = await RecoveryPayRequest.aggregate([
+        const debitAgg = await payRequest.aggregate([
           {
             $match: {
               p_id,
-              utr: { $nin: [null, "", "NA", "0"] },
+              utr: { $regex: /[^\s]/ },
             },
           },
           {
@@ -70,7 +81,7 @@ const getProjectBalance = async (req, res) => {
         ]);
         const total_adjustment_amount = adjAgg[0]?.total_adjustment_amount || 0;
 
-        const returnAgg = await RecoveryPayRequest.aggregate([
+        const returnAgg = await payRequest.aggregate([
           {
             $match: {
               p_id,
@@ -92,8 +103,10 @@ const getProjectBalance = async (req, res) => {
         ]);
         const total_return = returnAgg[0]?.total_po_amount || 0;
 
-        const available_amount_with_slnko = total_credit_amount - total_debit_history;
-        const balance_with_slnko = total_credit_amount - (total_adjustment_amount + total_return);
+        const available_amount_with_slnko =
+          total_credit_amount - total_debit_history;
+        const balance_with_slnko =
+          total_credit_amount - (total_adjustment_amount + total_return);
 
         return {
           ...project._doc,
