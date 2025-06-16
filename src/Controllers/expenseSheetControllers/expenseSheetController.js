@@ -99,9 +99,13 @@ const getAllExpense = async (req, res) => {
 
 const getExpenseById = async (req, res) => {
   try {
-    const expenseId = req.params._id;
+    const { expense_code, _id } = req.query;
 
-    const expense = await ExpenseSheet.findById(expenseId);
+    let query = {};
+    if (_id) query._id = _id;
+    if (expense_code) query.expense_code = expense_code;
+
+    const expense = await ExpenseSheet.findOne(query);
 
     if (!expense) {
       return res.status(404).json({
@@ -120,6 +124,7 @@ const getExpenseById = async (req, res) => {
     });
   }
 };
+
 
 const createExpense = async (req, res) => {
   try {

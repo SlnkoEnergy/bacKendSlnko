@@ -1053,7 +1053,7 @@ router.get(
   getAllExpense
 );
 router.get(
-  "/get-expense-by-id/:_id",
+  "/get-expense-by-id",
   jwtMW.authentication,
   jwtMW.authorization,
   getExpenseById
