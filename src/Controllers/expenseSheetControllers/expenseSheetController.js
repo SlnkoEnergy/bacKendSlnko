@@ -12,64 +12,92 @@ const getAllExpense = async (req, res) => {
       page = 1,
       limit = 10,
       search = "",
-      user_id,
+      emp_id,
       department,
       status,
       from,
       to,
     } = req.query;
 
+    const currentUser = await User.findById(req.user.userId);
+
     const match = {};
 
-    // Search by expense_code
     if (search) {
-  match.$or = [
-    { expense_code: { $regex: search, $options: "i" } },
-    { emp_name: { $regex: search, $options: "i" } },
-  ];
-}
+      match.$or = [
+        { expense_code: { $regex: search, $options: "i" } },
+        { emp_name: { $regex: search, $options: "i" } },
+      ];
+    }
 
-    // Filter by status
     if (status) {
       match["current_status"] = status;
     }
 
-    // Filter by date range
     if (from && to) {
       match["expense_term.from"] = { $gte: new Date(from) };
       match["expense_term.to"] = { $lte: new Date(to) };
     }
 
-    if (user_id) {
-      match.user_id = user_id;
+    if (emp_id) {
+      match.emp_id = emp_id;
     }
 
     const pipeline = [
-      {
-        $match: match,
-      },
+      { $match: match },
       {
         $lookup: {
           from: "users",
-          localField: "user_id",
-          foreignField: "_id",
+          localField: "emp_id",
+          foreignField: "emp_id",
           as: "user_info",
         },
       },
       {
-        $unwind: "$user_info",
+        $unwind: {
+          path: "$user_info",
+          preserveNullAndEmptyArrays: false,
+        },
       },
     ];
 
-    // Filter by department (from user info)
+    // Apply access control
+    if (currentUser.department === "HR" && currentUser.name !== "Manish Shah") {
+      // No additional $match — allow access to all expenses
+    } else if (currentUser.department === "Accounts") {
+      // Accounts sees expenses with status "hr approval"
+      pipeline.push({
+        $match: {
+          current_status: "hr approval",
+        },
+      });
+    } else if (
+      currentUser.emp !== "Accounts" &&
+      (currentUser.role === "manager" || currentUser.role === "visitor")
+    ) {
+      pipeline.push({
+        $match: {
+          "user_info.department": currentUser.department,
+        },
+      });
+    } else {
+      pipeline.push({
+        $match: {
+          emp_id: currentUser.emp_id,
+        },
+      });
+    }
+
+    // Optional department filter
     if (department) {
       pipeline.push({
         $match: { "user_info.department": department },
       });
     }
 
-    const totalPipeline = [...pipeline, { $count: "total" }];
+    console.log(currentUser);
 
+    const totalPipeline = [...pipeline, { $count: "total" }];
     const dataPipeline = [
       ...pipeline,
       { $sort: { createdAt: -1 } },
@@ -79,7 +107,6 @@ const getAllExpense = async (req, res) => {
 
     const [totalResult] = await ExpenseSheet.aggregate(totalPipeline);
     const expenses = await ExpenseSheet.aggregate(dataPipeline);
-
     const total = totalResult?.total || 0;
 
     res.status(200).json({
@@ -124,7 +151,6 @@ const getExpenseById = async (req, res) => {
     });
   }
 };
-
 
 const createExpense = async (req, res) => {
   try {
@@ -629,7 +655,7 @@ const getExpensePdf = async (req, res) => {
     if (!sheet) {
       return res.status(404).json({ message: "Expense sheet not found" });
     }
-    
+
     const department = sheet?.user_id?.department || "";
     const attachmentLinks = sheet.items
       .map((item) => item.attachment_url)
