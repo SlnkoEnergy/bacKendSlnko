@@ -62,7 +62,7 @@ const getAllExpense = async (req, res) => {
     ];
 
     // Apply access control
-    if (currentUser.department === "IT Team" || (currentUser.department === "HR" && currentUser.emp_id !== "SE-207")) {
+    if (currentUser.department === "superadmin" || currentUser.department === "admin" || (currentUser.department === "HR" && currentUser.emp_id !== "SE-207")) {
       // No additional $match — allow access to all expenses
     } else if (currentUser.department === "Accounts") {
       // Accounts sees expenses with status "hr approval"
