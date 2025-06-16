@@ -663,8 +663,6 @@ const getExpensePdf = async (req, res) => {
   }
 };
 
-module.exports = { getExpensePdf };
-
 module.exports = {
   getAllExpense,
   getExpenseById,
