@@ -72,8 +72,12 @@ const getAllExpense = async (req, res) => {
       // Accounts sees expenses with status "hr approval"
       pipeline.push({
         $match: {
-          current_status: "hr approval",
-        },
+  $or: [
+    { current_status: "hr approval" },
+    { current_status: "final approval" },
+  ],
+}
+
       });
     } else if (
       currentUser.emp !== "Accounts" &&
