@@ -163,11 +163,9 @@ const verifyandResetPassword = async (req, res) => {
 
     // Validate input
     if (!email || !newPassword || !confirmPassword) {
-      return res
-        .status(400)
-        .json({
-          message: "Email, new password, and confirm password are required.",
-        });
+      return res.status(400).json({
+        message: "Email, new password, and confirm password are required.",
+      });
     }
 
     if (newPassword !== confirmPassword) {
