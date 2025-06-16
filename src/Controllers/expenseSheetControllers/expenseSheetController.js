@@ -8,11 +8,86 @@ const FormData = require("form-data");
 
 const getAllExpense = async (req, res) => {
   try {
-    let expense = await ExpenseSheet.find();
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      user_id,
+      department,
+      status,
+      from,
+      to,
+    } = req.query;
+
+    const match = {};
+
+    // Search by expense_code
+    if (search) {
+  match.$or = [
+    { expense_code: { $regex: search, $options: "i" } },
+    { emp_name: { $regex: search, $options: "i" } },
+  ];
+}
+
+    // Filter by status
+    if (status) {
+      match["current_status"] = status;
+    }
+
+    // Filter by date range
+    if (from && to) {
+      match["expense_term.from"] = { $gte: new Date(from) };
+      match["expense_term.to"] = { $lte: new Date(to) };
+    }
+
+    if (user_id) {
+      match.user_id = user_id;
+    }
+
+    const pipeline = [
+      {
+        $match: match,
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user_id",
+          foreignField: "_id",
+          as: "user_info",
+        },
+      },
+      {
+        $unwind: "$user_info",
+      },
+    ];
+
+    // Filter by department (from user info)
+    if (department) {
+      pipeline.push({
+        $match: { "user_info.department": department },
+      });
+    }
+
+    const totalPipeline = [...pipeline, { $count: "total" }];
+
+    const dataPipeline = [
+      ...pipeline,
+      { $sort: { createdAt: -1 } },
+      { $skip: (Number(page) - 1) * Number(limit) },
+      { $limit: Number(limit) },
+    ];
+
+    const [totalResult] = await ExpenseSheet.aggregate(totalPipeline);
+    const expenses = await ExpenseSheet.aggregate(dataPipeline);
+
+    const total = totalResult?.total || 0;
 
     res.status(200).json({
       message: "Expense Sheet retrieved successfully",
-      data: expense,
+      data: expenses,
+      total,
+      page: Number(page),
+      limit: Number(limit),
     });
   } catch (error) {
     res.status(500).json({
