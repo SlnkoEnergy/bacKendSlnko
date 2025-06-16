@@ -506,6 +506,56 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
+const getExpensePdf = async (req, res) => {
+  try {
+    const { _id } = req.params;
+    const { printAttachments } = req.query;
+
+    if (!_id) {
+      return res.status(400).json({ message: "Expense sheet ID is required" });
+    }
+
+    // Fetch the sheet from DB (or get it from somewhere)
+    const sheet = await ExpenseSheet.findById(_id).populate("user_id").lean();
+    if (!sheet) {
+      return res.status(404).json({ message: "Expense sheet not found" });
+    }
+
+    const department = sheet?.user_id?.department || "";
+    const attachmentLinks = sheet.items
+  .map(item => item.attachment_url)
+  .filter(url => url && url.startsWith("http"));
+
+    console.log(attachmentLinks);
+
+    const apiUrl = `${process.env.PDF_PORT}/expensePdf/expense-pdf`;
+
+    // POST request with body containing sheet and other data
+    const response = await axios.post(
+      apiUrl,
+      {
+        sheet,
+        printAttachments: printAttachments === "true",
+        attachmentLinks,
+        department,
+      },
+      { responseType: "arraybuffer", maxContentLength: Infinity,  // Allow unlimited size
+    maxBodyLength: Infinity  } // important for binary data
+    );
+
+    // Forward PDF response headers and body
+    res.set({
+      "Content-Type": response.headers["content-type"],
+      "Content-Disposition": response.headers["content-disposition"],
+      "Content-Length": response.headers["content-length"],
+    });
+
+    res.send(response.data);
+  } catch (error) {
+    console.error("Error proxying PDF request:", error.message);
+    res.status(500).json({ message: "Error fetching PDF", error: error.message });
+  }
+};
 
 
 module.exports = {
@@ -519,4 +569,5 @@ module.exports = {
   deleteExpense,
   exportAllExpenseSheetsCSV,
   exportExpenseSheetsCSVById,
+  getExpensePdf
 };

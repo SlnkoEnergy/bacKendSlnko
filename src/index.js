@@ -17,11 +17,11 @@ app.use(cors({
   methods: ["GET", "POST", "PUT","PATCH","DELETE"],
   allowedHeaders: ["Content-Type", "x-auth-token"],
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_URL;
 
 const startServer = async () => {
 try {
