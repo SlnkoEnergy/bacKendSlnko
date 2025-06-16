@@ -174,19 +174,7 @@ const edithandoversheetdata = async function (req, res) {
     if (!id) {
       res.status(400).json({ message: "id not found" });
     }
-       // Check if code exists in the incoming data
-    if (data?.customer_details?.code) {
-      const existingSheet = await hanoversheetmodells.findOne({
-        "customer_details.code": data.customer_details.code,
-      });
-
-      if (existingSheet) {
-        return res.status(409).json({
-          message: "Code already exists in handover sheet. Update not allowed.",
-        });
-      }
-    }
-
+    
     let edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(
       id,
       data,
