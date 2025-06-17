@@ -173,13 +173,36 @@ const {
   updatewon,
   updateWonLead,
   getwonbyleadid,
-  editwon
+  editwon,
 } = require("../Controllers/initialbdController");
 
-
-const{ addtask, getaddtask, editComment, gettaskHistory, updatetaskstatus }=require("../Controllers/addtaskbdController");
-const { createhandoversheet, gethandoversheetdata, edithandoversheetdata, updateStatusOfHandoversheet, getbdhandoversheetdata, updateStatusHandoversheet, updatehandoverbd, updatestatus, checkid, getbyid, search, getByIdOrLeadId } =require("../Controllers/handoversheetController");
-const { addmoduleMaster, getmoduleMasterdata, editmodulemaster, deletemodulemaster }=require("../Controllers/moduleMasterController");
+const {
+  addtask,
+  getaddtask,
+  editComment,
+  gettaskHistory,
+  updatetaskstatus,
+} = require("../Controllers/addtaskbdController");
+const {
+  createhandoversheet,
+  gethandoversheetdata,
+  edithandoversheetdata,
+  updateStatusOfHandoversheet,
+  getbdhandoversheetdata,
+  updateStatusHandoversheet,
+  updatehandoverbd,
+  updatestatus,
+  checkid,
+  getbyid,
+  search,
+  getByIdOrLeadId,
+} = require("../Controllers/handoversheetController");
+const {
+  addmoduleMaster,
+  getmoduleMasterdata,
+  editmodulemaster,
+  deletemodulemaster,
+} = require("../Controllers/moduleMasterController");
 // const { deleteOne } = require("../Modells/moduleMasterModells");
 
 
@@ -194,6 +217,7 @@ const {
   exportExpenseSheetsCSVById,
   updateExpenseSheet,
   updateDisbursementDate,
+  getExpensePdf,
 } = require("../Controllers/expenseSheetControllers/expenseSheetController");
 // const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
@@ -816,13 +840,13 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getwonbyleadid
-)
+);
 router.put(
   "/edit-won/:_id",
   jwtMW.authentication,
   jwtMW.authorization,
   editwon
-)
+);
 
 //followup to all
 router.post(
@@ -1029,7 +1053,7 @@ router.get(
   getAllExpense
 );
 router.get(
-  "/get-expense-by-id/:_id",
+  "/get-expense-by-id",
   jwtMW.authentication,
   jwtMW.authorization,
   getExpenseById
@@ -1083,6 +1107,13 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   exportExpenseSheetsCSVById
+);
+//Expense Pdf
+router.get(
+  "/expense-pdf/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getExpensePdf
 );
 
 //bd lead new
