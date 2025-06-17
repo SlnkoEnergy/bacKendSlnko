@@ -271,7 +271,6 @@ module.exports = {
   forgettpass,
   verifyOtp,
   verifyandResetPassword,
-
   deleteUser,
   getSingleUser,
 };

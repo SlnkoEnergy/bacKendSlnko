@@ -34,9 +34,14 @@ const createMaterial = async function (req, res) {
 // Get all materials
 const getAllMaterials = async function (req, res) {
   try {
+    const { category } = req.query;
+
+    const filter = category ? { category } : {};
+
     const materials = await materialModells
-      .find()
+      .find(filter)
       .populate("category", "name description fields");
+
     res
       .status(200)
       .json({ message: "Materials retrieved successfully", data: materials });
@@ -46,6 +51,7 @@ const getAllMaterials = async function (req, res) {
       .json({ message: "Error retrieving Materials", error: error.message });
   }
 };
+
 
 // Get material by ID
 // const getMaterialById = async function (req, res) {

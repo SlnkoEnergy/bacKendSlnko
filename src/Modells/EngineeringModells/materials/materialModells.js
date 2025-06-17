@@ -9,12 +9,17 @@ const materialSchema = new mongoose.Schema(
     },
     data: [
       {
-        _id: false,  // prevent auto _id for each object in data array
-        name: { type: String, required: true },
-        value: { type: String, required: true },
+        _id: false,
+        name: { type: String },
+        values: [
+          {
+            _id: false,
+            input_values: { type: String },
+          },
+        ],
       },
     ],
-    is_available:{
+    is_available: {
       type: Boolean,
       default: false,
       required: true,

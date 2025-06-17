@@ -8,11 +8,121 @@ const FormData = require("form-data");
 
 const getAllExpense = async (req, res) => {
   try {
-    let expense = await ExpenseSheet.find();
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      emp_id,
+      department,
+      status,
+      from,
+      to,
+    } = req.query;
+
+    const currentUser = await User.findById(req.user.userId);
+
+    const match = {};
+
+    if (search) {
+      match.$or = [
+        { expense_code: { $regex: search, $options: "i" } },
+        { emp_name: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    if (status) {
+      match["current_status"] = status;
+    }
+
+    if (from && to) {
+      match["expense_term.from"] = { $gte: new Date(from) };
+      match["expense_term.to"] = { $lte: new Date(to) };
+    }
+
+    if (emp_id) {
+      match.emp_id = emp_id;
+    }
+
+    const pipeline = [
+      { $match: match },
+      {
+        $lookup: {
+          from: "users",
+          localField: "emp_id",
+          foreignField: "emp_id",
+          as: "user_info",
+        },
+      },
+      {
+        $unwind: {
+          path: "$user_info",
+          preserveNullAndEmptyArrays: false,
+        },
+      },
+    ];
+
+    // Apply access control
+    if (
+      currentUser.department === "superadmin" ||
+      currentUser.department === "admin" ||
+      (currentUser.department === "HR" && currentUser.emp_id !== "SE-207")
+    ) {
+      // No additional $match — allow access to all expenses
+    } else if (currentUser.department === "Accounts") {
+      // Accounts sees expenses with status "hr approval"
+      pipeline.push({
+        $match: {
+  $or: [
+    { current_status: "hr approval" },
+    { current_status: "final approval" },
+  ],
+}
+
+      });
+    } else if (
+      currentUser.emp !== "Accounts" &&
+      (currentUser.role === "manager" || currentUser.role === "visitor")
+    ) {
+      pipeline.push({
+        $match: {
+          "user_info.department": currentUser.department,
+        },
+      });
+    } else {
+      pipeline.push({
+        $match: {
+          emp_id: currentUser.emp_id,
+        },
+      });
+    }
+
+    // Optional department filter
+    if (department) {
+      pipeline.push({
+        $match: { "user_info.department": department },
+      });
+    }
+
+    console.log(currentUser);
+
+    const totalPipeline = [...pipeline, { $count: "total" }];
+    const dataPipeline = [
+      ...pipeline,
+      { $sort: { createdAt: -1 } },
+      { $skip: (Number(page) - 1) * Number(limit) },
+      { $limit: Number(limit) },
+    ];
+
+    const [totalResult] = await ExpenseSheet.aggregate(totalPipeline);
+    const expenses = await ExpenseSheet.aggregate(dataPipeline);
+    const total = totalResult?.total || 0;
 
     res.status(200).json({
       message: "Expense Sheet retrieved successfully",
-      data: expense,
+      data: expenses,
+      total,
+      page: Number(page),
+      limit: Number(limit),
     });
   } catch (error) {
     res.status(500).json({
@@ -24,9 +134,13 @@ const getAllExpense = async (req, res) => {
 
 const getExpenseById = async (req, res) => {
   try {
-    const expenseId = req.params._id;
+    const { expense_code, _id } = req.query;
 
-    const expense = await ExpenseSheet.findById(expenseId);
+    let query = {};
+    if (_id) query._id = _id;
+    if (expense_code) query.expense_code = expense_code;
+
+    const expense = await ExpenseSheet.findOne(query);
 
     if (!expense) {
       return res.status(404).json({
@@ -55,6 +169,7 @@ const createExpense = async (req, res) => {
     if (!user_id) {
       return res.status(400).json({ message: "User ID is required" });
     }
+
     // Generate unique expense code
     const expense_code = await generateExpenseCode(user_id);
 
@@ -68,45 +183,48 @@ const createExpense = async (req, res) => {
     const folderType = user.role === "site" ? "onsite" : "offsite";
     const folderPath = `expense_sheet/${folderType}/${user.emp_id}`;
 
-    const uploadedFileURLs = [];
+    // Step 1: Upload files and map index => URL
+    const uploadedFileMap = {}; // { "5": "https://..." }
 
-    // Upload each file and collect URLs
-    for (const file of (req.files || [])) {
+    for (const file of req.files || []) {
+      const match = file.fieldname.match(/file_(\d+)/); // Extract index from fieldname
+      if (!match) continue;
+
+      const index = match[1];
+
       const form = new FormData();
       form.append("file", file.buffer, {
         filename: file.originalname,
         contentType: file.mimetype,
       });
 
-      // Construct upload URL
       const uploadUrl = `https://upload.slnkoprotrac.com?containerName=protrac&foldername=${folderPath}`;
 
-      // Post file to upload endpoint
       const response = await axios.post(uploadUrl, form, {
         headers: form.getHeaders(),
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
       });
 
-      // Extract URL from response safely
       const respData = response.data;
       const url = Array.isArray(respData) && respData.length > 0
         ? respData[0]
         : respData.url || respData.fileUrl || (respData.data && respData.data.url) || null;
 
-      if (!url) {
-        console.warn(`Warning: No upload URL found for file ${file.originalname}`);
+      if (url) {
+        uploadedFileMap[index] = url;
+      } else {
+        console.warn(`No URL found for uploaded file ${file.originalname}`);
       }
-      uploadedFileURLs.push(url);
     }
 
-    // Map uploaded URLs back to items, preserving existing attachment URLs if no new upload
+    // Step 2: Attach file URLs to correct items
     const itemsWithAttachments = (data.items || []).map((item, idx) => ({
       ...item,
-      attachment_url: uploadedFileURLs[idx] || item.attachment_url || null,
+      attachment_url: uploadedFileMap[idx] || item.attachment_url || null,
     }));
 
-    // Create new expense sheet document
+    // Step 3: Create and save the expense sheet
     const expense = new ExpenseSheet({
       expense_code,
       user_id,
@@ -116,10 +234,8 @@ const createExpense = async (req, res) => {
       items: itemsWithAttachments,
     });
 
-    // Save to database
     await expense.save();
 
-    // Send success response
     return res.status(201).json({
       message: "Expense Sheet Created Successfully",
       data: expense,
@@ -192,7 +308,7 @@ const updateExpenseStatusOverall = async (req, res) => {
     if (!expense)
       return res.status(404).json({ error: "Expense Sheet not found" });
 
-    const { status, remarks, approved_items} = req.body;
+    const { status, remarks, approved_items } = req.body;
 
     if (!status) {
       return res.status(400).json({ error: "Status is required" });
@@ -222,13 +338,17 @@ const updateExpenseStatusOverall = async (req, res) => {
           user_id: req.user._id,
           updatedAt: new Date(),
         });
-    
-      if (status === "manager approval" && Array.isArray(approved_items)) {
-          const match = approved_items.find((a) =>
-            a._id.toString() === item._id.toString()
+
+        if (status === "manager approval" && Array.isArray(approved_items)) {
+          const match = approved_items.find(
+            (a) => a._id.toString() === item._id.toString()
           );
           if (match) {
             item.approved_amount = match.approved_amount;
+            expense.total_approved_amount = (
+              parseFloat(expense.total_approved_amount || 0) +
+              parseFloat(match.approved_amount || 0)
+            ).toString();
           }
         }
 
@@ -276,7 +396,6 @@ const updateExpenseStatusItems = async (req, res) => {
       updatedAt: new Date(),
     });
 
-
     item.approved_amount = approved_amount;
     await expenseSheet.save();
 
@@ -314,29 +433,14 @@ const exportAllExpenseSheetsCSV = async (req, res) => {
   try {
     const expenseSheets = await ExpenseSheet.aggregate([
       { $match: { current_status: "hr approval" } },
-
       {
         $project: {
           _id: 0,
           "Expense Code": "$expense_code",
           "Employee Code": "$emp_id",
           "Employee Name": "$emp_name",
-          "Requested Amount": {
-            $toDouble: "$total_requested_amount"
-          },
-          "Approval Amount": {
-            $cond: {
-              if: {
-                $or: [
-                  { $eq: ["$total_approved_amount", "0"] },
-                  { $eq: ["$total_approved_amount", null] },
-                  { $eq: ["$total_approved_amount", ""] },
-                ],
-              },
-              then: { $toDouble: "$total_requested_amount" },
-              else: { $toDouble: "$total_approved_amount" },
-            },
-          },
+          "Requested Amount": { $toDouble: "$total_requested_amount" },
+          "Approval Amount": { $toDouble: "$total_approved_amount" },
           Status: "$current_status",
         },
       },
@@ -359,9 +463,7 @@ const exportAllExpenseSheetsCSV = async (req, res) => {
     res.send(csv);
   } catch (err) {
     console.error("CSV Export Error:", err.message);
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: err.message });
+    res.status(500).json({ message: "Internal Server Error", error: err.message });
   }
 };
 
@@ -373,7 +475,6 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       {
         $match: {
           _id: new mongoose.Types.ObjectId(sheetId),
-          current_status: "hr approval",
         },
       },
       { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
@@ -410,33 +511,19 @@ const exportExpenseSheetsCSVById = async (req, res) => {
           "Invoice Amount": {
             $toDouble: "$items.invoice.invoice_amount",
           },
-          "Approved Amount": {
-            $cond: {
-              if: {
-                $or: [
-                  { $eq: ["$items.approved_amount", "0"] },
-                  { $eq: ["$items.approved_amount", 0] },
-                  { $eq: ["$items.approved_amount", null] },
-                  { $eq: ["$items.approved_amount", ""] },
-                ],
-              },
-              then: { $toDouble: "$items.invoice.invoice_amount" },
-              else: { $toDouble: "$items.approved_amount" },
-            },
-          },
           "Item Remarks": "$items.remarks",
           "Attachment Available": {
             $cond: [
               {
                 $and: [
                   { $ne: ["$items.attachment_url", null] },
-                  { $ne: ["$items.attachment_url", ""] }
-                ]
+                  { $ne: ["$items.attachment_url", ""] },
+                ],
               },
               "Yes",
-              "No"
-            ]
-          }
+              "No",
+            ],
+          },
         },
       },
     ]);
@@ -455,7 +542,7 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       ["From", firstRow["From"]],
       ["To", firstRow["To"]],
       ["Sheet Current Status", firstRow["Sheet Current Status"]],
-      "", 
+      "",
     ];
 
     const fields = Object.keys(firstRow).filter(
@@ -527,6 +614,58 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
+const getExpensePdf = async (req, res) => {
+  try {
+    const { _id } = req.params;
+    const { printAttachments } = req.query;
+
+    if (!_id) {
+      return res.status(400).json({ message: "Expense sheet ID is required" });
+    }
+
+    // Fetch sheet and populate user
+    const sheet = await ExpenseSheet.findById(_id).populate("user_id").lean();
+    if (!sheet) {
+      return res.status(404).json({ message: "Expense sheet not found" });
+    }
+
+    const department = sheet?.user_id?.department || "";
+    const attachmentLinks = sheet.items
+      .map((item) => item.attachment_url)
+      .filter((url) => url && url.startsWith("http"));
+
+    const apiUrl = `${process.env.PDF_PORT}/expensePdf/expense-pdf`;
+    // Axios stream request
+    const axiosResponse = await axios({
+      method: "post",
+      url: apiUrl,
+      data: {
+        sheet,
+        printAttachments: printAttachments === "true",
+        attachmentLinks,
+        department,
+      },
+      responseType: "stream",
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+
+    // Forward headers and stream data to client
+    res.set({
+      "Content-Type": axiosResponse.headers["content-type"],
+      "Content-Disposition":
+        axiosResponse.headers["content-disposition"] ||
+        'attachment; filename="expense.pdf"',
+    });
+
+    axiosResponse.data.pipe(res);
+  } catch (error) {
+    console.error("Error proxying PDF request:", error.message);
+    res
+      .status(500)
+      .json({ message: "Error fetching PDF", error: error.message });
+  }
+};
 
 module.exports = {
   getAllExpense,
@@ -538,5 +677,6 @@ module.exports = {
   updateExpenseStatusItems,
   deleteExpense,
   exportAllExpenseSheetsCSV,
-  exportExpenseSheetsCSVById
+  exportExpenseSheetsCSVById,
+  getExpensePdf,
 };

@@ -50,6 +50,8 @@ const handoversheetSchema = new mongoose.Schema(
       project_completion_date: { type: String },
       proposed_dc_capacity: { type: String },
       project_kwp: { type: String },
+      project_component:{type: String},
+      project_component_other:{type: String},
       distance: { type: String },
       tarrif: { type: String },
       land: { type: String },
