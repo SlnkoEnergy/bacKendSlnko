@@ -222,77 +222,122 @@ const updatestatus = async function (req, res) {
     if (!updatedHandoversheet) {
       return res.status(404).json({ message: "Handoversheet not found" });
     }
+
     if (
       updatedHandoversheet.status_of_handoversheet === "Approved" &&
       updatedHandoversheet.is_locked === "locked"
     ) {
-      const latestProject = await projectmodells.findOne().sort({ p_id: -1 });
-      const newPid =
-        latestProject && latestProject.p_id ? latestProject.p_id + 1 : 1;
-
       const {
         customer_details = {},
         project_detail = {},
         other_details = {},
       } = updatedHandoversheet;
 
+      let projectData;
 
+      if (updatedHandoversheet.p_id) {
+        // Update existing project
+        projectData = await projectmodells.findOneAndUpdate(
+          { p_id: updatedHandoversheet.p_id },
+          {
+            customer: customer_details.customer || "",
+            name: customer_details.name || "",
+            p_group: customer_details.p_group || "",
+            email: customer_details.email || "",
+            number: customer_details.number || "",
+            alt_number: customer_details.alt_number || "",
+            billing_address: {
+              village_name: customer_details.billing_address?.village_name || "",
+              district_name: customer_details.billing_address?.district_name || "",
+            },
+            site_address: {
+              village_name: customer_details.site_address?.village_name || "",
+              district_name: customer_details.site_address?.district_name || "",
+            },
+            state: customer_details.state || "",
+            project_category: project_detail.project_category || "",
+            project_kwp: project_detail.project_kwp || "",
+            distance: project_detail.distance || "",
+            tarrif: project_detail.tarrif || "",
+            land: project_detail.land || "",
+            code: customer_details.code || "",
+            service: other_details.service || "",
+            billing_type: other_details.billing_type || "",
+            updated_on: new Date().toISOString(),
+            submitted_by: req?.user?.name || "",
+          },
+          { new: true }
+        );
 
-      // Construct the project data
-      const projectData = new projectmodells({
-        p_id: newPid,
-        customer: customer_details.customer || "",
-        name: customer_details.name || "",
-        p_group: customer_details.p_group || "",
-        email: customer_details.email || "",
-        number: customer_details.number || "",
-        alt_number: customer_details.alt_number || "",
-        billing_address: {
-          village_name: customer_details.billing_address?.village_name || "",
-          district_name: customer_details.billing_address?.district_name || "",
-        },
-        site_address: {
-          village_name: customer_details.site_address?.village_name || "",
-          district_name: customer_details.site_address?.district_name || "",
-        },
-        state: customer_details.state || "",
-        project_category: project_detail.project_category || "",
-        project_kwp: project_detail.project_kwp || "",
-        distance: project_detail.distance || "",
-        tarrif: project_detail.tarrif || "",
-        land: project_detail.land || "",
-        code: customer_details.code || "",
-        project_status: "",
-        updated_on: new Date().toISOString(),
-        service: other_details.service || "",
-        submitted_by: req?.user?.name || "", 
-        billing_type: other_details.billing_type || "",
-      });
+        return res.status(200).json({
+          message: "Status updated, existing project updated",
+          handoverSheet: updatedHandoversheet,
+          project: projectData,
+        });
+      } else {
+        // Create new project
+        const latestProject = await projectmodells.findOne().sort({ p_id: -1 });
+        const newPid = latestProject?.p_id ? latestProject.p_id + 1 : 1;
 
-      // Save the new project
-      await projectData.save();
-      updatedHandoversheet.p_id = newPid;
-      await updatedHandoversheet.save();
+        projectData = new projectmodells({
+          p_id: newPid,
+          customer: customer_details.customer || "",
+          name: customer_details.name || "",
+          p_group: customer_details.p_group || "",
+          email: customer_details.email || "",
+          number: customer_details.number || "",
+          alt_number: customer_details.alt_number || "",
+          billing_address: {
+            village_name: customer_details.billing_address?.village_name || "",
+            district_name: customer_details.billing_address?.district_name || "",
+          },
+          site_address: {
+            village_name: customer_details.site_address?.village_name || "",
+            district_name: customer_details.site_address?.district_name || "",
+          },
+          state: customer_details.state || "",
+          project_category: project_detail.project_category || "",
+          project_kwp: project_detail.project_kwp || "",
+          distance: project_detail.distance || "",
+          tarrif: project_detail.tarrif || "",
+          land: project_detail.land || "",
+          code: customer_details.code || "",
+          project_status: "",
+          updated_on: new Date().toISOString(),
+          service: other_details.service || "",
+          submitted_by: req?.user?.name || "", 
+          billing_type: other_details.billing_type || "",
+        });
 
-      // Create moduleCategory document
-      const moduleCategoryData = new moduleCategory({
-        project_id: projectData._id,
-      });
+        await projectData.save();
+        updatedHandoversheet.p_id = newPid;
+        await updatedHandoversheet.save();
 
-      await moduleCategoryData.save();
+        const moduleCategoryData = new moduleCategory({
+          project_id: projectData._id,
+        });
 
-      return res.status(200).json({
-        message: "Status updated, project and moduleCategory created successfully",
-        handoverSheet: updatedHandoversheet,
-        project: projectData,
-        data: moduleCategoryData
-      });
+        await moduleCategoryData.save();
+
+        return res.status(200).json({
+          message: "Status updated, new project and moduleCategory created successfully",
+          handoverSheet: updatedHandoversheet,
+          project: projectData,
+          data: moduleCategoryData
+        });
+      }
     }
-    
+
+    return res.status(200).json({
+      message: "Status updated",
+      handoverSheet: updatedHandoversheet
+    });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 const checkid = async function (req, res) {
   try {
