@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const app = express();
 const routes = require("../src/Routes/routes");
 const engineeringRoutes = require("../src/Routes/engineering/engineeringRoutes");
+const bdleadsRoutes = require("../src/Routes/bdLeads/leads");
 const cors = require("cors");
 const { config } = require("dotenv");
 
@@ -24,6 +25,7 @@ const startServer = async () => {
 
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
+    app.use("/v1/bdleads", bdleadsRoutes);
 
     // Start the server
     app.listen(PORT, () => {
