@@ -270,8 +270,26 @@ const leadSummary = async (req, res) => {
     let fromDate, toDate;
     const now = new Date();
 
+    // Normalize human-readable range inputs from frontend
+    const rangeKeyMap = {
+      "today": "day",
+      "1 day": "day",
+      "one day": "day",
+      "1 week": "week",
+      "one week": "week",
+      "2 weeks": "2weeks",
+      "two weeks": "2weeks",
+      "1 month": "1month",
+      "one month": "1month",
+      "3 months": "3months",
+      "9 months": "9months",
+      "1 year": "1year",
+    };
+
+    const normalizedRange = rangeKeyMap[(range || "").toLowerCase()] || range;
+
     // Set dynamic date range
-    switch (range) {
+    switch (normalizedRange) {
       case "day":
         fromDate = new Date(now.setHours(0, 0, 0, 0));
         toDate = new Date(now.setHours(23, 59, 59, 999));
@@ -283,15 +301,33 @@ const leadSummary = async (req, res) => {
         toDate = new Date();
         break;
 
-      case "2weeks":
+      case "2week":
         fromDate = new Date();
         fromDate.setDate(fromDate.getDate() - 14);
         toDate = new Date();
         break;
 
-      case "month":
+      case "1month":
         fromDate = new Date();
         fromDate.setMonth(fromDate.getMonth() - 1);
+        toDate = new Date();
+        break;
+
+      case "3months":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 3);
+        toDate = new Date();
+        break;
+
+      case "9months":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 9);
+        toDate = new Date();
+        break;
+
+      case "1year":
+        fromDate = new Date();
+        fromDate.setFullYear(fromDate.getFullYear() - 1);
         toDate = new Date();
         break;
 
@@ -303,6 +339,7 @@ const leadSummary = async (req, res) => {
         break;
     }
 
+    // Apply date filter if applicable
     const dateFilter =
       fromDate && toDate
         ? {
@@ -313,8 +350,14 @@ const leadSummary = async (req, res) => {
           }
         : {};
 
-    // Lead status counts
-    const [initialLeadAgg, followupAgg, warmLeadAgg, wonLeadAgg, deadLeadAgg] = await Promise.all([
+    // Parallel aggregation of lead status counts
+    const [
+      initialLeadAgg,
+      followupAgg,
+      warmLeadAgg,
+      wonLeadAgg,
+      deadLeadAgg,
+    ] = await Promise.all([
       initiallead.aggregate([{ $match: dateFilter }, { $count: "count" }]),
       followUpBdleadModells.aggregate([{ $match: dateFilter }, { $count: "count" }]),
       warmbdLeadModells.aggregate([{ $match: dateFilter }, { $count: "count" }]),
@@ -340,7 +383,10 @@ const leadSummary = async (req, res) => {
     });
   } catch (error) {
     console.error("Lead Status Summary Error:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
 
@@ -348,69 +394,91 @@ const leadSummary = async (req, res) => {
 
 // Total Lead Conversition Ratio
 
-const leadconversionrate = async (req, res) => {
+const leadconversationrate = async (req, res) => {
   try {
     const { range, startDate, endDate } = req.query;
 
-    let fromDate, toDate;
     const now = new Date();
+    let fromDate, toDate;
 
-    // Set dynamic date range
-    switch (range) {
+    const rangeKeyMap = {
+      "today": "day",
+      "1 day": "day",
+      "one day": "day",
+      "1 week": "week",
+      "one week": "week",
+      "2 weeks": "2weeks",
+      "two weeks": "2weeks",
+      "1 month": "1month",
+      "one month": "1month",
+      "3 months": "3months",
+      "9 months": "9months",
+      "1 year": "1year",
+    };
+
+    const normalizedRange = rangeKeyMap[(range || "").toLowerCase()] || range;
+
+    switch (normalizedRange) {
       case "day":
-        fromDate = new Date(now.setHours(0, 0, 0, 0));
-        toDate = new Date(now.setHours(23, 59, 59, 999));
+        fromDate = new Date();
+        fromDate.setHours(0, 0, 0, 0);
+        toDate = new Date();
+        toDate.setHours(23, 59, 59, 999);
         break;
-
       case "week":
         fromDate = new Date();
         fromDate.setDate(fromDate.getDate() - 7);
         toDate = new Date();
         break;
-
       case "2weeks":
         fromDate = new Date();
         fromDate.setDate(fromDate.getDate() - 14);
         toDate = new Date();
         break;
-
-      case "month":
+      case "1month":
         fromDate = new Date();
         fromDate.setMonth(fromDate.getMonth() - 1);
         toDate = new Date();
         break;
-
+      case "3months":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 3);
+        toDate = new Date();
+        break;
+      case "9months":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 9);
+        toDate = new Date();
+        break;
+      case "1year":
+        fromDate = new Date();
+        fromDate.setFullYear(fromDate.getFullYear() - 1);
+        toDate = new Date();
+        break;
       default:
         if (startDate && endDate) {
           fromDate = new Date(startDate);
           toDate = new Date(endDate);
+        } else {
+          return res.status(400).json({
+            message: "Please provide a valid date range or custom dates",
+          });
         }
-        break;
     }
 
-    const dateFilter =
-      fromDate && toDate
-        ? {
-            createdAt: {
-              $gte: fromDate,
-              $lte: toDate,
-            },
-          }
-        : {};
+    const dateFilter = {
+      createdAt: {
+        $gte: fromDate,
+        $lte: toDate,
+      },
+    };
 
-    // Total Leads with optional filter
     const leadAggregation = await createbdleads.aggregate([
       { $match: dateFilter },
       {
         $group: {
-          _id: "$source",
-          count: { $sum: 1 },
-        },
-      },
-      {
-        $group: {
           _id: null,
-          total: { $sum: "$count" },
+          total: { $sum: 1 },
         },
       },
       {
@@ -423,18 +491,20 @@ const leadconversionrate = async (req, res) => {
 
     const totalLeads = leadAggregation[0]?.totalLeads || 0;
 
-    // Total Handovers (with same filter)
     const totalHandovers = await handoversheet.countDocuments(dateFilter);
 
     const conversionRate =
-      totalLeads > 0
-        ? ((totalHandovers / totalLeads) * 100).toFixed(2)
-        : "0.00";
+      totalLeads > 0 ? ((totalHandovers / totalLeads) * 100).toFixed(2) : "0.00";
 
     res.json({
+      filter_used: {
+        range: normalizedRange || "custom",
+        from: fromDate.toISOString(),
+        to: toDate.toISOString(),
+      },
       total_leads: totalLeads,
       total_handovers: totalHandovers,
-      conversion_rate_percentage: +conversionRate,
+      conversion_rate_percentage: parseFloat(conversionRate),
     });
   } catch (error) {
     console.error("Lead Conversion Error:", error);
@@ -447,6 +517,7 @@ const leadconversionrate = async (req, res) => {
 
 
 
+
 module.exports= {
    
     getAllLeads,
@@ -454,5 +525,5 @@ module.exports= {
     getLeadSource,
     taskDashboard,
     leadSummary,
-    leadconversionrate
+    leadconversationrate
 };
