@@ -8,7 +8,6 @@ const createbdleads =require("../Modells/createBDleadModells");
 const handoversheet =require("../Modells/handoversheetModells");
 
 
-
 const bddashboard = async function (req, res) {
    try {
     // 1. Lead Aggregation
@@ -139,6 +138,7 @@ const bddashboard = async function (req, res) {
     res.status(500).send({ message: "Internal server error", error: error.message });
   }
 };
+
 
 
 module.exports= {
