@@ -516,7 +516,37 @@ const leadconversationrate = async (req, res) => {
   }
 };
 
+// Get Lead by LeadId or id
+const getLeadByLeadIdorId = async(req, res) => {
+  try {
+    const {leadId, id} = req.query;
 
+    if(!id && !leadId){
+      return res.status(500).json({
+        message:"Lead Id or id not found"
+      })
+    }
+
+    let query = {};
+    if(id){
+      query._id=id;
+    }
+    if(leadId){
+      query.id=leadId;
+    }
+
+    const response = await createbdleads.findOne(query);
+    res.status(200).json({
+      message:"Lead Information retrieved successfully",
+      data:response
+    })
+  } catch (error) {
+    res.status(500).json({
+      message:"Internal Server Error",
+      error:error.message
+    })
+  }
+}
 
 
 module.exports= {
@@ -526,5 +556,6 @@ module.exports= {
     getLeadSource,
     taskDashboard,
     leadSummary,
-    leadconversationrate
+    leadconversationrate,
+    getLeadByLeadIdorId
 };
