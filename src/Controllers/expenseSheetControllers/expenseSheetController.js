@@ -65,19 +65,18 @@ const getAllExpense = async (req, res) => {
     if (
       currentUser.department === "superadmin" ||
       currentUser.department === "admin" ||
-      (currentUser.department === "HR" && currentUser.emp_id !== "SE-207")
+      (currentUser.department === "HR" && currentUser.emp_id !== "SE-208")
     ) {
       // No additional $match — allow access to all expenses
     } else if (currentUser.department === "Accounts") {
       // Accounts sees expenses with status "hr approval"
       pipeline.push({
         $match: {
-  $or: [
-    { current_status: "hr approval" },
-    { current_status: "final approval" },
-  ],
-}
-
+          $or: [
+            { current_status: "hr approval" },
+            { current_status: "final approval" },
+          ],
+        },
       });
     } else if (
       currentUser.emp !== "Accounts" &&
@@ -103,7 +102,6 @@ const getAllExpense = async (req, res) => {
       });
     }
 
-    console.log(currentUser);
 
     const totalPipeline = [...pipeline, { $count: "total" }];
     const dataPipeline = [
@@ -162,7 +160,12 @@ const getExpenseById = async (req, res) => {
 
 const createExpense = async (req, res) => {
   try {
-    const data = typeof req.body.data === "string" ? JSON.parse(req.body.data) : req.body.data;
+    // Parse incoming data (handle string or already parsed object)
+    const data =
+      typeof req.body.data === "string"
+        ? JSON.parse(req.body.data)
+        : req.body.data;
+
     const user_id = data.user_id || req.body.user_id;
 
     if (!user_id) {
@@ -205,9 +208,13 @@ const createExpense = async (req, res) => {
       });
 
       const respData = response.data;
-      const url = Array.isArray(respData) && respData.length > 0
-        ? respData[0]
-        : respData.url || respData.fileUrl || (respData.data && respData.data.url) || null;
+      const url =
+        Array.isArray(respData) && respData.length > 0
+          ? respData[0]
+          : respData.url ||
+            respData.fileUrl ||
+            (respData.data && respData.data.url) ||
+            null;
 
       if (url) {
         uploadedFileMap[index] = url;
@@ -461,7 +468,9 @@ const exportAllExpenseSheetsCSV = async (req, res) => {
     res.send(csv);
   } catch (err) {
     console.error("CSV Export Error:", err.message);
-    res.status(500).json({ message: "Internal Server Error", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: err.message });
   }
 };
 
