@@ -42,6 +42,7 @@ const getAllLeads = async (req, res) => {
         .limit(parseInt(limit));
 
       const mapped = data.map((item) => ({
+        _id:item._id,
         id: item.id,
         c_name: item.c_name,
         mobile: item.mobile,
@@ -70,6 +71,7 @@ const getAllLeads = async (req, res) => {
         Object.entries(stageModelMap).map(async ([stageName, model]) => {
           const leads = await model.find(query);
           return leads.map((item) => ({
+            _id:item._id,
             id: item.id,
             c_name: item.c_name,
             mobile: item.mobile,
