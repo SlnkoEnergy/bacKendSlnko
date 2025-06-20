@@ -20,6 +20,7 @@ const getAllLeads = async (req, res) => {
         { state: { $regex: search, $options: "i" } },
         { scheme: { $regex: search, $options: "i" } },
         { submitted_by: { $regex: search, $options: "i" } },
+        {id:{$regex: search, $options:"i"}},
       ],
     };
 
