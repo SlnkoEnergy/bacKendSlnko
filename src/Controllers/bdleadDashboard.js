@@ -6,6 +6,11 @@ const deadlead = require("../Modells/deadleadModells");
 const task =require("../Modells/addtaskbdModells");
 const createbdleads =require("../Modells/createBDleadModells");
 const handoversheet =require("../Modells/handoversheetModells");
+const initialBdLeadModells = require("../Modells/initialBdLeadModells");
+const warmbdLeadModells = require("../Modells/warmbdLeadModells");
+const wonleadModells = require("../Modells/wonleadModells");
+const deadleadModells = require("../Modells/deadleadModells");
+const followUpBdleadModells = require("../Modells/followupbdModells");
 
 
 const bddashboard = async function (req, res) {
@@ -139,8 +144,105 @@ const bddashboard = async function (req, res) {
   }
 };
 
+// Get All Leads
+const getAllLeads = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, search = "", stage = "" } = req.query;
+
+    const query = {
+      $or: [
+        { c_name: { $regex: search, $options: "i" } },
+        { mobile: { $regex: search, $options: "i" } },
+        { state: { $regex: search, $options: "i" } },
+        { scheme: { $regex: search, $options: "i" } },
+        { submitted_by: { $regex: search, $options: "i" } },
+      ],
+    };
+
+    const stageModelMap = {
+      initial: initialBdLeadModells,
+      followup: followUpBdleadModells,
+      warm: warmbdLeadModells,
+      won: wonleadModells,
+      dead: deadleadModells,
+    };
+
+    // If specific stage is requested
+    if (stage && stageModelMap[stage]) {
+      const model = stageModelMap[stage];
+      const total = await model.countDocuments(query);
+      const data = await model.find(query)
+        .sort({ createdAt: -1 })
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .limit(parseInt(limit));
+
+      const mapped = data.map((item) => ({
+        id: item.id,
+        c_name: item.c_name,
+        mobile: item.mobile,
+        name: item.name,
+        state: item.state,
+        scheme: item.scheme,
+        capacity: item.capacity,
+        distance: item.distance,
+        entry_date: item.entry_date,
+        submitted_by: item.submitted_by,
+        status: stage,
+      }));
+
+      return res.status(200).json({
+        message: `Leads for stage: ${stage}`,
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        leads: mapped,
+      });
+    }
+
+    // All stages combined
+    const allLeads = (
+      await Promise.all(
+        Object.entries(stageModelMap).map(async ([stageName, model]) => {
+          const leads = await model.find(query);
+          return leads.map((item) => ({
+            id: item.id,
+            c_name: item.c_name,
+            mobile: item.mobile,
+            name: item.name,
+            state: item.state,
+            scheme: item.scheme,
+            capacity: item.capacity,
+            distance: item.distance,
+            entry_date: item.entry_date,
+            submitted_by: item.submitted_by,
+            status: stageName,
+          }));
+        })
+      )
+    ).flat();
+
+    const sortedLeads = allLeads.sort(
+      (a, b) => new Date(b.entry_date || b.createdAt) - new Date(a.entry_date || a.createdAt)
+    );
+
+    const total = sortedLeads.length;
+    const paginatedLeads = sortedLeads.slice((page - 1) * limit, page * limit);
+
+    res.status(200).json({
+      message: "Paginated All BD Leads",
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      leads: paginatedLeads,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 
 
 module.exports= {
-    bddashboard
+    bddashboard,
+    getAllLeads
 };
