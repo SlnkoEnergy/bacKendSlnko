@@ -65,9 +65,17 @@ const getAllExpense = async (req, res) => {
     if (
       currentUser.department === "superadmin" ||
       currentUser.department === "admin" ||
-      (currentUser.department === "HR" && currentUser.emp_id !== "SE-208")
+      (currentUser.department === "HR" && currentUser.emp_id !== "SE-208" )
     ) {
-      // No additional $match — allow access to all expenses
+      pipeline.push({
+        $match: {
+          $or: [
+            { current_status: "manager approval"},
+            { current_status: "hr approval" },
+            { current_status: "final approval"},
+          ],
+        },
+      });
     } else if (currentUser.department === "Accounts") {
       // Accounts sees expenses with status "hr approval"
       pipeline.push({
