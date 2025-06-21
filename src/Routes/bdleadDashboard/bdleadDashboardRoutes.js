@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const {  getAllLeads, getLeadSummary, getLeadSource, taskDashboard, leadSummary,  leadconversationrate, getLeadByLeadIdorId }=require("../../Controllers/bdController/bdleadDashboard");
+const {  getAllLeads, getLeadSummary, getLeadSource, taskDashboard, leadSummary,  leadconversationrate, getLeadByLeadIdorId, leadFunnel }=require("../../Controllers/bdController/bdleadDashboard");
 const { getNotesById, createNotes, updateNotes, deleteNotes, getNotesByLeadId } = require("../../Controllers/bdController/notesController");
 const { getTaskById, createTask, updateTask, deleteTask } = require("../../Controllers/bdController/taskController");
 
