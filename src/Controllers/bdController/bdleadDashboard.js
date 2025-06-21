@@ -1,11 +1,11 @@
-const initiallead =require("../Modells/initialBdLeadModells");
-const followUpBdleadModells = require("../Modells/followupbdModells");
-const warmbdLeadModells =require("../Modells/warmbdLeadModells");
-const wonleadModells  =require("../Modells/wonleadModells");
-const deadleadModells= require("../Modells/deadleadModells");
-const task =require("../Modells/addtaskbdModells");
-const createbdleads =require("../Modells/createBDleadModells");
-const handoversheet =require("../Modells/handoversheetModells");
+const initiallead =require("../../Modells/initialBdLeadModells");
+const followUpBdleadModells = require("../../Modells/followupbdModells");
+const warmbdLeadModells =require("../../Modells/warmbdLeadModells");
+const wonleadModells  =require("../../Modells/wonleadModells");
+const deadleadModells= require("../../Modells/deadleadModells");
+const task =require("../../Modells/addtaskbdModells");
+const createbdleads =require("../../Modells/createBDleadModells");
+const handoversheet =require("../../Modells/handoversheetModells");
 
 
 // Get All Leads
