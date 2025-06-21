@@ -2,29 +2,29 @@ const router = require("express").Router();
 const {  getAllLeads, getLeadSummary, getLeadSource, taskDashboard, leadSummary,  leadconversationrate, getLeadByLeadIdorId, leadFunnel }=require("../../Controllers/bdController/bdleadDashboard");
 const { getNotesById, createNotes, updateNotes, deleteNotes, getNotesByLeadId } = require("../../Controllers/bdController/notesController");
 const { getTaskById, createTask, updateTask, deleteTask } = require("../../Controllers/bdController/taskController");
-
+const jwtMW = require("../../middlewares/auth");
 // Bd lead Dashboard Routes
-router.get("/summary",getLeadSummary);
-router.get("/lead-source",getLeadSource);
-router.get("/taskdashboard",taskDashboard);
-router.get("/lead-summary",leadSummary);
-router.get("/lead-conversation",leadconversationrate);
+router.get("/summary",jwtMW.authentication, jwtMW.authorization,getLeadSummary);
+router.get("/lead-source",jwtMW.authentication, jwtMW.authorization,getLeadSource);
+router.get("/taskdashboard",jwtMW.authentication, jwtMW.authorization,taskDashboard);
+router.get("/lead-summary",jwtMW.authentication, jwtMW.authorization,leadSummary);
+router.get("/lead-conversation",jwtMW.authentication, jwtMW.authorization,leadconversationrate);
 
 // Lead Routes
-router.get("/all-lead", getAllLeads);
-router.get("/lead-details", getLeadByLeadIdorId);
-router.get("/lead-funnel",leadFunnel);
+router.get("/all-lead",jwtMW.authentication, jwtMW.authorization, getAllLeads);
+router.get("/lead-details",jwtMW.authentication, jwtMW.authorization, getLeadByLeadIdorId);
+router.get("/lead-funnel",jwtMW.authentication, jwtMW.authorization,leadFunnel);
 
 // Task Routes
-router.get('/bd-tasks/:_id', getTaskById);        
-router.post('/bd-tasks', createTask);      
-router.put('/bd-tasks/:_id', updateTask);         
-router.delete('/bd-tasks/:_id', deleteTask);      
+router.get('/bd-tasks/:_id',jwtMW.authentication, jwtMW.authorization, getTaskById);        
+router.post('/bd-tasks', jwtMW.authentication, jwtMW.authorization,createTask);      
+router.put('/bd-tasks/:_id', jwtMW.authentication, jwtMW.authorization,updateTask);         
+router.delete('/bd-tasks/:_id',jwtMW.authentication, jwtMW.authorization, deleteTask);      
 
 //Notes Routes
-router.get('/bd-notes/:_id', getNotesById);        
-router.post('/bd-notes', createNotes);      
-router.put('/bd-notes/:_id', updateNotes);         
-router.delete('/bd-notes/:_id', deleteNotes);  
-router.get('/bd-notes', getNotesByLeadId);
+router.get('/bd-notes/:_id',jwtMW.authentication, jwtMW.authorization, getNotesById);        
+router.post('/bd-notes',jwtMW.authentication, jwtMW.authorization, createNotes);      
+router.put('/bd-notes/:_id',jwtMW.authentication, jwtMW.authorization, updateNotes);         
+router.delete('/bd-notes/:_id',jwtMW.authentication, jwtMW.authorization, deleteNotes);  
+router.get('/bd-notes',jwtMW.authentication, jwtMW.authorization, getNotesByLeadId);
 module.exports = router;
