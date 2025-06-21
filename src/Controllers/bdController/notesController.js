@@ -1,0 +1,104 @@
+const Initial = require("../../Modells/initialBdLeadModells");
+const Followup = require("../../Modells/followupbdModells");
+const Warm = require("../../Modells/warmbdLeadModells");
+const Won = require("../../Modells/wonleadModells");
+const Dead = require("../../Modells/deadleadModells");
+const BDnotes = require("../../Modells/BD-Dashboard/notes");
+
+const createNotes = async (req, res) => {
+  try {
+    const { lead_id, user_id, description } = req.body;
+
+    if (!lead_id) {
+      return res.status(404).json({
+        message: "Lead Id not found",
+      });
+    }
+
+    let leadModel = null;
+    const leadModels = [
+      { model: Initial, name: "Initial" },
+      { model: Followup, name: "Followup" },
+      { model: Warm, name: "Warm" },
+      { model: Won, name: "Won" },
+      { model: Dead, name: "Dead" },
+    ];
+
+    for (const { model, name } of leadModels) {
+      const found = await model.findById(lead_id);
+      if (found) {
+        leadModel = name;
+        break;
+      }
+    }
+
+    const newNotes = new BDnotes({
+      lead_id,
+      lead_model: leadModel,
+      user_id,
+      description,
+    });
+
+    await newNotes.save();
+
+    res
+      .status(201)
+      .json({ message: "Notes created successfully", task: newNotes });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
+  }
+};
+
+const getNotesById = async (req, res) => {
+  try {
+    const response = await BDnotes.findById(req.params._id);
+    if (!response) {
+      res.status(404).json({
+        message: "Notes not found for this id",
+      });
+    }
+
+    res.status(200).json({
+      message: "Notes for this id found successfully",
+      data: response,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
+  }
+};
+
+const updateNotes = async (req, res) => {
+  try {
+    const response = await BDnotes.findByIdAndUpdate(req.params._id, req.body, {
+      new: true,
+    });
+    res.status(201).json({
+      message: "Notes Updated Successfully",
+      data: response,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
+  }
+};
+
+const deleteNotes = async (req, res) => {
+  try {
+    const response = await BDnotes.findByIdAndDelete(req.params._id);
+    res.status(200).json({
+      message: "Notes Deleted Successfully",
+      data: response,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
+  }
+};
+
+module.exports = { createNotes, getNotesById, updateNotes, deleteNotes };
