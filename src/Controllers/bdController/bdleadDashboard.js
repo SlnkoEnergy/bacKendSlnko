@@ -564,6 +564,147 @@ const getLeadByLeadIdorId = async (req, res) => {
 };
 
 
+//lead funnel
+const leadFunnel = async (req, res) => {
+  try {
+    const { range, startDate, endDate, fields } = req.query;
+
+    const showLead = !fields || fields.includes("lead");
+    const showCapacity = !fields || fields.includes("capacity");
+
+    const now = new Date();
+    let fromDate, toDate;
+
+    const rangeKeyMap = {
+      "today": "day",
+      "1 day": "day",
+      "one day": "day",
+      "1 week": "week",
+      "one week": "week",
+      "2 weeks": "2weeks",
+      "two weeks": "2weeks",
+      "1 month": "1month",
+      "one month": "1month",
+      "3 months": "3months",
+      "9 months": "9months",
+      "1 year": "1year",
+    };
+
+    const normalizedRange = rangeKeyMap[(range || "").toLowerCase()] || range;
+
+    switch (normalizedRange) {
+      case "day":
+        fromDate = new Date();
+        fromDate.setHours(0, 0, 0, 0);
+        toDate = new Date();
+        toDate.setHours(23, 59, 59, 999);
+        break;
+      case "week":
+        fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 7);
+        toDate = new Date();
+        break;
+      case "2weeks":
+        fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 14);
+        toDate = new Date();
+        break;
+      case "1month":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 1);
+        toDate = new Date();
+        break;
+      case "3months":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 3);
+        toDate = new Date();
+        break;
+      case "9months":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 9);
+        toDate = new Date();
+        break;
+      case "1year":
+        fromDate = new Date();
+        fromDate.setFullYear(fromDate.getFullYear() - 1);
+        toDate = new Date();
+        break;
+      default:
+        if (startDate && endDate) {
+          fromDate = new Date(startDate);
+          toDate = new Date(endDate);
+        } else {
+          return res.status(400).json({
+            message: "Please provide a valid date range or custom dates",
+          });
+        }
+    }
+
+    const dateFilter = {
+      createdAt: {
+        $gte: fromDate,
+        $lte: toDate,
+      },
+    };
+
+    const models = [
+      { name: "initial", model: initiallead },
+      { name: "followup", model: followUpBdleadModells },
+      { name: "warm", model: warmbdLeadModells },
+      { name: "won", model: wonleadModells },
+      { name: "dead", model: deadleadModells },
+    ];
+
+    const result = {};
+
+    for (const { name, model } of models) {
+      const docs = await model.find(dateFilter);
+      let totalCapacity = 0;
+
+      if (showCapacity) {
+        for (const doc of docs) {
+          const rawCap = doc.capacity;
+          if (rawCap) {
+            const numeric = parseFloat(String(rawCap).replace(/[^\d.]/g, ""));
+            if (!isNaN(numeric)) {
+              totalCapacity += numeric;
+            }
+          }
+        }
+      }
+
+      result[name] = {};
+      if (showLead) result[name].count = docs.length;
+      if (showCapacity) result[name].capacity = parseFloat(totalCapacity.toFixed(2));
+    }
+
+    // Apply same date filter to handoversheet
+    if (showCapacity) {
+      const handoverDocs = await handoversheet.find(dateFilter);
+      let totalPayment = 0;
+
+      for (const doc of handoverDocs) {
+        const gstRaw = doc?.other_details?.total_gst;
+        if (gstRaw) {
+          const numeric = parseFloat(String(gstRaw).replace(/[^\d.]/g, ""));
+          if (!isNaN(numeric)) {
+            totalPayment += numeric;
+          }
+        }
+      }
+
+      result["payment"] = parseFloat(totalPayment.toFixed(2));
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Error fetching stats:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+
+
 
 module.exports= {
    
@@ -573,5 +714,7 @@ module.exports= {
     taskDashboard,
     leadSummary,
     leadconversationrate,
-    getLeadByLeadIdorId
+    getLeadByLeadIdorId,
+    leadFunnel
+    
 };
