@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const {  getAllLeads, getLeadSummary, getLeadSource, taskDashboard, leadSummary,  leadconversationrate, getLeadByLeadIdorId }=require("../../Controllers/bdController/bdleadDashboard");
+const {  getAllLeads, getLeadSummary, getLeadSource, taskDashboard, leadSummary,  leadconversationrate, getLeadByLeadIdorId, leadWonAndLost, leadFunnel }=require("../../Controllers/bdController/bdleadDashboard");
 const { getNotesById, createNotes, updateNotes, deleteNotes, getNotesByLeadId } = require("../../Controllers/bdController/notesController");
 const { getTaskById, createTask, updateTask, deleteTask } = require("../../Controllers/bdController/taskController");
 
@@ -14,6 +14,7 @@ router.get("/lead-conversation",leadconversationrate);
 router.get("/all-lead", getAllLeads);
 router.get("/lead-details", getLeadByLeadIdorId);
 router.get("/lead-funnel",leadFunnel);
+router.get("/wonandlost",leadWonAndLost);
 
 // Task Routes
 router.get('/bd-tasks/:_id', getTaskById);        
