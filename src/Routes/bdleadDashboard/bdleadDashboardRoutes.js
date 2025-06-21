@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const {  getAllLeads, getLeadSummary, getLeadSource, taskDashboard, leadSummary,  leadconversationrate, getLeadByLeadIdorId }=require("../../Controllers/bdController/bdleadDashboard");
-const { getNotesById, createNotes, updateNotes, deleteNotes } = require("../../Controllers/bdController/notesController");
+const { getNotesById, createNotes, updateNotes, deleteNotes, getNotesByLeadId } = require("../../Controllers/bdController/notesController");
 const { getTaskById, createTask, updateTask, deleteTask } = require("../../Controllers/bdController/taskController");
 
 // Bd lead Dashboard Routes
@@ -25,5 +25,5 @@ router.get('/bd-notes/:_id', getNotesById);
 router.post('/bd-notes', createNotes);      
 router.put('/bd-notes/:_id', updateNotes);         
 router.delete('/bd-notes/:_id', deleteNotes);  
-
+router.get('/bd-notes', getNotesByLeadId);
 module.exports = router;

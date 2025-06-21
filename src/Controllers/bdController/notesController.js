@@ -71,6 +71,23 @@ const getNotesById = async (req, res) => {
   }
 };
 
+const getNotesByLeadId = async (req, res) => {
+  try {
+    const { lead_id } = req.query;
+
+    if (!lead_id) {
+      return res.status(400).json({ message: "Lead ID is required" });
+    }
+
+    const notes = await BDnotes.find({ lead_id }).sort({ createdAt: -1 }).populate("user_id", "name");
+
+    res.status(200).json({ message:"notes fetched successfully",data:notes });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch notes", error: error.message });
+  }
+};
+
+
 const updateNotes = async (req, res) => {
   try {
     const response = await BDnotes.findByIdAndUpdate(req.params._id, req.body, {
@@ -101,4 +118,4 @@ const deleteNotes = async (req, res) => {
   }
 };
 
-module.exports = { createNotes, getNotesById, updateNotes, deleteNotes };
+module.exports = { createNotes, getNotesById, updateNotes, deleteNotes, getNotesByLeadId };
