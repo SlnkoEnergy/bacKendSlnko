@@ -13,6 +13,7 @@ router.get("/lead-conversation",leadconversationrate);
 // Lead Routes
 router.get("/all-lead", getAllLeads);
 router.get("/lead-details", getLeadByLeadIdorId);
+router.get("/lead-funnel",leadFunnel);
 
 // Task Routes
 router.get('/bd-tasks/:_id', getTaskById);        
