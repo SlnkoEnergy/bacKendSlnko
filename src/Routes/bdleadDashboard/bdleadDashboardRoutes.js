@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const {  getAllLeads, getLeadSummary, getLeadSource, taskDashboard, leadSummary,  leadconversationrate, getLeadByLeadIdorId, leadWonAndLost, leadFunnel }=require("../../Controllers/bdController/bdleadDashboard");
 const { getNotesById, createNotes, updateNotes, deleteNotes, getNotesByLeadId } = require("../../Controllers/bdController/notesController");
-const { getTaskById, createTask, updateTask, deleteTask } = require("../../Controllers/bdController/taskController");
+const { getTaskById, createTask, updateTask, deleteTask, updateStatus } = require("../../Controllers/bdController/taskController");
 const jwtMW = require("../../middlewares/auth");
 // Bd lead Dashboard Routes
 router.get("/summary",jwtMW.authentication, jwtMW.authorization,getLeadSummary);
@@ -21,6 +21,7 @@ router.get('/bd-tasks/:_id',jwtMW.authentication, jwtMW.authorization, getTaskBy
 router.post('/bd-tasks', jwtMW.authentication, jwtMW.authorization,createTask);      
 router.put('/bd-tasks/:_id', jwtMW.authentication, jwtMW.authorization,updateTask);         
 router.delete('/bd-tasks/:_id',jwtMW.authentication, jwtMW.authorization, deleteTask);      
+router.put('/:_id/updateStatus', jwtMW.authentication, jwtMW.authorization, updateStatus)
 
 //Notes Routes
 router.get('/bd-notes/:_id',jwtMW.authentication, jwtMW.authorization, getNotesById);        
