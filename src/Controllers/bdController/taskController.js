@@ -8,6 +8,7 @@ const BDtask = require("../../Modells/BD-Dashboard/task");
 const createTask = async (req, res) => {
   try {
     const {
+      title,
       lead_id,
       user_id,
       type,
@@ -41,6 +42,7 @@ const createTask = async (req, res) => {
     }
 
     const newTask = new BDtask({
+      title,
       lead_id,
       lead_model: leadModel,
       user_id,
