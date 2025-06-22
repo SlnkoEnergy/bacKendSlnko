@@ -109,7 +109,7 @@ const getAllLeads = async (req, res) => {
 
 const getAllLeadDropdown = async function(req, res) {
   try {
-    const projection = "email id _id name mobile";
+    const projection = "email id _id c_name mobile";
 
     const initialdata = await initiallead.find({}, projection);
     const followupdata = await followUpBdleadModells.find({}, projection);
