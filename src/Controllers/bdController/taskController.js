@@ -7,8 +7,17 @@ const BDtask = require("../../Modells/BD-Dashboard/task");
 
 const createTask = async (req, res) => {
   try {
-    const { lead_id, user_id, type, status, assigned_to, description } =
-      req.body;
+    const {
+      lead_id,
+      user_id,
+      type,
+      status,
+      assigned_to,
+      deadline,
+      contact_info,
+      priority,
+      description,
+    } = req.body;
 
     let leadModel = null;
     const leadModels = [
@@ -34,6 +43,9 @@ const createTask = async (req, res) => {
       type,
       status,
       assigned_to,
+      deadline,
+      contact_info,
+      priority,
       description,
     });
 
@@ -60,7 +72,7 @@ const getTaskById = async (req, res) => {
 
     res.status(200).json({
       message: "Task for this id found successfully",
-     data:response
+      data: response,
     });
   } catch (error) {
     res
