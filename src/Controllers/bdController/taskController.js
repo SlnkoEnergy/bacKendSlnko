@@ -11,12 +11,12 @@ const createTask = async (req, res) => {
       lead_id,
       user_id,
       type,
-      status,
       assigned_to,
       deadline,
       contact_info,
       priority,
       description,
+     
     } = req.body;
 
     let leadModel = null;
@@ -36,30 +36,65 @@ const createTask = async (req, res) => {
       }
     }
 
+    if (!leadModel) {
+      return res.status(400).json({ error: "Invalid lead_id" });
+    }
+
     const newTask = new BDtask({
       lead_id,
       lead_model: leadModel,
       user_id,
       type,
-      status,
       assigned_to,
       deadline,
       contact_info,
       priority,
       description,
+      
     });
 
     await newTask.save();
 
-    res
-      .status(201)
-      .json({ message: "Task created successfully", task: newTask });
+    res.status(201).json({ message: "Task created successfully", task: newTask });
   } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Internal Server Error", details: error.message });
+    res.status(500).json({ error: "Internal Server Error", details: error.message });
   }
 };
+
+const updateStatus = async (req, res) => {
+  try {
+    const { _id } = req.params;
+    const { status, user_id } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ error: "Status is required" });
+    }
+
+    const task = await BDtask.findById(_id);
+    if (!task) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+
+    task.status_history.push({
+      status,
+      user_id,
+    });
+
+    await task.save();
+
+    res.status(200).json({
+      message: "Task status updated successfully",
+      data: task,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 
 const getTaskById = async (req, res) => {
   try {
@@ -111,4 +146,4 @@ const deleteTask = async (req, res) => {
   }
 };
 
-module.exports = { createTask, getTaskById, updateTask, deleteTask };
+module.exports = { createTask, getTaskById, updateTask, deleteTask, updateStatus};

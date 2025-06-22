@@ -1,4 +1,5 @@
 const { default: mongoose } = require("mongoose");
+const updateCurrentStatus = require("../../utils/updateCurrentStatus");
 
 const taskSchema = new mongoose.Schema({
   lead_id: {
@@ -17,9 +18,19 @@ const taskSchema = new mongoose.Schema({
     type: String,
     enum: ["meeting", "call", "sms", "email", "todo"],
   },
-  status: {
-    type: String,
-    enum: ["completed", "in progress", "pending"],
+  status_history: [{
+    status:{
+      type:String,
+      enum: ["draft","completed", "in progress", "pending"],
+    },
+    user_id:{
+      type:mongoose.Schema.Types.ObjectId,
+      ref:"User"
+    }
+  }],
+  current_status:{
+    type:String,
+    enum: ["draft","completed", "in progress", "pending"],
   },
   priority:{
     type:String,
@@ -40,5 +51,10 @@ const taskSchema = new mongoose.Schema({
     type: String,
   },
 },{timestamps:true});
+
+taskSchema.pre("save", function (next) {
+  updateCurrentStatus(this, "status_history", "current_status");
+  next();
+});
 
 module.exports = mongoose.model("BDtask", taskSchema);
