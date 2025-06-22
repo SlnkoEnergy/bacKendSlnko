@@ -15,19 +15,26 @@ const taskSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ["meeting", "call", "sms"],
+    enum: ["meeting", "call", "sms", "email", "todo"],
   },
   status: {
     type: String,
-    enum: ["completed", "pending", "done"],
+    enum: ["completed", "in progress", "pending"],
   },
   priority:{
     type:String,
     enum:["high", "medium", "low"]
   },
-  assigned_to: {
+  assigned_to: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
+  }],
+  deadline:{
+    type:Date,
+    required:true
+  },
+  contact_info:{
+    type:String
   },
   description: {
     type: String,

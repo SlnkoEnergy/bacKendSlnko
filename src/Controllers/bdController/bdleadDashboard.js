@@ -703,6 +703,140 @@ const leadFunnel = async (req, res) => {
   }
 };
 
+//lead won and lead lost graph
+const leadWonAndLost = async (req, res) => {
+  try {
+    const { range, startDate, endDate } = req.query;
+
+    let fromDate, toDate;
+    const now = new Date();
+
+    const rangeKeyMap = {
+      "today": "day",
+      "1 day": "day",
+      "one day": "day",
+      "1 week": "week",
+      "one week": "week",
+      "2 weeks": "2weeks",
+      "two weeks": "2weeks",
+      "1 month": "1month",
+      "one month": "1month",
+      "3 months": "3months",
+      "9 months": "9months",
+      "1 year": "1year",
+    };
+
+    const normalizedRange = rangeKeyMap[(range || "").toLowerCase()] || range;
+
+    switch (normalizedRange) {
+      case "day":
+        fromDate = new Date(now.setHours(0, 0, 0, 0));
+        toDate = new Date(now.setHours(23, 59, 59, 999));
+        break;
+      case "week":
+        fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 7);
+        toDate = new Date();
+        break;
+      case "2weeks":
+        fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 14);
+        toDate = new Date();
+        break;
+      case "1month":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 1);
+        toDate = new Date();
+        break;
+      case "3months":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 3);
+        toDate = new Date();
+        break;
+      case "9months":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 9);
+        toDate = new Date();
+        break;
+      case "1year":
+        fromDate = new Date();
+        fromDate.setFullYear(fromDate.getFullYear() - 1);
+        toDate = new Date();
+        break;
+      default:
+        if (startDate && endDate) {
+          fromDate = new Date(startDate);
+          toDate = new Date(endDate);
+        }
+        break;
+    }
+
+    const dateFilter = fromDate && toDate
+      ? {
+          createdAt: {
+            $gte: fromDate,
+            $lte: toDate,
+          },
+        }
+      : {};
+
+    // Model Map
+    const modelMap = {
+      won: wonleadModells,
+      followUp: followUpBdleadModells,
+      warm: warmbdLeadModells,
+      dead: deadleadModells,
+      initial: initiallead,
+    };
+
+    // Count documents from each model with date filter
+    const [
+      wonCount,
+      followUpCount,
+      warmCount,
+      deadCount,
+      initialCount
+    ] = await Promise.all([
+      modelMap.won.countDocuments(dateFilter),
+      modelMap.followUp.countDocuments(dateFilter),
+      modelMap.warm.countDocuments(dateFilter),
+      modelMap.dead.countDocuments(dateFilter),
+      modelMap.initial.countDocuments(dateFilter),
+    ]);
+
+    const totalLeads = wonCount + followUpCount + warmCount + deadCount + initialCount;
+    const activeLeads = wonCount + followUpCount + warmCount + initialCount;
+    const lostLeads = deadCount;
+
+    const lostPercentage = totalLeads > 0 ? ((lostLeads / totalLeads) * 100).toFixed(2) : "0.00";
+    const wonPercentage = totalLeads > 0 ? ((wonCount / totalLeads) * 100).toFixed(2) : "0.00";
+
+    // Optional: handovers and tasks
+    const [totalHandovers, totalTasks] = await Promise.all([
+      handoversheet.countDocuments(dateFilter),
+      task.countDocuments()
+    ]);
+
+    const conversionRate = totalLeads > 0 ? ((totalHandovers / totalLeads) * 100).toFixed(2) : "0.00";
+
+    res.json({
+      total_leads: totalLeads,
+      active_leads: activeLeads,
+      lost_leads: lostLeads,
+      won_leads: wonCount,
+      won_leads_percentage: +wonPercentage,
+      lost_leads_percentage: +lostPercentage,
+      conversion_rate_percentage: +conversionRate,
+     
+    });
+
+  } catch (error) {
+    console.error("Lead Summary Error:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+
+  }
+
+}
 
 
 
@@ -715,6 +849,7 @@ module.exports= {
     leadSummary,
     leadconversationrate,
     getLeadByLeadIdorId,
-    leadFunnel
+    leadFunnel,
+    leadWonAndLost
     
 };
