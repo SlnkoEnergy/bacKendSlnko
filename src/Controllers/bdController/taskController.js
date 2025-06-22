@@ -105,6 +105,56 @@ const updateStatus = async (req, res) => {
   }
 };
 
+const getAllTask = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const tasks = await BDtask.find({
+      $or: [
+        { assigned_to: { $in: [userId] } },
+        { user_id: userId }
+      ]
+    })
+      .select("priority _id lead_id lead_model type current_status assigned_to")
+      .populate({
+        path: "assigned_to",
+        select: "_id name"
+      });
+
+    const leadModels = {
+      Initial,
+      Followup,
+      Warm,
+      Won,
+      Dead,
+    };
+
+    const populatedTasks = await Promise.all(
+      tasks.map(async (taskDoc) => {
+        const task = taskDoc.toObject(); 
+
+        const Model = leadModels[task.lead_model];
+        if (Model && task.lead_id) {
+          const leadDoc = await Model.findById(task.lead_id).select("_id c_name");
+          if (leadDoc) {
+            task.lead_id = {
+              _id: leadDoc._id,
+              c_name: leadDoc.c_name,
+            };
+          }
+        }
+
+        return task;
+      })
+    );
+
+    return res.status(200).json({ success: true, data: populatedTasks });
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 const getTaskById = async (req, res) => {
   try {
     const response = await BDtask.findById(req.params._id);
@@ -161,4 +211,5 @@ module.exports = {
   updateTask,
   deleteTask,
   updateStatus,
+  getAllTask
 };
