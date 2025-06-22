@@ -107,7 +107,34 @@ const getAllLeads = async (req, res) => {
   }
 };
 
-// 
+const getAllLeadDropdown = async function(req, res) {
+  try {
+    const projection = "email id _id name mobile";
+
+    const initialdata = await initiallead.find({}, projection);
+    const followupdata = await followUpBdleadModells.find({}, projection);
+    const warmdata = await warmbdLeadModells.find({}, projection);
+    const wondata = await wonleadModells.find({}, projection);
+    const deaddata = await deadleadModells.find({}, projection);
+
+    const allLeads = [
+      ...initialdata,
+      ...followupdata,
+      ...warmdata,
+      ...wondata,
+      ...deaddata,
+    ];
+
+    res.status(200).json({
+      message: "All BD Leads",
+      leads: allLeads,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
 const getLeadSummary = async (req, res) => {
   try {
     // Step 1: Lead Aggregation
@@ -841,8 +868,8 @@ const leadWonAndLost = async (req, res) => {
 
 
 module.exports= {
-   
     getAllLeads,
+    getAllLeadDropdown,
     getLeadSummary,
     getLeadSource,
     taskDashboard,
@@ -851,5 +878,4 @@ module.exports= {
     getLeadByLeadIdorId,
     leadFunnel,
     leadWonAndLost
-    
 };
