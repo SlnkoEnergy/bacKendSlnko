@@ -115,7 +115,7 @@ const getAllTask = async (req, res) => {
         { user_id: userId }
       ]
     })
-      .select("title priority _id lead_id lead_model type current_status assigned_to")
+      .select("title priority _id lead_id lead_model type current_status assigned_to deadline")
       .populate({
         path: "assigned_to",
         select: "_id name"
