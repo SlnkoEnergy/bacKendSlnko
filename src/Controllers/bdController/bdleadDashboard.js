@@ -134,7 +134,6 @@ const getAllLeadDropdown = async function(req, res) {
   }
 };
 
-
 const getLeadSummary = async (req, res) => {
   try {
     // Step 1: Lead Aggregation
