@@ -135,11 +135,12 @@ const getAllTask = async (req, res) => {
 
         const Model = leadModels[task.lead_model];
         if (Model && task.lead_id) {
-          const leadDoc = await Model.findById(task.lead_id).select("_id c_name");
+          const leadDoc = await Model.findById(task.lead_id).select("_id c_name id");
           if (leadDoc) {
             task.lead_id = {
               _id: leadDoc._id,
               c_name: leadDoc.c_name,
+              id:leadDoc.id
             };
           }
         }
