@@ -11,12 +11,12 @@ const createTask = async (req, res) => {
       lead_id,
       user_id,
       type,
+      status,
       assigned_to,
       deadline,
       contact_info,
       priority,
       description,
-     
     } = req.body;
 
     let leadModel = null;
@@ -50,14 +50,23 @@ const createTask = async (req, res) => {
       contact_info,
       priority,
       description,
-      
+      status_history: [
+        {
+          status: status || "draft",
+          user_id,
+        },
+      ],
     });
 
     await newTask.save();
 
-    res.status(201).json({ message: "Task created successfully", task: newTask });
+    res
+      .status(201)
+      .json({ message: "Task created successfully", task: newTask });
   } catch (error) {
-    res.status(500).json({ error: "Internal Server Error", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
   }
 };
 
@@ -86,7 +95,6 @@ const updateStatus = async (req, res) => {
       message: "Task status updated successfully",
       data: task,
     });
-
   } catch (error) {
     res.status(500).json({
       message: "Internal Server Error",
@@ -94,8 +102,6 @@ const updateStatus = async (req, res) => {
     });
   }
 };
-
-
 
 const getTaskById = async (req, res) => {
   try {
@@ -147,4 +153,10 @@ const deleteTask = async (req, res) => {
   }
 };
 
-module.exports = { createTask, getTaskById, updateTask, deleteTask, updateStatus};
+module.exports = {
+  createTask,
+  getTaskById,
+  updateTask,
+  deleteTask,
+  updateStatus,
+};
