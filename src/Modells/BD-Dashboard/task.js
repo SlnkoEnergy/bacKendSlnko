@@ -27,6 +27,9 @@ const taskSchema = new mongoose.Schema({
       type:String,
       enum: ["draft","completed", "in progress", "pending"],
     },
+    remarks:{
+      type:String
+    },
     user_id:{
       type:mongoose.Schema.Types.ObjectId,
       ref:"User"

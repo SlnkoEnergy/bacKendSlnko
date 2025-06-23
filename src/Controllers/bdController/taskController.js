@@ -75,7 +75,7 @@ const createTask = async (req, res) => {
 const updateStatus = async (req, res) => {
   try {
     const { _id } = req.params;
-    const { status, user_id } = req.body;
+    const { status, remarks, user_id } = req.body;
 
     if (!status) {
       return res.status(400).json({ error: "Status is required" });
@@ -89,6 +89,7 @@ const updateStatus = async (req, res) => {
     task.status_history.push({
       status,
       user_id,
+      remarks
     });
 
     await task.save();
