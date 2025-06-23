@@ -731,7 +731,7 @@ const leadFunnel = async (req, res) => {
 
 //lead won and lead lost graph
 const leadWonAndLost = async (req, res) => {
- try {
+  try {
     const { range, startDate, endDate } = req.query;
 
     let fromDate, toDate;
@@ -798,12 +798,7 @@ const leadWonAndLost = async (req, res) => {
     }
 
     const dateFilter = fromDate && toDate
-      ? {
-          createdAt: {
-            $gte: fromDate,
-            $lte: toDate,
-          },
-        }
+      ? { createdAt: { $gte: fromDate, $lte: toDate } }
       : {};
 
     // Model Map
@@ -849,79 +844,60 @@ const leadWonAndLost = async (req, res) => {
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-    const aggregateWon = await modelMap.won.aggregate([
-      { $match: dateFilter },
-      {
-        $group: {
-          _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
-          count: { $sum: 1 },
+    // Aggregation for all models
+    const aggregateAll = async (model) => {
+      return model.aggregate([
+        { $match: dateFilter },
+        {
+          $group: {
+            _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
+            count: { $sum: 1 },
+          },
         },
-      },
+      ]);
+    };
+
+    const [
+      aggWon,
+      aggFollowUp,
+      aggWarm,
+      aggDead,
+      aggInitial
+    ] = await Promise.all([
+      aggregateAll(modelMap.won),
+      aggregateAll(modelMap.followUp),
+      aggregateAll(modelMap.warm),
+      aggregateAll(modelMap.dead),
+      aggregateAll(modelMap.initial),
     ]);
 
-    const aggregateDead = await modelMap.dead.aggregate([
-      { $match: dateFilter },
-      {
-        $group: {
-          _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const aggregateTotal = await initiallead.aggregate([
-      { $match: dateFilter },
-      {
-        $group: {
-          _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    // Combine won, lost, and total data
+    // Combine data
     const monthlyDataMap = {};
 
-    aggregateTotal.forEach(({ _id, count }) => {
-      const key = `${_id.month}-${_id.year}`;
-      monthlyDataMap[key] = {
-        month: monthNames[_id.month - 1],
-        year: _id.year,
-        total: count,
-        won: 0,
-        lost: 0,
-      };
-    });
+    const processAggregate = (aggArray, field) => {
+      aggArray.forEach(({ _id, count }) => {
+        const key = `${_id.month}-${_id.year}`;
+        if (!monthlyDataMap[key]) {
+          monthlyDataMap[key] = {
+            month: monthNames[_id.month - 1],
+            year: _id.year,
+            total: 0,
+            won: 0,
+            lost: 0,
+          };
+        }
+        monthlyDataMap[key][field] += count;
+      });
+    };
 
-    aggregateWon.forEach(({ _id, count }) => {
-      const key = `${_id.month}-${_id.year}`;
-      if (!monthlyDataMap[key]) {
-        monthlyDataMap[key] = {
-          month: monthNames[_id.month - 1],
-          year: _id.year,
-          total: 0,
-          won: 0,
-          lost: 0,
-        };
-      }
-      monthlyDataMap[key].won = count;
-    });
+    processAggregate(aggWon, "won");
+    processAggregate(aggFollowUp, "total");
+    processAggregate(aggWarm, "total");
+    processAggregate(aggDead, "lost");
+    processAggregate(aggDead, "total");
+    processAggregate(aggInitial, "total");
 
-    aggregateDead.forEach(({ _id, count }) => {
-      const key = `${_id.month}-${_id.year}`;
-      if (!monthlyDataMap[key]) {
-        monthlyDataMap[key] = {
-          month: monthNames[_id.month - 1],
-          year: _id.year,
-          total: 0,
-          won: 0,
-          lost: 0,
-        };
-      }
-      monthlyDataMap[key].lost = count;
-    });
-
-    // Prepare final monthly data array
+    // Prepare final monthly data
     const monthlyData = Object.values(monthlyDataMap).map((item) => {
       const wonPercentage = item.total > 0 ? ((item.won / item.total) * 100).toFixed(2) : "0.00";
       const lostPercentage = item.total > 0 ? ((item.lost / item.total) * 100).toFixed(2) : "0.00";
@@ -933,7 +909,7 @@ const leadWonAndLost = async (req, res) => {
       };
     });
 
-    // Sort by year & month
+    // Sort by year and month
     monthlyData.sort((a, b) => {
       const monthIndexA = monthNames.indexOf(a.month);
       const monthIndexB = monthNames.indexOf(b.month);
@@ -953,14 +929,11 @@ const leadWonAndLost = async (req, res) => {
       monthly_data: monthlyData,
     });
 
-
   } catch (error) {
     console.error("Lead Summary Error:", error);
     res.status(500).json({ message: "Internal server error", error: error.message });
-
   }
-
-}
+};
 
 
 
