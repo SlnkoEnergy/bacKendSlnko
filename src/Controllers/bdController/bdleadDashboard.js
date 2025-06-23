@@ -731,7 +731,7 @@ const leadFunnel = async (req, res) => {
 
 //lead won and lead lost graph
 const leadWonAndLost = async (req, res) => {
-  try {
+ try {
     const { range, startDate, endDate } = req.query;
 
     let fromDate, toDate;
@@ -837,13 +837,110 @@ const leadWonAndLost = async (req, res) => {
     const lostPercentage = totalLeads > 0 ? ((lostLeads / totalLeads) * 100).toFixed(2) : "0.00";
     const wonPercentage = totalLeads > 0 ? ((wonCount / totalLeads) * 100).toFixed(2) : "0.00";
 
-    // Optional: handovers and tasks
     const [totalHandovers, totalTasks] = await Promise.all([
       handoversheet.countDocuments(dateFilter),
       task.countDocuments()
     ]);
 
     const conversionRate = totalLeads > 0 ? ((totalHandovers / totalLeads) * 100).toFixed(2) : "0.00";
+
+    // ---------------- Monthly Data Calculation -----------------
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    const aggregateWon = await modelMap.won.aggregate([
+      { $match: dateFilter },
+      {
+        $group: {
+          _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const aggregateDead = await modelMap.dead.aggregate([
+      { $match: dateFilter },
+      {
+        $group: {
+          _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const aggregateTotal = await initiallead.aggregate([
+      { $match: dateFilter },
+      {
+        $group: {
+          _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Combine won, lost, and total data
+    const monthlyDataMap = {};
+
+    aggregateTotal.forEach(({ _id, count }) => {
+      const key = `${_id.month}-${_id.year}`;
+      monthlyDataMap[key] = {
+        month: monthNames[_id.month - 1],
+        year: _id.year,
+        total: count,
+        won: 0,
+        lost: 0,
+      };
+    });
+
+    aggregateWon.forEach(({ _id, count }) => {
+      const key = `${_id.month}-${_id.year}`;
+      if (!monthlyDataMap[key]) {
+        monthlyDataMap[key] = {
+          month: monthNames[_id.month - 1],
+          year: _id.year,
+          total: 0,
+          won: 0,
+          lost: 0,
+        };
+      }
+      monthlyDataMap[key].won = count;
+    });
+
+    aggregateDead.forEach(({ _id, count }) => {
+      const key = `${_id.month}-${_id.year}`;
+      if (!monthlyDataMap[key]) {
+        monthlyDataMap[key] = {
+          month: monthNames[_id.month - 1],
+          year: _id.year,
+          total: 0,
+          won: 0,
+          lost: 0,
+        };
+      }
+      monthlyDataMap[key].lost = count;
+    });
+
+    // Prepare final monthly data array
+    const monthlyData = Object.values(monthlyDataMap).map((item) => {
+      const wonPercentage = item.total > 0 ? ((item.won / item.total) * 100).toFixed(2) : "0.00";
+      const lostPercentage = item.total > 0 ? ((item.lost / item.total) * 100).toFixed(2) : "0.00";
+
+      return {
+        month: item.month,
+        won_percentage: +wonPercentage,
+        lost_percentage: +lostPercentage,
+      };
+    });
+
+    // Sort by year & month
+    monthlyData.sort((a, b) => {
+      const monthIndexA = monthNames.indexOf(a.month);
+      const monthIndexB = monthNames.indexOf(b.month);
+      return monthIndexA - monthIndexB;
+    });
+
+    // ---------------- Final Response -----------------
 
     res.json({
       total_leads: totalLeads,
@@ -853,8 +950,9 @@ const leadWonAndLost = async (req, res) => {
       won_leads_percentage: +wonPercentage,
       lost_leads_percentage: +lostPercentage,
       conversion_rate_percentage: +conversionRate,
-     
+      monthly_data: monthlyData,
     });
+
 
   } catch (error) {
     console.error("Lead Summary Error:", error);
