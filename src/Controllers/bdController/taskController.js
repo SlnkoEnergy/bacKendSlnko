@@ -158,21 +158,48 @@ const getAllTask = async (req, res) => {
 
 const getTaskById = async (req, res) => {
   try {
-    const response = await BDtask.findById(req.params._id);
-    if (!response) {
-      res.status(404).json({
+    const taskDoc = await BDtask.findById(req.params._id)
+      .populate("user_id", "_id name")
+      .populate("assigned_to", "_id name")
+      .populate("status_history.user_id", "_id name");
+
+    if (!taskDoc) {
+      return res.status(404).json({
         message: "Task not found for this id",
       });
     }
 
+    const task = taskDoc.toObject();
+
+    const leadModels = {
+      Initial,
+      Followup,
+      Warm,
+      Won,
+      Dead,
+    };
+
+    const Model = leadModels[task.lead_model];
+    if (Model && task.lead_id) {
+      const leadDoc = await Model.findById(task.lead_id).select("_id c_name id");
+      if (leadDoc) {
+        task.lead_id = {
+          _id: leadDoc._id,
+          c_name: leadDoc.c_name,
+          id: leadDoc.id,
+        };
+      }
+    }
+
     res.status(200).json({
       message: "Task for this id found successfully",
-      data: response,
+      data: task,
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Internal Server Error", details: error.message });
+    res.status(500).json({
+      error: "Internal Server Error",
+      details: error.message,
+    });
   }
 };
 
