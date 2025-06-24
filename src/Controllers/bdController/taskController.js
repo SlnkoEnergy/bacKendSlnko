@@ -204,6 +204,31 @@ const getTaskById = async (req, res) => {
   }
 };
 
+const getTaskByLeadId = async(req, res) => {
+  try {
+    const {leadId} = req.query;
+    if(!leadId){
+      return res.status(404).json({
+        message:"id or LeadId not found"
+      })
+    }
+    let query = {};
+    if(leadId){
+      query.lead_id= leadId
+    }
+    const data = await BDtask.find(query);
+    res.status(200).json({
+      message:"Task detail fetched successfully",
+      data:data
+    })
+  } catch (error) {
+    res.status(500).json({
+      message:"Internal Server Error",
+      error: error.message
+    })
+  }
+}
+
 const updateTask = async (req, res) => {
   try {
     const response = await BDtask.findByIdAndUpdate(req.params._id, req.body, {
@@ -240,5 +265,6 @@ module.exports = {
   updateTask,
   deleteTask,
   updateStatus,
-  getAllTask
+  getAllTask,
+  getTaskByLeadId
 };
