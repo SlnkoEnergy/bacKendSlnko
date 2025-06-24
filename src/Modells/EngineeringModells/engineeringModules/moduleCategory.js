@@ -30,7 +30,7 @@ const moduleCategorySchema = new mongoose.Schema(
           {
             status: {
               type: String,
-              enum: ["draft", "submitted", "revised", "approved"],
+              enum: ["draft", "submitted", "revised", "approved", "hold"],
             },
             remarks: {
               type: String,
@@ -45,7 +45,7 @@ const moduleCategorySchema = new mongoose.Schema(
         current_status: {
           status: {
             type: String,
-            enum: ["draft", "submitted", "revised", "approved"],
+            enum: ["draft", "submitted", "revised", "approved", "hold"],
           },
           remarks: {
             type: String,
