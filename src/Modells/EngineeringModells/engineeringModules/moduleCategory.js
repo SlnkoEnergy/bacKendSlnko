@@ -36,7 +36,7 @@ const moduleCategorySchema = new mongoose.Schema(
               {
                 department: {
                   type: String,
-                  enum: ["CAM", "Engineering"],
+                  enum: ["CAM", "Engineering", "Projects"],
                 },
                 text: String,
                 user_id: {
@@ -65,7 +65,7 @@ const moduleCategorySchema = new mongoose.Schema(
             {
               department: {
                 type: String,
-                enum: ["CAM", "Engineering"],
+                enum: ["CAM", "Engineering", "Projects"],
               },
               text: String,
               user_id: {
