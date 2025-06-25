@@ -32,33 +32,40 @@ const createeBDlead = async function (req, res) {
     remark,
   } = req.body;
 
-  const lastid = await bdmodells.
-  aggregate([
-    {
-      $match: { id: { $regex: /^BD\/Lead\// } } // Filter valid IDs
-    },
-    {
-      $addFields: {
-        numericId: { 
-          $toInt: { 
-            $arrayElemAt: [{ $split: ["$id", "/"] }, -1] } 
-        }
-      }
-    },
-    { $sort: { numericId: -1 } }, // Sort by extracted number
-    { $limit: 1 } // Only fetch the latest entry
-  ]);
-  
-  let nextid;
-  if (lastid.length > 0 && lastid[0].id) {
-    const lastNumber = parseInt(lastid[0].id.split("/").pop(), 10) || 0;
-    nextid = `BD/Lead/${lastNumber + 1}`;
-  } else {
-    nextid = "BD/Lead/1";
-  }
-
   try {
-    let createBDlead = new bdmodells({
+    // 1. Get the latest ID
+    const lastid = await bdmodells.aggregate([
+      { $match: { id: { $regex: /^BD\/Lead\// } } },
+      {
+        $addFields: {
+          numericId: {
+            $toInt: { $arrayElemAt: [{ $split: ["$id", "/"] }, -1] }
+          }
+        }
+      },
+      { $sort: { numericId: -1 } },
+      { $limit: 1 }
+    ]);
+
+    let nextid;
+    if (lastid.length > 0 && lastid[0].id) {
+      const lastNumber = parseInt(lastid[0].id.split("/").pop(), 10) || 0;
+      nextid = `BD/Lead/${lastNumber + 1}`;
+    } else {
+      nextid = "BD/Lead/1";
+    }
+
+    // 2. Find the userId from submitted_by
+    let assigned_to = null;
+    if (submitted_by) {
+      const user = await User.findOne({ name: submitted_by });
+      if (user) {
+        assigned_to = user._id;
+      }
+    }
+
+    // 3. Create and save in bdmodells
+    const createBDlead = new bdmodells({
       id: nextid,
       c_name,
       email,
@@ -80,8 +87,8 @@ const createeBDlead = async function (req, res) {
       ppa,
       loa,
       other_remarks,
-
       submitted_by,
+      assigned_to, // ✅ assign user ID
       token_money,
       group,
       reffered_by,
@@ -89,7 +96,9 @@ const createeBDlead = async function (req, res) {
       remark,
     });
     await createBDlead.save();
-    let initialbdlead = new initialbdleadModells({
+
+    // 4. Create and save in initialbdleadModells
+    const initialbdlead = new initialbdleadModells({
       id: nextid,
       c_name,
       email,
@@ -112,6 +121,7 @@ const createeBDlead = async function (req, res) {
       loa,
       other_remarks,
       submitted_by,
+      assigned_to, // ✅ assign user ID
       token_money,
       group,
       reffered_by,
@@ -119,15 +129,15 @@ const createeBDlead = async function (req, res) {
       remark,
     });
     await initialbdlead.save();
-    res
-      .status(200)
-      .json({
-        message: "Data saved successfully",
-        Data: createBDlead,
-        initialbdlead: initialbdlead,
-      });
+
+    res.status(200).json({
+      message: "Data saved successfully",
+      Data: createBDlead,
+      initialbdlead: initialbdlead,
+    });
+
   } catch (error) {
-    res.status(400).json({ error: error });
+    res.status(400).json({ error: error.message });
   }
 };
 
