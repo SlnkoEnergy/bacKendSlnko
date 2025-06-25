@@ -1,28 +1,78 @@
 const initiallead = require("../../Modells/initialBdLeadModells");
 const followUpBdleadModells = require("../../Modells/followupbdModells");
-const warmbdLeadModells =require("../../Modells/warmbdLeadModells");
-const wonleadModells  =require("../../Modells/wonleadModells");
-const deadleadModells= require("../../Modells/deadleadModells");
-const createbdleads =require("../../Modells/createBDleadModells");
-const handoversheet =require("../../Modells/handoversheetModells");
+const warmbdLeadModells = require("../../Modells/warmbdLeadModells");
+const wonleadModells = require("../../Modells/wonleadModells");
+const deadleadModells = require("../../Modells/deadleadModells");
+const createbdleads = require("../../Modells/createBDleadModells");
+const handoversheet = require("../../Modells/handoversheetModells");
 const task = require("../../Modells/BD-Dashboard/task");
+const userModells = require("../../Modells/userModells");
 
+const updateAssignedToFromSubmittedBy = async (req, res) => {
+  const models = [
+    initiallead,
+    followUpBdleadModells,
+    warmbdLeadModells,
+    wonleadModells,
+    deadleadModells,
+    createbdleads,
+  ];
+
+  try {
+    for (const model of models) {
+      const leads = await model.find({
+        submitted_by: { $exists: true },
+        assigned_to: { $exists: false },
+      });
+
+      for (const lead of leads) {
+        const user = await userModells.findOne({
+          name: lead.submitted_by.trim(),
+        });
+
+        if (user) {
+          lead.assigned_to = user._id;
+          await lead.save();
+        }
+      }
+    }
+
+    res
+      .status(200)
+      .json({
+        message: "assigned_to field updated successfully for all leads.",
+      });
+  } catch (error) {
+    console.error("Error updating assigned_to:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
 
 // Get All Leads
 const getAllLeads = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = "", stage = "" } = req.query;
+    const userId = req.user.userId;
 
-    const query = {
-      $or: [
-        { c_name: { $regex: search, $options: "i" } },
-        { mobile: { $regex: search, $options: "i" } },
-        { state: { $regex: search, $options: "i" } },
-        { scheme: { $regex: search, $options: "i" } },
-        { submitted_by: { $regex: search, $options: "i" } },
-        {id:{$regex: search, $options:"i"}},
+    const baseQuery = {
+      $and: [
+        {
+          $or: [
+            { c_name: { $regex: search, $options: "i" } },
+            { mobile: { $regex: search, $options: "i" } },
+            { state: { $regex: search, $options: "i" } },
+            { scheme: { $regex: search, $options: "i" } },
+            { submitted_by: { $regex: search, $options: "i" } },
+            { id: { $regex: search, $options: "i" } },
+            { assigned_to: { $regex: search, $options: "i" } }, // added this line
+          ],
+        },
       ],
     };
+
+    if (userId) {
+      baseQuery.$and.push({ assigned_to: userId });
+    }
 
     const stageModelMap = {
       initial: initiallead,
@@ -32,17 +82,34 @@ const getAllLeads = async (req, res) => {
       dead: deadleadModells,
     };
 
-    // If specific stage is requested
     if (stage && stageModelMap[stage]) {
       const model = stageModelMap[stage];
-      const total = await model.countDocuments(query);
-      const data = await model.find(query)
-        .sort({ createdAt: -1 })
-        .skip((parseInt(page) - 1) * parseInt(limit))
-        .limit(parseInt(limit));
+
+      const data = await model.aggregate([
+        { $match: baseQuery },
+        { $sort: { createdAt: -1 } },
+        { $skip: (parseInt(page) - 1) * parseInt(limit) },
+        { $limit: parseInt(limit) },
+        {
+          $lookup: {
+            from: "users",
+            localField: "assigned_to",
+            foreignField: "_id",
+            as: "assigned_user",
+          },
+        },
+        {
+          $unwind: {
+            path: "$assigned_user",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+      ]);
+
+      const total = await model.countDocuments(baseQuery);
 
       const mapped = data.map((item) => ({
-        _id:item._id,
+        _id: item._id,
         id: item.id,
         c_name: item.c_name,
         mobile: item.mobile,
@@ -53,6 +120,10 @@ const getAllLeads = async (req, res) => {
         distance: item.distance,
         entry_date: item.entry_date,
         submitted_by: item.submitted_by,
+        assigned_to: {
+          id: item.assigned_to,
+          name: item.assigned_user?.name || "",
+        },
         status: stage,
       }));
 
@@ -65,13 +136,29 @@ const getAllLeads = async (req, res) => {
       });
     }
 
-    // All stages combined
+    // All stages
     const allLeads = (
       await Promise.all(
         Object.entries(stageModelMap).map(async ([stageName, model]) => {
-          const leads = await model.find(query);
+          const leads = await model.aggregate([
+            { $match: baseQuery },
+            {
+              $lookup: {
+                from: "users",
+                localField: "assigned_to",
+                foreignField: "_id",
+                as: "assigned_user",
+              },
+            },
+            {
+              $unwind: {
+                path: "$assigned_user",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+          ]);
           return leads.map((item) => ({
-            _id:item._id,
+            _id: item._id,
             id: item.id,
             c_name: item.c_name,
             mobile: item.mobile,
@@ -82,6 +169,10 @@ const getAllLeads = async (req, res) => {
             distance: item.distance,
             entry_date: item.entry_date,
             submitted_by: item.submitted_by,
+            assigned_to: {
+              id: item.assigned_to,
+              name: item.assigned_user?.name || "",
+            },
             status: stageName,
           }));
         })
@@ -89,7 +180,9 @@ const getAllLeads = async (req, res) => {
     ).flat();
 
     const sortedLeads = allLeads.sort(
-      (a, b) => new Date(b.entry_date || b.createdAt) - new Date(a.entry_date || a.createdAt)
+      (a, b) =>
+        new Date(b.entry_date || b.createdAt) -
+        new Date(a.entry_date || a.createdAt)
     );
 
     const total = sortedLeads.length;
@@ -107,7 +200,7 @@ const getAllLeads = async (req, res) => {
   }
 };
 
-const getAllLeadDropdown = async function(req, res) {
+const getAllLeadDropdown = async function (req, res) {
   try {
     const projection = "email id _id c_name mobile";
 
@@ -140,42 +233,46 @@ const getLeadSummary = async (req, res) => {
       {
         $group: {
           _id: "$source",
-          count: { $sum: 1 }
-        }
+          count: { $sum: 1 },
+        },
       },
       {
         $group: {
           _id: null,
-          total: { $sum: "$count" }
-        }
+          total: { $sum: "$count" },
+        },
       },
       {
         $project: {
           _id: 0,
-          totalLeads: "$total"
-        }
-      }
+          totalLeads: "$total",
+        },
+      },
     ]);
 
     const totalLeads = leadAggregation[0]?.totalLeads || 0;
     const totalHandovers = await handoversheet.countDocuments();
-    const conversionRate = totalLeads > 0 ? ((totalHandovers / totalLeads) * 100).toFixed(2) : "0.00";
+    const conversionRate =
+      totalLeads > 0
+        ? ((totalHandovers / totalLeads) * 100).toFixed(2)
+        : "0.00";
 
-    const totalAssignedTasks = await task.countDocuments({ assigned_to: { $exists: true, $not: { $size: 0 } } });
+    const totalAssignedTasks = await task.countDocuments({
+      assigned_to: { $exists: true, $not: { $size: 0 } },
+    });
 
     res.json({
       total_leads: totalLeads,
       conversion_rate_percentage: +conversionRate,
-      total_assigned_tasks: totalAssignedTasks
+      total_assigned_tasks: totalAssignedTasks,
     });
-
   } catch (error) {
     console.error("Lead Summary Error:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
 };
-
-
 
 //Lead source summary
 const getLeadSource = async (req, res) => {
@@ -184,8 +281,8 @@ const getLeadSource = async (req, res) => {
       {
         $group: {
           _id: "$source",
-          count: { $sum: 1 }
-        }
+          count: { $sum: 1 },
+        },
       },
       {
         $group: {
@@ -194,10 +291,10 @@ const getLeadSource = async (req, res) => {
           sources: {
             $push: {
               source: "$_id",
-              count: "$count"
-            }
-          }
-        }
+              count: "$count",
+            },
+          },
+        },
       },
       {
         $project: {
@@ -211,42 +308,54 @@ const getLeadSource = async (req, res) => {
                 percentage: {
                   $round: [
                     { $multiply: [{ $divide: ["$$s.count", "$total"] }, 100] },
-                    2
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
+                    2,
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
     ]);
 
     const sourceList = leadAggregation[0]?.sources || [];
 
     const normalizedSources = {};
-    sourceList.forEach(item => {
+    sourceList.forEach((item) => {
       const key = item.source?.toLowerCase()?.trim() || "others";
       if (!normalizedSources[key]) normalizedSources[key] = 0;
       normalizedSources[key] += item.percentage;
     });
 
     const leadSourceSummary = [
-      { source: "Social Media", percentage: +(normalizedSources["social media"]?.toFixed(2) || 0) },
-      { source: "Marketing", percentage: +(normalizedSources["marketing"]?.toFixed(2) || 0) },
-      { source: "IVR/My Operator", percentage: +(normalizedSources["ivr/my operator"]?.toFixed(2) || 0) },
-      { source: "Others", percentage: +(normalizedSources["others"]?.toFixed(2) || 0) }
+      {
+        source: "Social Media",
+        percentage: +(normalizedSources["social media"]?.toFixed(2) || 0),
+      },
+      {
+        source: "Marketing",
+        percentage: +(normalizedSources["marketing"]?.toFixed(2) || 0),
+      },
+      {
+        source: "IVR/My Operator",
+        percentage: +(normalizedSources["ivr/my operator"]?.toFixed(2) || 0),
+      },
+      {
+        source: "Others",
+        percentage: +(normalizedSources["others"]?.toFixed(2) || 0),
+      },
     ];
 
     res.json({ lead_sources: leadSourceSummary });
-
   } catch (error) {
     console.error("Lead Source Summary Error:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
 };
 
-
-//task dashboard 
+//task dashboard
 const taskDashboard = async (req, res) => {
   try {
     const userTaskStats = await task.aggregate([
@@ -257,18 +366,18 @@ const taskDashboard = async (req, res) => {
           assigned_tasks: { $sum: 1 },
           completed_tasks: {
             $sum: {
-              $cond: [{ $eq: ["$current_status", "completed"] }, 1, 0]
-            }
-          }
-        }
+              $cond: [{ $eq: ["$current_status", "completed"] }, 1, 0],
+            },
+          },
+        },
       },
       {
         $lookup: {
           from: "users",
           localField: "_id",
           foreignField: "_id",
-          as: "user"
-        }
+          as: "user",
+        },
       },
       { $unwind: "$user" },
       {
@@ -277,22 +386,19 @@ const taskDashboard = async (req, res) => {
           user_id: "$user._id",
           name: "$user.name",
           assigned_tasks: 1,
-          completed_tasks: 1
-        }
-      }
+          completed_tasks: 1,
+        },
+      },
     ]);
 
     res.json({ per_member_task_summary: userTaskStats });
-
   } catch (error) {
     console.error("Team Task Summary Error:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
 };
-
-
-
-
 
 // Lead status summary
 const leadSummary = async (req, res) => {
@@ -304,7 +410,7 @@ const leadSummary = async (req, res) => {
 
     // Normalize human-readable range inputs from frontend
     const rangeKeyMap = {
-      "today": "day",
+      today: "day",
       "1 day": "day",
       "one day": "day",
       "1 week": "week",
@@ -383,19 +489,23 @@ const leadSummary = async (req, res) => {
         : {};
 
     // Parallel aggregation of lead status counts
-    const [
-      initialLeadAgg,
-      followupAgg,
-      warmLeadAgg,
-      wonLeadAgg,
-      deadLeadAgg,
-    ] = await Promise.all([
-      initiallead.aggregate([{ $match: dateFilter }, { $count: "count" }]),
-      followUpBdleadModells.aggregate([{ $match: dateFilter }, { $count: "count" }]),
-      warmbdLeadModells.aggregate([{ $match: dateFilter }, { $count: "count" }]),
-      wonleadModells.aggregate([{ $match: dateFilter }, { $count: "count" }]),
-      deadleadModells.aggregate([{ $match: dateFilter }, { $count: "count" }]),
-    ]);
+    const [initialLeadAgg, followupAgg, warmLeadAgg, wonLeadAgg, deadLeadAgg] =
+      await Promise.all([
+        initiallead.aggregate([{ $match: dateFilter }, { $count: "count" }]),
+        followUpBdleadModells.aggregate([
+          { $match: dateFilter },
+          { $count: "count" },
+        ]),
+        warmbdLeadModells.aggregate([
+          { $match: dateFilter },
+          { $count: "count" },
+        ]),
+        wonleadModells.aggregate([{ $match: dateFilter }, { $count: "count" }]),
+        deadleadModells.aggregate([
+          { $match: dateFilter },
+          { $count: "count" },
+        ]),
+      ]);
 
     const leadStatusSummary = {
       initial_leads: initialLeadAgg[0]?.count || 0,
@@ -422,8 +532,6 @@ const leadSummary = async (req, res) => {
   }
 };
 
-
-
 // Total Lead Conversition Ratio
 
 const leadconversationrate = async (req, res) => {
@@ -434,7 +542,7 @@ const leadconversationrate = async (req, res) => {
     let fromDate, toDate;
 
     const rangeKeyMap = {
-      "today": "day",
+      today: "day",
       "1 day": "day",
       "one day": "day",
       "1 week": "week",
@@ -526,7 +634,9 @@ const leadconversationrate = async (req, res) => {
     const totalHandovers = await handoversheet.countDocuments(dateFilter);
 
     const conversionRate =
-      totalLeads > 0 ? ((totalHandovers / totalLeads) * 100).toFixed(2) : "0.00";
+      totalLeads > 0
+        ? ((totalHandovers / totalLeads) * 100).toFixed(2)
+        : "0.00";
 
     res.json({
       filter_used: {
@@ -554,7 +664,7 @@ const getLeadByLeadIdorId = async (req, res) => {
 
     if (!id && !leadId) {
       return res.status(400).json({
-        message: "Lead Id or id not found"
+        message: "Lead Id or id not found",
       });
     }
 
@@ -567,14 +677,14 @@ const getLeadByLeadIdorId = async (req, res) => {
       followUp: followUpBdleadModells,
       warm: warmbdLeadModells,
       dead: deadleadModells,
-      initial: initiallead, 
+      initial: initiallead,
     };
 
     const model = status ? modelMap[status] : initiallead;
 
     if (!model) {
       return res.status(400).json({
-        message: "Invalid status"
+        message: "Invalid status",
       });
     }
     console.log(model);
@@ -582,16 +692,15 @@ const getLeadByLeadIdorId = async (req, res) => {
 
     res.status(200).json({
       message: "Lead Information retrieved successfully",
-      data: response
+      data: response,
     });
   } catch (error) {
     res.status(500).json({
       message: "Internal Server Error",
-      error: error.message
+      error: error.message,
     });
   }
 };
-
 
 //lead funnel
 const leadFunnel = async (req, res) => {
@@ -605,7 +714,7 @@ const leadFunnel = async (req, res) => {
     let fromDate, toDate;
 
     const rangeKeyMap = {
-      "today": "day",
+      today: "day",
       "1 day": "day",
       "one day": "day",
       "1 week": "week",
@@ -704,7 +813,8 @@ const leadFunnel = async (req, res) => {
 
       result[name] = {};
       if (showLead) result[name].count = docs.length;
-      if (showCapacity) result[name].capacity = parseFloat(totalCapacity.toFixed(2));
+      if (showCapacity)
+        result[name].capacity = parseFloat(totalCapacity.toFixed(2));
     }
 
     // Apply same date filter to handoversheet
@@ -741,7 +851,7 @@ const leadWonAndLost = async (req, res) => {
     const now = new Date();
 
     const rangeKeyMap = {
-      "today": "day",
+      today: "day",
       "1 day": "day",
       "one day": "day",
       "1 week": "week",
@@ -800,9 +910,8 @@ const leadWonAndLost = async (req, res) => {
         break;
     }
 
-    const dateFilter = fromDate && toDate
-      ? { createdAt: { $gte: fromDate, $lte: toDate } }
-      : {};
+    const dateFilter =
+      fromDate && toDate ? { createdAt: { $gte: fromDate, $lte: toDate } } : {};
 
     // Model Map
     const modelMap = {
@@ -814,38 +923,51 @@ const leadWonAndLost = async (req, res) => {
     };
 
     // Count documents from each model with date filter
-    const [
-      wonCount,
-      followUpCount,
-      warmCount,
-      deadCount,
-      initialCount
-    ] = await Promise.all([
-      modelMap.won.countDocuments(dateFilter),
-      modelMap.followUp.countDocuments(dateFilter),
-      modelMap.warm.countDocuments(dateFilter),
-      modelMap.dead.countDocuments(dateFilter),
-      modelMap.initial.countDocuments(dateFilter),
-    ]);
+    const [wonCount, followUpCount, warmCount, deadCount, initialCount] =
+      await Promise.all([
+        modelMap.won.countDocuments(dateFilter),
+        modelMap.followUp.countDocuments(dateFilter),
+        modelMap.warm.countDocuments(dateFilter),
+        modelMap.dead.countDocuments(dateFilter),
+        modelMap.initial.countDocuments(dateFilter),
+      ]);
 
-    const totalLeads = wonCount + followUpCount + warmCount + deadCount + initialCount;
+    const totalLeads =
+      wonCount + followUpCount + warmCount + deadCount + initialCount;
     const activeLeads = wonCount + followUpCount + warmCount + initialCount;
     const lostLeads = deadCount;
 
-    const lostPercentage = totalLeads > 0 ? ((lostLeads / totalLeads) * 100).toFixed(2) : "0.00";
-    const wonPercentage = totalLeads > 0 ? ((wonCount / totalLeads) * 100).toFixed(2) : "0.00";
+    const lostPercentage =
+      totalLeads > 0 ? ((lostLeads / totalLeads) * 100).toFixed(2) : "0.00";
+    const wonPercentage =
+      totalLeads > 0 ? ((wonCount / totalLeads) * 100).toFixed(2) : "0.00";
 
     const [totalHandovers, totalTasks] = await Promise.all([
       handoversheet.countDocuments(dateFilter),
-      task.countDocuments()
+      task.countDocuments(),
     ]);
 
-    const conversionRate = totalLeads > 0 ? ((totalHandovers / totalLeads) * 100).toFixed(2) : "0.00";
+    const conversionRate =
+      totalLeads > 0
+        ? ((totalHandovers / totalLeads) * 100).toFixed(2)
+        : "0.00";
 
     // ---------------- Monthly Data Calculation -----------------
 
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
 
     // Aggregation for all models
     const aggregateAll = async (model) => {
@@ -853,26 +975,24 @@ const leadWonAndLost = async (req, res) => {
         { $match: dateFilter },
         {
           $group: {
-            _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
+            _id: {
+              month: { $month: "$createdAt" },
+              year: { $year: "$createdAt" },
+            },
             count: { $sum: 1 },
           },
         },
       ]);
     };
 
-    const [
-      aggWon,
-      aggFollowUp,
-      aggWarm,
-      aggDead,
-      aggInitial
-    ] = await Promise.all([
-      aggregateAll(modelMap.won),
-      aggregateAll(modelMap.followUp),
-      aggregateAll(modelMap.warm),
-      aggregateAll(modelMap.dead),
-      aggregateAll(modelMap.initial),
-    ]);
+    const [aggWon, aggFollowUp, aggWarm, aggDead, aggInitial] =
+      await Promise.all([
+        aggregateAll(modelMap.won),
+        aggregateAll(modelMap.followUp),
+        aggregateAll(modelMap.warm),
+        aggregateAll(modelMap.dead),
+        aggregateAll(modelMap.initial),
+      ]);
 
     // Combine data
     const monthlyDataMap = {};
@@ -902,8 +1022,10 @@ const leadWonAndLost = async (req, res) => {
 
     // Prepare final monthly data
     const monthlyData = Object.values(monthlyDataMap).map((item) => {
-      const wonPercentage = item.total > 0 ? ((item.won / item.total) * 100).toFixed(2) : "0.00";
-      const lostPercentage = item.total > 0 ? ((item.lost / item.total) * 100).toFixed(2) : "0.00";
+      const wonPercentage =
+        item.total > 0 ? ((item.won / item.total) * 100).toFixed(2) : "0.00";
+      const lostPercentage =
+        item.total > 0 ? ((item.lost / item.total) * 100).toFixed(2) : "0.00";
 
       return {
         month: item.month,
@@ -931,10 +1053,11 @@ const leadWonAndLost = async (req, res) => {
       conversion_rate_percentage: +conversionRate,
       monthly_data: monthlyData,
     });
-
   } catch (error) {
     console.error("Lead Summary Error:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
 };
 
@@ -942,7 +1065,7 @@ const editLead = async (req, res) => {
   try {
     const { _id } = req.params;
     const { lead_model } = req.query;
-    const  updatedData  = req.body;
+    const updatedData = req.body;
 
     if (!lead_model) {
       return res.status(400).json({ message: "Lead model is required" });
@@ -977,12 +1100,15 @@ const editLead = async (req, res) => {
       return res.status(404).json({ message: "Lead not found" });
     }
 
-    res.status(200).json({ message: "Lead updated successfully", data: updatedLead });
+    res
+      .status(200)
+      .json({ message: "Lead updated successfully", data: updatedLead });
   } catch (error) {
-    res.status(500).json({ message: "Error updating lead", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error updating lead", error: error.message });
   }
 };
-
 
 const deleteLead = async (req, res) => {
   try {
@@ -1020,25 +1146,28 @@ const deleteLead = async (req, res) => {
       return res.status(404).json({ message: "Lead not found" });
     }
 
-    res.status(200).json({ message: "Lead deleted successfully", data: deletedLead });
+    res
+      .status(200)
+      .json({ message: "Lead deleted successfully", data: deletedLead });
   } catch (error) {
-    res.status(500).json({ message: "Error deleting lead", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error deleting lead", error: error.message });
   }
 };
 
-
-
-module.exports= {
-    getAllLeads,
-    getAllLeadDropdown,
-    getLeadSummary,
-    getLeadSource,
-    taskDashboard,
-    leadSummary,
-    leadconversationrate,
-    getLeadByLeadIdorId,
-    leadFunnel,
-    leadWonAndLost,
-    editLead,
-    deleteLead
+module.exports = {
+  getAllLeads,
+  getAllLeadDropdown,
+  getLeadSummary,
+  getLeadSource,
+  taskDashboard,
+  leadSummary,
+  leadconversationrate,
+  getLeadByLeadIdorId,
+  leadFunnel,
+  leadWonAndLost,
+  editLead,
+  deleteLead,
+  updateAssignedToFromSubmittedBy,
 };
