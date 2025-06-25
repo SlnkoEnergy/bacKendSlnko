@@ -3,9 +3,9 @@ const followUpBdleadModells = require("../../Modells/followupbdModells");
 const warmbdLeadModells =require("../../Modells/warmbdLeadModells");
 const wonleadModells  =require("../../Modells/wonleadModells");
 const deadleadModells= require("../../Modells/deadleadModells");
-const task =require("../../Modells/addtaskbdModells");
 const createbdleads =require("../../Modells/createBDleadModells");
 const handoversheet =require("../../Modells/handoversheetModells");
+const task = require("../../Modells/BD-Dashboard/task");
 
 
 // Get All Leads
@@ -136,7 +136,6 @@ const getAllLeadDropdown = async function(req, res) {
 
 const getLeadSummary = async (req, res) => {
   try {
-    // Step 1: Lead Aggregation
     const leadAggregation = await createbdleads.aggregate([
       {
         $group: {
@@ -159,19 +158,15 @@ const getLeadSummary = async (req, res) => {
     ]);
 
     const totalLeads = leadAggregation[0]?.totalLeads || 0;
-
-    // Step 2: Count Handovers and Calculate Conversion Rate
     const totalHandovers = await handoversheet.countDocuments();
     const conversionRate = totalLeads > 0 ? ((totalHandovers / totalLeads) * 100).toFixed(2) : "0.00";
 
-    // Step 3: Count Assigned Tasks
-    const totalTasks = await task.countDocuments();
+    const totalAssignedTasks = await task.countDocuments({ assigned_to: { $exists: true, $not: { $size: 0 } } });
 
-    // Final Response
     res.json({
       total_leads: totalLeads,
       conversion_rate_percentage: +conversionRate,
-      assigned_tasks: totalTasks
+      total_assigned_tasks: totalAssignedTasks
     });
 
   } catch (error) {
@@ -179,6 +174,8 @@ const getLeadSummary = async (req, res) => {
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
+
+
 
 //Lead source summary
 const getLeadSource = async (req, res) => {
@@ -252,41 +249,47 @@ const getLeadSource = async (req, res) => {
 //task dashboard 
 const taskDashboard = async (req, res) => {
   try {
-    const taskData = await task.find();
-
-    const taskDashboard = {};
-
-    taskData.forEach(t => {
-      if (!t.by_whom) return;
-
-      const people = t.by_whom.split(",").map(p => p.trim());
-
-      people.forEach(person => {
-        if (!taskDashboard[person]) {
-          taskDashboard[person] = {
-            name: person,
-            assigned_tasks: 0,
-            task_completed: 0
-          };
+    const userTaskStats = await task.aggregate([
+      { $unwind: "$assigned_to" },
+      {
+        $group: {
+          _id: "$assigned_to",
+          assigned_tasks: { $sum: 1 },
+          completed_tasks: {
+            $sum: {
+              $cond: [{ $eq: ["$current_status", "completed"] }, 1, 0]
+            }
+          }
         }
-
-        taskDashboard[person].assigned_tasks += 1;
-
-        if (t.comment && t.comment.trim() !== "") {
-          taskDashboard[person].task_completed += 1;
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "user"
         }
-      });
-    });
+      },
+      { $unwind: "$user" },
+      {
+        $project: {
+          _id: 0,
+          user_id: "$user._id",
+          name: "$user.name",
+          assigned_tasks: 1,
+          completed_tasks: 1
+        }
+      }
+    ]);
 
-    const taskDashboardArray = Object.values(taskDashboard);
-
-    res.json({ task_dashboard: taskDashboardArray });
+    res.json({ per_member_task_summary: userTaskStats });
 
   } catch (error) {
-    console.error("Task Dashboard Error:", error);
+    console.error("Team Task Summary Error:", error);
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
+
 
 
 
@@ -979,6 +982,8 @@ const editLead = async (req, res) => {
     res.status(500).json({ message: "Error updating lead", error: error.message });
   }
 };
+
+
 const deleteLead = async (req, res) => {
   try {
     const { _id } = req.params;
@@ -1020,6 +1025,9 @@ const deleteLead = async (req, res) => {
     res.status(500).json({ message: "Error deleting lead", error: error.message });
   }
 };
+
+
+
 module.exports= {
     getAllLeads,
     getAllLeadDropdown,

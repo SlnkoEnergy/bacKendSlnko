@@ -265,6 +265,26 @@ const deleteTask = async (req, res) => {
   }
 };
 
+const toggleViewTask = async (req, res) => {
+  const { _id } = req.params;
+  const userId = req.user.userId;
+
+  try {
+    const task = await BDtask.findById(_id);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+
+    if (!task.is_viewed.includes(userId)) {
+      task.is_viewed.push(userId);
+      await task.save();
+    }
+
+    return res.status(200).json({ message: "Marked as viewed", is_viewed: task.is_viewed });
+  } catch (err) {
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+
 module.exports = {
   createTask,
   getTaskById,
@@ -272,5 +292,6 @@ module.exports = {
   deleteTask,
   updateStatus,
   getAllTask,
-  getTaskByLeadId
+  getTaskByLeadId,
+  toggleViewTask
 };
