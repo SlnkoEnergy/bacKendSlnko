@@ -7,6 +7,7 @@ const createbdleads = require("../../Modells/createBDleadModells");
 const handoversheet = require("../../Modells/handoversheetModells");
 const task = require("../../Modells/BD-Dashboard/task");
 const userModells = require("../../Modells/userModells");
+const mongoose = require('mongoose')
 
 const updateAssignedToFromSubmittedBy = async (req, res) => {
   const models = [
@@ -53,7 +54,7 @@ const getAllLeads = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = "", stage = "" } = req.query;
     const userId = req.user.userId;
-
+    console.log(userId);
     const baseQuery = {
       $and: [
         {
@@ -64,15 +65,16 @@ const getAllLeads = async (req, res) => {
             { scheme: { $regex: search, $options: "i" } },
             { submitted_by: { $regex: search, $options: "i" } },
             { id: { $regex: search, $options: "i" } },
-            { assigned_to: { $regex: search, $options: "i" } }, // added this line
+            { assigned_to: { $regex: search, $options: "i" } },
           ],
         },
       ],
     };
 
-    if (userId) {
-      baseQuery.$and.push({ assigned_to: userId });
-    }
+   if (userId) {
+  baseQuery.$and.push({ assigned_to: new mongoose.Types.ObjectId(userId) });
+}
+
 
     const stageModelMap = {
       initial: initiallead,
