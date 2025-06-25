@@ -179,6 +179,30 @@ const getAllTask = async (req, res) => {
   }
 };
 
+const getAllTaskByAssigned = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const tasks = await BDtask.find({
+      assigned_to: userId,
+      deadline: {
+        $gte: today,
+        $lt: tomorrow,
+      },
+    }).populate("user_id", "_id name");
+
+    res.status(200).json({ success: true, data: tasks });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server Error", error });
+  }
+};
+
+
 
 const getTaskById = async (req, res) => {
   try {
@@ -342,5 +366,6 @@ module.exports = {
   getAllTask,
   getTaskByLeadId,
   toggleViewTask,
-  getNotifications
+  getNotifications,
+  getAllTaskByAssigned
 };
