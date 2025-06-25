@@ -54,27 +54,6 @@ const getAllLeads = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = "", stage = "" } = req.query;
     const userId = req.user.userId;
-    console.log(userId);
-    const baseQuery = {
-      $and: [
-        {
-          $or: [
-            { c_name: { $regex: search, $options: "i" } },
-            { mobile: { $regex: search, $options: "i" } },
-            { state: { $regex: search, $options: "i" } },
-            { scheme: { $regex: search, $options: "i" } },
-            { submitted_by: { $regex: search, $options: "i" } },
-            { id: { $regex: search, $options: "i" } },
-            { assigned_to: { $regex: search, $options: "i" } },
-          ],
-        },
-      ],
-    };
-
-   if (userId) {
-  baseQuery.$and.push({ assigned_to: new mongoose.Types.ObjectId(userId) });
-}
-
 
     const stageModelMap = {
       initial: initiallead,
@@ -84,14 +63,34 @@ const getAllLeads = async (req, res) => {
       dead: deadleadModells,
     };
 
-    if (stage && stageModelMap[stage]) {
-      const model = stageModelMap[stage];
+    const buildMatchQuery = (extraMatch = {}) => {
+      const baseQuery = [
+        {
+          $or: [
+            { c_name: { $regex: search, $options: "i" } },
+            { mobile: { $regex: search, $options: "i" } },
+            { state: { $regex: search, $options: "i" } },
+            { scheme: { $regex: search, $options: "i" } },
+            { submitted_by: { $regex: search, $options: "i" } },
+            { id: { $regex: search, $options: "i" } },
+            { "assigned_user.name": { $regex: search, $options: "i" } },
+          ],
+        },
+      ];
 
-      const data = await model.aggregate([
-        { $match: baseQuery },
-        { $sort: { createdAt: -1 } },
-        { $skip: (parseInt(page) - 1) * parseInt(limit) },
-        { $limit: parseInt(limit) },
+      if (userId) {
+        baseQuery.push({ assigned_to: new mongoose.Types.ObjectId(userId) });
+      }
+
+      if (extraMatch) {
+        baseQuery.push(extraMatch);
+      }
+
+      return { $and: baseQuery };
+    };
+
+    const buildPipeline = (extraMatch = {}, paginate = true) => {
+      const pipeline = [
         {
           $lookup: {
             from: "users",
@@ -106,9 +105,39 @@ const getAllLeads = async (req, res) => {
             preserveNullAndEmptyArrays: true,
           },
         },
-      ]);
+        { $match: buildMatchQuery(extraMatch) },
+      ];
 
-      const total = await model.countDocuments(baseQuery);
+      if (paginate) {
+        pipeline.push(
+          { $sort: { createdAt: -1 } },
+          { $skip: (parseInt(page) - 1) * parseInt(limit) },
+          { $limit: parseInt(limit) }
+        );
+      }
+
+      return pipeline;
+    };
+
+    if (stage && stageModelMap[stage]) {
+      const model = stageModelMap[stage];
+
+      const data = await model.aggregate(buildPipeline());
+
+      const total = await model.aggregate([
+        {
+          $lookup: {
+            from: "users",
+            localField: "assigned_to",
+            foreignField: "_id",
+            as: "assigned_user",
+          },
+        },
+        { $unwind: { path: "$assigned_user", preserveNullAndEmptyArrays: true } },
+        { $match: buildMatchQuery() },
+        { $count: "count" },
+      ]);
+      const count = total[0]?.count || 0;
 
       const mapped = data.map((item) => ({
         _id: item._id,
@@ -131,7 +160,7 @@ const getAllLeads = async (req, res) => {
 
       return res.status(200).json({
         message: `Leads for stage: ${stage}`,
-        total,
+        total: count,
         page: parseInt(page),
         limit: parseInt(limit),
         leads: mapped,
@@ -142,23 +171,8 @@ const getAllLeads = async (req, res) => {
     const allLeads = (
       await Promise.all(
         Object.entries(stageModelMap).map(async ([stageName, model]) => {
-          const leads = await model.aggregate([
-            { $match: baseQuery },
-            {
-              $lookup: {
-                from: "users",
-                localField: "assigned_to",
-                foreignField: "_id",
-                as: "assigned_user",
-              },
-            },
-            {
-              $unwind: {
-                path: "$assigned_user",
-                preserveNullAndEmptyArrays: true,
-              },
-            },
-          ]);
+          const leads = await model.aggregate(buildPipeline({}, false));
+
           return leads.map((item) => ({
             _id: item._id,
             id: item.id,
@@ -188,7 +202,10 @@ const getAllLeads = async (req, res) => {
     );
 
     const total = sortedLeads.length;
-    const paginatedLeads = sortedLeads.slice((page - 1) * limit, page * limit);
+    const paginatedLeads = sortedLeads.slice(
+      (page - 1) * limit,
+      page * limit
+    );
 
     res.status(200).json({
       message: "Paginated All BD Leads",
