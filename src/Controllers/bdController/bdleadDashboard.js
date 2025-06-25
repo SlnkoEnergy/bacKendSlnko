@@ -1,4 +1,4 @@
-const initiallead =require("../../Modells/initialBdLeadModells");
+const initiallead = require("../../Modells/initialBdLeadModells");
 const followUpBdleadModells = require("../../Modells/followupbdModells");
 const warmbdLeadModells =require("../../Modells/warmbdLeadModells");
 const wonleadModells  =require("../../Modells/wonleadModells");
@@ -935,8 +935,91 @@ const leadWonAndLost = async (req, res) => {
   }
 };
 
+const editLead = async (req, res) => {
+  try {
+    const { _id } = req.params;
+    const { lead_model } = req.query;
+    const  updatedData  = req.body;
 
+    if (!lead_model) {
+      return res.status(400).json({ message: "Lead model is required" });
+    }
 
+    let Model;
+    switch (lead_model) {
+      case "initial":
+        Model = initiallead;
+        break;
+      case "followup":
+        Model = followUpBdleadModells;
+        break;
+      case "warm":
+        Model = warmbdLeadModells;
+        break;
+      case "won":
+        Model = wonleadModells;
+        break;
+      case "dead":
+        Model = deadleadModells;
+        break;
+      default:
+        return res.status(400).json({ message: "Invalid lead model" });
+    }
+
+    const updatedLead = await Model.findByIdAndUpdate(_id, updatedData, {
+      new: true,
+    });
+
+    if (!updatedLead) {
+      return res.status(404).json({ message: "Lead not found" });
+    }
+
+    res.status(200).json({ message: "Lead updated successfully", data: updatedLead });
+  } catch (error) {
+    res.status(500).json({ message: "Error updating lead", error: error.message });
+  }
+};
+const deleteLead = async (req, res) => {
+  try {
+    const { _id } = req.params;
+    const { lead_model } = req.query;
+
+    if (!lead_model) {
+      return res.status(400).json({ message: "Lead model is required" });
+    }
+
+    let Model;
+    switch (lead_model) {
+      case "initial":
+        Model = initiallead;
+        break;
+      case "followup":
+        Model = followUpBdleadModells;
+        break;
+      case "warm":
+        Model = warmbdLeadModells;
+        break;
+      case "won":
+        Model = wonleadModells;
+        break;
+      case "dead":
+        Model = deadleadModells;
+        break;
+      default:
+        return res.status(400).json({ message: "Invalid lead model" });
+    }
+
+    const deletedLead = await Model.findByIdAndDelete(_id);
+
+    if (!deletedLead) {
+      return res.status(404).json({ message: "Lead not found" });
+    }
+
+    res.status(200).json({ message: "Lead deleted successfully", data: deletedLead });
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting lead", error: error.message });
+  }
+};
 module.exports= {
     getAllLeads,
     getAllLeadDropdown,
@@ -947,5 +1030,7 @@ module.exports= {
     leadconversationrate,
     getLeadByLeadIdorId,
     leadFunnel,
-    leadWonAndLost
+    leadWonAndLost,
+    editLead,
+    deleteLead
 };
