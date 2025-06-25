@@ -7,7 +7,7 @@ const createbdleads = require("../../Modells/createBDleadModells");
 const handoversheet = require("../../Modells/handoversheetModells");
 const task = require("../../Modells/BD-Dashboard/task");
 const userModells = require("../../Modells/userModells");
-const mongoose = require('mongoose')
+const mongoose = require("mongoose");
 
 const updateAssignedToFromSubmittedBy = async (req, res) => {
   const models = [
@@ -38,11 +38,9 @@ const updateAssignedToFromSubmittedBy = async (req, res) => {
       }
     }
 
-    res
-      .status(200)
-      .json({
-        message: "assigned_to field updated successfully for all leads.",
-      });
+    res.status(200).json({
+      message: "assigned_to field updated successfully for all leads.",
+    });
   } catch (error) {
     console.error("Error updating assigned_to:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -133,7 +131,9 @@ const getAllLeads = async (req, res) => {
             as: "assigned_user",
           },
         },
-        { $unwind: { path: "$assigned_user", preserveNullAndEmptyArrays: true } },
+        {
+          $unwind: { path: "$assigned_user", preserveNullAndEmptyArrays: true },
+        },
         { $match: buildMatchQuery() },
         { $count: "count" },
       ]);
@@ -202,10 +202,7 @@ const getAllLeads = async (req, res) => {
     );
 
     const total = sortedLeads.length;
-    const paginatedLeads = sortedLeads.slice(
-      (page - 1) * limit,
-      page * limit
-    );
+    const paginatedLeads = sortedLeads.slice((page - 1) * limit, page * limit);
 
     res.status(200).json({
       message: "Paginated All BD Leads",
@@ -1175,6 +1172,52 @@ const deleteLead = async (req, res) => {
   }
 };
 
+const updateAssignedTo = async (req, res) => {
+  try {
+    const { _id } = req.params;
+    const { lead_model } = req.query;
+    const { assigned_to } = req.body;
+
+    if (!lead_model || !_id || !assigned_to) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
+    }
+
+    const modelMap = {
+      initial: initiallead,
+      followup: followUpBdleadModells,
+      warm: warmbdLeadModells,
+      won: wonleadModells,
+      dead: deadleadModells,
+    };
+
+    const Model = modelMap[lead_model];
+
+    if (!Model) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid model name" });
+    }
+
+    const updatedLead = await Model.findByIdAndUpdate(
+      _id,
+      { assigned_to },
+      { new: true }
+    );
+
+    if (!updatedLead) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Lead not found" });
+    }
+
+    res.status(200).json({ success: true, data: updatedLead });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server Error", error });
+  }
+};
+
 module.exports = {
   getAllLeads,
   getAllLeadDropdown,
@@ -1189,4 +1232,5 @@ module.exports = {
   editLead,
   deleteLead,
   updateAssignedToFromSubmittedBy,
+  updateAssignedTo,
 };
