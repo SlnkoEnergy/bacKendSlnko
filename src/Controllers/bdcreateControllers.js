@@ -1,5 +1,6 @@
 const bdmodells = require("../Modells/createBDleadModells");
 const initialbdleadModells = require("../Modells/initialBdLeadModells");
+const userModells = require("../Modells/userModells");
 
 const createeBDlead = async function (req, res) {
   const {
@@ -55,10 +56,9 @@ const createeBDlead = async function (req, res) {
       nextid = "BD/Lead/1";
     }
 
-    // 2. Find the userId from submitted_by
     let assigned_to = null;
     if (submitted_by) {
-      const user = await User.findOne({ name: submitted_by });
+      const user = await userModells.findOne({ name: submitted_by });
       if (user) {
         assigned_to = user._id;
       }
