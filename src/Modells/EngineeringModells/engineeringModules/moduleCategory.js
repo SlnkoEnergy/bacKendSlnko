@@ -32,9 +32,23 @@ const moduleCategorySchema = new mongoose.Schema(
               type: String,
               enum: ["draft", "submitted", "revised", "approved", "hold"],
             },
-            remarks: {
-              type: String,
-            },
+            remarks: [
+              {
+                department: {
+                  type: String,
+                  enum: ["CAM", "Engineering"],
+                },
+                text: String,
+                user_id: {
+                  type: mongoose.Schema.Types.ObjectId,
+                  ref: "User",
+                },
+                createdAt: {
+                  type: Date,
+                  default: Date.now,
+                },
+              },
+            ],
             user_id: {
               type: mongoose.Schema.Types.ObjectId,
               ref: "User",
@@ -47,8 +61,26 @@ const moduleCategorySchema = new mongoose.Schema(
             type: String,
             enum: ["draft", "submitted", "revised", "approved", "hold"],
           },
-          remarks: {
-            type: String,
+          remarks: [
+            {
+              department: {
+                type: String,
+                enum: ["CAM", "Engineering"],
+              },
+              text: String,
+              user_id: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+              },
+              createdAt: {
+                type: Date,
+                default: Date.now,
+              },
+            },
+          ],
+          updatedAt: {
+            type: Date,
+            default: Date.now,
           },
         },
       },

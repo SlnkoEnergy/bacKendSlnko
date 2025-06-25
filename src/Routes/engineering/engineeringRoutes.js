@@ -27,6 +27,7 @@ const {
   getModuleCategoryById,
   getModuleCategory,
   createModuleCategory,
+  addRemarkToModuleCategory,
 } = require("../../Controllers/engineeringController/engineeringModules/moduleCategoryContoller");
 const {
   updateModuleTemplateCategoryId,
@@ -129,6 +130,7 @@ router.put(
   jwtMW.authorization,
   updateAttachmentUrl
 );
+router.put("/:projectId/moduletemplate/:module_template/remarkStatus", jwtMW.authentication, jwtMW.authorization, addRemarkToModuleCategory);
 
 // Boq Categories
 router.post(
