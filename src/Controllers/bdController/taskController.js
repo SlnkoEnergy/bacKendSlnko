@@ -109,17 +109,37 @@ const updateStatus = async (req, res) => {
 const getAllTask = async (req, res) => {
   try {
     const userId = req.user.userId;
+    const { today } = req.query;
 
-    const tasks = await BDtask.find({
+    const matchQuery = {
       $or: [
         { assigned_to: { $in: [userId] } },
-        { user_id: userId }
-      ]
-    })
-      .select("title priority _id lead_id lead_model type current_status assigned_to deadline")
+        { user_id: userId },
+      ],
+    };
+
+
+    if (today === "true") {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+
+      matchQuery.deadline = {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      };
+    }
+
+    const tasks = await BDtask.find(matchQuery)
+      .select("title priority _id lead_id lead_model type current_status assigned_to deadline updatedAt user_id")
       .populate({
         path: "assigned_to",
-        select: "_id name"
+        select: "_id name",
+      })
+      .populate({
+        path:"user_id",
+        select:"name"
       });
 
     const leadModels = {
@@ -132,7 +152,7 @@ const getAllTask = async (req, res) => {
 
     const populatedTasks = await Promise.all(
       tasks.map(async (taskDoc) => {
-        const task = taskDoc.toObject(); 
+        const task = taskDoc.toObject();
 
         const Model = leadModels[task.lead_model];
         if (Model && task.lead_id) {
@@ -141,8 +161,9 @@ const getAllTask = async (req, res) => {
             task.lead_id = {
               _id: leadDoc._id,
               c_name: leadDoc.c_name,
-              id:leadDoc.id,
-              capacity: leadDoc.capacity
+              id: leadDoc.id,
+              capacity: leadDoc.capacity,
+
             };
           }
         }
@@ -157,6 +178,7 @@ const getAllTask = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 
 const getTaskById = async (req, res) => {
   try {
