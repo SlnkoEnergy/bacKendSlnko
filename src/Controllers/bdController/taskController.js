@@ -285,6 +285,31 @@ const toggleViewTask = async (req, res) => {
 };
 
 
+const getNotifications = async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const notifications = await BDtask.find({
+      assigned_to: userId,
+      is_viewed: { $ne: userId } 
+    })
+    .sort({ createdAt: -1 }) 
+    .select("title description createdAt"); 
+
+    const formatted = notifications.map((task) => ({
+      _id: task._id,
+      title: task.title,
+      description: task.description,
+      time: task.createdAt.toLocaleString(), 
+    }));
+
+    res.status(200).json(formatted);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+
 module.exports = {
   createTask,
   getTaskById,
@@ -293,5 +318,6 @@ module.exports = {
   updateStatus,
   getAllTask,
   getTaskByLeadId,
-  toggleViewTask
+  toggleViewTask,
+  getNotifications
 };
