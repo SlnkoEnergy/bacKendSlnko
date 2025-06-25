@@ -3,9 +3,9 @@ const followUpBdleadModells = require("../../Modells/followupbdModells");
 const warmbdLeadModells =require("../../Modells/warmbdLeadModells");
 const wonleadModells  =require("../../Modells/wonleadModells");
 const deadleadModells= require("../../Modells/deadleadModells");
-const task =require("../../Modells/addtaskbdModells");
 const createbdleads =require("../../Modells/createBDleadModells");
 const handoversheet =require("../../Modells/handoversheetModells");
+const task = require("../../Modells/BD-Dashboard/task");
 
 
 // Get All Leads
@@ -164,14 +164,48 @@ const getLeadSummary = async (req, res) => {
     const totalHandovers = await handoversheet.countDocuments();
     const conversionRate = totalLeads > 0 ? ((totalHandovers / totalLeads) * 100).toFixed(2) : "0.00";
 
-    // Step 3: Count Assigned Tasks
     const totalTasks = await task.countDocuments();
 
-    // Final Response
+    const userTaskStats = await task.aggregate([
+      { $unwind: "$assigned_to" },
+      {
+        $group: {
+          _id: "$assigned_to",
+          assigned_tasks: { $sum: 1 },
+          completed_tasks: {
+            $sum: {
+              $cond: [{ $eq: ["$current_status", "completed"] }, 1, 0]
+            }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: "users", 
+          localField: "_id",
+          foreignField: "_id",
+          as: "user"
+        }
+      },
+      {
+        $unwind: "$user"
+      },
+      {
+        $project: {
+          _id: 0,
+          user_id: "$user._id",
+          name: "$user.name",
+          assigned_tasks: 1,
+          completed_tasks: 1
+        }
+      }
+    ]);
+
     res.json({
       total_leads: totalLeads,
       conversion_rate_percentage: +conversionRate,
-      assigned_tasks: totalTasks
+      assigned_tasks: totalTasks,
+      per_member_task_summary: userTaskStats
     });
 
   } catch (error) {
@@ -179,6 +213,7 @@ const getLeadSummary = async (req, res) => {
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
+
 
 //Lead source summary
 const getLeadSource = async (req, res) => {
@@ -979,6 +1014,8 @@ const editLead = async (req, res) => {
     res.status(500).json({ message: "Error updating lead", error: error.message });
   }
 };
+
+
 const deleteLead = async (req, res) => {
   try {
     const { _id } = req.params;
@@ -1020,6 +1057,9 @@ const deleteLead = async (req, res) => {
     res.status(500).json({ message: "Error deleting lead", error: error.message });
   }
 };
+
+
+
 module.exports= {
     getAllLeads,
     getAllLeadDropdown,

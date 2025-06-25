@@ -49,6 +49,9 @@ const taskSchema = new mongoose.Schema(
       type: String,
       enum: ["high", "medium", "low"],
     },
+    is_viewed:[{
+      type:mongoose.Schema.Types.ObjectId,
+    }],
     assigned_to: [
       {
         type: mongoose.Schema.Types.ObjectId,
