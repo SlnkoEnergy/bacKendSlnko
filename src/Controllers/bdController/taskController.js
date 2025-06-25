@@ -181,7 +181,7 @@ const getAllTask = async (req, res) => {
 
 const getAllTaskByAssigned = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -201,7 +201,6 @@ const getAllTaskByAssigned = async (req, res) => {
     res.status(500).json({ success: false, message: "Server Error", error });
   }
 };
-
 
 
 const getTaskById = async (req, res) => {
