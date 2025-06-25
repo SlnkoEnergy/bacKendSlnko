@@ -1,55 +1,27 @@
 const mongoose = require("mongoose");
+
 const handoversheetSchema = new mongoose.Schema(
   {
     id: { type: String },
     p_id: { type: Number, default: " " },
     customer_details: {
-<<<<<<< HEAD
       code: { type: String },
-=======
-      
-      code: { type: String },
-     
->>>>>>> fd74f02 (updaate)
       name: { type: String },
       customer: { type: String, default: " " },
       epc_developer: { type: String },
-<<<<<<< HEAD
-      site_address: {
-        village_name: { type: String },
-        district_name: { type: String },
-      },
-      number: { type: Number },
-      p_group: { type: String },
-      state: { type: String },
-      alt_number: { type: Number },
-
-      email: { type: String },
-      pan_no: { type: String },
-      adharNumber_of_loa_holder: { type: String },
-=======
-   
       site_google_coordinates: { type: String },
-    
       number: { type: Number },
       gst_no: { type: String },
-   
       gender_of_Loa_holder: { type: String },
       email: { type: String },
       pan_no: { type: String },
       adharNumber_of_loa_holder: { type: String },
-    
       alt_number: { type: Number },
       p_group: { type: String },
-       
-    billing_address: {
-      village_name: {
-        type: String,
+      billing_address: {
+        village_name: { type: String },
+        district_name: { type: String },
       },
-      district_name: {
-        type: String,
-      },
->>>>>>> fd74f02 (updaate)
     },
     order_details: {
       type_business: { type: String },
@@ -58,21 +30,19 @@ const handoversheetSchema = new mongoose.Schema(
       feeder_code: { type: String },
       feeder_name: { type: String },
     },
-<<<<<<< HEAD
     project_detail: {
       project_type: { type: String },
       module_make_capacity: { type: String },
       module_make: { type: String, default: "" },
       module_capacity: { type: String, default: "" },
       module_type: { type: String, default: "" },
-      module_make_other:{type: String, default:""},
+      module_model_no: { type: String, default: "" },
       evacuation_voltage: { type: String },
       inverter_make_capacity: { type: String },
       inverter_make: { type: String, default: "" },
       inverter_type: { type: String, default: "" },
       inverter_size: { type: String, default: "" },
-      inverter_make_other:{type:String, default:""},
-      inverter_type_other:{type:String, default:""},
+      inverter_model_no: { type: String, default: "" },
       work_by_slnko: { type: String },
       topography_survey: { type: String },
       soil_test: { type: String },
@@ -82,53 +52,13 @@ const handoversheetSchema = new mongoose.Schema(
       project_completion_date: { type: String },
       proposed_dc_capacity: { type: String },
       project_kwp: { type: String },
-      project_component:{type: String},
-      project_component_other:{type: String},
       distance: { type: String },
       tarrif: { type: String },
       land: { type: String },
       substation_name: { type: String },
       overloading: { type: String },
-      module_category: { type: String, default: "" },
-      transmission_scope: { type: String, default: "" },
-      loan_scope: { type: String, default: "" },
       agreement_date: { type: String },
-=======
-
-    project_detail:{
-        project_type:{type:String},
-        module_make_capacity:{type:String},
-        module_make:{type:String,default:""},
-        module_capacity:{type:String,default:""},
-        module_type:{type:String,default:""},
-        module_model_no:{type:String,default:""},
-        evacuation_voltage:{type:String},
-        inverter_make_capacity:{type:String},
-        inverter_make:{type:String,default:""},
-        inverter_type:{type:String,default:""},
-        inverter_size:{type:String,default:""},
-        inverter_model_no:{type:String,default:""},
-        work_by_slnko:{type:String},
-        topography_survey:{type:String},
-        soil_test:{type:String},
-        purchase_supply_net_meter:{type:String},
-        liaisoning_net_metering:{type:String},
-        ceig_ceg:{type:String},
-        project_completion_date:{type:String},
-        proposed_dc_capacity:{type:String},
-     
-        project_kwp: { type: String },
-        distance: { type: String },
-        tarrif: { type: String },
-        land: { type: String },
-        
-        substation_name:{type:String},
-        overloading:{type:String},
-    
-        agreement_date:{type:String},
->>>>>>> fd74f02 (updaate)
     },
-
     commercial_details: {
       type: { type: String },
     },
@@ -139,13 +69,8 @@ const handoversheetSchema = new mongoose.Schema(
       submitted_by_BD: { type: String },
       service: { type: String },
       slnko_basic: { type: String },
-      billing_type: {
-        type: String,
-      },
-      billing_by:{
-        type: String,
-
-      },
+      billing_type: { type: String },
+      billing_by: { type: String },
       project_status: { type: String },
       remark: { type: String },
       remarks_for_slnko: { type: String },

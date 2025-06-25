@@ -2,10 +2,11 @@ const Project = require("../../Modells/projectModells");
 const AddMoney = require("../../Modells/addMoneyModells");
 const payRequest = require("../../Modells/payRequestModells");
 const AdjustmentRequest = require("../../Modells/adjustmentRequestModells");
+const subtractMoneyModells = require("../../Modells/debitMoneyModells");
 
 const getProjectBalance = async (req, res) => {
   try {
-    const { page = 1, limit = 196, search = "" } = req.query;
+    const { page = 1, limit = 10, search = "" } = req.query;
     const skip = (page - 1) * limit;
 
     const query = {
@@ -24,7 +25,7 @@ const getProjectBalance = async (req, res) => {
     const results = await Promise.all(
       projects.map(async (project) => {
         const { p_id } = project;
-
+        console.log(p_id);
         const creditAgg = await AddMoney.aggregate([
           { $match: { p_id } },
           {
@@ -42,11 +43,11 @@ const getProjectBalance = async (req, res) => {
         ]);
         const total_credit_amount = creditAgg[0]?.total_credit_amount || 0;
 
-        const debitAgg = await payRequest.aggregate([
+        // Now perform the aggregation
+        const debitAgg = await subtractMoneyModells.aggregate([
           {
             $match: {
               p_id,
-              utr: { $regex: /[^\s]/ },
             },
           },
           {
@@ -62,7 +63,9 @@ const getProjectBalance = async (req, res) => {
             },
           },
         ]);
+
         const total_debit_history = debitAgg[0]?.total_debit_history || 0;
+        console.log(`Total Debit History: ₹${total_debit_history}`);
 
         const adjAgg = await AdjustmentRequest.aggregate([
           { $match: { p_id } },
