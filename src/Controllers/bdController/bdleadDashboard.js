@@ -563,7 +563,7 @@ const getLeadSource = async (req, res) => {
 
     const normalizedSources = {};
     sourceList.forEach((item) => {
-      const key = item.source?.toLowerCase()?.trim() || "others";
+      const key = item.source || "Others";
       if (!normalizedSources[key]) normalizedSources[key] = 0;
       normalizedSources[key] += item.percentage;
     });
@@ -571,19 +571,23 @@ const getLeadSource = async (req, res) => {
     const leadSourceSummary = [
       {
         source: "Social Media",
-        percentage: +(normalizedSources["social media"]?.toFixed(2) || 0),
+        percentage: +(normalizedSources["Social Media"]?.toFixed(2) || 0),
       },
       {
         source: "Marketing",
-        percentage: +(normalizedSources["marketing"]?.toFixed(2) || 0),
+        percentage: +(normalizedSources["Marketing"]?.toFixed(2) || 0),
       },
       {
         source: "IVR/My Operator",
-        percentage: +(normalizedSources["ivr/my operator"]?.toFixed(2) || 0),
+        percentage: +(normalizedSources["IVR/My Operator"]?.toFixed(2) || 0),
+      },
+      {
+        source: "Referred by",
+        percentage: +(normalizedSources["Referred by"]?.toFixed(2) || 0),
       },
       {
         source: "Others",
-        percentage: +(normalizedSources["others"]?.toFixed(2) || 0),
+        percentage: +(normalizedSources["Others"]?.toFixed(2) || 0),
       },
     ];
 
