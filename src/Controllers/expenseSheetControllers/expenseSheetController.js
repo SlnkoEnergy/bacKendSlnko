@@ -27,6 +27,7 @@ const getAllExpense = async (req, res) => {
       match.$or = [
         { expense_code: { $regex: search, $options: "i" } },
         { emp_name: { $regex: search, $options: "i" } },
+        { current_status: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -64,25 +65,29 @@ const getAllExpense = async (req, res) => {
     // Apply access control
     if (
       currentUser.department === "superadmin" ||
-      currentUser.department === "admin" ||
-      (currentUser.department === "HR" && currentUser.emp_id !== "SE-208" )
+      currentUser.department === "admin"
+    ) {
+    } else if (
+      currentUser.department === "HR" &&
+      currentUser.emp_id !== "SE-208"
     ) {
       pipeline.push({
         $match: {
           $or: [
-            { current_status: "manager approval"},
+            { current_status: "manager approval" },
             { current_status: "hr approval" },
-            { current_status: "final approval"},
+            { current_status: "final approval" },
+            { current_status: "rejected" },
           ],
         },
       });
     } else if (currentUser.department === "Accounts") {
-      // Accounts sees expenses with status "hr approval"
       pipeline.push({
         $match: {
           $or: [
             { current_status: "hr approval" },
             { current_status: "final approval" },
+            { current_status: "rejected" },
           ],
         },
       });
@@ -103,13 +108,11 @@ const getAllExpense = async (req, res) => {
       });
     }
 
-    // Optional department filter
     if (department) {
       pipeline.push({
         $match: { "user_info.department": department },
       });
     }
-
 
     const totalPipeline = [...pipeline, { $count: "total" }];
     const dataPipeline = [
