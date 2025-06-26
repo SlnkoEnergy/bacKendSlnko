@@ -175,6 +175,7 @@ const createExpense = async (req, res) => {
         : req.body.data;
 
     const user_id = data.user_id || req.body.user_id;
+
     if (!user_id) {
       return res.status(400).json({ message: "User ID is required" });
     }
@@ -182,13 +183,12 @@ const createExpense = async (req, res) => {
     // Generate unique expense code
     const expense_code = await generateExpenseCode(user_id);
 
-    // Fetch user details
     const user = await User.findById(user_id).select("emp_id name role");
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Define folder path based on user role
     const folderType = user.role === "site" ? "onsite" : "offsite";
     const folderPath = `expense_sheet/${folderType}/${user.emp_id}`;
 
@@ -681,6 +681,7 @@ const getExpensePdf = async (req, res) => {
       .json({ message: "Error fetching PDF", error: error.message });
   }
 };
+
 
 module.exports = {
   getAllExpense,

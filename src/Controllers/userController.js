@@ -264,6 +264,30 @@ const getSingleUser = async function (req, res) {
   }
 };
 
+const getAllUserByDepartment = async (req, res) => {
+   try {
+    const projection = "_id name";
+    const {department} = req.query;
+    if(!department){
+     return res.status(404).json({message:"Department is required"});
+    }
+    let query = {};
+    if(department){
+      query.department = department;
+    }
+    const data = await userModells.find(query, projection);
+    res.status(200).json({
+      message:"All user fetched successfully",
+      data:data
+    })
+   } catch (error) {
+     res.status(500).json({
+      message:"Internal Server Error",
+      error:error.message
+     })
+   }
+}
+
 module.exports = {
   userRegister,
   login,
@@ -273,4 +297,5 @@ module.exports = {
   verifyandResetPassword,
   deleteUser,
   getSingleUser,
+  getAllUserByDepartment
 };
