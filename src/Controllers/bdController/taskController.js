@@ -109,7 +109,7 @@ const updateStatus = async (req, res) => {
 const getAllTask = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { today } = req.query;
+    const { type } = req.query;
 
     const matchQuery = {
       $or: [
@@ -118,17 +118,9 @@ const getAllTask = async (req, res) => {
       ],
     };
 
-
-    if (today === "true") {
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date();
-      endOfDay.setHours(23, 59, 59, 999);
-
-      matchQuery.deadline = {
-        $gte: startOfDay,
-        $lte: endOfDay,
-      };
+    // Add type filter if provided
+    if (type) {
+      matchQuery.type = type;
     }
 
     const tasks = await BDtask.find(matchQuery)
@@ -138,8 +130,8 @@ const getAllTask = async (req, res) => {
         select: "_id name",
       })
       .populate({
-        path:"user_id",
-        select:"name"
+        path: "user_id",
+        select: "name",
       });
 
     const leadModels = {
@@ -163,7 +155,6 @@ const getAllTask = async (req, res) => {
               c_name: leadDoc.c_name,
               id: leadDoc.id,
               capacity: leadDoc.capacity,
-
             };
           }
         }
