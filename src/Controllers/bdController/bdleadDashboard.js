@@ -246,42 +246,196 @@ const getAllLeadDropdown = async function (req, res) {
 
 const getLeadSummary = async (req, res) => {
   try {
-    const leadAggregation = await createbdleads.aggregate([
-      {
-        $group: {
-          _id: "$source",
-          count: { $sum: 1 },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$count" },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          totalLeads: "$total",
-        },
-      },
-    ]);
+    const { range, startDate, endDate } = req.query;
+    const now = new Date();
+    let fromDate, toDate;
 
-    const totalLeads = leadAggregation[0]?.totalLeads || 0;
-    const totalHandovers = await handoversheet.countDocuments();
+    const rangeKeyMap = {
+      today: "day",
+      "1 week": "week",
+      "2 weeks": "2week",
+      "1 month": "1month",
+      "3 months": "3months",
+      "9 months": "9months",
+      "1 year": "1year",
+    };
+
+    const normalizedRange = rangeKeyMap[(range || "").toLowerCase()] || range;
+
+    switch (normalizedRange) {
+      case "day":
+        fromDate = new Date(now.setHours(0, 0, 0, 0));
+        toDate = new Date(now.setHours(23, 59, 59, 999));
+        break;
+      case "week":
+        fromDate = new Date();
+        fromDate.setDate(now.getDate() - 7);
+        toDate = new Date();
+        break;
+      case "2week":
+        fromDate = new Date();
+        fromDate.setDate(now.getDate() - 14);
+        toDate = new Date();
+        break;
+      case "1month":
+        fromDate = new Date();
+        fromDate.setMonth(now.getMonth() - 1);
+        toDate = new Date();
+        break;
+      case "3months":
+        fromDate = new Date();
+        fromDate.setMonth(now.getMonth() - 3);
+        toDate = new Date();
+        break;
+      case "9months":
+        fromDate = new Date();
+        fromDate.setMonth(now.getMonth() - 9);
+        toDate = new Date();
+        break;
+      case "1year":
+        fromDate = new Date();
+        fromDate.setFullYear(now.getFullYear() - 1);
+        toDate = new Date();
+        break;
+      default:
+        if (startDate && endDate) {
+          fromDate = new Date(startDate);
+          toDate = new Date(endDate);
+        }
+        break;
+    }
+
+    const dateFilter =
+      fromDate && toDate
+        ? {
+            createdAt: {
+              $gte: fromDate,
+              $lte: toDate,
+            },
+          }
+        : {};
+
+    // Previous period
+    const prevDuration = toDate - fromDate;
+    const prevFromDate = new Date(fromDate.getTime() - prevDuration);
+    const prevToDate = new Date(fromDate.getTime());
+
+    const prevDateFilter =
+      fromDate && toDate
+        ? {
+            createdAt: {
+              $gte: prevFromDate,
+              $lte: prevToDate,
+            },
+          }
+        : {};
+
+    const calcChange = (current, previous) => {
+      if (previous === 0) {
+        return current > 0 ? "100.00" : "0.00";
+      }
+      return (((current - previous) / previous) * 100).toFixed(2);
+    };
+
+    // Leads
+    const totalLeads = await createbdleads.countDocuments(dateFilter);
+    const prevTotalLeads = await createbdleads.countDocuments(prevDateFilter);
+
+    // Handovers
+    const totalHandovers = await handoversheet.countDocuments(dateFilter);
+    const prevHandovers = await handoversheet.countDocuments(prevDateFilter);
+
+    // Conversion rate
     const conversionRate =
       totalLeads > 0
         ? ((totalHandovers / totalLeads) * 100).toFixed(2)
         : "0.00";
 
+    const prevConversionRate =
+      prevTotalLeads > 0
+        ? ((prevHandovers / prevTotalLeads) * 100).toFixed(2)
+        : "0.00";
+
+    // Tasks
     const totalAssignedTasks = await task.countDocuments({
       assigned_to: { $exists: true, $not: { $size: 0 } },
+      ...dateFilter,
     });
+
+    const prevAssignedTasks = await task.countDocuments({
+      assigned_to: { $exists: true, $not: { $size: 0 } },
+      ...prevDateFilter,
+    });
+
+    const currentEarningAgg = await handoversheet.aggregate([
+      {
+        $match: {
+          ...dateFilter,
+          other_details: {
+            $exists: true,
+            $ne: null,
+          },
+          "other_details.service": {
+            $regex: /^[0-9.]+$/, // include only number-like strings
+          },
+        },
+      },
+      {
+        $addFields: {
+          numericService: { $toDouble: "$other_details.service" },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$numericService" },
+        },
+      },
+    ]);
+
+    const totalAmountEarned = currentEarningAgg[0]?.total || 0;
+
+    const prevEarningAgg = await handoversheet.aggregate([
+      {
+        $match: {
+          ...prevDateFilter,
+          other_details: { $exists: true, $ne: null },
+          "other_details.service": { $regex: /^[0-9.]+$/ },
+        },
+      },
+      {
+        $addFields: {
+          numericService: { $toDouble: "$other_details.service" },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$numericService" },
+        },
+      },
+    ]);
+
+    const prevAmountEarned = prevEarningAgg[0]?.total || 0;
 
     res.json({
       total_leads: totalLeads,
+      total_leads_change_percentage: +calcChange(totalLeads, prevTotalLeads),
       conversion_rate_percentage: +conversionRate,
+      conversion_rate_change_percentage: +calcChange(
+        +conversionRate,
+        +prevConversionRate
+      ),
       total_assigned_tasks: totalAssignedTasks,
+      total_assigned_tasks_change_percentage: +calcChange(
+        totalAssignedTasks,
+        prevAssignedTasks
+      ),
+      amount_earned: +(totalAmountEarned / 1e7).toFixed(2), // 💰 in Cr
+      amount_earned_change_percentage: +calcChange(
+        totalAmountEarned,
+        prevAmountEarned
+      ),
     });
   } catch (error) {
     console.error("Lead Summary Error:", error);
@@ -1219,7 +1373,6 @@ const updateAssignedTo = async (req, res) => {
   }
 };
 
-
 const exportLeadsCSV = async (req, res) => {
   try {
     const { stage = "", search = "" } = req.query;
@@ -1320,5 +1473,5 @@ module.exports = {
   deleteLead,
   updateAssignedToFromSubmittedBy,
   updateAssignedTo,
-  exportLeadsCSV
+  exportLeadsCSV,
 };
