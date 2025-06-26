@@ -446,7 +446,6 @@ const getLeadSummary = async (req, res) => {
 };
 
 
-
 const getLeadSource = async (req, res) => {
   try {
     const { range, startDate, endDate } = req.query;
@@ -1085,7 +1084,7 @@ const leadFunnel = async (req, res) => {
   }
 };
 
-//lead won and lead lost graph
+
 const leadWonAndLost = async (req, res) => {
   try {
     const { range, startDate, endDate } = req.query;
@@ -1096,19 +1095,15 @@ const leadWonAndLost = async (req, res) => {
     const rangeKeyMap = {
       today: "day",
       "1 day": "day",
-      "one day": "day",
       "1 week": "week",
-      "one week": "week",
       "2 weeks": "2weeks",
-      "two weeks": "2weeks",
       "1 month": "1month",
-      "one month": "1month",
       "3 months": "3months",
       "9 months": "9months",
       "1 year": "1year",
     };
 
-    const normalizedRange = rangeKeyMap[(range || "").toLowerCase()] || range;
+    const normalizedRange = rangeKeyMap[(range || "")] || range;
 
     switch (normalizedRange) {
       case "day":
@@ -1165,7 +1160,6 @@ const leadWonAndLost = async (req, res) => {
       initial: initiallead,
     };
 
-    // Count documents from each model with date filter
     const [wonCount, followUpCount, warmCount, deadCount, initialCount] =
       await Promise.all([
         modelMap.won.countDocuments(dateFilter),
@@ -1195,8 +1189,6 @@ const leadWonAndLost = async (req, res) => {
         ? ((totalHandovers / totalLeads) * 100).toFixed(2)
         : "0.00";
 
-    // ---------------- Monthly Data Calculation -----------------
-
     const monthNames = [
       "Jan",
       "Feb",
@@ -1212,7 +1204,6 @@ const leadWonAndLost = async (req, res) => {
       "Dec",
     ];
 
-    // Aggregation for all models
     const aggregateAll = async (model) => {
       return model.aggregate([
         { $match: dateFilter },
@@ -1237,7 +1228,6 @@ const leadWonAndLost = async (req, res) => {
         aggregateAll(modelMap.initial),
       ]);
 
-    // Combine data
     const monthlyDataMap = {};
 
     const processAggregate = (aggArray, field) => {
@@ -1263,7 +1253,6 @@ const leadWonAndLost = async (req, res) => {
     processAggregate(aggDead, "total");
     processAggregate(aggInitial, "total");
 
-    // Prepare final monthly data
     const monthlyData = Object.values(monthlyDataMap).map((item) => {
       const wonPercentage =
         item.total > 0 ? ((item.won / item.total) * 100).toFixed(2) : "0.00";
@@ -1277,14 +1266,12 @@ const leadWonAndLost = async (req, res) => {
       };
     });
 
-    // Sort by year and month
     monthlyData.sort((a, b) => {
       const monthIndexA = monthNames.indexOf(a.month);
       const monthIndexB = monthNames.indexOf(b.month);
       return monthIndexA - monthIndexB;
     });
 
-    // ---------------- Final Response -----------------
 
     res.json({
       total_leads: totalLeads,
