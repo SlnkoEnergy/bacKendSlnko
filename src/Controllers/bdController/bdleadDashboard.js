@@ -445,10 +445,81 @@ const getLeadSummary = async (req, res) => {
   }
 };
 
-//Lead source summary
+
+
 const getLeadSource = async (req, res) => {
   try {
+    const { range, startDate, endDate } = req.query;
+    const now = new Date();
+    let fromDate, toDate;
+
+    const rangeKeyMap = {
+      today: "day",
+      "1 week": "week",
+      "2 weeks": "2week",
+      "1 month": "1month",
+      "3 months": "3months",
+      "9 months": "9months",
+      "1 year": "1year",
+    };
+
+    const normalizedRange = rangeKeyMap[(range || "").toLowerCase()] || range;
+
+    switch (normalizedRange) {
+      case "day":
+        fromDate = new Date(now.setHours(0, 0, 0, 0));
+        toDate = new Date(now.setHours(23, 59, 59, 999));
+        break;
+      case "week":
+        fromDate = new Date();
+        fromDate.setDate(now.getDate() - 7);
+        toDate = new Date();
+        break;
+      case "2week":
+        fromDate = new Date();
+        fromDate.setDate(now.getDate() - 14);
+        toDate = new Date();
+        break;
+      case "1month":
+        fromDate = new Date();
+        fromDate.setMonth(now.getMonth() - 1);
+        toDate = new Date();
+        break;
+      case "3months":
+        fromDate = new Date();
+        fromDate.setMonth(now.getMonth() - 3);
+        toDate = new Date();
+        break;
+      case "9months":
+        fromDate = new Date();
+        fromDate.setMonth(now.getMonth() - 9);
+        toDate = new Date();
+        break;
+      case "1year":
+        fromDate = new Date();
+        fromDate.setFullYear(now.getFullYear() - 1);
+        toDate = new Date();
+        break;
+      default:
+        if (startDate && endDate) {
+          fromDate = new Date(startDate);
+          toDate = new Date(endDate);
+        }
+        break;
+    }
+
+    const dateFilter =
+      fromDate && toDate
+        ? {
+            createdAt: {
+              $gte: fromDate,
+              $lte: toDate,
+            },
+          }
+        : {};
+
     const leadAggregation = await createbdleads.aggregate([
+      { $match: dateFilter },
       {
         $group: {
           _id: "$source",
@@ -525,6 +596,7 @@ const getLeadSource = async (req, res) => {
       .json({ message: "Internal server error", error: error.message });
   }
 };
+
 
 //task dashboard
 const taskDashboard = async (req, res) => {
