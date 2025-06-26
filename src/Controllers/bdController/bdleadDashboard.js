@@ -8,6 +8,7 @@ const handoversheet = require("../../Modells/handoversheetModells");
 const task = require("../../Modells/BD-Dashboard/task");
 const userModells = require("../../Modells/userModells");
 const mongoose = require("mongoose");
+const { Parser } = require("json2csv");
 
 const updateAssignedToFromSubmittedBy = async (req, res) => {
   const models = [
@@ -1218,6 +1219,92 @@ const updateAssignedTo = async (req, res) => {
   }
 };
 
+
+const exportLeadsCSV = async (req, res) => {
+  try {
+    const { stage = "", search = "" } = req.query;
+    const userId = req.user.userId;
+
+    const stageModelMap = {
+      initial: initiallead,
+      followup: followUpBdleadModells,
+      warm: warmbdLeadModells,
+      won: wonleadModells,
+      dead: deadleadModells,
+    };
+
+    const buildMatchQuery = () => {
+      const query = [
+        {
+          $or: [
+            { c_name: { $regex: search, $options: "i" } },
+            { mobile: { $regex: search, $options: "i" } },
+            { state: { $regex: search, $options: "i" } },
+            { scheme: { $regex: search, $options: "i" } },
+            { submitted_by: { $regex: search, $options: "i" } },
+            { id: { $regex: search, $options: "i" } },
+            { "assigned_user.name": { $regex: search, $options: "i" } },
+          ],
+        },
+        {
+          assigned_to: new mongoose.Types.ObjectId(userId),
+        },
+      ];
+      return { $and: query };
+    };
+
+    const buildPipeline = () => [
+      {
+        $lookup: {
+          from: "users",
+          localField: "assigned_to",
+          foreignField: "_id",
+          as: "assigned_user",
+        },
+      },
+      {
+        $unwind: { path: "$assigned_user", preserveNullAndEmptyArrays: true },
+      },
+      { $match: buildMatchQuery() },
+    ];
+
+    const modelEntries = stage
+      ? [[stage, stageModelMap[stage]]]
+      : Object.entries(stageModelMap);
+
+    let allLeads = [];
+
+    for (const [status, model] of modelEntries) {
+      const leads = await model.aggregate(buildPipeline());
+
+      const mapped = leads.map((item) => ({
+        Status: status,
+        "Lead Id": item.id,
+        Name: item.c_name,
+        Mobile: item.mobile,
+        State: item.state,
+        Scheme: item.scheme,
+        "Capacity (MW)": item.capacity,
+        "Distance (KM)": item.distance,
+        Date: new Date(item.entry_date || item.createdAt).toLocaleDateString(),
+        "Lead Owner": item.assigned_user?.name || "",
+      }));
+
+      allLeads.push(...mapped);
+    }
+
+    const json2csvParser = new Parser();
+    const csv = json2csvParser.parse(allLeads);
+
+    res.header("Content-Type", "text/csv");
+    res.attachment("leads.csv");
+    return res.send(csv);
+  } catch (err) {
+    console.error("CSV Export Error:", err);
+    res.status(500).json({ message: "CSV export failed", error: err.message });
+  }
+};
+
 module.exports = {
   getAllLeads,
   getAllLeadDropdown,
@@ -1233,4 +1320,5 @@ module.exports = {
   deleteLead,
   updateAssignedToFromSubmittedBy,
   updateAssignedTo,
+  exportLeadsCSV
 };
