@@ -53,6 +53,11 @@ const getAllLeads = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = "", stage = "" } = req.query;
     const userId = req.user.userId;
+    const department = req.user.department;
+    const role = req.user.role;
+
+    const isPrivilegedUser =
+      department === "admin" || (department === "BD" && role === "MANAGER");
 
     const stageModelMap = {
       initial: initiallead,
@@ -77,7 +82,7 @@ const getAllLeads = async (req, res) => {
         },
       ];
 
-      if (userId) {
+      if (!isPrivilegedUser) {
         baseQuery.push({ assigned_to: new mongoose.Types.ObjectId(userId) });
       }
 
@@ -216,6 +221,7 @@ const getAllLeads = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
 
 const getAllLeadDropdown = async function (req, res) {
   try {
