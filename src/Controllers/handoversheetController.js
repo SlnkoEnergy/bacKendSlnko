@@ -29,7 +29,7 @@ const createhandoversheet = async function (req, res) {
       other_details,
 
       invoice_detail,
-      status_of_handoversheet: "draft",
+      status_of_handoversheet: req.body.status_of_handoversheet || "draft",
       submitted_by,
     });
 
