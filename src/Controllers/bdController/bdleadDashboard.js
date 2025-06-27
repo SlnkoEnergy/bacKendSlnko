@@ -53,8 +53,16 @@ const getAllLeads = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = "", stage = "" } = req.query;
     const userId = req.user.userId;
-    const department = req.user.department;
-    const role = req.user.role;
+
+    // Fetch user details from database
+    const user = await Users.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const department = user.department;
+    const role = user.role;
 
     const isPrivilegedUser =
       department === "admin" || (department === "BD" && role === "MANAGER");
