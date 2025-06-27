@@ -81,11 +81,11 @@ const getBill = async (req, res) => {
     const data = await addBillModells.find();
     res.status(200).json({ msg: "All Bill Details", data });
   } catch (error) {
-    res.status(500).json({ msg: "Failed to fetch bill details", error: error.message });
+    res
+      .status(500)
+      .json({ msg: "Failed to fetch bill details", error: error.message });
   }
 };
-
-
 
 const getPaginatedBill = async (req, res) => {
   try {
@@ -96,35 +96,29 @@ const getPaginatedBill = async (req, res) => {
     const status = req.query.status?.trim();
     const searchRegex = new RegExp(search, "i");
 
-    const lookupStage = {
-      $lookup: {
-        from: "purchaseorders",
-        localField: "po_number",
-        foreignField: "po_number",
-        as: "poData",
-      },
-    };
+    const matchStage = search
+      ? {
+          $or: [
+            { bill_number: { $regex: searchRegex } },
+            { po_number: { $regex: searchRegex } },
+            { approved_by: { $regex: searchRegex } },
+            { "poData.vendor": { $regex: searchRegex } },
+            { "poData.item": { $regex: searchRegex } },
+          ],
+        }
+      : {};
 
     const pipeline = [
-      lookupStage,
-      { $unwind: { path: "$poData", preserveNullAndEmptyArrays: false } },
-
-      ...(search
-        ? [
-            {
-              $match: {
-                $or: [
-                  { bill_number: { $regex: searchRegex } },
-                  { po_number: { $regex: searchRegex } },
-                  { approved_by: { $regex: searchRegex } },
-                  { "poData.vendor": { $regex: searchRegex } },
-                  { "poData.item": { $regex: searchRegex } },
-                ],
-              },
-            },
-          ]
-        : []),
-
+      {
+        $lookup: {
+          from: "purchaseorders",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "poData",
+        },
+      },
+      { $unwind: "$poData" },
+      { $match: matchStage },
       {
         $group: {
           _id: "$po_number",
@@ -138,12 +132,11 @@ const getPaginatedBill = async (req, res) => {
               bill_date: "$bill_date",
               bill_value: "$bill_value",
               approved_by: "$approved_by",
-              created_on: { $ifNull: ["$updatedAt", "$createdAt"] },
+              created_on: { $ifNull: ["$createdAt", "$created_on"] },
             },
           },
         },
       },
-
       {
         $addFields: {
           po_number: "$_id",
@@ -158,7 +151,6 @@ const getPaginatedBill = async (req, res) => {
           },
         },
       },
-
       {
         $addFields: {
           po_status: {
@@ -168,63 +160,50 @@ const getPaginatedBill = async (req, res) => {
               else: "Bill Pending",
             },
           },
-          po_balance: { $subtract: ["$po_value", "$total_billed"] },
+          po_balance: {
+            $max: [
+              {
+                $cond: {
+                  if: { $eq: ["$po_value", "$total_billed"] },
+                  then: 0,
+                  else: { $subtract: ["$po_value", "$total_billed"] },
+                },
+              },
+              0,
+            ],
+          },
         },
       },
-
-      ...(status
-        ? [
+      ...(status ? [{ $match: { po_status: status } }] : []),
+      {
+        $facet: {
+          paginatedResults: [
+            { $sort: { "bills.created_on": -1 } },
+            { $skip: skip },
+            { $limit: pageSize },
             {
-              $match: {
-                po_status: status,
+              $project: {
+                _id: 0,
+                po_number: 1,
+                p_id: 1,
+                vendor: 1,
+                item: 1,
+                po_value: 1,
+                bills: 1,
+                total_billed: 1,
+                po_status: 1,
+                po_balance: 1,
               },
             },
-          ]
-        : []),
-
-      {
-        $project: {
-          _id: 0,
-          po_number: 1,
-          p_id: 1,
-          vendor: 1,
-          item: 1,
-          po_value: 1,
-          bills: 1,
-          total_billed: 1,
-          po_status: 1,
-          po_balance: 1,
+          ],
+          totalCount: [{ $count: "total" }],
         },
       },
-
-      { $sort: { "bills.updatedAt": -1 } },
-      { $skip: skip },
-      { $limit: pageSize },
     ];
 
-    const countPipeline = [
-      {
-        $match: search
-          ? {
-              $or: [
-                { bill_number: { $regex: searchRegex } },
-                { vendor: { $regex: searchRegex } },
-                { item: { $regex: searchRegex } },
-                { po_number: { $regex: searchRegex } },
-                { approved_by: { $regex: searchRegex } },
-              ],
-            }
-          : {},
-      },
-      { $count: "total" },
-    ];
-
-    const [data, totalArr] = await Promise.all([
-      addBillModells.aggregate(pipeline),
-      addBillModells.aggregate(countPipeline),
-    ]);
-
-    const total = totalArr[0]?.total || 0;
+    const [result] = await addBillModells.aggregate(pipeline);
+    const data = result.paginatedResults || [];
+    const total = result.totalCount[0]?.total || 0;
 
     res.status(200).json({
       msg: "All Bill Detail With PO Data",
@@ -245,6 +224,7 @@ const getPaginatedBill = async (req, res) => {
   }
 };
 
+
 //Bills Export
 
 const exportBills = async (req, res) => {
@@ -259,7 +239,7 @@ const exportBills = async (req, res) => {
       }
 
       matchStage = {
-        bill_date: {
+        created_on: {
           $gte: new Date(from),
           $lte: new Date(to),
         },
@@ -283,7 +263,7 @@ const exportBills = async (req, res) => {
           bill_date: 1,
           bill_value: 1,
           approved_by: 1,
-          created_on: { $ifNull: ["$updatedAt", "$createdAt"] },
+          created_on: { $ifNull: ["$createdAt", "$created_on"] },
           po_number: 1,
           vendor: "$poData.vendor",
           item: "$poData.item",
