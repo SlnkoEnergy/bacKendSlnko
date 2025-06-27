@@ -78,6 +78,17 @@ const addBill = async function (req, res) {
 
 const getBill = async (req, res) => {
   try {
+    const data = await addBillModells.find();
+    res.status(200).json({ msg: "All Bill Details", data });
+  } catch (error) {
+    res.status(500).json({ msg: "Failed to fetch bill details", error: error.message });
+  }
+};
+
+
+
+const getPaginatedBill = async (req, res) => {
+  try {
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 10;
     const skip = (page - 1) * pageSize;
@@ -396,6 +407,7 @@ const bill_approved = async function (req, res) {
 module.exports = {
   addBill,
   getBill,
+  getPaginatedBill,
   updatebill,
   deleteBill,
   bill_approved,

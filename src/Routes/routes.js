@@ -82,6 +82,7 @@ const {
 const {
   addBill,
   getBill,
+  getPaginatedBill,
   updatebill,
   deleteBill,
   bill_approved,
@@ -542,6 +543,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getBill
+);
+router.get(
+  "/get-paginated-bill",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getPaginatedBill
 );
 router.put(
   "/update-bill/:_id",
