@@ -1,5 +1,6 @@
 const { request } = require("express");
 const projectModells = require("../Modells/projectModells");
+const handoversheetModells = require("../Modells/handoversheetModells");
 
 const createProject = async function (req, res) {
   try {
@@ -140,16 +141,25 @@ const deleteProjectById = async function (req, res) {
 
 //view all project
 const getallproject = async function (req, res) {
-  // const page = parseInt(req.query.page) || 1;
-  // const pageSize = 200;
-  // const skip = (page - 1) * pageSize;
+  try {
+    const projects = await projectModells.find();
 
-  let data = await projectModells.find(); 
-  // .sort({ createdAt: -1 }) // Latest first
-  // .skip(skip)
-  // .limit(pageSize);
-  res.status(200).json({ msg: "All Project", data: data });
+    const updatedProjects = await Promise.all(
+      projects.map(async (project) => {
+        const isHandoverPresent = await handoversheetModells.exists({ p_id: project.p_id });
+        return {
+          ...project.toObject(),
+          handover: !!isHandoverPresent
+        };
+      })
+    );
+
+    res.status(200).json({ msg: "All Project", data: updatedProjects });
+  } catch (error) {
+    res.status(500).json({ msg: "Internal Server Error", error: error.message });
+  }
 };
+
 
 //Get Project by ID
 
