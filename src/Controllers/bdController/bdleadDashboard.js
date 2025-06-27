@@ -53,7 +53,7 @@ const getAllLeads = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = "", stage = "" } = req.query;
     const userId = req.user.userId;
-    
+
     const user = await userModells.findById(userId);
 
     if (!user) {
@@ -64,7 +64,7 @@ const getAllLeads = async (req, res) => {
     const role = user.role;
 
     const isPrivilegedUser =
-      department === "admin" || (department === "BD" && role === "MANAGER");
+      department === "admin" || (department === "BD" && role === "manager");
 
     const stageModelMap = {
       initial: initiallead,
