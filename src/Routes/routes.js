@@ -177,6 +177,7 @@ const {
   updateWonLead,
   getwonbyleadid,
   editwon,
+  getAllLeadsProject,
 } = require("../Controllers/initialbdController");
 
 const {
@@ -788,6 +789,9 @@ router.get(
   jwtMW.authorization,
   allbdlead
 );
+
+router.get('/all-leads-projects', jwtMW.authentication, jwtMW.authorization, getAllLeadsProject)
+
 router.get(
   "/get-initial-bd-lead-streams",
   jwtMW.authentication,
