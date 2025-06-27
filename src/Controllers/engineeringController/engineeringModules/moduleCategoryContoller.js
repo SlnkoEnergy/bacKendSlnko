@@ -375,14 +375,13 @@ const updateModuleCategory = async (req, res) => {
 const updateModuleCategoryStatus = async (req, res) => {
   try {
     const { projectId, module_template } = req.params;
-    const { status, remarks } = req.body;
+    const { status, department, text } = req.body;
 
-    if (!status) {
-      return res.status(400).json({ message: "Status is required" });
+    if (!status || !department || !text) {
+      return res.status(400).json({ message: "Status, department, and text are required" });
     }
 
     const moduleCategoryData = await moduleCategory.findOne({ project_id: projectId });
-
     if (!moduleCategoryData) {
       return res.status(404).json({ message: "Module Category not found" });
     }
@@ -393,7 +392,14 @@ const updateModuleCategoryStatus = async (req, res) => {
       if (item.template_id?.toString() === module_template?.toString()) {
         item.status_history.push({
           status,
-          remarks,
+          remarks: [
+            {
+              department,
+              text,
+              user_id: req.user._id,
+              createdAt: new Date(),
+            },
+          ],
           user_id: req.user._id,
           updatedAt: new Date(),
         });
@@ -410,7 +416,7 @@ const updateModuleCategoryStatus = async (req, res) => {
     await moduleCategoryData.save();
 
     res.status(200).json({
-      message: "Module Category Status Updated Successfully",
+      message: "Status and remark pushed successfully",
       data: moduleCategoryData,
     });
   } catch (error) {
@@ -422,7 +428,61 @@ const updateModuleCategoryStatus = async (req, res) => {
 };
 
 
+const addRemarkToModuleCategory = async (req, res) => {
+  try {
+    const { projectId, module_template } = req.params;
+    const { text, department } = req.body;
 
+    if (!text || !department) {
+      return res.status(400).json({ message: "Text and department are required" });
+    }
+
+    const moduleCategoryData = await moduleCategory.findOne({ project_id: projectId });
+    if (!moduleCategoryData) {
+      return res.status(404).json({ message: "Module Category not found" });
+    }
+
+    let templateFound = false;
+
+    for (const item of moduleCategoryData.items) {
+      if (item.template_id?.toString() === module_template?.toString()) {
+        const history = item.status_history;
+        if (!history.length) {
+          return res.status(400).json({ message: "No existing status to attach remarks to." });
+        }
+
+        const latestStatus = history[history.length - 1];
+
+        latestStatus.remarks = latestStatus.remarks || [];
+        latestStatus.remarks.push({
+          department,
+          text,
+          user_id: req.user._id,
+          createdAt: new Date(),
+        });
+
+        templateFound = true;
+        break;
+      }
+    }
+
+    if (!templateFound) {
+      return res.status(404).json({ message: "Template not found" });
+    }
+
+    await moduleCategoryData.save();
+
+    res.status(200).json({
+      message: "Remark added successfully",
+      data: moduleCategoryData,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
 
 const updateAttachmentUrl = async (req, res) => {
   try {
@@ -473,4 +533,5 @@ module.exports = {
   updateModuleCategory,
   updateModuleCategoryStatus,
   updateAttachmentUrl,
+  addRemarkToModuleCategory
 };

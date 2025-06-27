@@ -5,10 +5,10 @@ const boqCategorySchema = new mongoose.Schema({
     description: {type: String, required: true},
     headers:[
         { 
-            _id: false,  // prevent auto _id for each object in headers array
+            _id: false, 
             name: {type: String, required: true},
             key: {type: String, required: true},
-            input_type: {type: String, required: true}, // e.g., text, number, select
+            input_type: {type: String, required: true}, 
             required: {type: Boolean, default: false},
             placeholder: {type: String}
         }

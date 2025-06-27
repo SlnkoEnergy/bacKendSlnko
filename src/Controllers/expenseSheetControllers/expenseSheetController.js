@@ -27,6 +27,7 @@ const getAllExpense = async (req, res) => {
       match.$or = [
         { expense_code: { $regex: search, $options: "i" } },
         { emp_name: { $regex: search, $options: "i" } },
+        { current_status: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -64,25 +65,29 @@ const getAllExpense = async (req, res) => {
     // Apply access control
     if (
       currentUser.department === "superadmin" ||
-      currentUser.department === "admin" ||
-      (currentUser.department === "HR" && currentUser.emp_id !== "SE-208" )
+      currentUser.department === "admin"
+    ) {
+    } else if (
+      currentUser.department === "HR" &&
+      currentUser.emp_id !== "SE-208"
     ) {
       pipeline.push({
         $match: {
           $or: [
-            { current_status: "manager approval"},
+            { current_status: "manager approval" },
             { current_status: "hr approval" },
-            { current_status: "final approval"},
+            { current_status: "final approval" },
+            { current_status: "rejected" },
           ],
         },
       });
     } else if (currentUser.department === "Accounts") {
-      // Accounts sees expenses with status "hr approval"
       pipeline.push({
         $match: {
           $or: [
             { current_status: "hr approval" },
             { current_status: "final approval" },
+            { current_status: "rejected" },
           ],
         },
       });
@@ -103,13 +108,11 @@ const getAllExpense = async (req, res) => {
       });
     }
 
-    // Optional department filter
     if (department) {
       pipeline.push({
         $match: { "user_info.department": department },
       });
     }
-
 
     const totalPipeline = [...pipeline, { $count: "total" }];
     const dataPipeline = [
@@ -175,6 +178,7 @@ const createExpense = async (req, res) => {
         : req.body.data;
 
     const user_id = data.user_id || req.body.user_id;
+
     if (!user_id) {
       return res.status(400).json({ message: "User ID is required" });
     }
@@ -182,13 +186,12 @@ const createExpense = async (req, res) => {
     // Generate unique expense code
     const expense_code = await generateExpenseCode(user_id);
 
-    // Fetch user details
     const user = await User.findById(user_id).select("emp_id name role");
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Define folder path based on user role
     const folderType = user.role === "site" ? "onsite" : "offsite";
     const folderPath = `expense_sheet/${folderType}/${user.emp_id}`;
 
@@ -681,6 +684,7 @@ const getExpensePdf = async (req, res) => {
       .json({ message: "Error fetching PDF", error: error.message });
   }
 };
+
 
 module.exports = {
   getAllExpense,

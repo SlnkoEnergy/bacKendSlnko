@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
-const wonleadSchema = new mongoose.Schema({
+const wonleadSchema = new mongoose.Schema(
+  {
     id: { type: String },
     c_name: { type: String },
     email: { type: String },
@@ -14,23 +15,29 @@ const wonleadSchema = new mongoose.Schema({
     capacity: { type: String },
     distance: { type: String },
     tarrif: { type: String },
-    land: { 
-        available_land: { type: String },
-        land_type: { type: String },
+    land: {
+      available_land: { type: String },
+      land_type: { type: String },
     },
     entry_date: { type: String },
     interest: { type: String },
-    comment:{ type: String,default:" "},
-    loi: { type: String ,default:" "},
-    ppa: { type: String ,default:" "},
-    loa: { type: String ,default:" "},
-    other_remarks: { type: String ,default:" "},
+    comment: { type: String, default: " " },
+    loi: { type: String, default: " " },
+    ppa: { type: String, default: " " },
+    loa: { type: String, default: " " },
+    other_remarks: { type: String, default: " " },
     submitted_by: { type: String },
-    token_money: { type: String,default:" "},
-    group: { type: String,default:" "},
-    reffered_by: { type: String,default:" "},
-    source: { type: String,default:" "},
-    remark: { type: String,default:" "},
-}, { timestamps: true });
+    token_money: { type: String, default: " " },
+    group: { type: String, default: " " },
+    reffered_by: { type: String, default: " " },
+    source: { type: String, default: " " },
+    remark: { type: String, default: " " },
+    assigned_to: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  },
+  { timestamps: true }
+);
 
 module.exports = mongoose.model("wonlead", wonleadSchema);
