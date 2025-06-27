@@ -53,9 +53,8 @@ const getAllLeads = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = "", stage = "" } = req.query;
     const userId = req.user.userId;
-
-    // Fetch user details from database
-    const user = await Users.findById(userId);
+    
+    const user = await userModells.findById(userId);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
