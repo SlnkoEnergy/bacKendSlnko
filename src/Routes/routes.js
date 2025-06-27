@@ -15,6 +15,7 @@ const {
   getallproject,
   deleteProjectById,
   getProjectById,
+  getProjectbyPId,
 } = require("../Controllers/ProjectController");
 const {
   userRegister,
@@ -294,7 +295,8 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getProjectById
-); //get project by id
+); 
+router.get('/project', jwtMW.authentication, jwtMW.authorization, getProjectbyPId);
 
 //addMoney APi
 router.post(

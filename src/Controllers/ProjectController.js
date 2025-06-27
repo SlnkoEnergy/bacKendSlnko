@@ -165,7 +165,7 @@ const getallproject = async function (req, res) {
 
 const getProjectById = async function (req, res) {
   try {
-    const id = req.params._id; // Project ID from the request params
+    const id = req.params._id; 
     const project = await projectModells.findById(id);
 
     if (!project) {
@@ -180,10 +180,37 @@ const getProjectById = async function (req, res) {
   }
 };
 
+const getProjectbyPId = async(req, res) => {
+  try {
+    const {p_id} = req.query;
+    if(!p_id){
+      return res.status(404).json({
+        message:"P_id not found"
+      })
+    }
+    let query = {};
+    if(p_id){
+      query.p_id = p_id;
+    }
+
+    const project = await projectModells.find(query);
+    res.status(200).json({
+      message:"Project Data fetched successfully",
+      data:project
+    })
+  } catch (error) {
+    res.status(500).json({
+      message:"Internal Server Error",
+      error: error.message
+    })
+  }
+}
+
 module.exports = {
   createProject,
   updateProject,
   getallproject,
   deleteProjectById,
   getProjectById,
+  getProjectbyPId
 };
