@@ -10,6 +10,7 @@ const createhandoversheet = async function (req, res) {
   try {
     const {
       id,
+      p_id,
       customer_details,
       order_details,
       project_detail,
@@ -21,13 +22,12 @@ const createhandoversheet = async function (req, res) {
 
     const handoversheet = new hanoversheetmodells({
       id,
-
+      p_id,
       customer_details,
       order_details,
       project_detail,
       commercial_details,
       other_details,
-
       invoice_detail,
       status_of_handoversheet: req.body.status_of_handoversheet || "draft",
       submitted_by,
