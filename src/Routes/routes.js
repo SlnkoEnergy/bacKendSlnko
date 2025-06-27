@@ -85,6 +85,7 @@ const {
   updatebill,
   deleteBill,
   bill_approved,
+  exportBills,
 } = require("../Controllers/billController");
 const {
   subtractmoney,
@@ -204,7 +205,6 @@ const {
   deletemodulemaster,
 } = require("../Controllers/moduleMasterController");
 // const { deleteOne } = require("../Modells/moduleMasterModells");
-
 
 const {
   createExpense,
@@ -566,6 +566,12 @@ router.put(
   jwtMW.authentication,
   jwtMW.authorization,
   bill_approved
+);
+router.get(
+  "/get-export-bill",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  exportBills
 );
 
 //subtractmoney-debitmoney
@@ -1009,14 +1015,44 @@ router.put(
   editwarm
 );
 
-//handdoversheet 
-router.post("/create-hand-over-sheet", jwtMW.authentication,jwtMW.authorization,createhandoversheet);
-router.get("/get-all-handover-sheet",jwtMW.authentication,jwtMW.authorization,gethandoversheetdata);
-router.put("/edit-hand-over-sheet/:_id",jwtMW.authentication,jwtMW.authorization,edithandoversheetdata);
-router.put("/update-status/:_id",jwtMW.authentication,jwtMW.authorization,updatestatus);
-router.post("/check/:_id",jwtMW.authentication,jwtMW.authorization,checkid);
-router.get("/get-handoversheet",jwtMW.authentication,jwtMW.authorization,getByIdOrLeadId);
-router.get("/search/:letter",jwtMW.authentication,jwtMW.authorization,search);
+//handdoversheet
+router.post(
+  "/create-hand-over-sheet",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  createhandoversheet
+);
+router.get(
+  "/get-all-handover-sheet",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  gethandoversheetdata
+);
+router.put(
+  "/edit-hand-over-sheet/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  edithandoversheetdata
+);
+router.put(
+  "/update-status/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updatestatus
+);
+router.post("/check/:_id", jwtMW.authentication, jwtMW.authorization, checkid);
+router.get(
+  "/get-handoversheet",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getByIdOrLeadId
+);
+router.get(
+  "/search/:letter",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  search
+);
 
 //module master
 router.post(
@@ -1043,7 +1079,6 @@ router.delete(
   jwtMW.authorization,
   deletemodulemaster
 );
-
 
 //Expense Sheet
 router.get(
