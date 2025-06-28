@@ -1435,20 +1435,12 @@ const allbdlead = async function(req,res){
 }
 
 // for project table 
-const getAllLeadsProject = async (req, res) => {
+const getAllWonLeadsProject = async (req, res) => {
   try {
-    const initialdata = await initialbdleadModells.find({}, { id: 1, c_name: 1, _id: 0 });
-    const followupdata = await followUpleadMpodells.find({}, { id: 1, c_name: 1, _id: 0 });
-    const warmdata = await warmleadModells.find({}, { id: 1, c_name: 1, _id: 0 });
     const wondata = await wonleadModells.find({}, { id: 1, c_name: 1, _id: 0 });
-    const deaddata = await deadleadModells.find({}, { id: 1, c_name: 1, _id: 0 });
 
     const allLeads = [
-      ...initialdata,
-      ...followupdata,
-      ...warmdata,
       ...wondata,
-      ...deaddata,
     ];
 
     res.status(200).json({ message: "All Leads", data: allLeads });
@@ -1509,5 +1501,5 @@ module.exports = {
   updatewon,
   updateWonLead,
   getwonbyleadid,
-  getAllLeadsProject
+  getAllWonLeadsProject
 }
