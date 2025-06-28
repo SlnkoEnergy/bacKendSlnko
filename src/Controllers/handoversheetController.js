@@ -45,13 +45,6 @@ const createhandoversheet = async function (req, res) {
       });
 
       await moduleCategoryData.save();
-
-      return res.status(200).json({
-        message: "Status updated, new moduleCategory created successfully",
-        handoverSheet: handoversheet,
-        project: projectData,
-        data: moduleCategoryData,
-      });
     }
 
     await handoversheet.save();
