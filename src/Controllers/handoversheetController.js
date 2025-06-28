@@ -34,7 +34,7 @@ const createhandoversheet = async function (req, res) {
       return res.status(400).json({ message: "Handoversheet already exists" });
     }
 
-    if (status_of_handoversheet === "Approved" && is_locked === "locked") {
+    if (req.body.status_of_handoversheet === "Approved" && req.body.is_locked === "locked") {
       const projectData = await projectModels.findOne({ p_id: p_id });
       if (!projectData) {
         return res.status(404).json({ message: "Project not found" });
