@@ -1434,6 +1434,21 @@ const allbdlead = async function(req,res){
   }
 }
 
+// for project table 
+const getAllWonLeadsProject = async (req, res) => {
+  try {
+    const wondata = await wonleadModells.find({}, { id: 1, c_name: 1, _id: 0 });
+
+    const allLeads = [
+      ...wondata,
+    ];
+
+    res.status(200).json({ message: "All Leads", data: allLeads });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 //updater won lead
 
 const updateWonLead = async function (req, res) {
@@ -1485,5 +1500,6 @@ module.exports = {
   deadtowon,
   updatewon,
   updateWonLead,
-  getwonbyleadid
+  getwonbyleadid,
+  getAllWonLeadsProject
 }
