@@ -207,10 +207,7 @@ const login = async function (req, res) {
     }
 
     // Combine all identity fields into a single search term
-    const identity =
-      (name && name.toLowerCase()) ||
-      (emp_id && emp_id.toLowerCase()) ||
-      (email && email.toLowerCase());
+    const identity = name || emp_id || email;
 
     if (!identity) {
       return res
@@ -267,6 +264,30 @@ const getSingleUser = async function (req, res) {
   }
 };
 
+const getAllUserByDepartment = async (req, res) => {
+   try {
+    const projection = "_id name";
+    const {department} = req.query;
+    if(!department){
+     return res.status(404).json({message:"Department is required"});
+    }
+    let query = {};
+    if(department){
+      query.department = department;
+    }
+    const data = await userModells.find(query, projection);
+    res.status(200).json({
+      message:"All user fetched successfully",
+      data:data
+    })
+   } catch (error) {
+     res.status(500).json({
+      message:"Internal Server Error",
+      error:error.message
+     })
+   }
+}
+
 module.exports = {
   userRegister,
   login,
@@ -274,7 +295,7 @@ module.exports = {
   forgettpass,
   verifyOtp,
   verifyandResetPassword,
-
   deleteUser,
   getSingleUser,
+  getAllUserByDepartment
 };

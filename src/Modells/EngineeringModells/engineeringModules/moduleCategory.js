@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
-const updateModuleCategoryStatus = require("../../../middlewares/engineeringMiddlewares/updateModuleCategory");
+const updateCurrentStatusItems = require("../../../utils/updateCurrentStatusItems");
+const updateAttachmentUrlStatus = require("../../../middlewares/engineeringMiddlewares/updateAttachementUrlStatus");
 
 const moduleCategorySchema = new mongoose.Schema(
   {
@@ -9,22 +10,45 @@ const moduleCategorySchema = new mongoose.Schema(
     },
     items: [
       {
-        category_id: {
+        template_id: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: "moduleCategory",
+          ref: "moduleTemplates",
         },
-        attachment_url: {
-          type: String,
-        },
+        attachment_urls: [
+          [
+            {
+              type: String,
+            },
+          ],
+        ],
+        current_attachment: [
+          {
+            type: String,
+          },
+        ],
         status_history: [
           {
             status: {
               type: String,
-              enum: ["draft", "active", "archived"],
+              enum: ["draft", "submitted", "revised", "approved", "hold"],
             },
-            remarks: {
-              type: String,
-            },
+            remarks: [
+              {
+                department: {
+                  type: String,
+                  enum: ["CAM", "Engineering", "Projects"],
+                },
+                text: String,
+                user_id: {
+                  type: mongoose.Schema.Types.ObjectId,
+                  ref: "User",
+                },
+                createdAt: {
+                  type: Date,
+                  default: Date.now,
+                },
+              },
+            ],
             user_id: {
               type: mongoose.Schema.Types.ObjectId,
               ref: "User",
@@ -33,8 +57,31 @@ const moduleCategorySchema = new mongoose.Schema(
           },
         ],
         current_status: {
-          type: String,
-          enum: ["draft", "active", "archived"],
+          status: {
+            type: String,
+            enum: ["draft", "submitted", "revised", "approved", "hold"],
+          },
+          remarks: [
+            {
+              department: {
+                type: String,
+                enum: ["CAM", "Engineering", "Projects"],
+              },
+              text: String,
+              user_id: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+              },
+              createdAt: {
+                type: Date,
+                default: Date.now,
+              },
+            },
+          ],
+          updatedAt: {
+            type: Date,
+            default: Date.now,
+          },
         },
       },
     ],
@@ -43,7 +90,12 @@ const moduleCategorySchema = new mongoose.Schema(
 );
 
 moduleCategorySchema.pre("save", function (next) {
-  updateModuleCategoryStatus(this);
+  updateCurrentStatusItems(this, "status_history", "current_status");
+  next();
+});
+
+moduleCategorySchema.pre("save", function (next) {
+  updateAttachmentUrlStatus(this, "attachment_urls", "current_attachment");
   next();
 });
 
