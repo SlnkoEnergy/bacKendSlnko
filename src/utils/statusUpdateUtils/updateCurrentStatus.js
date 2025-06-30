@@ -8,10 +8,11 @@ function updateCurrentStatus(
   if (history && history.length > 0) {
     doc[currentStatusKey] = history[history.length - 1];
   } else {
-    doc[currentStatusKey.status] = "draft";
-    doc[currentStatusKey.remarks] = "";
-    doc[currentStatusKey.user_id] = null; 
+    doc[currentStatusKey] = {
+      status: "draft",
+      remarks: "",
+      user_id: null,
+    };
   }
 }
-
 module.exports = updateCurrentStatus;

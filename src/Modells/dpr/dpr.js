@@ -9,10 +9,15 @@ const dprSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "projectDetail",
     },
+    assigned_to: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
     status_history: [
       {
         status: {
           type: String,
+          enum:["completed", "in progress", "pending", "ideal", "draft"]
         },
         remarks: { type: String },
         user_id: {
@@ -22,13 +27,14 @@ const dprSchema = new mongoose.Schema(
       },
     ],
     current_status: {
+      status: {
+        type: String,
+        enum:["completed", "in progress", "pending", "ideal", "draft"]
+      },
+      remarks: { type: String },
       user_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-      },
-      remarks: { type: String },
-      status: {
-        type: String,
       },
     },
     createdBy: {
@@ -44,4 +50,4 @@ dprSchema.pre("save", async function (next) {
   next();
 });
 
-const Dpr = mongoose.model("Dpr", dprSchema);
+module.exports = mongoose.model("Dpr", dprSchema);

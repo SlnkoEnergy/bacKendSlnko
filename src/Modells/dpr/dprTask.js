@@ -15,6 +15,7 @@ const dprTaskSchema = new mongoose.Schema(
       {
         status: {
           type: String,
+          enum:["completed", "in progress", "pending", "ideal", "draft"]
         },
         remarks: { type: String },
         user_id: {
@@ -23,6 +24,10 @@ const dprTaskSchema = new mongoose.Schema(
         },
         quantity: { type: Number, required: true },
         updatedAt: { type: Date, default: Date.now },
+        assigned_to: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
       },
     ],
     current_log: {
@@ -35,6 +40,11 @@ const dprTaskSchema = new mongoose.Schema(
       updatedAt: { type: Date, default: Date.now },
       status: {
         type: String,
+        enum:["completed", "in progress", "pending", "ideal", "draft"]
+      },
+      assigned_to: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
       },
     },
   },
