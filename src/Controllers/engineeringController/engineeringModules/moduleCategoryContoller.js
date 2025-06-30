@@ -4,6 +4,8 @@ const projectDetail = require("../../../Modells/projectModells");
 const FormData = require("form-data");
 const moduleTemplates = require("../../../Modells/EngineeringModells/engineeringModules/moduleTemplate");
 const mongoose = require("mongoose");
+const handoversheetModells = require("../../../Modells/handoversheetModells");
+const projectModells = require("../../../Modells/projectModells");
 
 const createModuleCategory = async (req, res) => {
   try {
@@ -526,6 +528,42 @@ const updateAttachmentUrl = async (req, res) => {
   }
 };
 
+const updateModuleCategoryDB = async (req, res) => {
+  try {
+    const handovers = await handoversheetModells.find({ p_id: { $exists: true, $ne: null } });
+
+    const results = await Promise.all(
+      handovers.map(async (handover) => {
+        const project = await projectModells.findOne({ p_id: handover.p_id });
+        if (!project) return null;
+
+
+        let ModuleCategorys = await moduleCategory.findOne({ project_id: project._id });
+        if (!ModuleCategorys) {
+          ModuleCategorys = await moduleCategory.create({
+            project_id: project._id,
+            items: []
+          });
+        }
+
+        return {
+          handover_id: handovers._id,
+          project_id: project._id,
+          moduleCategory_id: ModuleCategorys._id
+        };
+      })
+    );
+
+    const filteredResults = results.filter(Boolean);
+
+    res.status(200).json({ message: "ModuleCategory DB updated", data: filteredResults });
+  } catch (error) {
+    console.error("updateModuleCategoryDB error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
 module.exports = {
   createModuleCategory,
   getModuleCategory,
@@ -533,5 +571,6 @@ module.exports = {
   updateModuleCategory,
   updateModuleCategoryStatus,
   updateAttachmentUrl,
-  addRemarkToModuleCategory
+  addRemarkToModuleCategory,
+  updateModuleCategoryDB
 };

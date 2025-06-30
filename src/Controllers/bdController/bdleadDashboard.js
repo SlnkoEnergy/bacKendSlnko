@@ -54,6 +54,18 @@ const getAllLeads = async (req, res) => {
     const { page = 1, limit = 10, search = "", stage = "" } = req.query;
     const userId = req.user.userId;
 
+    const user = await userModells.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const department = user.department;
+    const role = user.role;
+
+    const isPrivilegedUser =
+      department === "admin" || (department === "BD" && role === "manager");
+
     const stageModelMap = {
       initial: initiallead,
       followup: followUpBdleadModells,
@@ -77,7 +89,7 @@ const getAllLeads = async (req, res) => {
         },
       ];
 
-      if (userId) {
+      if (!isPrivilegedUser) {
         baseQuery.push({ assigned_to: new mongoose.Types.ObjectId(userId) });
       }
 
@@ -216,6 +228,7 @@ const getAllLeads = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
 
 const getAllLeadDropdown = async function (req, res) {
   try {
@@ -1520,6 +1533,9 @@ const exportLeadsCSV = async (req, res) => {
     res.status(500).json({ message: "CSV export failed", error: err.message });
   }
 };
+
+
+
 
 module.exports = {
   getAllLeads,

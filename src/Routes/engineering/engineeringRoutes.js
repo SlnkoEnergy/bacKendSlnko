@@ -28,6 +28,7 @@ const {
   getModuleCategory,
   createModuleCategory,
   addRemarkToModuleCategory,
+  updateModuleCategoryDB,
 } = require("../../Controllers/engineeringController/engineeringModules/moduleCategoryContoller");
 const {
   updateModuleTemplateCategoryId,
@@ -136,6 +137,12 @@ router.put(
   jwtMW.authorization,
   addRemarkToModuleCategory
 );
+router.put(
+  "/moduleCatgoryDB",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateModuleCategoryDB
+)
 
 // Boq Categories
 router.post(
