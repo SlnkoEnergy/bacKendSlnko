@@ -1,8 +1,4 @@
-const boqProject = require("../Modells/EngineeringModells/boq/boqProject");
-const boqTemplate = require("../Modells/EngineeringModells/boq/boqTemplate");
 const moduleCategory = require("../Modells/EngineeringModells/engineeringModules/moduleCategory");
-const moduleTemplate = require("../Modells/EngineeringModells/engineeringModules/moduleTemplate");
-const handoversheetModells = require("../Modells/handoversheetModells");
 const hanoversheetmodells = require("../Modells/handoversheetModells");
 const projectmodells = require("../Modells/projectModells");
 
@@ -10,6 +6,7 @@ const createhandoversheet = async function (req, res) {
   try {
     const {
       id,
+      p_id,
       customer_details,
       order_details,
       project_detail,
@@ -21,15 +18,14 @@ const createhandoversheet = async function (req, res) {
 
     const handoversheet = new hanoversheetmodells({
       id,
-
+      p_id,
       customer_details,
       order_details,
       project_detail,
       commercial_details,
       other_details,
-
       invoice_detail,
-      status_of_handoversheet: "draft",
+      status_of_handoversheet: req.body.status_of_handoversheet || "draft",
       submitted_by,
     });
 
@@ -38,7 +34,18 @@ const createhandoversheet = async function (req, res) {
       return res.status(400).json({ message: "Handoversheet already exists" });
     }
 
-   
+    if (req.body.status_of_handoversheet === "Approved" && req.body.is_locked === "locked") {
+      const projectData = await projectmodells.findOne({ p_id: p_id });
+      if (!projectData) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      const moduleCategoryData = new moduleCategory({
+        project_id: projectData._id,
+      });
+
+      await moduleCategoryData.save();
+    }
 
     await handoversheet.save();
 
@@ -58,7 +65,7 @@ const gethandoversheetdata = async function (req, res) {
     const limit = 10;
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
-    const statusFilter = req.query.status; // e.g., "submitted,approved"
+    const statusFilter = req.query.status; 
 
     const matchConditions = { $and: [] };
 

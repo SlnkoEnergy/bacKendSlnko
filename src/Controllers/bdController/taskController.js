@@ -4,6 +4,7 @@ const Warm = require("../../Modells/warmbdLeadModells");
 const Won = require("../../Modells/wonleadModells");
 const Dead = require("../../Modells/deadleadModells");
 const BDtask = require("../../Modells/BD-Dashboard/task");
+const userModells = require("../../Modells/userModells");
 
 const createTask = async (req, res) => {
   try {
@@ -111,14 +112,23 @@ const getAllTask = async (req, res) => {
     const userId = req.user.userId;
     const { type } = req.query;
 
-    const matchQuery = {
-      $or: [
+    const user = await userModells.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const isPrivilegedUser =
+      user.department === "admin" || (user.department === "BD" && user.role === "manager");
+
+    const matchQuery = {};
+
+    if (!isPrivilegedUser) {
+      matchQuery.$or = [
         { assigned_to: { $in: [userId] } },
         { user_id: userId },
-      ],
-    };
+      ];
+    }
 
-    // Add type filter if provided
     if (type) {
       matchQuery.type = type;
     }
@@ -169,6 +179,7 @@ const getAllTask = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 
 const getAllTaskByAssigned = async (req, res) => {
   try {

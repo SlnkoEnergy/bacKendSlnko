@@ -1,5 +1,6 @@
 const { request } = require("express");
 const projectModells = require("../Modells/projectModells");
+const handoversheetModells = require("../Modells/handoversheetModells");
 
 const createProject = async function (req, res) {
   try {
@@ -140,22 +141,31 @@ const deleteProjectById = async function (req, res) {
 
 //view all project
 const getallproject = async function (req, res) {
-  // const page = parseInt(req.query.page) || 1;
-  // const pageSize = 200;
-  // const skip = (page - 1) * pageSize;
+  try {
+    const projects = await projectModells.find();
 
-  let data = await projectModells.find(); 
-  // .sort({ createdAt: -1 }) // Latest first
-  // .skip(skip)
-  // .limit(pageSize);
-  res.status(200).json({ msg: "All Project", data: data });
+    const updatedProjects = await Promise.all(
+      projects.map(async (project) => {
+        const isHandoverPresent = await handoversheetModells.exists({ p_id: project.p_id });
+        return {
+          ...project.toObject(),
+          handover: !!isHandoverPresent
+        };
+      })
+    );
+
+    res.status(200).json({ msg: "All Project", data: updatedProjects });
+  } catch (error) {
+    res.status(500).json({ msg: "Internal Server Error", error: error.message });
+  }
 };
+
 
 //Get Project by ID
 
 const getProjectById = async function (req, res) {
   try {
-    const id = req.params._id; // Project ID from the request params
+    const id = req.params._id; 
     const project = await projectModells.findById(id);
 
     if (!project) {
@@ -170,10 +180,37 @@ const getProjectById = async function (req, res) {
   }
 };
 
+const getProjectbyPId = async(req, res) => {
+  try {
+    const {p_id} = req.query;
+    if(!p_id){
+      return res.status(404).json({
+        message:"P_id not found"
+      })
+    }
+    let query = {};
+    if(p_id){
+      query.p_id = p_id;
+    }
+
+    const project = await projectModells.find(query);
+    res.status(200).json({
+      message:"Project Data fetched successfully",
+      data:project
+    })
+  } catch (error) {
+    res.status(500).json({
+      message:"Internal Server Error",
+      error: error.message
+    })
+  }
+}
+
 module.exports = {
   createProject,
   updateProject,
   getallproject,
   deleteProjectById,
   getProjectById,
+  getProjectbyPId
 };
