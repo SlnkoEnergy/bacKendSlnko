@@ -486,6 +486,37 @@ const addRemarkToModuleCategory = async (req, res) => {
   }
 };
 
+const getStatusHistoryForModuleCategory = async (req, res) => {
+  try {
+    const { projectId, module_template } = req.params;
+
+    const moduleCategoryData = await moduleCategory.findOne({ project_id: projectId });
+
+    if (!moduleCategoryData) {
+      return res.status(404).json({ message: "Module Category not found" });
+    }
+
+    const matchedItem = moduleCategoryData.items.find(
+      (item) => item.template_id?.toString() === module_template?.toString()
+    );
+
+    if (!matchedItem) {
+      return res.status(404).json({ message: "Template not found in module category" });
+    }
+
+    res.status(200).json({
+      message: "Status history fetched successfully",
+      status_history: matchedItem.status_history || [],
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+
 const updateAttachmentUrl = async (req, res) => {
   try {
     const { categoryId, itemId } = req.params;
@@ -572,5 +603,6 @@ module.exports = {
   updateModuleCategoryStatus,
   updateAttachmentUrl,
   addRemarkToModuleCategory,
-  updateModuleCategoryDB
+  updateModuleCategoryDB,
+  getStatusHistoryForModuleCategory
 };
