@@ -224,24 +224,37 @@ const getPaginatedBill = async (req, res) => {
   }
 };
 
-
-//Bills Export
+//Bills Exports
 
 const exportBills = async (req, res) => {
   try {
     const { from, to, export: exportAll } = req.query;
 
     let matchStage = {};
+    const parseDate = (str) => {
+      const [day, month, year] = str.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    };
 
     if (exportAll !== "all") {
       if (!from || !to) {
         return res.status(400).json({ msg: "from and to dates are required" });
       }
 
+      const fromDate = parseDate(from);
+      const toDate = parseDate(to);
+      toDate.setHours(23, 59, 59, 999);
+
       matchStage = {
-        created_on: {
-          $gte: new Date(from),
-          $lte: new Date(to),
+        $expr: {
+          $and: [
+            {
+              $gte: [{ $ifNull: ["$createdAt", "$created_on"] }, fromDate],
+            },
+            {
+              $lte: [{ $ifNull: ["$createdAt", "$created_on"] }, toDate],
+            },
+          ],
         },
       };
     }
@@ -265,6 +278,7 @@ const exportBills = async (req, res) => {
           approved_by: 1,
           created_on: { $ifNull: ["$createdAt", "$created_on"] },
           po_number: 1,
+          p_id: "$poData.p_id",
           vendor: "$poData.vendor",
           item: "$poData.item",
           po_value: "$poData.po_value",
@@ -276,22 +290,26 @@ const exportBills = async (req, res) => {
 
     const formattedBills = bills.map((bill) => ({
       ...bill,
-      bill_value: bill.bill_value?.toLocaleString("en-IN"),
-      po_value: bill.po_value?.toLocaleString("en-IN"),
-      bill_date: new Date(bill.bill_date).toLocaleDateString("en-GB"),
-      created_on: new Date(bill.created_on).toLocaleString("en-GB"),
+      bill_value: Number(bill.bill_value)?.toLocaleString("en-IN"),
+      po_value: Number(bill.po_value)?.toLocaleString("en-IN"),
+      bill_date: bill.bill_date
+        ? new Date(bill.bill_date).toLocaleDateString("en-GB")
+        : "",
+      created_on: bill.created_on
+        ? new Date(bill.created_on).toLocaleString("en-GB")
+        : "",
     }));
 
     const fields = [
+      "p_id",
       "bill_number",
       "bill_date",
       "bill_value",
-      "approved_by",
       "created_on",
       "po_number",
       "vendor",
       "item",
-      "po_value",
+      "approved_by",
     ];
 
     const json2csvParser = new Parser({ fields, quote: '"' });
