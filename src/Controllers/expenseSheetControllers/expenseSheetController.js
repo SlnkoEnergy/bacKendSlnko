@@ -334,7 +334,7 @@ const updateExpenseStatusOverall = async (req, res) => {
     expense.status_history.push({
       status,
       remarks: remarks || "",
-      user_id: req.user._id,
+      user_id: req.user.userId,
       updatedAt: new Date(),
     });
 
@@ -344,14 +344,17 @@ const updateExpenseStatusOverall = async (req, res) => {
       Array.isArray(expense.items) &&
       (status === "manager approval" ||
         status === "rejected" ||
-        status === "hold")
+        status === "hold" ||
+        status === "hr approval" ||
+        status === "final approval"
+      )
     ) {
       expense.items = expense.items.map((item) => {
         item.item_status_history = item.item_status_history || [];
         item.item_status_history.push({
           status,
           remarks: remarks || "",
-          user_id: req.user._id,
+          user_id: req.user.userId,
           updatedAt: new Date(),
         });
 
@@ -408,7 +411,7 @@ const updateExpenseStatusItems = async (req, res) => {
     item.item_status_history.push({
       status,
       remarks: remarks || "",
-      user_id: req.user._id,
+      user_id: req.user.userId,
       updatedAt: new Date(),
     });
 
