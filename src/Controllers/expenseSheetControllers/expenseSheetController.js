@@ -291,7 +291,7 @@ const updateDisbursementDate = async (req, res) => {
       return res.status(404).json({ error: "Expense Sheet not found" });
     }
 
-    if (expense.current_status !== "final approval") {
+    if (expense.current_status.status !== "final approval" || expense.current_status !== "final approval") {
       return res
         .status(400)
         .json({ error: "Expense Sheet is not in final approval status" });
