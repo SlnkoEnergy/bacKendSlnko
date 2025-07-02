@@ -398,11 +398,11 @@ const updateModuleCategoryStatus = async (req, res) => {
             {
               department,
               text,
-              user_id: req.user._id,
+              user_id: req.user.userId,
               createdAt: new Date(),
             },
           ],
-          user_id: req.user._id,
+          user_id: req.user.userId,
           updatedAt: new Date(),
         });
 
@@ -490,7 +490,10 @@ const getStatusHistoryForModuleCategory = async (req, res) => {
   try {
     const { projectId, module_template } = req.params;
 
-    const moduleCategoryData = await moduleCategory.findOne({ project_id: projectId });
+    const moduleCategoryData = await moduleCategory
+      .findOne({ project_id: projectId })
+      .populate("items.status_history.user_id", "_id name")
+      .populate("items.status_history.remarks.user_id", "_id name"); 
 
     if (!moduleCategoryData) {
       return res.status(404).json({ message: "Module Category not found" });
@@ -515,6 +518,8 @@ const getStatusHistoryForModuleCategory = async (req, res) => {
     });
   }
 };
+
+
 
 
 const updateAttachmentUrl = async (req, res) => {
