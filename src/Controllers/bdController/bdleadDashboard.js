@@ -51,8 +51,26 @@ const updateAssignedToFromSubmittedBy = async (req, res) => {
 // Get All Leads
 const getAllLeads = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "", stage = "" } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      stage = "",
+      fromDate,
+      toDate,
+    } = req.query;
     const userId = req.user.userId;
+
+    const user = await userModells.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const department = user.department;
+    const role = user.role;
+
+    const isPrivilegedUser =
+      department === "admin" || (department === "BD" && role === "manager");
 
     const stageModelMap = {
       initial: initiallead,
@@ -77,8 +95,22 @@ const getAllLeads = async (req, res) => {
         },
       ];
 
-      if (userId) {
+      if (!isPrivilegedUser) {
         baseQuery.push({ assigned_to: new mongoose.Types.ObjectId(userId) });
+      }
+
+      if (fromDate && toDate) {
+        const start = new Date(fromDate);
+        const end = new Date(toDate);
+        if (toDate) {
+          end.setHours(23, 59, 59, 999);
+        }
+        baseQuery.push({
+          createdAt: {
+            $gte: start,
+            $lte: end,
+          },
+        });
       }
 
       if (extraMatch) {
@@ -120,7 +152,6 @@ const getAllLeads = async (req, res) => {
 
     if (stage && stageModelMap[stage]) {
       const model = stageModelMap[stage];
-
       const data = await model.aggregate(buildPipeline());
 
       const total = await model.aggregate([
@@ -157,6 +188,7 @@ const getAllLeads = async (req, res) => {
           name: item.assigned_user?.name || "",
         },
         status: stage,
+        createdAt: item.createdAt,
       }));
 
       return res.status(200).json({
@@ -173,7 +205,6 @@ const getAllLeads = async (req, res) => {
       await Promise.all(
         Object.entries(stageModelMap).map(async ([stageName, model]) => {
           const leads = await model.aggregate(buildPipeline({}, false));
-
           return leads.map((item) => ({
             _id: item._id,
             id: item.id,
@@ -191,12 +222,27 @@ const getAllLeads = async (req, res) => {
               name: item.assigned_user?.name || "",
             },
             status: stageName,
+            createdAt: item.createdAt,
           }));
         })
       )
     ).flat();
 
-    const sortedLeads = allLeads.sort(
+    const start = new Date(fromDate);
+    const end = new Date(toDate);
+    
+    console.log("Start Date:", start);
+    console.log("End Date:", end);
+
+    const filteredLeads =
+      fromDate && toDate
+        ? allLeads.filter((lead) => {
+            const created = new Date(lead.createdAt);
+            return created >= start && created <= end;
+          })
+        : allLeads;
+
+    const sortedLeads = filteredLeads.sort(
       (a, b) =>
         new Date(b.entry_date || b.createdAt) -
         new Date(a.entry_date || a.createdAt)
@@ -213,7 +259,7 @@ const getAllLeads = async (req, res) => {
       leads: paginatedLeads,
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json({ message: "Internal Server error", error: error.message });
   }
 };
 
@@ -445,7 +491,6 @@ const getLeadSummary = async (req, res) => {
   }
 };
 
-
 const getLeadSource = async (req, res) => {
   try {
     const { range, startDate, endDate } = req.query;
@@ -599,7 +644,6 @@ const getLeadSource = async (req, res) => {
       .json({ message: "Internal server error", error: error.message });
   }
 };
-
 
 //task dashboard
 const taskDashboard = async (req, res) => {
@@ -1088,7 +1132,6 @@ const leadFunnel = async (req, res) => {
   }
 };
 
-
 const leadWonAndLost = async (req, res) => {
   try {
     const { range, startDate, endDate } = req.query;
@@ -1107,7 +1150,7 @@ const leadWonAndLost = async (req, res) => {
       "1 year": "1year",
     };
 
-    const normalizedRange = rangeKeyMap[(range || "")] || range;
+    const normalizedRange = rangeKeyMap[range || ""] || range;
 
     switch (normalizedRange) {
       case "day":
@@ -1275,7 +1318,6 @@ const leadWonAndLost = async (req, res) => {
       const monthIndexB = monthNames.indexOf(b.month);
       return monthIndexA - monthIndexB;
     });
-
 
     res.json({
       total_leads: totalLeads,

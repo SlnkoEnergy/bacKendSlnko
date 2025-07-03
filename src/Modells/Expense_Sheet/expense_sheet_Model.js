@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
-const updateCurrentStatus = require("../../utils/updateCurrentStatus");
-const updateCurrentStatusItems = require("../../utils/updateCurrentStatusItems");
+const updateCurrentStatus = require("../../utils/statusUpdateUtils/updateCurrentStatus");
+const updateCurrentStatusItems = require("../../utils/statusUpdateUtils/updateCurrentStatusItems");
+
 
 const expenseSheetSchema = new mongoose.Schema(
   {

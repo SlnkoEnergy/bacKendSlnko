@@ -28,6 +28,8 @@ const {
   getModuleCategory,
   createModuleCategory,
   addRemarkToModuleCategory,
+  updateModuleCategoryDB,
+  getStatusHistoryForModuleCategory,
 } = require("../../Controllers/engineeringController/engineeringModules/moduleCategoryContoller");
 const {
   updateModuleTemplateCategoryId,
@@ -135,6 +137,17 @@ router.put(
   jwtMW.authentication,
   jwtMW.authorization,
   addRemarkToModuleCategory
+);
+router.put(
+  "/moduleCatgoryDB",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateModuleCategoryDB
+)
+router.get('/:projectId/moduletemplate/:module_template/statusHistory',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getStatusHistoryForModuleCategory
 );
 
 // Boq Categories

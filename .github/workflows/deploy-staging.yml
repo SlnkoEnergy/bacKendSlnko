@@ -1,9 +1,9 @@
-name: Deploy to Hostinger VPS (Development)
+name: Deploy to Hostinger VPS (staging)
 
 on:
   push:
     branches:
-      - development
+      - staging
 
 jobs:
   deploy:
@@ -21,10 +21,10 @@ jobs:
       - name: Deploy via SSH
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }} << 'EOF'
-            cd ~/Protrac/bacKendSlnko && git checkout development
-            git pull origin development
-            docker stop prod_api_development || true
-            docker rm prod_api_development || true
-            docker build -t prod_api_development .
-            docker run --name prod_api_development -p 5002:8080 -d --env-file .env.dev prod_api_development
+            cd ~/Protrac/bacKendSlnko && git checkout staging
+            git pull origin staging
+            docker stop prod_api_staging || true
+            docker rm prod_api_staging || true
+            docker build -t prod_api_staging .
+            docker run --name prod_api_staging -p 5001:8080 -d --env-file .env.prod prod_api_staging
           EOF

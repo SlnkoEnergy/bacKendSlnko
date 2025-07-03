@@ -15,6 +15,7 @@ const {
   getallproject,
   deleteProjectById,
   getProjectById,
+  getProjectbyPId,
 } = require("../Controllers/ProjectController");
 const {
   userRegister,
@@ -177,6 +178,7 @@ const {
   updateWonLead,
   getwonbyleadid,
   editwon,
+  getAllWonLeadsProject,
 } = require("../Controllers/initialbdController");
 
 const {
@@ -296,7 +298,8 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getProjectById
-); //get project by id
+); 
+router.get('/project', jwtMW.authentication, jwtMW.authorization, getProjectbyPId);
 
 //addMoney APi
 router.post(
@@ -794,6 +797,9 @@ router.get(
   jwtMW.authorization,
   allbdlead
 );
+
+router.get('/all-leads-won-projects', jwtMW.authentication, jwtMW.authorization, getAllWonLeadsProject)
+
 router.get(
   "/get-initial-bd-lead-streams",
   jwtMW.authentication,
