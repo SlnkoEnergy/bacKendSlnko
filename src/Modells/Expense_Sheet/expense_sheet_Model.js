@@ -45,7 +45,16 @@ const expenseSheetSchema = new mongoose.Schema(
         approved_amount: { type: String },
         remarks: { type: String },
         item_current_status: {
-          type: String,
+          user_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+          remarks: {
+            type: String,
+          },
+          status: {
+            type: String,
+          },
         },
       },
     ],
@@ -64,16 +73,25 @@ const expenseSheetSchema = new mongoose.Schema(
       to: { type: Date },
     },
     current_status: {
-      type: String,
-      enum: [
-        "draft",
-        "submitted",
-        "hold",
-        "rejected",
-        "manager approval",
-        "hr approval",
-        "final approval",
-      ],
+      user_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      remarks: {
+        type: String,
+      },
+      status: {
+        type: String,
+        enum: [
+          "draft",
+          "submitted",
+          "hold",
+          "rejected",
+          "manager approval",
+          "hr approval",
+          "final approval",
+        ],
+      },
     },
     status_history: [
       {
