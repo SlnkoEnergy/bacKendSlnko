@@ -291,7 +291,12 @@ const updateDisbursementDate = async (req, res) => {
       return res.status(404).json({ error: "Expense Sheet not found" });
     }
 
-    if (expense.current_status.status !== "final approval" || expense.current_status !== "final approval") {
+    const statusValue =
+      typeof expense.current_status === "string"
+        ? expense.current_status
+        : expense.current_status?.status;
+
+    if (statusValue?.trim().toLowerCase() !== "final approval") {
       return res
         .status(400)
         .json({ error: "Expense Sheet is not in final approval status" });
@@ -303,8 +308,17 @@ const updateDisbursementDate = async (req, res) => {
       return res.status(400).json({ error: "Disbursement date is required" });
     }
 
-    // Update the disbursement date
-    expense.disbursement_date = disbursement_date;
+    const safeDateStr = disbursement_date.replace(/\//g, "-");
+    const parsedDate = new Date(`${safeDateStr}T12:00:00+05:30`);
+
+    if (isNaN(parsedDate.getTime())) {
+      return res
+        .status(400)
+        .json({ error: "Invalid disbursement date format" });
+    }
+
+    expense.disbursement_date = parsedDate;
+
     await expense.save();
     res.status(200).json({
       message: "Disbursement date updated successfully",
