@@ -308,7 +308,17 @@ const updateDisbursementDate = async (req, res) => {
       return res.status(400).json({ error: "Disbursement date is required" });
     }
 
-    expense.disbursement_date = disbursement_date;
+    const safeDateStr = disbursement_date.replace(/\//g, "-");
+    const parsedDate = new Date(`${safeDateStr}T12:00:00+05:30`);
+
+    if (isNaN(parsedDate.getTime())) {
+      return res
+        .status(400)
+        .json({ error: "Invalid disbursement date format" });
+    }
+
+    expense.disbursement_date = parsedDate;
+
     await expense.save();
     res.status(200).json({
       message: "Disbursement date updated successfully",
