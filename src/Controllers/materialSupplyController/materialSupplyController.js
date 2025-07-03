@@ -1,32 +1,34 @@
+const mongoose = require("mongoose");
+
 const MaterialSupply = require("../../Modells/MaterialSupply/material-supply");
 
 const CreateMaterialSupply = async (req, res) => {
-    try {
-        const { materialData } = req.body;
+  try {
+    const { materialData } = req.body;
 
-        if (!materialData) {
-            return res.status(400).json({ message: "Material data is required" });
-        }
-
-        const newMaterial = new MaterialSupply({
-            ...materialData,
-            
-            createdBy: req.user.userId
-        });
-
-        await newMaterial.save();
-
-        return res.status(201).json({
-            message: "Material Added Successfully",
-            data: newMaterial,
-        });
-    } catch (error) {
-        console.error("Error Creating Material:", error);
-        return res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
+    if (!materialData) {
+      return res.status(400).json({ message: "Material data is required" });
     }
+
+    const newMaterial = new MaterialSupply({
+      ...materialData,
+
+      createdBy: req.user.userId,
+    });
+
+    await newMaterial.save();
+
+    return res.status(201).json({
+      message: "Material Added Successfully",
+      data: newMaterial,
+    });
+  } catch (error) {
+    console.error("Error Creating Material:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
 };
 
 const getAllMaterial = async (req, res) => {
@@ -57,7 +59,7 @@ const getAllMaterial = async (req, res) => {
       { $unwind: { path: "$project_id", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
-          from: "modulecategories",
+          from: "materialcategories",
           localField: "item_id",
           foreignField: "_id",
           as: "item_id",
@@ -84,7 +86,12 @@ const getAllMaterial = async (req, res) => {
           as: "scope_history.user",
         },
       },
-      { $unwind: { path: "$scope_history.user", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: {
+          path: "$scope_history.user",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
       {
         $group: {
           _id: "$_id",
@@ -106,30 +113,30 @@ const getAllMaterial = async (req, res) => {
       { $match: matchStage },
     ];
 
-   const projectionStage = {
-  $project: {
-    "project_id.name": 1,
-    "project_id.code": 1,
-    "item_id.name": 1,
-    "po_id.po_number": 1,
-    "po_id.po_value":1,
-    "po_id.amount_paid":1,
-    pr_no: 1,
-    etd: 1,
-    delivery_date: 1,
-    scope_history: {
-      status: 1,
-      remarks: 1,
-      "user.name": 1,
-    },
-  },
-};
+    const projectionStage = {
+      $project: {
+        "project_id.name": 1,
+        "project_id.code": 1,
+        "item_id.name": 1,
+        "po_id.po_number": 1,
+        "po_id.po_value": 1,
+        "po_id.amount_paid": 1,
+        pr_no: 1,
+        etd: 1,
+        delivery_date: 1,
+        scope_history: {
+          status: 1,
+          remarks: 1,
+          "user.name": 1,
+        },
+      },
+    };
 
     const materialsPipeline = [
       ...basePipeline,
       projectionStage,
       { $sort: { etd: -1 } },
-      { $skip: skip },  
+      { $skip: skip },
       { $limit: parseInt(limit) },
     ];
 
@@ -150,11 +157,122 @@ const getAllMaterial = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching materials:", error);
-    res.status(500).json({ error: "Internal Server error", message: error.message });
+    res
+      .status(500)
+      .json({ error: "Internal Server error", message: error.message });
+  }
+};
+
+const getMaterialSupplyById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid Material ID" });
+    }
+
+    const material = await MaterialSupply.findById(id)
+      .populate({
+        path: "project_id",
+        select: "name code", // adjust fields as needed
+      })
+      .populate({
+        path: "item_id",
+        select: "name",
+      })
+      .populate({
+        path: "po_id",
+        select: "po_number po_value amount_paid",
+      })
+      .populate({
+        path: "scope_history.user_id",
+        select: "name",
+      });
+
+    if (!material) {
+      return res.status(404).json({ message: "Material not found" });
+    }
+
+    return res.status(200).json({
+      message: "Material retrieved successfully",
+      data: material,
+    });
+  } catch (error) {
+    console.error("Error fetching material by ID:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+const UpdateMaterialSupply = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { materialData } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid Material ID" });
+    }
+
+    const updatedMaterial = await MaterialSupply.findByIdAndUpdate(
+      id,
+      materialData,
+      { new: true }
+    );
+
+    if (!updatedMaterial) {
+      return res.status(404).json({ message: "Material not found" });
+    }
+
+    return res.status(200).json({
+      message: "Material supply updated successfully",
+      data: updatedMaterial,
+    });
+  } catch (error) {
+    console.error("Error updating Material Supply:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+const deleteMaterialSupply = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ message: "Material ID is required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid Material ID" });
+    }
+
+    const material = await MaterialSupply.findByIdAndDelete(id);
+
+    if (!material) {
+      return res.status(404).json({ message: "Material not found" });
+    }
+
+    return res.status(200).json({
+      message: "Material supply deleted successfully",
+      data: material,
+    });
+  } catch (error) {
+    console.error("Error deleting Material Supply:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
 
 module.exports = {
-     CreateMaterialSupply,
-     getAllMaterial,
-     };
+  CreateMaterialSupply,
+  getAllMaterial,
+  getMaterialSupplyById,
+  UpdateMaterialSupply,
+  deleteMaterialSupply,
+};
