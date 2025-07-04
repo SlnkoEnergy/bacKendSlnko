@@ -40,6 +40,10 @@ const purchaseRequestSchema = new mongoose.Schema({
   }],
   pr_no: {
     type: String,
+  },
+  created_by:{
+    type:mongoose.Schema.Types.ObjectId,
+    ref:"User",
   }
 });
 
