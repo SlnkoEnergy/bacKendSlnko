@@ -54,6 +54,16 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
     },
     gst:{type:String},
+    pr_id:{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "purchaseRequest",
+    },
+    etd:{
+      type:Date
+    },
+    delivery_date:{
+      type:Date
+    }
   },
   { timestamps: true }
 );
