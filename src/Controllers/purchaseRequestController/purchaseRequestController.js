@@ -33,7 +33,7 @@ const CreatePurchaseRequest = async (req, res) => {
     const newPurchaseRequest = new PurchaseRequest({
       ...purchaseRequestData,
       pr_no: prNumber,
-      createdBy: req.user.userId,
+      created_by: req.user.userId,
     });
 
     await newPurchaseRequest.save();
