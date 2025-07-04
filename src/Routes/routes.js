@@ -16,6 +16,7 @@ const {
   deleteProjectById,
   getProjectById,
   getProjectbyPId,
+  getProjectDropwdown,
 } = require("../Controllers/ProjectController");
 const {
   userRegister,
@@ -298,6 +299,7 @@ router.get(
   getProjectById
 ); 
 router.get('/project', jwtMW.authentication, jwtMW.authorization, getProjectbyPId);
+router.get('/project-dropdown', jwtMW.authentication, jwtMW.authorization, getProjectDropwdown)
 
 //addMoney APi
 router.post(
