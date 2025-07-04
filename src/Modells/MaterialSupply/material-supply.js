@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const updateCurrentStatus = require("../../utils/statusUpdateUtils/updateCurrentStatus");
 
 const materialSupplySchema = new mongoose.Schema({
   project_id: {
@@ -17,7 +18,7 @@ const materialSupplySchema = new mongoose.Schema({
     {
       status: {
         type: String,
-        enum: ["slnko", "client"],
+        enum: ["slnko", "client", "draft"],
       },
       user_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -28,6 +29,19 @@ const materialSupplySchema = new mongoose.Schema({
       },
     },
   ],
+  current_scope:{
+    status:{
+        type:String,
+        enum:["slnko", "client", "draft"],
+      },
+      user_id:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:"User"
+      },
+      remarks:{
+        type:String
+      }
+  },
   pr_no: {
     type: String,
   },
@@ -38,4 +52,10 @@ const materialSupplySchema = new mongoose.Schema({
     type: Date,
   },
 });
+
+materialSupplySchema.pre("save", function(next){
+  updateCurrentStatus(this, "scope_history", "current_scope");
+  next();
+})
+
 module.exports = mongoose.model("MaterialSupply", materialSupplySchema);

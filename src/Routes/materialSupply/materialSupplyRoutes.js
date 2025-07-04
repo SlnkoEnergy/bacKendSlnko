@@ -5,6 +5,7 @@ const {
   getMaterialSupplyById,
   UpdateMaterialSupply,
   deleteMaterialSupply,
+  updateMaterialSupplyStatus,
 } = require("../../Controllers/materialSupplyController/materialSupplyController");
 const jwtMW = require("../../middlewares/auth");
 router.post(
@@ -39,5 +40,13 @@ router.delete(
   jwtMW.authorization,
   deleteMaterialSupply
 );
+
+router.put("/:id/updateMaterialStatus",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateMaterialSupplyStatus
+);
+
+
 
 module.exports = router;
