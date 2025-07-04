@@ -2,17 +2,37 @@ const mongoose = require("mongoose");
 
 const PurchaseRequest = require("../../Modells/PurchaseRequest/purchaseRequest");
 
+const PurchaseRequestCounter = require("../../Modells/Globals/purchaseRequestCounter");
+const Project = require("../../Modells/projectModells"); 
+
 const CreatePurchaseRequest = async (req, res) => {
   try {
     const { purchaseRequestData } = req.body;
 
-    if (!purchaseRequestData) {
-      return res.status(400).json({ message: "Purchase request data is required" });
+    if (!purchaseRequestData || !purchaseRequestData.project_id) {
+      return res.status(400).json({ message: "Project ID & Purchase request data are required" });
     }
+
+    const project = await Project.findById(purchaseRequestData.project_id);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    // Increment or create counter for this project
+    const counter = await PurchaseRequestCounter.findOneAndUpdate(
+      { project_id: purchaseRequestData.project_id },
+      { $inc: { count: 1 } },
+      { new: true, upsert: true }
+    );
+
+    const counterString = String(counter.count).padStart(4, "0");
+    const projectCode = project.code || project.name || "UNKNOWN";
+
+    const prNumber = `PR/${projectCode}/${counterString}`;
 
     const newPurchaseRequest = new PurchaseRequest({
       ...purchaseRequestData,
-
+      pr_no: prNumber,
       createdBy: req.user.userId,
     });
 
@@ -30,6 +50,7 @@ const CreatePurchaseRequest = async (req, res) => {
     });
   }
 };
+
 
 
 const getPurchaseRequestById = async (req, res) => {
