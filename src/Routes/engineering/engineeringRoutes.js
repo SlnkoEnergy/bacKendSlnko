@@ -45,6 +45,7 @@ const {
   updateMaterialCategory,
   deleteMaterialCategory,
   getMaterialCategoryById,
+  getAllMaterialCategoriesDropdown,
 } = require("../../Controllers/engineeringController/materials/materialCategoryController");
 const {
   createMaterial,
@@ -257,6 +258,7 @@ router.get(
   jwtMW.authorization,
   getAllMaterialCategories
 );
+router.get("/material-category-drop", jwtMW.authentication,jwtMW.authorization,getAllMaterialCategoriesDropdown);
 router.get(
   "/material-category-id",
   jwtMW.authentication,
