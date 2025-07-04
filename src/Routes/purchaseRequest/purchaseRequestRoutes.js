@@ -5,6 +5,7 @@ const {
   UpdatePurchaseRequest,
   deletePurchaseRequest,
   updatePurchaseRequestStatus,
+  getAllPurchaseRequest,
 } = require("../../Controllers/purchaseRequestController/purchaseRequestController");
 const jwtMW = require("../../middlewares/auth");
 router.post(
@@ -12,6 +13,13 @@ router.post(
   jwtMW.authentication,
   jwtMW.authorization,
   CreatePurchaseRequest
+);
+
+router.get(
+  "/purchase-request",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllPurchaseRequest
 );
 
 router.get(
@@ -35,12 +43,11 @@ router.delete(
   deletePurchaseRequest
 );
 
-router.put("/:id/item/item_id/updatePurchaseRequestStatus",
+router.put(
+  "/:id/item/item_id/updatePurchaseRequestStatus",
   jwtMW.authentication,
   jwtMW.authorization,
   updatePurchaseRequestStatus
 );
-
-
 
 module.exports = router;
