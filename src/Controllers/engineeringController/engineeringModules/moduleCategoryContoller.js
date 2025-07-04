@@ -6,6 +6,7 @@ const moduleTemplates = require("../../../Modells/EngineeringModells/engineering
 const mongoose = require("mongoose");
 const handoversheetModells = require("../../../Modells/handoversheetModells");
 const projectModells = require("../../../Modells/projectModells");
+const userModells = require("../../../Modells/userModells");
 
 const createModuleCategory = async (req, res) => {
   try {
@@ -53,7 +54,7 @@ const createModuleCategory = async (req, res) => {
       const attachmentUrlsArray = [];
 
       const urlsForAttachment = [];
-  
+
       for (
         let i = 0;
         i < maxFiles && fileIndex < (req.files?.length || 0);
@@ -79,7 +80,6 @@ const createModuleCategory = async (req, res) => {
 
           const url =
             Array.isArray(respData) && respData.length > 0
-            
               ? respData[0]
               : respData.url ||
                 respData.fileUrl ||
@@ -208,7 +208,10 @@ const getModuleCategoryById = async (req, res) => {
             $ifNull: [{ $arrayElemAt: ["$itemData.attachment_urls", 0] }, []],
           },
           current_attachment: {
-            $ifNull: [{ $arrayElemAt: ["$itemData.current_attachment", 0] }, null],
+            $ifNull: [
+              { $arrayElemAt: ["$itemData.current_attachment", 0] },
+              null,
+            ],
           },
           current_status: {
             $ifNull: [{ $arrayElemAt: ["$itemData.current_status", 0] }, null],
@@ -220,12 +223,14 @@ const getModuleCategoryById = async (req, res) => {
       },
       {
         $project: {
-          itemData: 0, 
+          itemData: 0,
         },
       },
     ];
 
-    const templates = await mongoose.model("moduleTemplates").aggregate(pipeline);
+    const templates = await mongoose
+      .model("moduleTemplates")
+      .aggregate(pipeline);
 
     res.status(200).json({
       message: "Templates with item data fetched successfully",
@@ -247,11 +252,17 @@ const updateModuleCategory = async (req, res) => {
     const { projectId, id } = req.query;
 
     if (!projectId && !id) {
-      return res.status(400).json({ message: "Either 'projectId' or 'id' must be provided in query" });
+      return res
+        .status(400)
+        .json({
+          message: "Either 'projectId' or 'id' must be provided in query",
+        });
     }
 
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: "Items array with template_id required" });
+      return res
+        .status(400)
+        .json({ message: "Items array with template_id required" });
     }
 
     const moduleData = id
@@ -282,25 +293,37 @@ const updateModuleCategory = async (req, res) => {
       const { template_id } = items[i];
       if (!template_id) continue;
 
-      let templateData = await moduleTemplates.findById(template_id).select("name file_upload");
+      let templateData = await moduleTemplates
+        .findById(template_id)
+        .select("name file_upload");
       if (!templateData) {
-        return res.status(400).json({message:"No Module with this template Id"});
+        return res
+          .status(400)
+          .json({ message: "No Module with this template Id" });
       }
 
-      const moduleTemplateName = (templateData.name || "template").replace(/\s+/g, "_");
+      const moduleTemplateName = (templateData.name || "template").replace(
+        /\s+/g,
+        "_"
+      );
       const maxFiles = templateData.file_upload?.max_files || 0;
 
       const itemIndex = moduleData.items.findIndex(
-        item => item.template_id?.toString() === template_id.toString()
+        (item) => item.template_id?.toString() === template_id.toString()
       );
-      const existingItem = itemIndex !== -1 ? moduleData.items[itemIndex] : null;
+      const existingItem =
+        itemIndex !== -1 ? moduleData.items[itemIndex] : null;
       const revisionIndex = existingItem?.attachment_urls?.length || 0;
       const revisionNumber = `R${revisionIndex}`;
       const folderName = `engineering/${projectCode}/${moduleTemplateName}/${revisionNumber}`;
 
       const uploadedUrls = [];
 
-      for (let count = 0; count < maxFiles && fileIndex < files.length; count++, fileIndex++) {
+      for (
+        let count = 0;
+        count < maxFiles && fileIndex < files.length;
+        count++, fileIndex++
+      ) {
         const file = files[fileIndex];
 
         try {
@@ -322,40 +345,40 @@ const updateModuleCategory = async (req, res) => {
             : respData?.url || respData?.fileUrl || respData?.data?.url || null;
 
           if (url) uploadedUrls.push(url);
-      
         } catch (err) {
           console.error(`Upload failed for ${file.originalname}:`, err.message);
         }
       }
 
       if (uploadedUrls.length > 0) {
-  const statusHistory = items[i]?.status_history || [];
+        const statusHistory = items[i]?.status_history || [];
 
-  if (existingItem) {
-    if (!Array.isArray(existingItem.attachment_urls)) {
-      existingItem.attachment_urls = [];
-    }
-    existingItem.attachment_urls.push(uploadedUrls);
+        if (existingItem) {
+          if (!Array.isArray(existingItem.attachment_urls)) {
+            existingItem.attachment_urls = [];
+          }
+          existingItem.attachment_urls.push(uploadedUrls);
 
-    if (!Array.isArray(existingItem.status_history)) {
-      existingItem.status_history = [];
-    }
-    existingItem.status_history.push(...statusHistory);
+          if (!Array.isArray(existingItem.status_history)) {
+            existingItem.status_history = [];
+          }
+          existingItem.status_history.push(...statusHistory);
 
-    moduleData.items[itemIndex] = existingItem;
-  } else {
-    moduleData.items.push({
-      template_id: new mongoose.Types.ObjectId(template_id),
-      attachment_urls: [uploadedUrls],
-      status_history: statusHistory,
-    });
-  }
-}
-
+          moduleData.items[itemIndex] = existingItem;
+        } else {
+          moduleData.items.push({
+            template_id: new mongoose.Types.ObjectId(template_id),
+            attachment_urls: [uploadedUrls],
+            status_history: statusHistory,
+          });
+        }
+      }
     }
 
     if (fileIndex === 0) {
-      return res.status(400).json({ message: "No valid uploaded file URLs found" });
+      return res
+        .status(400)
+        .json({ message: "No valid uploaded file URLs found" });
     }
 
     await moduleData.save();
@@ -373,17 +396,28 @@ const updateModuleCategory = async (req, res) => {
   }
 };
 
-
 const updateModuleCategoryStatus = async (req, res) => {
   try {
     const { projectId, module_template } = req.params;
-    const { status, department, text } = req.body;
-
-    if (!status || !department || !text) {
-      return res.status(400).json({ message: "Status, department, and text are required" });
+    const { status, text } = req.body;
+    const user_id = req.user?.userId;
+    const user = await userModells
+      .findById(req.user?.userId)
+      .select("department");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const moduleCategoryData = await moduleCategory.findOne({ project_id: projectId });
+    const department = user.department;
+    if (!status || !text) {
+      return res
+        .status(400)
+        .json({ message: "Status, department, and text are required" });
+    }
+
+    const moduleCategoryData = await moduleCategory.findOne({
+      project_id: projectId,
+    });
     if (!moduleCategoryData) {
       return res.status(404).json({ message: "Module Category not found" });
     }
@@ -396,13 +430,13 @@ const updateModuleCategoryStatus = async (req, res) => {
           status,
           remarks: [
             {
-              department,
+              department: department,
               text,
-              user_id: req.user._id,
+              user_id: user_id,
               createdAt: new Date(),
             },
           ],
-          user_id: req.user._id,
+          user_id: user_id,
           updatedAt: new Date(),
         });
 
@@ -429,17 +463,36 @@ const updateModuleCategoryStatus = async (req, res) => {
   }
 };
 
-
 const addRemarkToModuleCategory = async (req, res) => {
   try {
     const { projectId, module_template } = req.params;
-    const { text, department } = req.body;
+    const { text } = req.body;
 
-    if (!text || !department) {
-      return res.status(400).json({ message: "Text and department are required" });
+    if (!text) {
+      return res
+        .status(400)
+        .json({ message: "Text and department are required" });
     }
 
-    const moduleCategoryData = await moduleCategory.findOne({ project_id: projectId });
+    const user_id = req.user?.userId;
+    const user = await userModells
+      .findById(req.user?.userId)
+      .select("department");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const department = user.department;
+
+    if (!text) {
+      return res
+        .status(400)
+        .json({ message: "Text is required" });
+    }
+
+    const moduleCategoryData = await moduleCategory.findOne({
+      project_id: projectId,
+    });
     if (!moduleCategoryData) {
       return res.status(404).json({ message: "Module Category not found" });
     }
@@ -450,16 +503,18 @@ const addRemarkToModuleCategory = async (req, res) => {
       if (item.template_id?.toString() === module_template?.toString()) {
         const history = item.status_history;
         if (!history.length) {
-          return res.status(400).json({ message: "No existing status to attach remarks to." });
+          return res
+            .status(400)
+            .json({ message: "No existing status to attach remarks to." });
         }
 
         const latestStatus = history[history.length - 1];
 
         latestStatus.remarks = latestStatus.remarks || [];
         latestStatus.remarks.push({
-          department,
+          department: department,
           text,
-          user_id: req.user._id,
+          user_id: user_id,
           createdAt: new Date(),
         });
 
@@ -477,6 +532,49 @@ const addRemarkToModuleCategory = async (req, res) => {
     res.status(200).json({
       message: "Remark added successfully",
       data: moduleCategoryData,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+const getStatusHistoryForModuleCategory = async (req, res) => {
+  try {
+    const { projectId, module_template } = req.params;
+
+    const moduleCategoryData = await moduleCategory
+      .findOne({ project_id: projectId })
+      .populate({
+        path: "items.status_history.user_id",
+        model: "User",
+        select: "_id name",
+      })
+      .populate({
+        path: "items.status_history.remarks.user_id",
+        model: "User",
+        select: "_id name",
+      });
+
+    if (!moduleCategoryData) {
+      return res.status(404).json({ message: "Module Category not found" });
+    }
+
+    const matchedItem = moduleCategoryData.items.find(
+      (item) => item.template_id?.toString() === module_template?.toString()
+    );
+
+    if (!matchedItem) {
+      return res
+        .status(404)
+        .json({ message: "Template not found in module category" });
+    }
+
+    res.status(200).json({
+      message: "Status history fetched successfully",
+      status_history: matchedItem.status_history || [],
     });
   } catch (error) {
     res.status(500).json({
@@ -530,39 +628,43 @@ const updateAttachmentUrl = async (req, res) => {
 
 const updateModuleCategoryDB = async (req, res) => {
   try {
-    const handovers = await handoversheetModells.find({ p_id: { $exists: true, $ne: null } });
+    const handovers = await handoversheetModells.find({
+      p_id: { $exists: true, $ne: null },
+    });
 
     const results = await Promise.all(
       handovers.map(async (handover) => {
         const project = await projectModells.findOne({ p_id: handover.p_id });
         if (!project) return null;
 
-
-        let ModuleCategorys = await moduleCategory.findOne({ project_id: project._id });
+        let ModuleCategorys = await moduleCategory.findOne({
+          project_id: project._id,
+        });
         if (!ModuleCategorys) {
           ModuleCategorys = await moduleCategory.create({
             project_id: project._id,
-            items: []
+            items: [],
           });
         }
 
         return {
           handover_id: handovers._id,
           project_id: project._id,
-          moduleCategory_id: ModuleCategorys._id
+          moduleCategory_id: ModuleCategorys._id,
         };
       })
     );
 
     const filteredResults = results.filter(Boolean);
 
-    res.status(200).json({ message: "ModuleCategory DB updated", data: filteredResults });
+    res
+      .status(200)
+      .json({ message: "ModuleCategory DB updated", data: filteredResults });
   } catch (error) {
     console.error("updateModuleCategoryDB error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
 
 module.exports = {
   createModuleCategory,
@@ -572,5 +674,6 @@ module.exports = {
   updateModuleCategoryStatus,
   updateAttachmentUrl,
   addRemarkToModuleCategory,
-  updateModuleCategoryDB
+  updateModuleCategoryDB,
+  getStatusHistoryForModuleCategory,
 };
