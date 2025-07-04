@@ -49,13 +49,14 @@ const CreatePurchaseRequest = async (req, res) => {
     });
   }
 };
+
 const getAllPurchaseRequest = async (req, res) => {
   try {
     const { project_id } = req.query;
 
     let requests = project_id
-      ? await PurchaseRequest.find({ project_id })
-      : await PurchaseRequest.find();
+      ? await PurchaseRequest.find({ project_id }).populate("created_by", "_id name")
+      : await PurchaseRequest.find().populate("created_by", "_id name");
 
     const enrichedRequests = await Promise.all(
       requests.map(async (req) => {
@@ -73,6 +74,7 @@ const getAllPurchaseRequest = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch purchase requests" });
   }
 };
+
 
 
 const getPurchaseRequestById = async (req, res) => {
