@@ -291,7 +291,8 @@ router.delete(
   jwtMW.authentication,
   jwtMW.authorization,
   deleteProjectById
-); //delete project by id
+);
+//delete project by id
 router.get(
   "/get-project-iD-IT/:_id",
   jwtMW.authentication,

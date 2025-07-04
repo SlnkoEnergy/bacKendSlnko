@@ -1,9 +1,8 @@
 const mongoose = require("mongoose");
-
 const PurchaseRequest = require("../../Modells/PurchaseRequest/purchaseRequest");
-
 const PurchaseRequestCounter = require("../../Modells/Globals/purchaseRequestCounter");
 const Project = require("../../Modells/projectModells"); 
+const purchaseOrderModells = require("../../Modells/purchaseOrderModells");
 
 const CreatePurchaseRequest = async (req, res) => {
   try {
@@ -50,7 +49,30 @@ const CreatePurchaseRequest = async (req, res) => {
     });
   }
 };
+const getAllPurchaseRequest = async (req, res) => {
+  try {
+    const { project_id } = req.query;
 
+    let requests = project_id
+      ? await PurchaseRequest.find({ project_id })
+      : await PurchaseRequest.find();
+
+    const enrichedRequests = await Promise.all(
+      requests.map(async (req) => {
+        const po = await purchaseOrderModells.findOne({ pr_id: req._id });
+        return {
+          ...req.toObject(),
+          po_number: po?.po_number || null,
+          po_value: po?.po_value || null,
+        };
+      })
+    );
+
+    res.status(200).json(enrichedRequests);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch purchase requests" });
+  }
+};
 
 
 const getPurchaseRequestById = async (req, res) => {
@@ -193,6 +215,7 @@ const deletePurchaseRequest = async (req, res) => {
 
 module.exports = {
   CreatePurchaseRequest,
+  getAllPurchaseRequest,
   getPurchaseRequestById,
   UpdatePurchaseRequest,
   deletePurchaseRequest,

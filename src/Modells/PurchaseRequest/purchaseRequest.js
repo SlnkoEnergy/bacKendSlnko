@@ -45,7 +45,7 @@ const purchaseRequestSchema = new mongoose.Schema({
     type:mongoose.Schema.Types.ObjectId,
     ref:"User",
   }
-});
+}, {timestamps:true});
 
 purchaseRequestSchema.pre("save", function(next){
   updateCurrentStatusItems(this, "status_history", "current_status");
