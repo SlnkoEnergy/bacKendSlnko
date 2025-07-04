@@ -238,6 +238,42 @@ const UpdateMaterialSupply = async (req, res) => {
   }
 };
 
+const updateMaterialSupplyStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status,remarks } = req.body;
+
+    if (!id || !status || !remarks) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    const material = await MaterialSupply.findById(id);
+    if (!material) {
+      return res.status(404).json({ message: "Material Supply record not found" });
+    }
+
+    material.scope_history.push({
+      status,
+      remarks,
+      user_id: req.user.userId
+    });
+
+
+    await material.save();
+
+    res.status(200).json({
+      message: "Material Supply status updated successfully",
+      data: material,
+    });
+  } catch (error) {
+    console.error("Error updating Material Supply status:", error);
+    return res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};
+
+
 const deleteMaterialSupply = async (req, res) => {
   try {
     const { id } = req.params;
@@ -275,4 +311,5 @@ module.exports = {
   getMaterialSupplyById,
   UpdateMaterialSupply,
   deleteMaterialSupply,
+  updateMaterialSupplyStatus,
 };
