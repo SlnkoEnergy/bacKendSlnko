@@ -9,6 +9,8 @@ const { Parser } = require("json2csv");
 const fs = require("fs");
 const path = require("path");
 const { error } = require("console");
+const billDetailModells = require("../Modells/billDetailModells");
+const { type } = require("os");
 //TO DATE FROMATE
 // const isoToCustomFormat = (isoDate) => {
 //   const date = new Date(isoDate);
@@ -103,7 +105,6 @@ const editPO = async function (req, res) {
     const pohistory = {
       po_number: update.po_number,
       offer_Id: update.offer_Id,
-      // po_number: updatedPO.po_number,
       date: update.date,
       item: update.item,
       other: update.other,
@@ -116,14 +117,15 @@ const editPO = async function (req, res) {
       comment: update.comment,
       po_basic: update.po_basic,
       gst: update.gst,
-      updated_on: new Date().toISOString(), // Use current time for updated_on field
+      updated_on: new Date().toISOString(),
+
       submitted_By: update.submitted_By,
     };
     await pohisttoryModells.create(pohistory);
 
     res.status(200).json({
       msg: "Project updated successfully",
-      data: update, // Send back the updated project data
+      data: update,
     });
   } catch (error) {
     res.status(400).json({ msg: "Server error", error: error.message });
@@ -143,11 +145,10 @@ const getpohistory = async function (req, res) {
   // const pageSize = 200;
   // const skip = (page - 1) * pageSize;
 
-  let data = await pohisttoryModells
-    .find()
-    // .sort({ createdAt: -1 }) // Latest first
-    // .skip(skip)
-    // .limit(pageSize);
+  let data = await pohisttoryModells.find();
+  // .sort({ createdAt: -1 }) // Latest first
+  // .skip(skip)
+  // .limit(pageSize);
   res.status(200).json({ msg: "All PO History", data: data });
 };
 
@@ -170,7 +171,6 @@ const getPOHistoryById = async function (req, res) {
   }
 };
 
-
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
@@ -186,6 +186,229 @@ const getallpo = async function (req, res) {
     res.status(200).json({ msg: "All PO", data: data });
   } catch (error) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
+  }
+};
+
+const getPaginatedPo = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    const skip = (page - 1) * pageSize;
+    const search = req.query.search?.trim() || "";
+    const status = req.query.status?.trim();
+    const searchRegex = new RegExp(search, "i");
+
+    // Initial search match (only for search text)
+    const matchStage = {
+      ...(search && {
+        $or: [
+          { p_id: { $regex: searchRegex } },
+          { po_number: { $regex: searchRegex } },
+          { vendor: { $regex: searchRegex } },
+          { item: { $regex: searchRegex } },
+        ],
+      }),
+    };
+
+    const pipeline = [
+      { $match: matchStage },
+
+      // Convert fields
+      {
+        $addFields: {
+          po_number: { $toString: "$po_number" },
+          po_value: { $toDouble: "$po_value" },
+        },
+      },
+
+      // Lookup Approved Payments with non-null UTR
+      {
+        $lookup: {
+          from: "payrequests",
+          let: { poNumber: "$po_number" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: [{ $toString: "$po_number" }, "$$poNumber"] },
+                    { $eq: ["$approved", "Approved"] },
+                    { $ne: ["$utr", null] },
+                    { $ne: ["$utr", ""] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "approvedPayments",
+        },
+      },
+
+      // Calculate amount_paid
+      {
+        $addFields: {
+          amount_paid: {
+            $sum: {
+              $map: {
+                input: "$approvedPayments",
+                as: "pay",
+                in: {
+                  $convert: {
+                    input: "$$pay.amount_paid",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+
+      // Lookup bills
+      {
+        $lookup: {
+          from: "biildetails",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "billData",
+        },
+      },
+
+      // Calculate total_billed
+      {
+        $addFields: {
+          total_billed: {
+            $sum: {
+              $map: {
+                input: "$billData",
+                as: "b",
+                in: {
+                  $convert: {
+                    input: "$$b.bill_value",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+
+     
+      {
+        $addFields: {
+          partial_billing: {
+            $cond: {
+              if: { $lt: ["$total_billed", "$po_value"] },
+              then: "Bill Pending",
+              else: "Fully Billed",
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          latestBill: {
+            $arrayElemAt: [
+              {
+                $slice: [
+                  {
+                    $sortArray: {
+                      input: "$billData",
+                      sortBy: { updatedAt: -1 },
+                    },
+                  },
+                  1,
+                ],
+              },
+              0,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          billingTypes: {
+            $cond: {
+              if: { $gt: [{ $size: "$billData" }, 0] },
+              then: "$latestBill.type",
+              else: "-",
+            },
+          },
+        },
+      },
+
+      // ✅ Match by status AFTER partial_billing is created
+      ...(status ? [{ $match: { partial_billing: status } }] : []),
+
+      // Pagination and result shaping
+      {
+        $facet: {
+          paginatedResults: [
+            { $sort: { date: -1 } }, // fallback to createdAt if needed
+            { $skip: skip },
+            { $limit: pageSize },
+            {
+              $project: {
+                _id: 0,
+                po_number: 1,
+                p_id: 1,
+                vendor: 1,
+                item: 1,
+                type: "$billingTypes",
+                date: 1,
+                po_value: 1,
+                amount_paid: 1,
+                total_billed: 1,
+                partial_billing: 1,
+              },
+            },
+          ],
+          totalCount: [{ $count: "total" }],
+        },
+      },
+    ];
+
+    const formatDate = (date) => {
+      if (!date) return "";
+      return new Date(date)
+        .toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+        .replace(/ /g, "/");
+    };
+
+    const [result] = await purchaseOrderModells.aggregate(pipeline);
+
+    const data = (result.paginatedResults || []).map((item) => ({
+      ...item,
+      date: formatDate(item.date),
+    }));
+
+    const total = result.totalCount[0]?.total || 0;
+
+    res.status(200).json({
+      msg: "All Bill Detail With PO Data",
+      meta: {
+        total,
+        page,
+        pageSize,
+        count: data.length,
+      },
+      data,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      msg: "Error retrieving bills with PO data",
+      error: err.message,
+    });
   }
 };
 
@@ -319,6 +542,7 @@ module.exports = {
   editPO,
   getPO,
   getallpo,
+  getPaginatedPo,
   exportCSV,
   moverecovery,
   getPOByProjectId,
