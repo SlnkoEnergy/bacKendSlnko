@@ -8,7 +8,6 @@ const purchaseOrderSchema = new mongoose.Schema(
     offer_Id: {
       type: String,
     },
-
     po_number: {
       type: String,
     },
@@ -38,7 +37,6 @@ const purchaseOrderSchema = new mongoose.Schema(
     partial_billing: {
       type: String,
     },
-
     amount_paid: {
       type: Number,
     },
@@ -58,12 +56,6 @@ const purchaseOrderSchema = new mongoose.Schema(
     pr_id:{
       type: mongoose.Schema.Types.ObjectId,
       ref: "purchaseRequest",
-    },
-    etd:{
-      type:Date
-    },
-    delivery_date:{
-      type:Date
     },
     attachement_url:[{
       type:String
