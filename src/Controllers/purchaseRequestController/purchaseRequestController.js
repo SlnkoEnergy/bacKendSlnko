@@ -343,16 +343,24 @@ const getPurchaseRequestById = async (req, res) => {
 
 const getPurchaseRequest = async (req, res) => {
   try {
-    const { project_id, item_id } = req.params;
+    const { project_id, item_id, pr_id } = req.params;
 
-    if (!project_id) {
+    if (!project_id || !pr_id) {
       return res.status(400).json({
-        message: "Project ID is required",
+        message: "Project ID and Purchase Request ID are required",
       });
     }
 
-    // Fetch purchase request with project and item details populated
+    // Validate pr_id
+    if (!mongoose.Types.ObjectId.isValid(pr_id)) {
+      return res.status(400).json({
+        message: "Invalid Purchase Request ID",
+      });
+    }
+
+    // Find Purchase Request by pr_id and project_id
     const purchaseRequest = await PurchaseRequest.findOne({
+      _id: pr_id,
       project_id,
       "items.item_id": item_id,
     })
@@ -372,13 +380,13 @@ const getPurchaseRequest = async (req, res) => {
       return res.status(404).json({ message: "Item not found" });
     }
 
-    // Find all Purchase Orders where this item_id is present
+    // Fetch Purchase Orders based on item and p_id matching project code
     const purchaseOrders = await purchaseOrderModells.find({
       item: item_id,
       p_id: purchaseRequest.project_id?.code,
     });
 
-    // Prepare PO details with _id, po_number and total value including GST
+    // Prepare PO details
     const poDetails = purchaseOrders.map((po) => {
       const poValue = Number(po.po_value || 0);
       const gstValue = Number(po.gst || 0);
@@ -398,7 +406,7 @@ const getPurchaseRequest = async (req, res) => {
       ),
     };
 
-    // Prepare the full response
+    // Final response
     return res.status(200).json({
       purchase_request: {
         _id: purchaseRequest._id,
