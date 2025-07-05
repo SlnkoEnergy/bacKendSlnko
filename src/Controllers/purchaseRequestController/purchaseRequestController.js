@@ -319,8 +319,6 @@ const getPurchaseRequestById = async (req, res) => {
   }
 };
 
-
-
 const UpdatePurchaseRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -355,7 +353,7 @@ const UpdatePurchaseRequest = async (req, res) => {
 
 const updatePurchaseRequestStatus = async (req, res) => {
   try {
-    const { id, item_id } = req.params;
+    const { id } = req.params;
     const { status, remarks } = req.body;
 
     if (!id || !item_id || !status || !remarks) {
@@ -366,18 +364,12 @@ const updatePurchaseRequestStatus = async (req, res) => {
     if (!purchaseRequest) {
       return res.status(404).json({ message: "Purchase Request record not found" });
     }
-    const item = purchaseRequest.items.find(item => item.item_id.toString() === item_id);
-    if (!item) {
-      return res.status(404).json({ message: "Item not found in Purchase Request" });
-    }
-
-    purchaseRequest.item.status_history.push({
+  
+    purchaseRequest.status_history.push({
       status,
       remarks,
       user_id: req.user.userId
     });
-
-
     await purchaseRequest.save();
 
     res.status(200).json({
@@ -391,7 +383,6 @@ const updatePurchaseRequestStatus = async (req, res) => {
       .json({ message: "Internal server error", error: error.message });
   }
 };
-
 
 const deletePurchaseRequest = async (req, res) => {
   try {
