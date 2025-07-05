@@ -21,12 +21,10 @@ const purchaseRequestSchema = new mongoose.Schema(
         status: {
           type: String,
           enum: [
-            "advance_paid",
-            "po_created",
-            "payment_done",
+            "submitted",
             "draft",
-            "out_for_delivery",
-            "delivered",
+            "approved",
+            "PO Created",
           ],
         },
         remarks: {
@@ -42,12 +40,10 @@ const purchaseRequestSchema = new mongoose.Schema(
       status: {
         type: String,
         enum: [
-          "advance_paid",
-          "po_created",
-          "payment_done",
-          "draft",
-          "out_for_delivery",
-          "delivered",
+          "submitted",
+            "draft",
+            "approved",
+            "PO Created",
         ],
       },
       remarks: {
