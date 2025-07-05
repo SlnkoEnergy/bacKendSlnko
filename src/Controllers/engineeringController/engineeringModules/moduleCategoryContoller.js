@@ -68,7 +68,7 @@ const createModuleCategory = async (req, res) => {
           contentType: file.mimetype,
         });
 
-        const uploadUrl = `https://upload.slnkoprotrac.com?containerName=protrac&foldername=${folderName}`;
+        const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${folderName}`;
         try {
           const response = await axios.post(uploadUrl, form, {
             headers: form.getHeaders(),

@@ -16,7 +16,8 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
     },
     item: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref:"MaterialCategory"
     },
     other: {
       type: String,
@@ -63,7 +64,10 @@ const purchaseOrderSchema = new mongoose.Schema(
     },
     delivery_date:{
       type:Date
-    }
+    },
+    attachement_url:[{
+      type:String
+    }]
   },
   { timestamps: true }
 );

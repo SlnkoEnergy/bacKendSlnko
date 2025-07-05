@@ -1,26 +1,23 @@
-const projectModells = require("../Modells/projectModells");
 const purchaseOrderModells = require("../Modells/purchaseOrderModells");
 const iteamModells = require("../Modells/iteamModells");
 const recoveryPurchaseOrder = require("../Modells/recoveryPurchaseOrderModells");
 const pohisttoryModells = require("../Modells/pohistoryModells");
-
-const moment = require("moment");
 const { Parser } = require("json2csv");
 const fs = require("fs");
 const path = require("path");
-const { error } = require("console");
-//TO DATE FROMATE
-// const isoToCustomFormat = (isoDate) => {
-//   const date = new Date(isoDate);
-//   const day = String(date.getDate()).padStart(2, "0");
-//   const month = String(date.getMonth() + 1).padStart(2, "0");
-//   const year = date.getFullYear();
-//   return `${year}-${day}-${month}`;
-// };
+const { default: axios } = require("axios");
+const FormData = require("form-data");
+const { default: mongoose } = require("mongoose");
+const materialCategoryModells = require("../Modells/EngineeringModells/materials/materialCategoryModells");
 
 //Add-Purchase-Order
-const addPo = async function (req, res) {
+const addPo = async (req, res) => {
   try {
+    const data =
+      typeof req.body.data === "string"
+        ? JSON.parse(req.body.data)
+        : req.body.data;
+
     const {
       p_id,
       date,
@@ -29,67 +26,92 @@ const addPo = async function (req, res) {
       po_number,
       po_value,
       vendor,
-      partial_billing,
       submitted_By,
       po_basic,
       gst,
-    } = req.body;
+      offer_Id,
+      pr_id,
+      etd
+    } = data;
 
-    // Get project ID
-    // const project = await projectModells.find({ p_id: p_id });
+    const resolvedItem = item === "Other" ? other : item;
 
-    // if (!project) {
-    //   return res.status(404).send({ message: "Project not found!" });
-    // }
-
-    // Resolve item value
-    let resolvedItem = item === "Other" ? other : item;
-    // // Validate and format date using moment
-    // const formattedDate = moment(date, "YYYY-MM-DD", true);
-    // if (!formattedDate.isValid()) {
-    //   return res
-    //     .status(400)
-    //     .send({ message: "Invalid date format. Expected format: YYYY-MM-DD." });
-    // }
-
-    // Check partial billing
-    const partialItem = await iteamModells.findOne({ item: resolvedItem });
-    const partal_billing = partialItem ? partialItem.partial_billing : "";
-
-    // Check if PO Number exists
+    // Check if PO Number already exists
     const existingPO = await purchaseOrderModells.findOne({ po_number });
     if (existingPO) {
-      return res.status(400).send({ message: "PO Number already used!" });
+      return res.status(400).json({ message: "PO Number already used!" });
     }
 
-    // Add new Purchase Order
+    // Get partial billing info
+    const partialItem = await iteamModells.findOne({ item: resolvedItem });
+    const partial_billing = partialItem ? partialItem.partial_billing : "";
+
+    // Upload files (if any)
+    const folderPath = `purchase_orders/${po_number}`;
+    const attachmentUrls = [];
+
+    for (const file of req.files || []) {
+      const form = new FormData();
+      form.append("file", file.buffer, {
+        filename: file.originalname,
+        contentType: file.mimetype,
+      });
+
+      const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${folderPath}`;
+      const response = await axios.post(uploadUrl, form, {
+        headers: form.getHeaders(),
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+
+      const respData = response.data;
+      const url =
+        Array.isArray(respData) && respData.length > 0
+          ? respData[0]
+          : respData.url ||
+            respData.fileUrl ||
+            (respData.data && respData.data.url) ||
+            null;
+
+      if (url) {
+        attachmentUrls.push(url);
+      }
+    }
+
+    // Create new PO
     const newPO = new purchaseOrderModells({
       p_id,
+      offer_Id,
       po_number,
       date,
-      item: resolvedItem,
+      item,
+      other,
       po_value,
       vendor,
-      other,
       submitted_By,
       partial_billing,
       po_basic,
       gst,
+      pr_id,
+      etd,
+      attachement_url: attachmentUrls,
     });
 
     await newPO.save();
 
-    res.status(200).send({
+    return res.status(200).json({
       message: "Purchase Order has been added successfully!",
-
-      newPO,
+      data: newPO,
     });
   } catch (error) {
-    res
-      .status(500)
-      .send({ message: "An error occurred while processing your request." });
+    console.error("Error creating PO:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
+
 
 //Edit-Purchase-Order
 const editPO = async function (req, res) {
@@ -103,7 +125,6 @@ const editPO = async function (req, res) {
     const pohistory = {
       po_number: update.po_number,
       offer_Id: update.offer_Id,
-      // po_number: updatedPO.po_number,
       date: update.date,
       item: update.item,
       other: update.other,
@@ -116,14 +137,14 @@ const editPO = async function (req, res) {
       comment: update.comment,
       po_basic: update.po_basic,
       gst: update.gst,
-      updated_on: new Date().toISOString(), // Use current time for updated_on field
+      updated_on: new Date().toISOString(), 
       submitted_By: update.submitted_By,
     };
     await pohisttoryModells.create(pohistory);
 
     res.status(200).json({
       msg: "Project updated successfully",
-      data: update, // Send back the updated project data
+      data: update, 
     });
   } catch (error) {
     res.status(400).json({ msg: "Server error", error: error.message });
@@ -132,62 +153,135 @@ const editPO = async function (req, res) {
 
 //Get-Purchase-Order
 const getPO = async function (req, res) {
-  let id = req.params._id;
-  let data = await purchaseOrderModells.findById(id);
-  res.status(200).json({ msg: "PO Detail", data: data });
+  try {
+    const id = req.params._id;
+    let data = await purchaseOrderModells.findById(id).lean();
+    if (!data) return res.status(404).json({ message: "PO not found" });
+
+    const isObjectId = mongoose.Types.ObjectId.isValid(data.item);
+
+    if (isObjectId) {
+      const material = await materialCategoryModells.findById(data.item).select("name");
+      data.item = material?.name || null;
+    } 
+    res.status(200).json({ msg: "PO Detail", data });
+  } catch (error) {
+    res.status(500).json({ message: "Error retrieving PO", error: error.message });
+  }
 };
+
 
 //get PO History
 const getpohistory = async function (req, res) {
-  // const page = parseInt(req.query.page) || 1;
-  // const pageSize = 200;
-  // const skip = (page - 1) * pageSize;
+  try {
+    const data = await pohisttoryModells.find().lean(); 
 
-  let data = await pohisttoryModells
-    .find()
-    // .sort({ createdAt: -1 }) // Latest first
-    // .skip(skip)
-    // .limit(pageSize);
-  res.status(200).json({ msg: "All PO History", data: data });
+    const updatedData = await Promise.all(
+      data.map(async (entry) => {
+        const isObjectId = mongoose.Types.ObjectId.isValid(entry.item);
+        if (isObjectId) {
+          const material = await materialCategoryModells.findById(entry.item).select("name");
+          return {
+            ...entry,
+            item: material?.name || null,
+          };
+        } else {
+          return {
+            ...entry,
+            item: entry.item,
+          };
+        }
+      })
+    );
+
+    res.status(200).json({ msg: "All PO History", data: updatedData });
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching PO history", error: error.message });
+  }
 };
+
 
 // get-purchase-order-by p_id
 const getPOByProjectId = async function (req, res) {
-  let { p_id } = req.body;
-  let data = await purchaseOrderModells.find({ p_id: p_id });
-  res.status(200).json({ msg: "All Purchase Orders", data: data });
+  try {
+    const { p_id } = req.body;
+
+    const data = await purchaseOrderModells.find({ p_id }).lean();
+
+    const updatedData = await Promise.all(
+      data.map(async (po) => {
+        const isObjectId = mongoose.Types.ObjectId.isValid(po.item);
+        if (isObjectId) {
+          const material = await materialCategoryModells.findById(po.item).select("name");
+          return {
+            ...po,
+            item: material?.name || null,
+          };
+        } else {
+          return {
+            ...po,
+            item: po.item,
+          };
+        }
+      })
+    );
+
+    res.status(200).json({ msg: "All Purchase Orders", data: updatedData });
+  } catch (error) {
+    res.status(500).json({ message: "Error retrieving POs", error: error.message });
+  }
 };
 
-//get po history by id
 
+//get po history by id
 const getPOHistoryById = async function (req, res) {
   try {
     let id = req.params._id;
-    let data = await pohisttoryModells.findById(id);
-    res.status(200).json({ msg: "PO History Detail", data: data });
+    let data = await pohisttoryModells.findById(id).lean();
+
+    if (!data) return res.status(404).json({ msg: "PO History not found" });
+
+    const isObjectId = mongoose.Types.ObjectId.isValid(data.item);
+
+    if (isObjectId) {
+      const material = await materialCategoryModells.findById(data.item).select("name");
+      data.item = material?.name || null;
+    } else {
+      data.item = data.item;
+    }
+
+    res.status(200).json({ msg: "PO History Detail", data });
   } catch (error) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
+
 
 
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
-    // const page = parseInt(req.query.page) || 1;
-    // const pageSize = 200;
-    // const skip = (page - 1) * pageSize;
+    let data = await purchaseOrderModells.find().lean();
 
-    let data = await purchaseOrderModells.find();
-    // .sort({ createdAt: -1 }) // Latest first
-    // .skip(skip)
-    // .limit(pageSize);
+    const updatedData = await Promise.all(
+      data.map(async (po) => {
+        const isObjectId = mongoose.Types.ObjectId.isValid(po.item);
 
-    res.status(200).json({ msg: "All PO", data: data });
+        if (isObjectId) {
+          const material = await materialCategoryModells.findById(po.item).select("name");
+          return { ...po, item: material?.name || null };
+        } else {
+          return { ...po, item: po.item };
+        }
+      })
+    );
+
+    res.status(200).json({ msg: "All PO", data: updatedData });
   } catch (error) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
+
 
 //Move-Recovery
 const moverecovery = async function (req, res) {
