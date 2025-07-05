@@ -6,6 +6,7 @@ const {
   deletePurchaseRequest,
   updatePurchaseRequestStatus,
   getAllPurchaseRequest,
+  getAllPurchaseRequestByProjectId,
 } = require("../../Controllers/purchaseRequestController/purchaseRequestController");
 const jwtMW = require("../../middlewares/auth");
 router.post(
@@ -28,6 +29,12 @@ router.get(
   jwtMW.authorization,
   getPurchaseRequestById
 );
+
+router.get("/purchase-request-project_id",
+    jwtMW.authentication,
+  jwtMW.authorization,
+  getAllPurchaseRequestByProjectId
+)
 
 router.put(
   "/purchase-request/:id",
