@@ -50,16 +50,44 @@ const CreatePurchaseRequest = async (req, res) => {
   }
 };
 
-const getAllPurchaseRequest = async (req, res) => {
+const getAllPurchaseRequestByProjectId = async (req, res) => {
   try {
     const { project_id } = req.query;
 
-    let requests = project_id
-      ? await PurchaseRequest.find({ project_id })
+    let requests = await PurchaseRequest.find({ project_id })
           .populate("created_by", "_id name")
           .populate("project_id", "_id name code")
           .sort({ createdAt: -1 })
-      : await PurchaseRequest.find()
+
+    const enrichedRequests = await Promise.all(
+      requests.map(async (request) => {
+        const pos = await purchaseOrderModells.find({ pr_id: request._id });
+
+        const totalPoValueWithGst = pos.reduce((acc, po) => {
+          const poValue = Number(po.po_value || 0);
+          const gstValue = Number(po.gst || 0);
+          return acc + poValue + gstValue;
+        }, 0);
+
+        return {
+          ...request.toObject(),
+          po_value1: totalPoValueWithGst,
+          total_po_count: pos.length,
+        };
+      })
+    );
+
+    res.status(200).json(enrichedRequests);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch purchase requests" });
+  }
+};
+
+const getAllPurchaseRequest = async (req, res) => {
+  try {
+
+    let requests =  await PurchaseRequest.find()
           .populate("created_by", "_id name")
           .populate("project_id", "_id name code")
           .sort({ createdAt: -1 });
@@ -88,7 +116,6 @@ const getAllPurchaseRequest = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch purchase requests" });
   }
 };
-
 const getPurchaseRequestById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -282,4 +309,5 @@ module.exports = {
   UpdatePurchaseRequest,
   deletePurchaseRequest,
   updatePurchaseRequestStatus,
+  getAllPurchaseRequestByProjectId
 };
