@@ -375,6 +375,7 @@ const getPurchaseRequest = async (req, res) => {
     // Find all Purchase Orders where this item_id is present
     const purchaseOrders = await purchaseOrderModells.find({
       item: item_id,
+      p_id: purchaseRequest.project_id?.code,
     });
 
     // Prepare PO details with _id, po_number and total value including GST
