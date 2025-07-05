@@ -57,9 +57,11 @@ const getAllPurchaseRequest = async (req, res) => {
     let requests = project_id
       ? await PurchaseRequest.find({ project_id })
           .populate("created_by", "_id name")
+          .populate("project_id", "_id name code")
           .sort({ createdAt: -1 })
       : await PurchaseRequest.find()
           .populate("created_by", "_id name")
+          .populate("project_id", "_id name code")
           .sort({ createdAt: -1 });
 
     const enrichedRequests = await Promise.all(
