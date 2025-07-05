@@ -99,12 +99,14 @@ const getAllPurchaseRequest = async (req, res) => {
       search = "",
       itemSearch = "",
       poValueSearch = "",
+      statusSearch = ""
     } = req.query;
     const skip = (page - 1) * limit;
 
     const searchRegex = new RegExp(search, "i");
     const itemSearchRegex = new RegExp(itemSearch, "i");
     const poValueSearchNumber = Number(poValueSearch);
+    const statusSearchRegex = new RegExp(statusSearch, "i");
 
     const pipeline = [
       {
@@ -152,7 +154,6 @@ const getAllPurchaseRequest = async (req, res) => {
               $match: {
                 $or: [
                   { pr_no: searchRegex },
-                  { "current_status.status": searchRegex },
                   { "project_id.code": searchRegex },
                   { "project_id.name": searchRegex },
                 ],
@@ -170,11 +171,19 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
+        ...(statusSearch
+        ? [
+            {
+              $match: {
+                 "current_status.status": statusSearchRegex
+              },
+            },
+          ]
+        : []),
       {
         $group: {
           _id: "$_id",
           pr_no: { $first: "$pr_no" },
-          item_category: { $first: "$item_category" },
           createdAt: { $first: "$createdAt" },
           project_id: { $first: "$project_id" },
           created_by: { $first: "$created_by" },
