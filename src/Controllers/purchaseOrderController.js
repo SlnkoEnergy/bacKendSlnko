@@ -11,13 +11,8 @@ const { default: mongoose } = require("mongoose");
 const materialCategoryModells = require("../Modells/EngineeringModells/materials/materialCategoryModells");
 
 //Add-Purchase-Order
-const addPo = async (req, res) => {
+const addPo = async function (req, res) {
   try {
-    const data =
-      typeof req.body.data === "string"
-        ? JSON.parse(req.body.data)
-        : req.body.data;
-
     const {
       p_id,
       date,
@@ -26,87 +21,50 @@ const addPo = async (req, res) => {
       po_number,
       po_value,
       vendor,
+      partial_billing,
       submitted_By,
       po_basic,
       gst,
-      offer_Id,
       pr_id,
-    } = data;
+    } = req.body;
 
-    const resolvedItem = item === "Other" ? other : item;
+    let resolvedItem = item === "Other" ? other : item;
+    const partialItem = await iteamModells.findOne({ item: resolvedItem });
+    const partal_billing = partialItem ? partialItem.partial_billing : "";
 
-    // Check if PO Number already exists
+    // Check if PO Number exists
     const existingPO = await purchaseOrderModells.findOne({ po_number });
     if (existingPO) {
-      return res.status(400).json({ message: "PO Number already used!" });
+      return res.status(400).send({ message: "PO Number already used!" });
     }
 
-    // Get partial billing info
-    const partialItem = await iteamModells.findOne({ item: resolvedItem });
-    const partial_billing = partialItem ? partialItem.partial_billing : "";
-
-    // Upload files (if any)
-    const folderPath = `purchase_orders/${po_number}`;
-    const attachmentUrls = [];
-
-    for (const file of req.files || []) {
-      const form = new FormData();
-      form.append("file", file.buffer, {
-        filename: file.originalname,
-        contentType: file.mimetype,
-      });
-
-      const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${folderPath}`;
-      const response = await axios.post(uploadUrl, form, {
-        headers: form.getHeaders(),
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-      });
-
-      const respData = response.data;
-      const url =
-        Array.isArray(respData) && respData.length > 0
-          ? respData[0]
-          : respData.url ||
-            respData.fileUrl ||
-            (respData.data && respData.data.url) ||
-            null;
-
-      if (url) {
-        attachmentUrls.push(url);
-      }
-    }
-
-    // Create new PO
+    // Add new Purchase Order
     const newPO = new purchaseOrderModells({
       p_id,
-      offer_Id,
       po_number,
       date,
-      item,
-      other,
+      item: resolvedItem,
       po_value,
       vendor,
+      other,
       submitted_By,
       partial_billing,
       po_basic,
       gst,
       pr_id,
-      attachement_url: attachmentUrls,
     });
 
     await newPO.save();
 
-    return res.status(200).json({
+    res.status(200).send({
       message: "Purchase Order has been added successfully!",
-      data: newPO,
+
+      newPO,
     });
   } catch (error) {
-    console.error("Error creating PO:", error);
-    return res.status(500).json({
-      message: "Internal Server Error",
-      error: error.message,
-    });
+    res
+      .status(500)
+      .send({ message: "An error occurred while processing your request." });
   }
 };
 
