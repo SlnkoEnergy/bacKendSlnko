@@ -63,21 +63,31 @@ const getAllPurchaseRequest = async (req, res) => {
           .sort({ createdAt: -1 });
 
     const enrichedRequests = await Promise.all(
-      requests.map(async (req) => {
-        const po = await purchaseOrderModells.findOne({ pr_id: req._id });
+      requests.map(async (request) => {
+        const pos = await purchaseOrderModells.find({ pr_id: request._id });
+
+        const totalPoValueWithGst = pos.reduce((acc, po) => {
+          const poValue = Number(po.po_value || 0);
+          const gstValue = Number(po.gst || 0);
+          return acc + poValue + gstValue;
+        }, 0);
+
         return {
-          ...req.toObject(),
-          po_number: po?.po_number || null,
-          po_value: po?.po_value || null,
+          ...request.toObject(),
+          po_value1: totalPoValueWithGst,
+          total_po_count: pos.length,
         };
       })
     );
 
     res.status(200).json(enrichedRequests);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: "Failed to fetch purchase requests" });
   }
 };
+
+
 
 
 const getPurchaseRequestById = async (req, res) => {
