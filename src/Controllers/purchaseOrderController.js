@@ -30,8 +30,7 @@ const addPo = async (req, res) => {
       po_basic,
       gst,
       offer_Id,
-      pr_id,
-      etd
+      pr_id
     } = data;
 
     const resolvedItem = item === "Other" ? other : item;
@@ -419,5 +418,4 @@ module.exports = {
   deletePO,
   getpohistory,
   getPOHistoryById,
-  // getAllPoTest,
 };

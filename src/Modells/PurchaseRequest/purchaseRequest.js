@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const updateCurrentStatusItems = require("../../utils/statusUpdateUtils/updateCurrentStatusItems");
 const updateCurrentStatus = require("../../utils/statusUpdateUtils/updateCurrentStatus");
 
 const purchaseRequestSchema = new mongoose.Schema(
@@ -25,7 +24,8 @@ const purchaseRequestSchema = new mongoose.Schema(
             "draft",
             "approved",
             "po_created",
-            "rejected"
+            "rejected",
+            "delivered",
           ],
         },
         remarks: {
@@ -42,10 +42,11 @@ const purchaseRequestSchema = new mongoose.Schema(
         type: String,
         enum: [
           "submitted",
-            "draft",
-            "approved",
-            "po_created",
-            "rejected"
+          "draft",
+          "approved",
+          "po_created",
+          "rejected",
+          "delivered",
         ],
       },
       remarks: {
@@ -62,6 +63,12 @@ const purchaseRequestSchema = new mongoose.Schema(
     created_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+    },
+    etd: {
+      type: Date,
+    },
+    delivery_date: {
+      type: Date,
     },
   },
   { timestamps: true }
