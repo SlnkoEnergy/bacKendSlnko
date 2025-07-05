@@ -99,7 +99,7 @@ const getAllPurchaseRequest = async (req, res) => {
       search = "",
       itemSearch = "",
       poValueSearch = "",
-      statusSearch = ""
+      statusSearch = "",
     } = req.query;
     const skip = (page - 1) * limit;
 
@@ -171,11 +171,11 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
-        ...(statusSearch
+      ...(statusSearch
         ? [
             {
               $match: {
-                 "current_status.status": statusSearchRegex
+                "current_status.status": statusSearchRegex,
               },
             },
           ]
@@ -351,23 +351,70 @@ const getPurchaseRequest = async (req, res) => {
       });
     }
 
-    if (item_id) {
-      const item = await PurchaseRequest.findOne({
-        project_id,
-        items: { $elemMatch: { item_id } },
-      });
-      return res.status(200).json(item);
+    // Fetch purchase request with project and item details populated
+    const purchaseRequest = await PurchaseRequest.findOne({
+      project_id,
+      "items.item_id": item_id,
+    })
+      .populate("project_id", "name code")
+      .populate("items.item_id", "name");
+
+    if (!purchaseRequest) {
+      return res.status(404).json({ message: "Purchase Request not found" });
     }
 
-    const allItems = await PurchaseRequest.find({ project_id });
-    return res.status(200).json(allItems);
-    
+    // Find the particular item
+    const particularItem = purchaseRequest.items.find(
+      (itm) => String(itm.item_id?._id || itm.item_id) === String(item_id)
+    );
+
+    if (!particularItem) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    // Find all Purchase Orders where this item_id is present
+    const purchaseOrders = await purchaseOrderModells.find({
+      "items.item_id": item_id,
+    });
+
+    // Prepare PO details with po_number and total value including GST
+    const poDetails = purchaseOrders.map((po) => {
+      const poValue = Number(po.po_value || 0);
+      const gstValue = Number(po.gst || 0);
+      return {
+        po_number: po.po_number,
+        total_value_with_gst: poValue + gstValue,
+      };
+    });
+
+    // Prepare the full response
+    return res.status(200).json({
+      purchase_request: {
+        _id: purchaseRequest._id,
+        pr_no: purchaseRequest.pr_no,
+        current_status: purchaseRequest.current_status,
+        status_history: purchaseRequest.status_history,
+        createdAt: purchaseRequest.createdAt,
+        project: {
+          _id: purchaseRequest.project_id?._id,
+          name: purchaseRequest.project_id?.name,
+          code: purchaseRequest.project_id?.code,
+        },
+      },
+      item: {
+        ...particularItem.toObject(),
+        item_id: {
+          _id: particularItem.item_id?._id,
+          name: particularItem.item_id?.name,
+        },
+      },
+      po_details: poDetails,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 
 const UpdatePurchaseRequest = async (req, res) => {
   try {
@@ -477,5 +524,5 @@ module.exports = {
   deletePurchaseRequest,
   updatePurchaseRequestStatus,
   getAllPurchaseRequestByProjectId,
-  getPurchaseRequest
+  getPurchaseRequest,
 };
