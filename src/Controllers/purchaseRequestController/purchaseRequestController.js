@@ -374,18 +374,28 @@ const getPurchaseRequest = async (req, res) => {
 
     // Find all Purchase Orders where this item_id is present
     const purchaseOrders = await purchaseOrderModells.find({
-      "items.item_id": item_id,
+      item: item_id,
     });
 
-    // Prepare PO details with po_number and total value including GST
+    // Prepare PO details with _id, po_number and total value including GST
     const poDetails = purchaseOrders.map((po) => {
       const poValue = Number(po.po_value || 0);
       const gstValue = Number(po.gst || 0);
       return {
+        _id: po._id,
         po_number: po.po_number,
         total_value_with_gst: poValue + gstValue,
       };
     });
+
+    // Calculate overall totals
+    const overall = {
+      total_po_count: poDetails.length,
+      total_value_with_gst: poDetails.reduce(
+        (acc, po) => acc + Number(po.total_value_with_gst || 0),
+        0
+      ),
+    };
 
     // Prepare the full response
     return res.status(200).json({
@@ -409,6 +419,7 @@ const getPurchaseRequest = async (req, res) => {
         },
       },
       po_details: poDetails,
+      overall,
     });
   } catch (error) {
     console.error(error);
