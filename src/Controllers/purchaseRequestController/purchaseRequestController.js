@@ -410,6 +410,8 @@ const getPurchaseRequest = async (req, res) => {
           name: purchaseRequest.project_id?.name,
           code: purchaseRequest.project_id?.code,
         },
+        etd: purchaseRequest.etd,
+        delivery_date: purchaseRequest.delivery_date,
       },
       item: {
         ...particularItem.toObject(),
