@@ -51,7 +51,7 @@ router.delete(
 );
 
 router.put(
-  "/:id/item/item_id/updatePurchaseRequestStatus",
+  "/:id/updatePurchaseRequestStatus",
   jwtMW.authentication,
   jwtMW.authorization,
   updatePurchaseRequestStatus
