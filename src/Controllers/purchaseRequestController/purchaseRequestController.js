@@ -206,6 +206,8 @@ const getAllPurchaseRequest = async (req, res) => {
             status_history: 1,
             current_status: 1,
           },
+          etd: 1,
+          delivery_date: 1,
         },
       },
       { $sort: { createdAt: -1 } },
