@@ -190,6 +190,8 @@ const getAllPurchaseRequest = async (req, res) => {
           items: { $push: "$items" },
           current_status: { $first: "$current_status" },
           status_history: { $first: "$status_history" },
+          etd: { $first: "$etd" },
+          delivery_date: { $first: "$delivery_date" },
         },
       },
 
@@ -479,6 +481,10 @@ const updatePurchaseRequestStatus = async (req, res) => {
       return res
         .status(404)
         .json({ message: "Purchase Request record not found" });
+    }
+
+    if (status === "delivered") {
+      purchaseRequest.delivery_date = Date.now();
     }
 
     purchaseRequest.status_history.push({
