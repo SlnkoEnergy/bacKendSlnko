@@ -464,7 +464,7 @@ const updatePurchaseRequestStatus = async (req, res) => {
     const { id } = req.params;
     const { status, remarks } = req.body;
 
-    if (!id || !item_id || !status || !remarks) {
+    if (!id || !status || !remarks) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
