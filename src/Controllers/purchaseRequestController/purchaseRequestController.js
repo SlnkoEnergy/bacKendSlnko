@@ -341,6 +341,34 @@ const getPurchaseRequestById = async (req, res) => {
   }
 };
 
+const getPurchaseRequest = async (req, res) => {
+  try {
+    const { project_id, item_id } = req.params;
+
+    if (!project_id) {
+      return res.status(400).json({
+        message: "Project ID is required",
+      });
+    }
+
+    if (item_id) {
+      const item = await PurchaseRequest.findOne({
+        project_id,
+        items: { $elemMatch: { item_id } },
+      });
+      return res.status(200).json(item);
+    }
+
+    const allItems = await PurchaseRequest.find({ project_id });
+    return res.status(200).json(allItems);
+    
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+
 const UpdatePurchaseRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -449,4 +477,5 @@ module.exports = {
   deletePurchaseRequest,
   updatePurchaseRequestStatus,
   getAllPurchaseRequestByProjectId,
+  getPurchaseRequest
 };

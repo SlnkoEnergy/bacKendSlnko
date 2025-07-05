@@ -7,6 +7,7 @@ const {
   updatePurchaseRequestStatus,
   getAllPurchaseRequest,
   getAllPurchaseRequestByProjectId,
+  getPurchaseRequest,
 } = require("../../Controllers/purchaseRequestController/purchaseRequestController");
 const jwtMW = require("../../middlewares/auth");
 router.post(
@@ -50,5 +51,6 @@ router.put(
   jwtMW.authorization,
   updatePurchaseRequestStatus
 );
+router.get('/:project_id/item/:item_id', jwtMW.authentication, jwtMW.authorization, getPurchaseRequest);
 
 module.exports = router;
