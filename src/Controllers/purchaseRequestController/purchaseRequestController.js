@@ -351,14 +351,12 @@ const getPurchaseRequest = async (req, res) => {
       });
     }
 
-    // Validate pr_id
     if (!mongoose.Types.ObjectId.isValid(pr_id)) {
       return res.status(400).json({
         message: "Invalid Purchase Request ID",
       });
     }
 
-    // Find Purchase Request by pr_id and project_id
     const purchaseRequest = await PurchaseRequest.findOne({
       _id: pr_id,
       project_id,
@@ -371,7 +369,6 @@ const getPurchaseRequest = async (req, res) => {
       return res.status(404).json({ message: "Purchase Request not found" });
     }
 
-    // Find the particular item
     const particularItem = purchaseRequest.items.find(
       (itm) => String(itm.item_id?._id || itm.item_id) === String(item_id)
     );
@@ -380,13 +377,11 @@ const getPurchaseRequest = async (req, res) => {
       return res.status(404).json({ message: "Item not found" });
     }
 
-    // Fetch Purchase Orders based on item and p_id matching project code
     const purchaseOrders = await purchaseOrderModells.find({
       item: item_id,
       p_id: purchaseRequest.project_id?.code,
     });
 
-    // Prepare PO details
     const poDetails = purchaseOrders.map((po) => {
       const poValue = Number(po.po_value || 0);
       const gstValue = Number(po.gst || 0);
@@ -397,7 +392,6 @@ const getPurchaseRequest = async (req, res) => {
       };
     });
 
-    // Calculate overall totals
     const overall = {
       total_po_count: poDetails.length,
       total_value_with_gst: poDetails.reduce(
@@ -406,7 +400,6 @@ const getPurchaseRequest = async (req, res) => {
       ),
     };
 
-    // Final response
     return res.status(200).json({
       purchase_request: {
         _id: purchaseRequest._id,
