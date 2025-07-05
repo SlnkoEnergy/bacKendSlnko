@@ -86,13 +86,121 @@ const getAllPurchaseRequestByProjectId = async (req, res) => {
 
 const getAllPurchaseRequest = async (req, res) => {
   try {
+    const { page = 1, limit = 10, search = "", itemSearch = "", poValueSearch = "" } = req.query;
+    const skip = (page - 1) * limit;
 
-    let requests =  await PurchaseRequest.find()
-          .populate("created_by", "_id name")
-          .populate("project_id", "_id name code")
-          .sort({ createdAt: -1 });
+    const searchRegex = new RegExp(search, "i");
+    const itemSearchRegex = new RegExp(itemSearch, "i");
+    const poValueSearchNumber = Number(poValueSearch);
 
-    const enrichedRequests = await Promise.all(
+    const pipeline = [
+      {
+        $lookup: {
+          from: "projectdetails",
+          localField: "project_id",
+          foreignField: "_id",
+          as: "project_id",
+        },
+      },
+      { $unwind: { path: "$project_id", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "created_by",
+          foreignField: "_id",
+          as: "created_by",
+        },
+      },
+      { $unwind: "$created_by" },
+      {
+        $unwind: {
+          path: "$items",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "materialcategories",
+          localField: "items.item_id",
+          foreignField: "_id",
+          as: "items.item_id",
+        },
+      },
+      {
+        $unwind: {
+          path: "$items.item_id",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // General search on project and PR fields
+      ...(search
+        ? [
+            {
+              $match: {
+                $or: [
+                  { pr_no: searchRegex },
+                  { item_category: searchRegex },
+                  { "project_id.code": searchRegex },
+                  { "project_id.name": searchRegex },
+                ],
+              },
+            },
+          ]
+        : []),
+      // Item search filter
+      ...(itemSearch
+        ? [
+            {
+              $match: {
+                "items.item_id.name": itemSearchRegex,
+              },
+            },
+          ]
+        : []),
+      {
+        $group: {
+          _id: "$_id",
+          pr_no: { $first: "$pr_no" },
+          item_category: { $first: "$item_category" },
+          createdAt: { $first: "$createdAt" },
+          project_id: { $first: "$project_id" },
+          created_by: { $first: "$created_by" },
+          items: { $push: "$items" },
+        },
+      },
+      {
+        $project: {
+          pr_no: 1,
+          item_category: 1,
+          createdAt: 1,
+          project_id: { _id: 1, name: 1, code: 1 },
+          created_by: { _id: 1, name: 1 },
+          items: {
+            item_id: { _id: 1, name: 1 },
+            status_history: 1,
+            current_status: 1,
+          },
+        },
+      },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: Number(limit) },
+    ];
+
+    const countPipeline = [
+      ...pipeline.slice(0, -3),
+      { $count: "totalCount" },
+    ];
+
+    let [requests, countResult] = await Promise.all([
+      PurchaseRequest.aggregate(pipeline),
+      PurchaseRequest.aggregate(countPipeline),
+    ]);
+
+    const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
+
+    // Enrich with PO Value and count
+    requests = await Promise.all(
       requests.map(async (request) => {
         const pos = await purchaseOrderModells.find({ pr_id: request._id });
 
@@ -103,19 +211,33 @@ const getAllPurchaseRequest = async (req, res) => {
         }, 0);
 
         return {
-          ...request.toObject(),
-          po_value1: totalPoValueWithGst,
+          ...request,
+          po_value: totalPoValueWithGst,
           total_po_count: pos.length,
         };
       })
     );
 
-    res.status(200).json(enrichedRequests);
+    // Apply PO Value Search
+    if (poValueSearch) {
+      requests = requests.filter(
+        (r) => Number(r.po_value) === poValueSearchNumber
+      );
+    }
+
+    res.status(200).json({
+      totalCount: poValueSearch ? requests.length : totalCount,
+      currentPage: Number(page),
+      totalPages: Math.ceil(totalCount / limit),
+      data: requests,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to fetch purchase requests" });
   }
 };
+
+
 const getPurchaseRequestById = async (req, res) => {
   try {
     const { id } = req.params;
