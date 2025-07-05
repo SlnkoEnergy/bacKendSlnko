@@ -30,7 +30,7 @@ const addPo = async (req, res) => {
       po_basic,
       gst,
       offer_Id,
-      pr_id
+      pr_id,
     } = data;
 
     const resolvedItem = item === "Other" ? other : item;
@@ -92,7 +92,6 @@ const addPo = async (req, res) => {
       po_basic,
       gst,
       pr_id,
-      etd,
       attachement_url: attachmentUrls,
     });
 
@@ -110,7 +109,6 @@ const addPo = async (req, res) => {
     });
   }
 };
-
 
 //Edit-Purchase-Order
 const editPO = async function (req, res) {
@@ -136,14 +134,14 @@ const editPO = async function (req, res) {
       comment: update.comment,
       po_basic: update.po_basic,
       gst: update.gst,
-      updated_on: new Date().toISOString(), 
+      updated_on: new Date().toISOString(),
       submitted_By: update.submitted_By,
     };
     await pohisttoryModells.create(pohistory);
 
     res.status(200).json({
       msg: "Project updated successfully",
-      data: update, 
+      data: update,
     });
   } catch (error) {
     res.status(400).json({ msg: "Server error", error: error.message });
@@ -160,26 +158,31 @@ const getPO = async function (req, res) {
     const isObjectId = mongoose.Types.ObjectId.isValid(data.item);
 
     if (isObjectId) {
-      const material = await materialCategoryModells.findById(data.item).select("name");
+      const material = await materialCategoryModells
+        .findById(data.item)
+        .select("name");
       data.item = material?.name || null;
-    } 
+    }
     res.status(200).json({ msg: "PO Detail", data });
   } catch (error) {
-    res.status(500).json({ message: "Error retrieving PO", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error retrieving PO", error: error.message });
   }
 };
-
 
 //get PO History
 const getpohistory = async function (req, res) {
   try {
-    const data = await pohisttoryModells.find().lean(); 
+    const data = await pohisttoryModells.find().lean();
 
     const updatedData = await Promise.all(
       data.map(async (entry) => {
         const isObjectId = mongoose.Types.ObjectId.isValid(entry.item);
         if (isObjectId) {
-          const material = await materialCategoryModells.findById(entry.item).select("name");
+          const material = await materialCategoryModells
+            .findById(entry.item)
+            .select("name");
           return {
             ...entry,
             item: material?.name || null,
@@ -195,10 +198,11 @@ const getpohistory = async function (req, res) {
 
     res.status(200).json({ msg: "All PO History", data: updatedData });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching PO history", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error fetching PO history", error: error.message });
   }
 };
-
 
 // get-purchase-order-by p_id
 const getPOByProjectId = async function (req, res) {
@@ -211,7 +215,9 @@ const getPOByProjectId = async function (req, res) {
       data.map(async (po) => {
         const isObjectId = mongoose.Types.ObjectId.isValid(po.item);
         if (isObjectId) {
-          const material = await materialCategoryModells.findById(po.item).select("name");
+          const material = await materialCategoryModells
+            .findById(po.item)
+            .select("name");
           return {
             ...po,
             item: material?.name || null,
@@ -227,10 +233,11 @@ const getPOByProjectId = async function (req, res) {
 
     res.status(200).json({ msg: "All Purchase Orders", data: updatedData });
   } catch (error) {
-    res.status(500).json({ message: "Error retrieving POs", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error retrieving POs", error: error.message });
   }
 };
-
 
 //get po history by id
 const getPOHistoryById = async function (req, res) {
@@ -243,7 +250,9 @@ const getPOHistoryById = async function (req, res) {
     const isObjectId = mongoose.Types.ObjectId.isValid(data.item);
 
     if (isObjectId) {
-      const material = await materialCategoryModells.findById(data.item).select("name");
+      const material = await materialCategoryModells
+        .findById(data.item)
+        .select("name");
       data.item = material?.name || null;
     } else {
       data.item = data.item;
@@ -255,8 +264,6 @@ const getPOHistoryById = async function (req, res) {
   }
 };
 
-
-
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
@@ -267,7 +274,9 @@ const getallpo = async function (req, res) {
         const isObjectId = mongoose.Types.ObjectId.isValid(po.item);
 
         if (isObjectId) {
-          const material = await materialCategoryModells.findById(po.item).select("name");
+          const material = await materialCategoryModells
+            .findById(po.item)
+            .select("name");
           return { ...po, item: material?.name || null };
         } else {
           return { ...po, item: po.item };
@@ -280,7 +289,6 @@ const getallpo = async function (req, res) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
-
 
 //Move-Recovery
 const moverecovery = async function (req, res) {
