@@ -28,8 +28,9 @@ router.get(
   jwtMW.authorization,
   getPurchaseRequestById
 );
-router.get("/purchase-request-project_id",
-    jwtMW.authentication,
+router.get(
+  "/purchase-request-project_id",
+  jwtMW.authentication,
   jwtMW.authorization,
   getAllPurchaseRequestByProjectId
 );
@@ -51,6 +52,11 @@ router.put(
   jwtMW.authorization,
   updatePurchaseRequestStatus
 );
-router.get('/:project_id/item/:item_id', jwtMW.authentication, jwtMW.authorization, getPurchaseRequest);
+router.get(
+  "/:project_id/item/:item_id/pr/:pr_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getPurchaseRequest
+);
 
 module.exports = router;
