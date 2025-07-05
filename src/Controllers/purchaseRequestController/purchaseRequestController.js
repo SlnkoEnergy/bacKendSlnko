@@ -57,9 +57,11 @@ const getAllPurchaseRequest = async (req, res) => {
     let requests = project_id
       ? await PurchaseRequest.find({ project_id })
           .populate("created_by", "_id name")
+          .populate("project_id", "_id name code")
           .sort({ createdAt: -1 })
       : await PurchaseRequest.find()
           .populate("created_by", "_id name")
+          .populate("project_id", "_id name code")
           .sort({ createdAt: -1 });
 
     const enrichedRequests = await Promise.all(
@@ -87,9 +89,6 @@ const getAllPurchaseRequest = async (req, res) => {
   }
 };
 
-
-
-
 const getPurchaseRequestById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -106,15 +105,61 @@ const getPurchaseRequestById = async (req, res) => {
       .populate({
         path: "items.item_id",
         select: "name",
-      })
+      });
 
     if (!purchaseRequest) {
       return res.status(404).json({ message: "Purchase Request not found" });
     }
 
+    const purchaseOrders = await purchaseOrderModells.find({ pr_id: id });
+
+    let overallTotalPOValue = 0;
+    let overallTotalNumberOfPO = 0;
+
+    const itemToPOsMap = {};
+
+    for (const po of purchaseOrders) {
+      const itemId = String(po.item);
+      const poValue = Number(po.po_value) || 0;
+      const gstValue = Number(po.gst) || 0;
+      const totalWithGST = poValue + gstValue;
+
+      if (!itemToPOsMap[itemId]) {
+        itemToPOsMap[itemId] = {
+          po_numbers: [],
+          total_po_with_gst: 0,
+        };
+      }
+
+      itemToPOsMap[itemId].po_numbers.push(po.po_number);
+      itemToPOsMap[itemId].total_po_with_gst += totalWithGST;
+
+      overallTotalPOValue += totalWithGST;
+      overallTotalNumberOfPO += 1;
+    }
+
+    const itemsWithPOData = purchaseRequest.items.map((item) => {
+      const itemId = String(item.item_id?._id);
+      const poInfo = itemToPOsMap[itemId] || {
+        po_numbers: [],
+        total_po_with_gst: 0,
+      };
+      return {
+        ...item.toObject(),
+        po_numbers: poInfo.po_numbers,
+        total_po_value_with_gst: poInfo.total_po_with_gst,
+        total_number_of_po: poInfo.po_numbers.length,
+      };
+    });
+
     return res.status(200).json({
       message: "Purchase Request retrieved successfully",
-      data: purchaseRequest,
+      data: {
+        ...purchaseRequest.toObject(),
+        items: itemsWithPOData,
+        overall_total_po_value_with_gst: overallTotalPOValue,
+        overall_total_number_of_po: overallTotalNumberOfPO,
+      },
     });
   } catch (error) {
     console.error("Error fetching purchase request by ID:", error);
@@ -124,6 +169,8 @@ const getPurchaseRequestById = async (req, res) => {
     });
   }
 };
+
+
 
 const UpdatePurchaseRequest = async (req, res) => {
   try {
