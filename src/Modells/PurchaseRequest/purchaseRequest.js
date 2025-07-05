@@ -24,7 +24,7 @@ const purchaseRequestSchema = new mongoose.Schema(
             "submitted",
             "draft",
             "approved",
-            "PO Created",
+            "po_created",
           ],
         },
         remarks: {
@@ -43,7 +43,7 @@ const purchaseRequestSchema = new mongoose.Schema(
           "submitted",
             "draft",
             "approved",
-            "PO Created",
+            "po_created",
         ],
       },
       remarks: {
