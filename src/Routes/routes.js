@@ -263,7 +263,12 @@ router.get(
   jwtMW.authorization,
   getSingleUser
 );
-router.get('/all-user', jwtMW.authentication, jwtMW.authorization, getAllUserByDepartment);
+router.get(
+  "/all-user",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllUserByDepartment
+);
 //forget pass through resend
 // router.post("/forget-password",forgetpassword);
 
@@ -298,9 +303,19 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getProjectById
-); 
-router.get('/project', jwtMW.authentication, jwtMW.authorization, getProjectbyPId);
-router.get('/project-dropdown', jwtMW.authentication, jwtMW.authorization, getProjectDropwdown)
+);
+router.get(
+  "/project",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getProjectbyPId
+);
+router.get(
+  "/project-dropdown",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getProjectDropwdown
+);
 
 //addMoney APi
 router.post(
@@ -328,7 +343,6 @@ router.post(
   "/Add-purchase-ordeR-IT",
   jwtMW.authentication,
   jwtMW.authorization,
-  upload,
   addPo
 );
 router.put(
@@ -794,7 +808,12 @@ router.get(
   allbdlead
 );
 
-router.get('/all-leads-won-projects', jwtMW.authentication, jwtMW.authorization, getAllWonLeadsProject)
+router.get(
+  "/all-leads-won-projects",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllWonLeadsProject
+);
 
 router.get(
   "/get-initial-bd-lead-streams",
