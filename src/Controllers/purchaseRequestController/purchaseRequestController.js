@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const PurchaseRequest = require("../../Modells/PurchaseRequest/purchaseRequest");
 const PurchaseRequestCounter = require("../../Modells/Globals/purchaseRequestCounter");
-const Project = require("../../Modells/projectModells"); 
+const Project = require("../../Modells/projectModells");
 const purchaseOrderModells = require("../../Modells/purchaseOrderModells");
 
 const CreatePurchaseRequest = async (req, res) => {
@@ -57,15 +57,14 @@ const CreatePurchaseRequest = async (req, res) => {
   }
 };
 
-
 const getAllPurchaseRequestByProjectId = async (req, res) => {
   try {
     const { project_id } = req.query;
 
     let requests = await PurchaseRequest.find({ project_id })
-          .populate("created_by", "_id name")
-          .populate("project_id", "_id name code")
-          .sort({ createdAt: -1 })
+      .populate("created_by", "_id name")
+      .populate("project_id", "_id name code")
+      .sort({ createdAt: -1 });
 
     const enrichedRequests = await Promise.all(
       requests.map(async (request) => {
@@ -94,7 +93,13 @@ const getAllPurchaseRequestByProjectId = async (req, res) => {
 
 const getAllPurchaseRequest = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "", itemSearch = "", poValueSearch = "" } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      itemSearch = "",
+      poValueSearch = "",
+    } = req.query;
     const skip = (page - 1) * limit;
 
     const searchRegex = new RegExp(search, "i");
@@ -147,7 +152,7 @@ const getAllPurchaseRequest = async (req, res) => {
               $match: {
                 $or: [
                   { pr_no: searchRegex },
-                  { item_category: searchRegex },
+                  { "current_status.status": searchRegex },
                   { "project_id.code": searchRegex },
                   { "project_id.name": searchRegex },
                 ],
@@ -174,12 +179,16 @@ const getAllPurchaseRequest = async (req, res) => {
           project_id: { $first: "$project_id" },
           created_by: { $first: "$created_by" },
           items: { $push: "$items" },
+          current_status: { $first: "$current_status" },
+          status_history: { $first: "$status_history" },
         },
       },
+
       {
         $project: {
           pr_no: 1,
-          item_category: 1,
+          current_status: 1,
+          status_history: 1,
           createdAt: 1,
           project_id: { _id: 1, name: 1, code: 1 },
           created_by: { _id: 1, name: 1 },
@@ -195,10 +204,7 @@ const getAllPurchaseRequest = async (req, res) => {
       { $limit: Number(limit) },
     ];
 
-    const countPipeline = [
-      ...pipeline.slice(0, -3),
-      { $count: "totalCount" },
-    ];
+    const countPipeline = [...pipeline.slice(0, -3), { $count: "totalCount" }];
 
     let [requests, countResult] = await Promise.all([
       PurchaseRequest.aggregate(pipeline),
@@ -244,7 +250,6 @@ const getAllPurchaseRequest = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch purchase requests" });
   }
 };
-
 
 const getPurchaseRequestById = async (req, res) => {
   try {
@@ -370,13 +375,15 @@ const updatePurchaseRequestStatus = async (req, res) => {
 
     const purchaseRequest = await PurchaseRequest.findById(id);
     if (!purchaseRequest) {
-      return res.status(404).json({ message: "Purchase Request record not found" });
+      return res
+        .status(404)
+        .json({ message: "Purchase Request record not found" });
     }
-  
+
     purchaseRequest.status_history.push({
       status,
       remarks,
-      user_id: req.user.userId
+      user_id: req.user.userId,
     });
     await purchaseRequest.save();
 
@@ -397,7 +404,9 @@ const deletePurchaseRequest = async (req, res) => {
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json({ message: "Purchase Request ID is required" });
+      return res
+        .status(400)
+        .json({ message: "Purchase Request ID is required" });
     }
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -430,5 +439,5 @@ module.exports = {
   UpdatePurchaseRequest,
   deletePurchaseRequest,
   updatePurchaseRequestStatus,
-  getAllPurchaseRequestByProjectId
+  getAllPurchaseRequestByProjectId,
 };
