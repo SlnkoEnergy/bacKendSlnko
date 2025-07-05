@@ -328,6 +328,7 @@ router.post(
   "/Add-purchase-ordeR-IT",
   jwtMW.authentication,
   jwtMW.authorization,
+  upload,
   addPo
 );
 router.put(
@@ -356,7 +357,7 @@ router.put(
   moverecovery
 );
 router.get(
-  "/get-po-by-p_id/",
+  "/get-po-by-p_id",
   jwtMW.authentication,
   jwtMW.authorization,
   getPOByProjectId
