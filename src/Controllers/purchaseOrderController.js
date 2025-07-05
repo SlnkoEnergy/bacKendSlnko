@@ -198,7 +198,6 @@ const getPaginatedPo = async (req, res) => {
     const status = req.query.status?.trim();
     const searchRegex = new RegExp(search, "i");
 
-    // Initial search match (only for search text)
     const matchStage = {
       ...(search && {
         $or: [
@@ -213,7 +212,10 @@ const getPaginatedPo = async (req, res) => {
     const pipeline = [
       { $match: matchStage },
 
-      // Convert fields
+      { $sort: { date: -1 } },
+      { $skip: skip },
+      { $limit: pageSize },
+
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
@@ -221,7 +223,6 @@ const getPaginatedPo = async (req, res) => {
         },
       },
 
-      // Lookup Approved Payments with non-null UTR
       {
         $lookup: {
           from: "payrequests",
@@ -244,7 +245,15 @@ const getPaginatedPo = async (req, res) => {
         },
       },
 
-      // Calculate amount_paid
+      {
+        $lookup: {
+          from: "biildetails",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "billData",
+        },
+      },
+
       {
         $addFields: {
           amount_paid: {
@@ -263,10 +272,96 @@ const getPaginatedPo = async (req, res) => {
               },
             },
           },
+          total_billed: {
+            $sum: {
+              $map: {
+                input: "$billData",
+                as: "b",
+                in: {
+                  $convert: {
+                    input: "$$b.bill_value",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+              },
+            },
+          },
         },
       },
 
-      // Lookup bills
+      {
+        $addFields: {
+          partial_billing: {
+            $cond: {
+              if: { $lt: ["$total_billed", "$po_value"] },
+              then: "Bill Pending",
+              else: "Fully Billed",
+            },
+          },
+          billingTypes: {
+            $cond: {
+              if: { $gt: [{ $size: "$billData" }, 0] },
+              then: {
+                $let: {
+                  vars: {
+                    sorted: {
+                      $slice: [
+                        {
+                          $filter: {
+                            input: {
+                              $sortArray: {
+                                input: "$billData",
+                                sortBy: { updatedAt: -1 },
+                              },
+                            },
+                            as: "d",
+                            cond: { $ne: ["$$d.type", null] },
+                          },
+                        },
+                        1,
+                      ],
+                    },
+                  },
+                  in: { $arrayElemAt: ["$$sorted.type", 0] },
+                },
+              },
+              else: "-",
+            },
+          },
+        },
+      },
+
+      ...(status ? [{ $match: { partial_billing: status } }] : []),
+
+      {
+        $project: {
+          _id: 0,
+          po_number: 1,
+          p_id: 1,
+          vendor: 1,
+          item: 1,
+          date: 1,
+          po_value: { $toDouble: "$po_value" },
+          amount_paid: 1,
+          total_billed: 1,
+          partial_billing: 1,
+          type: "$billingTypes",
+        },
+      },
+    ];
+
+    const countPipeline = [
+      { $match: matchStage },
+
+      // replicate necessary computation for status filtering
+      {
+        $addFields: {
+          po_number: { $toString: "$po_number" },
+          po_value: { $toDouble: "$po_value" },
+        },
+      },
       {
         $lookup: {
           from: "biildetails",
@@ -275,8 +370,6 @@ const getPaginatedPo = async (req, res) => {
           as: "billData",
         },
       },
-
-      // Calculate total_billed
       {
         $addFields: {
           total_billed: {
@@ -297,8 +390,6 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-
-     
       {
         $addFields: {
           partial_billing: {
@@ -310,91 +401,36 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-      {
-        $addFields: {
-          latestBill: {
-            $arrayElemAt: [
-              {
-                $slice: [
-                  {
-                    $sortArray: {
-                      input: "$billData",
-                      sortBy: { updatedAt: -1 },
-                    },
-                  },
-                  1,
-                ],
-              },
-              0,
-            ],
-          },
-        },
-      },
-      {
-        $addFields: {
-          billingTypes: {
-            $cond: {
-              if: { $gt: [{ $size: "$billData" }, 0] },
-              then: "$latestBill.type",
-              else: "-",
-            },
-          },
-        },
-      },
-
-      // ✅ Match by status AFTER partial_billing is created
       ...(status ? [{ $match: { partial_billing: status } }] : []),
-
-      // Pagination and result shaping
-      {
-        $facet: {
-          paginatedResults: [
-            { $sort: { date: -1 } }, // fallback to createdAt if needed
-            { $skip: skip },
-            { $limit: pageSize },
-            {
-              $project: {
-                _id: 0,
-                po_number: 1,
-                p_id: 1,
-                vendor: 1,
-                item: 1,
-                type: "$billingTypes",
-                date: 1,
-                po_value: 1,
-                amount_paid: 1,
-                total_billed: 1,
-                partial_billing: 1,
-              },
-            },
-          ],
-          totalCount: [{ $count: "total" }],
-        },
-      },
+      { $count: "total" },
     ];
 
-    const formatDate = (date) => {
-      if (!date) return "";
-      return new Date(date)
-        .toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        })
-        .replace(/ /g, "/");
-    };
+    const [result, countResult] = await Promise.all([
+      purchaseOrderModells.aggregate(pipeline),
+      purchaseOrderModells.aggregate(countPipeline),
+    ]);
 
-    const [result] = await purchaseOrderModells.aggregate(pipeline);
+    const total = countResult[0]?.total || 0;
 
-    const data = (result.paginatedResults || []).map((item) => ({
+    // Format date
+    const formatDate = (date) =>
+      date
+        ? new Date(date)
+            .toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+            .replace(/ /g, "/")
+        : "";
+
+    const data = result.map((item) => ({
       ...item,
       date: formatDate(item.date),
     }));
 
-    const total = result.totalCount[0]?.total || 0;
-
     res.status(200).json({
-      msg: "All Bill Detail With PO Data",
+      msg: "All PO Detail With PO Number",
       meta: {
         total,
         page,
@@ -409,6 +445,216 @@ const getPaginatedPo = async (req, res) => {
       msg: "Error retrieving bills with PO data",
       error: err.message,
     });
+  }
+};
+
+const getExportPo = async (req, res) => {
+  try {
+    const { from, to, export: exportAll } = req.query;
+
+    let matchStage = {};
+    const parseDate = (str) => {
+      const [day, month, year] = str.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    };
+
+    if (exportAll !== "all") {
+      if (!from || !to) {
+        return res.status(400).json({ msg: "from and to dates are required" });
+      }
+
+      const fromDate = parseDate(from);
+      const toDate = parseDate(to);
+      toDate.setHours(23, 59, 59, 999);
+
+      matchStage = {
+        date: {
+          $gte: fromDate,
+          $lte: toDate,
+        },
+      };
+    }
+
+    const pipeline = [
+      { $match: matchStage },
+
+      {
+        $addFields: {
+          po_number: { $toString: "$po_number" },
+          po_value: { $toDouble: "$po_value" },
+        },
+      },
+
+      {
+        $lookup: {
+          from: "payrequests",
+          let: { poNumber: "$po_number" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: [{ $toString: "$po_number" }, "$$poNumber"] },
+                    { $eq: ["$approved", "Approved"] },
+                    { $ne: ["$utr", null] },
+                    { $ne: ["$utr", ""] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "approvedPayments",
+        },
+      },
+
+      {
+        $lookup: {
+          from: "biildetails",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "billData",
+        },
+      },
+
+      {
+        $addFields: {
+          amount_paid: {
+            $sum: {
+              $map: {
+                input: "$approvedPayments",
+                as: "pay",
+                in: {
+                  $convert: {
+                    input: "$$pay.amount_paid",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+              },
+            },
+          },
+          total_billed: {
+            $sum: {
+              $map: {
+                input: "$billData",
+                as: "b",
+                in: {
+                  $convert: {
+                    input: "$$b.bill_value",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+
+      {
+        $addFields: {
+          partial_billing: {
+            $cond: {
+              if: { $lt: ["$total_billed", "$po_value"] },
+              then: "Bill Pending",
+              else: "Fully Billed",
+            },
+          },
+          billingTypes: {
+            $cond: {
+              if: { $gt: [{ $size: "$billData" }, 0] },
+              then: {
+                $let: {
+                  vars: {
+                    sorted: {
+                      $slice: [
+                        {
+                          $filter: {
+                            input: {
+                              $sortArray: {
+                                input: "$billData",
+                                sortBy: { updatedAt: -1 },
+                              },
+                            },
+                            as: "d",
+                            cond: { $ne: ["$$d.type", null] },
+                          },
+                        },
+                        1,
+                      ],
+                    },
+                  },
+                  in: { $arrayElemAt: ["$$sorted.type", 0] },
+                },
+              },
+              else: "-",
+            },
+          },
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          po_number: 1,
+          p_id: 1,
+          vendor: 1,
+          item: 1,
+          date: 1,
+          po_value: 1,
+          amount_paid: 1,
+          total_billed: 1,
+          partial_billing: 1,
+          type: "$billingTypes",
+        },
+      },
+    ];
+
+    const result = await purchaseOrderModells.aggregate(pipeline);
+
+    // Format fields
+    const formatDate = (date) =>
+      date
+        ? new Date(date)
+            .toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+            .replace(/ /g, "/")
+        : "";
+
+    const formatted = result.map((item) => ({
+      ...item,
+      date: formatDate(item.date),
+      po_value: Number(item.po_value)?.toLocaleString("en-IN"),
+      amount_paid: Number(item.amount_paid)?.toLocaleString("en-IN"),
+      total_billed: Number(item.total_billed)?.toLocaleString("en-IN"),
+    }));
+
+    const fields = [
+      "p_id",
+      "po_number",
+      "vendor",
+      "item",
+      "date",
+      "po_value",
+      "amount_paid",
+      "total_billed",
+      "partial_billing",
+      "type",
+    ];
+    const parser = new Parser({ fields, quote: '"' });
+    const csv = parser.parse(formatted);
+
+    res.header("Content-Type", "text/csv");
+    res.attachment("PO_Export.csv");
+    return res.send(csv);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: "Export failed", error: err.message });
   }
 };
 
@@ -543,6 +789,7 @@ module.exports = {
   getPO,
   getallpo,
   getPaginatedPo,
+  getExportPo,
   exportCSV,
   moverecovery,
   getPOByProjectId,

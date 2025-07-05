@@ -38,6 +38,7 @@ const {
   getPO,
   getallpo,
   getPaginatedPo,
+  getExportPo,
   exportCSV,
   moverecovery,
   getPOByProjectId,
@@ -348,6 +349,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getPaginatedPo
+);
+router.get(
+  "/get-export-po",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getExportPo
 );
 router.post(
   "/export-to-csv",
