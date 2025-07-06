@@ -90,7 +90,6 @@ const getAllDpr = async (req, res) => {
         "createdBy.name": 1,
       },
     };
-
     const dprsPipeline = [
       ...basePipeline,
       projectionStage,
@@ -105,7 +104,7 @@ const getAllDpr = async (req, res) => {
       Dpr.aggregate(dprsPipeline),
       Dpr.aggregate(countPipeline),
     ]);
-
+   
     const totalItems = totalCountArr[0]?.total || 0;
 
     res.status(200).json({
@@ -119,8 +118,6 @@ const getAllDpr = async (req, res) => {
     res.status(500).json({ error: "Internal Server error", message: error.message });
   }
 };
-
-
 
 const getDprById = async (req, res) => {
   try {

@@ -16,6 +16,7 @@ const {
   deleteProjectById,
   getProjectById,
   getProjectbyPId,
+  getProjectDropwdown,
 } = require("../Controllers/ProjectController");
 const {
   userRegister,
@@ -263,7 +264,12 @@ router.get(
   jwtMW.authorization,
   getSingleUser
 );
-router.get('/all-user', jwtMW.authentication, jwtMW.authorization, getAllUserByDepartment);
+router.get(
+  "/all-user",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllUserByDepartment
+);
 //forget pass through resend
 // router.post("/forget-password",forgetpassword);
 
@@ -291,14 +297,26 @@ router.delete(
   jwtMW.authentication,
   jwtMW.authorization,
   deleteProjectById
-); //delete project by id
+);
+//delete project by id
 router.get(
   "/get-project-iD-IT/:_id",
   jwtMW.authentication,
   jwtMW.authorization,
   getProjectById
-); 
-router.get('/project', jwtMW.authentication, jwtMW.authorization, getProjectbyPId);
+);
+router.get(
+  "/project",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getProjectbyPId
+);
+router.get(
+  "/project-dropdown",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getProjectDropwdown
+);
 
 //addMoney APi
 router.post(
@@ -354,7 +372,7 @@ router.put(
   moverecovery
 );
 router.get(
-  "/get-po-by-p_id/",
+  "/get-po-by-p_id",
   jwtMW.authentication,
   jwtMW.authorization,
   getPOByProjectId
@@ -797,7 +815,12 @@ router.get(
   allbdlead
 );
 
-router.get('/all-leads-won-projects', jwtMW.authentication, jwtMW.authorization, getAllWonLeadsProject)
+router.get(
+  "/all-leads-won-projects",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllWonLeadsProject
+);
 
 router.get(
   "/get-initial-bd-lead-streams",
