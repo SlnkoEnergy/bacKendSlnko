@@ -132,7 +132,7 @@ const createeBDlead = async function (req, res) {
     await initialbdlead.save();
 
     const leadNotes = new BDNotes({
-      lead_id: nextid,
+      lead_id: initialbdlead._id,
       user_id: req.user.userId,
       description: comment,
       lead_model: "Initial",
