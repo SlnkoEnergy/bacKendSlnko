@@ -1,3 +1,4 @@
+const BDNotes = require("../Modells/BD-Dashboard/notes");
 const bdmodells = require("../Modells/createBDleadModells");
 const initialbdleadModells = require("../Modells/initialBdLeadModells");
 const userModells = require("../Modells/userModells");
@@ -40,12 +41,12 @@ const createeBDlead = async function (req, res) {
       {
         $addFields: {
           numericId: {
-            $toInt: { $arrayElemAt: [{ $split: ["$id", "/"] }, -1] }
-          }
-        }
+            $toInt: { $arrayElemAt: [{ $split: ["$id", "/"] }, -1] },
+          },
+        },
       },
       { $sort: { numericId: -1 } },
-      { $limit: 1 }
+      { $limit: 1 },
     ]);
 
     let nextid;
@@ -130,12 +131,19 @@ const createeBDlead = async function (req, res) {
     });
     await initialbdlead.save();
 
+    const leadNotes = new BDNotes({
+      id,
+      user_id: req.user.userId,
+      description: comment,
+      lead_model: "Initial",
+    });
+
+    await leadNotes.save();
     res.status(200).json({
       message: "Data saved successfully",
       Data: createBDlead,
       initialbdlead: initialbdlead,
     });
-
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -200,19 +208,15 @@ const getinitalbdleadstreams = async function (req, res) {
   }
 };
 
-
-
 //edit initial bd lead
 const editinitialbdlead = async function (req, res) {
   try {
     let { _id } = req.params;
 
     let data = req.body;
-    let editdata = await initialbdleadModells.findByIdAndUpdate(
-      {  _id },
-      data,
-      { new: true }
-    );
+    let editdata = await initialbdleadModells.findByIdAndUpdate({ _id }, data, {
+      new: true,
+    });
     res.status(200).json({ msg: "Data updated successfully", data: editdata });
   } catch (error) {
     res.status(400).json({ error: error });
