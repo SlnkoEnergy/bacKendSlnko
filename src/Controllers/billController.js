@@ -78,6 +78,17 @@ const addBill = async function (req, res) {
 
 const getBill = async (req, res) => {
   try {
+    const data = await addBillModells.find();
+    res.status(200).json({ msg: "All Bill Details", data });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ msg: "Failed to fetch bill details", error: error.message });
+  }
+};
+
+const getPaginatedBill = async (req, res) => {
+  try {
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 10;
     const skip = (page - 1) * pageSize;
@@ -85,35 +96,29 @@ const getBill = async (req, res) => {
     const status = req.query.status?.trim();
     const searchRegex = new RegExp(search, "i");
 
-    const lookupStage = {
-      $lookup: {
-        from: "purchaseorders",
-        localField: "po_number",
-        foreignField: "po_number",
-        as: "poData",
-      },
-    };
+    const matchStage = search
+      ? {
+          $or: [
+            { bill_number: { $regex: searchRegex } },
+            { po_number: { $regex: searchRegex } },
+            { approved_by: { $regex: searchRegex } },
+            { "poData.vendor": { $regex: searchRegex } },
+            { "poData.item": { $regex: searchRegex } },
+          ],
+        }
+      : {};
 
     const pipeline = [
-      lookupStage,
-      { $unwind: { path: "$poData", preserveNullAndEmptyArrays: false } },
-
-      ...(search
-        ? [
-            {
-              $match: {
-                $or: [
-                  { bill_number: { $regex: searchRegex } },
-                  { po_number: { $regex: searchRegex } },
-                  { approved_by: { $regex: searchRegex } },
-                  { "poData.vendor": { $regex: searchRegex } },
-                  { "poData.item": { $regex: searchRegex } },
-                ],
-              },
-            },
-          ]
-        : []),
-
+      {
+        $lookup: {
+          from: "purchaseorders",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "poData",
+        },
+      },
+      { $unwind: "$poData" },
+      { $match: matchStage },
       {
         $group: {
           _id: "$po_number",
@@ -127,12 +132,11 @@ const getBill = async (req, res) => {
               bill_date: "$bill_date",
               bill_value: "$bill_value",
               approved_by: "$approved_by",
-              created_on: { $ifNull: ["$updatedAt", "$createdAt"] },
+              created_on: { $ifNull: ["$createdAt", "$created_on"] },
             },
           },
         },
       },
-
       {
         $addFields: {
           po_number: "$_id",
@@ -147,7 +151,6 @@ const getBill = async (req, res) => {
           },
         },
       },
-
       {
         $addFields: {
           po_status: {
@@ -157,63 +160,50 @@ const getBill = async (req, res) => {
               else: "Bill Pending",
             },
           },
-          po_balance: { $subtract: ["$po_value", "$total_billed"] },
+          po_balance: {
+            $max: [
+              {
+                $cond: {
+                  if: { $eq: ["$po_value", "$total_billed"] },
+                  then: 0,
+                  else: { $subtract: ["$po_value", "$total_billed"] },
+                },
+              },
+              0,
+            ],
+          },
         },
       },
-
-      ...(status
-        ? [
+      ...(status ? [{ $match: { po_status: status } }] : []),
+      {
+        $facet: {
+          paginatedResults: [
+            { $sort: { "bills.created_on": -1 } },
+            { $skip: skip },
+            { $limit: pageSize },
             {
-              $match: {
-                po_status: status,
+              $project: {
+                _id: 0,
+                po_number: 1,
+                p_id: 1,
+                vendor: 1,
+                item: 1,
+                po_value: 1,
+                bills: 1,
+                total_billed: 1,
+                po_status: 1,
+                po_balance: 1,
               },
             },
-          ]
-        : []),
-
-      {
-        $project: {
-          _id: 0,
-          po_number: 1,
-          p_id: 1,
-          vendor: 1,
-          item: 1,
-          po_value: 1,
-          bills: 1,
-          total_billed: 1,
-          po_status: 1,
-          po_balance: 1,
+          ],
+          totalCount: [{ $count: "total" }],
         },
       },
-
-      { $sort: { "bills.updatedAt": -1 } },
-      { $skip: skip },
-      { $limit: pageSize },
     ];
 
-    const countPipeline = [
-      {
-        $match: search
-          ? {
-              $or: [
-                { bill_number: { $regex: searchRegex } },
-                { vendor: { $regex: searchRegex } },
-                { item: { $regex: searchRegex } },
-                { po_number: { $regex: searchRegex } },
-                { approved_by: { $regex: searchRegex } },
-              ],
-            }
-          : {},
-      },
-      { $count: "total" },
-    ];
-
-    const [data, totalArr] = await Promise.all([
-      addBillModells.aggregate(pipeline),
-      addBillModells.aggregate(countPipeline),
-    ]);
-
-    const total = totalArr[0]?.total || 0;
+    const [result] = await addBillModells.aggregate(pipeline);
+    const data = result.paginatedResults || [];
+    const total = result.totalCount[0]?.total || 0;
 
     res.status(200).json({
       msg: "All Bill Detail With PO Data",
@@ -234,23 +224,37 @@ const getBill = async (req, res) => {
   }
 };
 
-//Bills Export
+//Bills Exports
 
 const exportBills = async (req, res) => {
   try {
     const { from, to, export: exportAll } = req.query;
 
     let matchStage = {};
+    const parseDate = (str) => {
+      const [day, month, year] = str.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    };
 
     if (exportAll !== "all") {
       if (!from || !to) {
         return res.status(400).json({ msg: "from and to dates are required" });
       }
 
+      const fromDate = parseDate(from);
+      const toDate = parseDate(to);
+      toDate.setHours(23, 59, 59, 999);
+
       matchStage = {
-        bill_date: {
-          $gte: new Date(from),
-          $lte: new Date(to),
+        $expr: {
+          $and: [
+            {
+              $gte: [{ $ifNull: ["$createdAt", "$created_on"] }, fromDate],
+            },
+            {
+              $lte: [{ $ifNull: ["$createdAt", "$created_on"] }, toDate],
+            },
+          ],
         },
       };
     }
@@ -272,8 +276,9 @@ const exportBills = async (req, res) => {
           bill_date: 1,
           bill_value: 1,
           approved_by: 1,
-          created_on: { $ifNull: ["$updatedAt", "$createdAt"] },
+          created_on: { $ifNull: ["$createdAt", "$created_on"] },
           po_number: 1,
+          p_id: "$poData.p_id",
           vendor: "$poData.vendor",
           item: "$poData.item",
           po_value: "$poData.po_value",
@@ -285,22 +290,26 @@ const exportBills = async (req, res) => {
 
     const formattedBills = bills.map((bill) => ({
       ...bill,
-      bill_value: bill.bill_value?.toLocaleString("en-IN"),
-      po_value: bill.po_value?.toLocaleString("en-IN"),
-      bill_date: new Date(bill.bill_date).toLocaleDateString("en-GB"),
-      created_on: new Date(bill.created_on).toLocaleString("en-GB"),
+      bill_value: Number(bill.bill_value)?.toLocaleString("en-IN"),
+      po_value: Number(bill.po_value)?.toLocaleString("en-IN"),
+      bill_date: bill.bill_date
+        ? new Date(bill.bill_date).toLocaleDateString("en-GB")
+        : "",
+      created_on: bill.created_on
+        ? new Date(bill.created_on).toLocaleString("en-GB")
+        : "",
     }));
 
     const fields = [
+      "p_id",
       "bill_number",
       "bill_date",
       "bill_value",
-      "approved_by",
       "created_on",
       "po_number",
       "vendor",
       "item",
-      "po_value",
+      "approved_by",
     ];
 
     const json2csvParser = new Parser({ fields, quote: '"' });
@@ -396,6 +405,7 @@ const bill_approved = async function (req, res) {
 module.exports = {
   addBill,
   getBill,
+  getPaginatedBill,
   updatebill,
   deleteBill,
   bill_approved,
