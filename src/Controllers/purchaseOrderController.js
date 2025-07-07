@@ -851,8 +851,8 @@ const updateEditandDeliveryDate = async (req, res) => {
     }
 
     const updateFields = {};
-    if (etd) updateFields["items.$.etd"] = etd;
-    if (delivery_date) updateFields["items.$.delivery_date"] = delivery_date;
+    if (etd) updateFields["etd"] = etd;
+    if (delivery_date) updateFields["delivery_date"] = delivery_date;
 
     if (Object.keys(updateFields).length === 0) {
       return res.status(400).json({ message: "No valid fields to update" });
@@ -872,6 +872,8 @@ const updateEditandDeliveryDate = async (req, res) => {
   } catch (error) {
     console.error("Error updating ETD/Delivery Date:", error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+}
 const updateStatusPO = async (req, res) => {
   try {
     const { id } = req.params;
