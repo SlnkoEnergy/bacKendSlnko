@@ -195,11 +195,10 @@ const createExpense = async (req, res) => {
     const folderType = user.role === "site" ? "onsite" : "offsite";
     const folderPath = `expense_sheet/${folderType}/${user.emp_id}`;
 
-    // Step 1: Upload files and map index => URL
-    const uploadedFileMap = {}; // { "5": "https://..." }
+    const uploadedFileMap = {}; 
 
     for (const file of req.files || []) {
-      const match = file.fieldname.match(/file_(\d+)/); // Extract index from fieldname
+      const match = file.fieldname.match(/file_(\d+)/); 
       if (!match) continue;
 
       const index = match[1];
@@ -210,7 +209,7 @@ const createExpense = async (req, res) => {
         contentType: file.mimetype,
       });
 
-      const uploadUrl = `https://upload.slnkoprotrac.com?containerName=protrac&foldername=${folderPath}`;
+      const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${folderPath}`;
 
       const response = await axios.post(uploadUrl, form, {
         headers: form.getHeaders(),

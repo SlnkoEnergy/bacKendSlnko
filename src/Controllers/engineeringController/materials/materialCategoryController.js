@@ -53,6 +53,26 @@ const getAllMaterialCategories = async (req, res) => {
   }
 };
 
+const getAllMaterialCategoriesDropdown = async (req, res) => {
+  try {
+        const materialCategories = await materialCategory.find({}, "_id name");
+   
+    res
+      .status(200)
+      .json({
+        message: "Material Categories retrieved successfully",
+        data: materialCategories,
+      });
+  } catch (error) {
+    res
+      .status(500)
+      .json({
+        message: "Error retrieving Material Categories",
+        error: error.message,
+      });
+  }
+};
+
 // Get Material Categories By Id
 const getMaterialCategoryById = async(req, res) => {
   try {
@@ -142,4 +162,5 @@ module.exports = {
   getMaterialCategoryById,
   updateMaterialCategory,
   deleteMaterialCategory,
+  getAllMaterialCategoriesDropdown,
 };

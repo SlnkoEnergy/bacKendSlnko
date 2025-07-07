@@ -206,11 +206,27 @@ const getProjectbyPId = async(req, res) => {
   }
 }
 
+const getProjectDropwdown = async(req, res) => {
+  try {
+    const projects = await projectModells.find({}, { name: 1, code: 1 });
+    res.status(200).json({
+      message: "Projects fetched successfully",
+      data: projects
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   createProject,
   updateProject,
   getallproject,
   deleteProjectById,
   getProjectById,
-  getProjectbyPId
+  getProjectbyPId,
+  getProjectDropwdown
 };
