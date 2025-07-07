@@ -1,4 +1,5 @@
 const { default: mongoose } = require("mongoose");
+const updatePurchaseRequestStatus = require("../utils/updatePurchaseRequestStatus");
 
 const purchaseOrderSchema = new mongoose.Schema(
   {
@@ -16,7 +17,7 @@ const purchaseOrderSchema = new mongoose.Schema(
     },
     item: {
       type: mongoose.Schema.Types.ObjectId,
-      ref:"MaterialCategory"
+      ref: "MaterialCategory",
     },
     other: {
       type: String,
@@ -52,16 +53,52 @@ const purchaseOrderSchema = new mongoose.Schema(
     po_basic: {
       type: String,
     },
-    gst:{type:String},
-    pr_id:{
+    gst: { type: String },
+    pr_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "purchaseRequest",
     },
-    attachement_url:[{
-      type:String
-    }]
+    etd: {
+      type: Date,
+    },
+    delivery_date: {
+      type: Date,
+    },
+    status_history: [
+      {
+        status: {
+          type: String,
+          enum: ["draft", "po_created", "out_for_delivery", "delivered"],
+        },
+        remarks: {
+          type: String,
+        },
+        user_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      },
+    ],
+    current_status: {
+      status: {
+        type: String,
+        enum: ["draft", "po_created", "out_for_delivery", "delivered"],
+      },
+      remarks: {
+        type: String,
+      },
+      user_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    },
   },
   { timestamps: true }
 );
+
+purchaseOrderSchema.pre("save", function (next) {
+  updatePurchaseRequestStatus(this, "status_history", "current_status");
+  next();
+});
 
 module.exports = mongoose.model("purchaseOrder", purchaseOrderSchema);
