@@ -412,7 +412,7 @@ router.get(
   jwtMW.authorization,
   getPOHistoryById
 );
-router.put('/:id/updateStatusPO', jwtMW.authentication, jwtMW.authorization, updateStatusPO);
+router.put('/updateStatusPO', jwtMW.authentication, jwtMW.authorization, updateStatusPO);
 
 router.put("/:id/updateEtdOrDelivery",
   jwtMW.authentication,
