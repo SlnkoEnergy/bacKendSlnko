@@ -250,7 +250,6 @@ const getallpo = async function (req, res) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
-
 const getPaginatedPo = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -261,40 +260,37 @@ const getPaginatedPo = async (req, res) => {
     const searchRegex = new RegExp(search, "i");
 
     const matchStage = {
-  ...(search && {
-    $or: [
-      { p_id: { $regex: searchRegex } },
-      { po_number: { $regex: searchRegex } },
-      { vendor: { $regex: searchRegex } },
-      { item: { $regex: searchRegex } },
-    ],
-  }),
-  ...(req.query.project_id && { p_id: req.query.project_id }),
-  ...(req.query.pr_id && {
-    pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
-  }),
-  ...(req.query.item_id && {
-    $or: [
-      { item: new mongoose.Types.ObjectId(req.query.item_id) },
-      { item: req.query.item_id },
-    ],
-  }),
-};
-
+      ...(search && {
+        $or: [
+          { p_id: { $regex: searchRegex } },
+          { po_number: { $regex: searchRegex } },
+          { vendor: { $regex: searchRegex } },
+          { item: { $regex: searchRegex } },
+        ],
+      }),
+      ...(req.query.project_id && { p_id: req.query.project_id }),
+      ...(req.query.pr_id && {
+        pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
+      }),
+      ...(req.query.item_id && {
+        $or: [
+          { item: new mongoose.Types.ObjectId(req.query.item_id) },
+          { item: req.query.item_id },
+        ],
+      }),
+    };
 
     const pipeline = [
       { $match: matchStage },
       { $sort: { date: -1 } },
       { $skip: skip },
       { $limit: pageSize },
-
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
           po_value: { $toDouble: "$po_value" },
         },
       },
-
       {
         $lookup: {
           from: "payrequests",
@@ -316,7 +312,6 @@ const getPaginatedPo = async (req, res) => {
           as: "approvedPayments",
         },
       },
-
       {
         $lookup: {
           from: "biildetails",
@@ -325,7 +320,6 @@ const getPaginatedPo = async (req, res) => {
           as: "billData",
         },
       },
-
       {
         $addFields: {
           amount_paid: {
@@ -362,7 +356,6 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-
       {
         $addFields: {
           partial_billing: {
@@ -404,7 +397,6 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-
       {
         $lookup: {
           from: "purchaserequests",
@@ -420,41 +412,38 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-
-      // Updated item lookup to handle string vs ObjectId
+     {
+  $lookup: {
+    from: "materialcategories",
+    let: { itemField: "$item" },
+    pipeline: [
       {
-        $lookup: {
-          from: "materialcategories",
-          let: { itemField: "$item" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $or: [
-                    { $eq: ["$_id", "$$itemField"] },
-                    { $eq: ["$name", "$$itemField"] },
-                  ],
-                },
-              },
-            },
-          ],
-          as: "itemData",
+        $match: {
+          $expr: {
+            $or: [
+              { $eq: ["$_id", { $toObjectId: "$$itemField" }] },
+              { $eq: ["$name", "$$itemField"] },
+            ],
+          },
         },
       },
+    ],
+    as: "itemData",
+  },
+}
+,
       {
         $addFields: {
           item: {
             $cond: {
               if: { $gt: [{ $size: "$itemData" }, 0] },
               then: { $arrayElemAt: ["$itemData.name", 0] },
-              else: "$item",
+              else: "-",
             },
           },
         },
       },
-
       ...(status ? [{ $match: { partial_billing: status } }] : []),
-
       {
         $project: {
           _id: 0,
@@ -479,7 +468,6 @@ const getPaginatedPo = async (req, res) => {
 
     const countPipeline = [
       { $match: matchStage },
-
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
@@ -538,13 +526,11 @@ const getPaginatedPo = async (req, res) => {
 
     const formatDate = (date) =>
       date
-        ? new Date(date)
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-            .replace(/ /g, "/")
+        ? new Date(date).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          }).replace(/ /g, "/")
         : "";
 
     const data = result.map((item) => ({
@@ -570,6 +556,8 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
+
+
 
 const getExportPo = async (req, res) => {
   try {
