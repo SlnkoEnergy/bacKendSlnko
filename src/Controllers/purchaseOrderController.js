@@ -867,7 +867,7 @@ const updateEditandDeliveryDate = async (req, res) => {
     }
 
     const updatedPO = await purchaseOrderModells.findOneAndUpdate(
-      { _id: id },
+      { po_number: id },
       { $set: updateFields },
       { new: true }
     );
