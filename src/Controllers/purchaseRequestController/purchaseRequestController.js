@@ -169,7 +169,7 @@ const getAllPurchaseRequest = async (req, res) => {
         ? [
             {
               $match: {
-                "current_status.status": statusSearchRegex,
+                "status": statusSearchRegex,
               },
             },
           ]
@@ -196,10 +196,7 @@ const getAllPurchaseRequest = async (req, res) => {
           created_by: { _id: 1, name: 1 },
           items: {
             item_id: { _id: 1, name: 1 },
-            status_history: 1,
-            current_status: 1,
-            etd: 1,
-           delivery_date: 1,
+            status:{$first: "$status"}
           },
           status:{$first: "$status"}
         },
