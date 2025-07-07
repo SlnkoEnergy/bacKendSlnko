@@ -261,19 +261,26 @@ const getPaginatedPo = async (req, res) => {
     const searchRegex = new RegExp(search, "i");
 
     const matchStage = {
-      ...(search && {
-        $or: [
-          { p_id: { $regex: searchRegex } },
-          { po_number: { $regex: searchRegex } },
-          { vendor: { $regex: searchRegex } },
-          { item: { $regex: searchRegex } },
-        ],
-      }),
-      ...(req.query.project_id && { p_id: req.query.project_id }),
-      ...(req.query.pr_id && {
-        pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
-      }),
-    };
+  ...(search && {
+    $or: [
+      { p_id: { $regex: searchRegex } },
+      { po_number: { $regex: searchRegex } },
+      { vendor: { $regex: searchRegex } },
+      { item: { $regex: searchRegex } },
+    ],
+  }),
+  ...(req.query.project_id && { p_id: req.query.project_id }),
+  ...(req.query.pr_id && {
+    pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
+  }),
+  ...(req.query.item_id && {
+    $or: [
+      { item: new mongoose.Types.ObjectId(req.query.item_id) },
+      { item: req.query.item_id },
+    ],
+  }),
+};
+
 
     const pipeline = [
       { $match: matchStage },
@@ -397,6 +404,7 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
+
       {
         $lookup: {
           from: "purchaserequests",
@@ -412,11 +420,24 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
+
+      // Updated item lookup to handle string vs ObjectId
       {
         $lookup: {
           from: "materialcategories",
-          localField: "item",
-          foreignField: "_id",
+          let: { itemField: "$item" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $eq: ["$_id", "$$itemField"] },
+                    { $eq: ["$name", "$$itemField"] },
+                  ],
+                },
+              },
+            },
+          ],
           as: "itemData",
         },
       },
@@ -447,10 +468,10 @@ const getPaginatedPo = async (req, res) => {
           amount_paid: 1,
           total_billed: 1,
           partial_billing: 1,
-          etd:1,
-          delivery_date:1,
-          current_status:1,
-          status_history:1,
+          etd: 1,
+          delivery_date: 1,
+          current_status: 1,
+          status_history: 1,
           type: "$billingTypes",
         },
       },
