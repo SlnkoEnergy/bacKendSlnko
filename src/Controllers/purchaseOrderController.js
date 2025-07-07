@@ -392,6 +392,27 @@ const getPaginatedPo = async (req, res) => {
         },
       },
 
+      // 🔍 Lookup item from materialcategories if it's an ObjectId
+      {
+        $lookup: {
+          from: "materialcategories",
+          localField: "item",
+          foreignField: "_id",
+          as: "itemData",
+        },
+      },
+      {
+        $addFields: {
+          item: {
+            $cond: {
+              if: { $gt: [{ $size: "$itemData" }, 0] },
+              then: { $arrayElemAt: ["$itemData.name", 0] },
+              else: "$item",
+            },
+          },
+        },
+      },
+
       ...(status ? [{ $match: { partial_billing: status } }] : []),
 
       {
@@ -402,7 +423,7 @@ const getPaginatedPo = async (req, res) => {
           vendor: 1,
           item: 1,
           date: 1,
-          po_value: { $toDouble: "$po_value" },
+          po_value: 1,
           amount_paid: 1,
           total_billed: 1,
           partial_billing: 1,
@@ -413,8 +434,6 @@ const getPaginatedPo = async (req, res) => {
 
     const countPipeline = [
       { $match: matchStage },
-
-      // replicate necessary computation for status filtering
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
@@ -471,7 +490,6 @@ const getPaginatedPo = async (req, res) => {
 
     const total = countResult[0]?.total || 0;
 
-    // Format date
     const formatDate = (date) =>
       date
         ? new Date(date)
@@ -506,6 +524,7 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
+
 
 const getExportPo = async (req, res) => {
   try {
