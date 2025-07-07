@@ -391,6 +391,21 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
+      {
+        $lookup: {
+          from: "purchaserequests",
+          localField: "pr_id",
+          foreignField: "pr_id",
+          as: "prRequest",
+        },
+      },
+      {
+        $addFields: {
+          pr_no: {
+            $arrayElemAt: ["$prRequest.pr_no", 0],
+          },
+        },
+      },
 
       // 🔍 Lookup item from materialcategories if it's an ObjectId
       {
@@ -420,6 +435,7 @@ const getPaginatedPo = async (req, res) => {
           _id: 0,
           po_number: 1,
           p_id: 1,
+          pr_no: 1,
           vendor: 1,
           item: 1,
           date: 1,
@@ -434,6 +450,7 @@ const getPaginatedPo = async (req, res) => {
 
     const countPipeline = [
       { $match: matchStage },
+
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
