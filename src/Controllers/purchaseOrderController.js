@@ -843,41 +843,39 @@ const deletePO = async function (req, res) {
 };
 
 // //gtpo test
-// const getAllPoTest = async (req, res) => {
-//   try {
-//     // Set up the cursor to stream the data from MongoDB
-//     const cursor = purchaseOrderModells.find()
-//       .lean()  // Lean queries to speed up the process (returns plain JavaScript objects)
-//       .cursor();  // MongoDB cursor to stream data
+const updateEditandDeliveryDate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { etd, delivery_date } = req.body;
 
-//     res.setHeader('Content-Type', 'application/json');
+    if (!id) {
+      return res.status(400).json({ message: "PR ID and Item ID are required" });
+    }
 
-//     // Initialize a JSON array to send back in chunks (streamed)
-//     res.write('{"data":[');  // Start the JSON array
+    const updateFields = {};
+    if (etd) updateFields["items.$.etd"] = etd;
+    if (delivery_date) updateFields["items.$.delivery_date"] = delivery_date;
 
-//     let first = true;
-//     cursor.on('data', (doc) => {
-//       if (!first) {
-//         res.write(',');  // Add comma between records
-//       }
-//       first = false;
-//       res.write(JSON.stringify(doc));  // Write each document as a JSON object
-//     });
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ message: "No valid fields to update" });
+    }
 
-//     cursor.on('end', () => {
-//       res.write(']}');  // Close the JSON array
-//       res.end();  // End the response stream
-//     });
+    const updatedPO = await purchaseOrderModells.findOneAndUpdate(
+      { _id: id },
+      { $set: updateFields },
+      { new: true }
+    );
 
-//     cursor.on('error', (err) => {
-//       console.error(err);
-//       res.status(500).json({ msg: 'Error retrieving data', error: err.message });
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ msg: 'Error retrieving data', error: err.message });
-//   }
-// };
+    if (!updatedPO) {
+      return res.status(404).json({ message: "Purchase Order or Item not found" });
+    }
+
+    res.status(200).json({ message: "ETD/Delivery Date updated successfully", updatedPO });
+  } catch (error) {
+    console.error("Error updating ETD/Delivery Date:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
 
 module.exports = {
   addPo,
@@ -892,4 +890,5 @@ module.exports = {
   deletePO,
   getpohistory,
   getPOHistoryById,
+  updateEditandDeliveryDate
 };

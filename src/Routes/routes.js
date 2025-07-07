@@ -46,6 +46,7 @@ const {
   deletePO,
   getpohistory,
   getPOHistoryById,
+  updateEditandDeliveryDate,
 } = require("../Controllers/purchaseOrderController");
 const {
   addVendor,
@@ -410,6 +411,12 @@ router.get(
   jwtMW.authorization,
   getPOHistoryById
 );
+
+router.put("/:id/updateEtdOrDelivery",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateEditandDeliveryDate,
+)
 
 //Add vendor
 router.post(

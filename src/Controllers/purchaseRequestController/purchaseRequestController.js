@@ -541,39 +541,7 @@ const deletePurchaseRequest = async (req, res) => {
   }
 };
 
-const updateEditandDeliveryDate = async (req, res) => {
-  try {
-    const { id, item_id } = req.params;
-    const { etd, delivery_date } = req.body;
 
-    if (!id || !item_id) {
-      return res.status(400).json({ message: "PR ID and Item ID are required" });
-    }
-
-    const updateFields = {};
-    if (etd) updateFields["items.$.etd"] = etd;
-    if (delivery_date) updateFields["items.$.delivery_date"] = delivery_date;
-
-    if (Object.keys(updateFields).length === 0) {
-      return res.status(400).json({ message: "No valid fields to update" });
-    }
-
-    const updatedPR = await PurchaseRequest.findOneAndUpdate(
-      { _id: id, "items.item_id": item_id },
-      { $set: updateFields },
-      { new: true }
-    );
-
-    if (!updatedPR) {
-      return res.status(404).json({ message: "Purchase Request or Item not found" });
-    }
-
-    res.status(200).json({ message: "ETD/Delivery Date updated successfully", updatedPR });
-  } catch (error) {
-    console.error("Error updating ETD/Delivery Date:", error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-};
 
 module.exports = {
   CreatePurchaseRequest,
@@ -584,5 +552,4 @@ module.exports = {
   updatePurchaseRequestStatus,
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
-  updateEditandDeliveryDate,
 };
