@@ -24,6 +24,8 @@ const addPo = async function (req, res) {
       po_basic,
       gst,
       pr_id,
+      etd,
+      delivery_date
     } = req.body;
 
     let resolvedItem = item === "Other" ? other : item;
@@ -50,6 +52,8 @@ const addPo = async function (req, res) {
       po_basic,
       gst,
       pr_id,
+      etd:null,
+      delivery_date:null
     });
 
     await newPO.save();
@@ -443,6 +447,10 @@ const getPaginatedPo = async (req, res) => {
           amount_paid: 1,
           total_billed: 1,
           partial_billing: 1,
+          etd:1,
+          delivery_date:1,
+          current_status:1,
+          status_history:1,
           type: "$billingTypes",
         },
       },
