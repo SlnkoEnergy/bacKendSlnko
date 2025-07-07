@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const updateCurrentStatus = require("../../utils/statusUpdateUtils/updateCurrentStatus");
+const updateCurrentStatusItems = require("../../utils/statusUpdateUtils/updateCurrentStatusItems");
 
 const purchaseRequestSchema = new mongoose.Schema(
   {
@@ -13,51 +13,56 @@ const purchaseRequestSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "MaterialCategory",
         },
-      },
-    ],
-    status_history: [
-      {
-        status: {
-          type: String,
-          enum: [
-            "submitted",
-            "draft",
-            "approved",
-            "po_created",
-            "rejected",
-            "out_for_delivery",
-            "delivered",
-          ],
+        etd: {
+          type: Date,
         },
-        remarks: {
-          type: String,
+        delivery_date: {
+          type: Date,
         },
-        user_id: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-      },
-    ],
-    current_status: {
-      status: {
-        type: String,
-        enum: [
-          "submitted",
-          "draft",
-          "approved",
-          "po_created",
-          "rejected",
-          "out_for_delivery",
-          "delivered",
+        status_history: [
+          {
+            status: {
+              type: String,
+              enum: [
+                "submitted",
+                "draft",
+                "po_created",
+                "out_for_delivery",
+                "delivered",
+              ],
+            },
+            remarks: {
+              type: String,
+            },
+            user_id: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "User",
+            },
+          },
         ],
+        current_status: {
+          status: {
+            type: String,
+            enum: [
+              "submitted",
+              "draft",
+              "po_created",
+              "out_for_delivery",
+              "delivered",
+            ],
+          },
+          remarks: {
+            type: String,
+          },
+          user_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+        },
       },
-      remarks: {
-        type: String,
-      },
-      user_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
+    ],
+    status: {
+      type: String,
     },
     pr_no: {
       type: String,
@@ -66,18 +71,12 @@ const purchaseRequestSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
-    etd: {
-      type: Date,
-    },
-    delivery_date: {
-      type: Date,
-    },
   },
   { timestamps: true }
 );
 
 purchaseRequestSchema.pre("save", function (next) {
-  updateCurrentStatus(this, "status_history", "current_status");
+  updateCurrentStatusItems(this, "status_history", "current_status");
   next();
 });
 
