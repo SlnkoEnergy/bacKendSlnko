@@ -193,9 +193,20 @@ const getAllPurchaseRequest = async (req, res) => {
           project_id: { _id: 1, name: 1, code: 1 },
           created_by: { _id: 1, name: 1 },
           items: {
-            item_id: { _id: 1, name: 1 },
-            status: "$items.status"
-          },
+  $map: {
+    input: "$items",
+    as: "item",
+    in: {
+      _id: "$$item._id",
+      status: "$$item.status",
+      item_id: {
+        _id: "$$item.item_id._id",
+        name: "$$item.item_id.name",
+      },
+    },
+  },
+},
+
           status:1
         },
       },
@@ -219,8 +230,7 @@ const getAllPurchaseRequest = async (req, res) => {
 
         const totalPoValueWithGst = pos.reduce((acc, po) => {
           const poValue = Number(po.po_value || 0);
-          const gstValue = Number(po.gst || 0);
-          return acc + poValue + gstValue;
+          return acc + poValue;
         }, 0);
 
         const poNumbers = pos.map((po) => po.po_number);
