@@ -270,7 +270,6 @@ const getPaginatedPo = async (req, res) => {
 
     const pipeline = [
       { $match: matchStage },
-
       { $sort: { date: -1 } },
       { $skip: skip },
       { $limit: pageSize },
@@ -395,7 +394,7 @@ const getPaginatedPo = async (req, res) => {
         $lookup: {
           from: "purchaserequests",
           localField: "pr_id",
-          foreignField: "pr_id",
+          foreignField: "_id",
           as: "prRequest",
         },
       },
@@ -406,8 +405,6 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-
-      // 🔍 Lookup item from materialcategories if it's an ObjectId
       {
         $lookup: {
           from: "materialcategories",
