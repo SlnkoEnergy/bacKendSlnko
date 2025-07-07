@@ -359,8 +359,7 @@ const updateExpenseStatusOverall = async (req, res) => {
         status === "rejected" ||
         status === "hold" ||
         status === "hr approval" ||
-        status === "final approval"
-      )
+        status === "final approval")
     ) {
       expense.items = expense.items.map((item) => {
         item.item_status_history = item.item_status_history || [];

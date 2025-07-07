@@ -1,4 +1,4 @@
-var router = require("express").Router();
+const router = require("express").Router();
 const jwtMW = require("../middlewares/auth");
 const {
   addMoney,
@@ -38,6 +38,8 @@ const {
   editPO,
   getPO,
   getallpo,
+  getPaginatedPo,
+  getExportPo,
   exportCSV,
   moverecovery,
   getPOByProjectId,
@@ -224,7 +226,6 @@ const {
   updateDisbursementDate,
   getExpensePdf,
 } = require("../Controllers/expenseSheetControllers/expenseSheetController");
-// const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
 
 const {
   createlead,
@@ -239,6 +240,8 @@ const {
 const { create } = require("../Modells/bdleadsModells");
 
 const upload = require("../middlewares/multer.js");
+
+
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -358,6 +361,18 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getallpo
+);
+router.get(
+  "/get-paginated-po",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getPaginatedPo
+);
+router.get(
+  "/get-export-po",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getExportPo
 );
 router.post(
   "/export-to-csv",
@@ -1225,5 +1240,6 @@ router.put(
   jwtMW.authorization,
   updateLeadStatus
 );
+
 
 module.exports = router;
