@@ -840,6 +840,40 @@ const deletePO = async function (req, res) {
   }
 };
 
+// //gtpo test
+const updateEditandDeliveryDate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { etd, delivery_date } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ message: "PR ID and Item ID are required" });
+    }
+
+    const updateFields = {};
+    if (etd) updateFields["etd"] = etd;
+    if (delivery_date) updateFields["delivery_date"] = delivery_date;
+
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ message: "No valid fields to update" });
+    }
+
+    const updatedPO = await purchaseOrderModells.findOneAndUpdate(
+      { _id: id },
+      { $set: updateFields },
+      { new: true }
+    );
+
+    if (!updatedPO) {
+      return res.status(404).json({ message: "Purchase Order or Item not found" });
+    }
+
+    res.status(200).json({ message: "ETD/Delivery Date updated successfully", updatedPO });
+  } catch (error) {
+    console.error("Error updating ETD/Delivery Date:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
 const updateStatusPO = async (req, res) => {
   try {
     const { id } = req.params;
@@ -891,5 +925,6 @@ module.exports = {
   deletePO,
   getpohistory,
   getPOHistoryById,
+  updateEditandDeliveryDate,
   updateStatusPO
 };
