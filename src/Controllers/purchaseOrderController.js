@@ -257,20 +257,19 @@ const getPaginatedPo = async (req, res) => {
     const searchRegex = new RegExp(search, "i");
 
     const matchStage = {
-  ...(search && {
-    $or: [
-      { p_id: { $regex: searchRegex } },
-      { po_number: { $regex: searchRegex } },
-      { vendor: { $regex: searchRegex } },
-      { item: { $regex: searchRegex } },
-    ],
-  }),
-  ...(req.query.project_id && { p_id: req.query.project_id }),
-  ...(req.query.pr_id && {
-    pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
-  }),
-};
-
+      ...(search && {
+        $or: [
+          { p_id: { $regex: searchRegex } },
+          { po_number: { $regex: searchRegex } },
+          { vendor: { $regex: searchRegex } },
+          { item: { $regex: searchRegex } },
+        ],
+      }),
+      ...(req.query.project_id && { p_id: req.query.project_id }),
+      ...(req.query.pr_id && {
+        pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
+      }),
+    };
 
     const pipeline = [
       { $match: matchStage },
@@ -542,7 +541,6 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
-
 
 const getExportPo = async (req, res) => {
   try {
@@ -874,6 +872,41 @@ const updateEditandDeliveryDate = async (req, res) => {
   } catch (error) {
     console.error("Error updating ETD/Delivery Date:", error);
     res.status(500).json({ message: "Internal Server Error" });
+const updateStatusPO = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, remarks } = req.body;
+    if (!id) {
+      return res.status(404).json({
+        message: "ID is required",
+      });
+    }
+    if (!status && !remarks) {
+      return res.status(404).json({
+        message: "Status and remarks are required",
+      });
+    }
+    const purchaseOrder = await purchaseOrderModells.findById(id);
+    if (!purchaseOrder) {
+      return res.status(404).json({
+        message: "Purchase Order not found",
+      });
+    }
+    purchaseOrder.status_history.push({
+      status: status,
+      remarks: remarks,
+      user_id: req.user.userId,
+    });
+    await purchaseOrder.save();
+    res.status(201).json({
+      message: "Purchase Order Status Updated Successfully",
+      data: purchaseOrder,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
 
@@ -890,5 +923,6 @@ module.exports = {
   deletePO,
   getpohistory,
   getPOHistoryById,
-  updateEditandDeliveryDate
+  updateEditandDeliveryDate,
+  updateStatusPO
 };

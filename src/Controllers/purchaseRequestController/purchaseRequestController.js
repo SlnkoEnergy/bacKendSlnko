@@ -29,17 +29,10 @@ const CreatePurchaseRequest = async (req, res) => {
     const projectCode = project.code || project.name || "UNKNOWN";
     const prNumber = `PR/${projectCode}/${counterString}`;
 
-    const submittedStatus = {
-      status: "submitted",
-      user_id: req.user.userId,
-      remarks: "",
-    };
-
     const newPurchaseRequest = new PurchaseRequest({
       ...purchaseRequestData,
       pr_no: prNumber,
       created_by: req.user.userId,
-      status_history: [submittedStatus],
     });
 
     await newPurchaseRequest.save();
@@ -176,7 +169,7 @@ const getAllPurchaseRequest = async (req, res) => {
         ? [
             {
               $match: {
-                "current_status.status": statusSearchRegex,
+                "status": statusSearchRegex,
               },
             },
           ]
@@ -196,19 +189,14 @@ const getAllPurchaseRequest = async (req, res) => {
       {
         $project: {
           pr_no: 1,
-          current_status: 1,
-          status_history: 1,
           createdAt: 1,
           project_id: { _id: 1, name: 1, code: 1 },
           created_by: { _id: 1, name: 1 },
           items: {
             item_id: { _id: 1, name: 1 },
-            status_history: 1,
-            current_status: 1,
-            etd: 1,
-           delivery_date: 1,
+            status: "$items.status"
           },
-          status:{$first: "$status"}
+          status:1
         },
       },
       { $sort: { createdAt: -1 } },
@@ -261,7 +249,7 @@ const getAllPurchaseRequest = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Failed to fetch purchase requests" });
+    res.status(500).json({ message:"Internal Server Error",error: error.message });
   }
 };
 
@@ -469,45 +457,6 @@ const UpdatePurchaseRequest = async (req, res) => {
   }
 };
 
-const updatePurchaseRequestStatus = async (req, res) => {
-  try {
-    const { id, item_id } = req.params;
-    const { status, remarks } = req.body;
-
-    if (!id || !item_id || !status || !remarks) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    const purchaseRequest = await PurchaseRequest.findById(id);
-    if (!purchaseRequest) {
-      return res.status(404).json({ message: "Purchase Request record not found" });
-    }
-
-    // Find item by item_id inside items array
-   const particularItem = purchaseRequest.items.find(
-      (itm) => String(itm.item_id) === String(item_id)
-    );
-
-    // Push to status_history of that item
-    particularItem.status_history.push({
-      status,
-      remarks,
-      user_id: req.user.userId,
-    });
-
-    await purchaseRequest.save();
-
-    res.status(200).json({
-      message: "Purchase Request item status updated successfully",
-      data: particularItem,
-    });
-  } catch (error) {
-    console.error("Error updating Purchase Request item status:", error);
-    return res.status(500).json({ message: "Internal server error", error: error.message });
-  }
-};
-
-
 const deletePurchaseRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -549,7 +498,6 @@ module.exports = {
   getPurchaseRequestById,
   UpdatePurchaseRequest,
   deletePurchaseRequest,
-  updatePurchaseRequestStatus,
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
 };
