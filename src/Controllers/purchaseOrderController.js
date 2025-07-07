@@ -257,16 +257,20 @@ const getPaginatedPo = async (req, res) => {
     const searchRegex = new RegExp(search, "i");
 
     const matchStage = {
-      ...(search && {
-        $or: [
-          { p_id: { $regex: searchRegex } },
-          { po_number: { $regex: searchRegex } },
-          { vendor: { $regex: searchRegex } },
-          { item: { $regex: searchRegex } },
-        ],
-      }),
-      ...(req.query.project_id && { p_id: req.query.project_id }),
-    };
+  ...(search && {
+    $or: [
+      { p_id: { $regex: searchRegex } },
+      { po_number: { $regex: searchRegex } },
+      { vendor: { $regex: searchRegex } },
+      { item: { $regex: searchRegex } },
+    ],
+  }),
+  ...(req.query.project_id && { p_id: req.query.project_id }),
+  ...(req.query.pr_id && {
+    pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
+  }),
+};
+
 
     const pipeline = [
       { $match: matchStage },
