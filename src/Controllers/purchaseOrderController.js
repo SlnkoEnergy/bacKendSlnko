@@ -390,6 +390,21 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
+      {
+        $lookup: {
+          from: "purchaserequests",
+          localField: "pr_id",
+          foreignField: "pr_id",
+          as: "prRequest",
+        },
+      },
+      {
+        $addFields: {
+          pr_no: {
+            $arrayElemAt: ["$prRequest.pr_no", 0],
+          },
+        },
+      },
 
       ...(status ? [{ $match: { partial_billing: status } }] : []),
 
@@ -398,6 +413,7 @@ const getPaginatedPo = async (req, res) => {
           _id: 0,
           po_number: 1,
           p_id: 1,
+          pr_no: 1,
           vendor: 1,
           item: 1,
           date: 1,
@@ -413,7 +429,6 @@ const getPaginatedPo = async (req, res) => {
     const countPipeline = [
       { $match: matchStage },
 
-      // replicate necessary computation for status filtering
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
@@ -470,7 +485,6 @@ const getPaginatedPo = async (req, res) => {
 
     const total = countResult[0]?.total || 0;
 
-    // Format date
     const formatDate = (date) =>
       date
         ? new Date(date)
