@@ -132,16 +132,15 @@ const getAllPurchaseRequest = async (req, res) => {
           from: "materialcategories",
           localField: "items.item_id",
           foreignField: "_id",
-          as: "items.item_id",
+          as: "item_data",
         },
       },
       {
         $unwind: {
-          path: "$items.item_id",
+          path: "$item_data",
           preserveNullAndEmptyArrays: true,
         },
       },
-      // General search on project and PR fields
       ...(search
         ? [
             {
@@ -155,12 +154,11 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
-      // Item search filter
       ...(itemSearch
         ? [
             {
               $match: {
-                "items.item_id.name": itemSearchRegex,
+                "item_data.name": itemSearchRegex,
               },
             },
           ]
@@ -169,45 +167,26 @@ const getAllPurchaseRequest = async (req, res) => {
         ? [
             {
               $match: {
-                "status": statusSearchRegex,
+                "items.status": statusSearchRegex,
               },
             },
           ]
         : []),
       {
-        $group: {
-          _id: "$_id",
-          pr_no: { $first: "$pr_no" },
-          createdAt: { $first: "$createdAt" },
-          project_id: { $first: "$project_id" },
-          created_by: { $first: "$created_by" },
-          items: { $push: "$items" },
-          status:{$first: "$status"}
-        },
-      },
-
-      {
         $project: {
+          _id: 1,
           pr_no: 1,
           createdAt: 1,
           project_id: { _id: 1, name: 1, code: 1 },
           created_by: { _id: 1, name: 1 },
-          items: {
-  $map: {
-    input: "$items",
-    as: "item",
-    in: {
-      _id: "$$item._id",
-      status: "$$item.status",
-      item_id: {
-        _id: "$$item.item_id._id",
-        name: "$$item.item_id.name",
-      },
-    },
-  },
-},
-
-          status:1
+          item: {
+            _id: "$items._id",
+            status: "$items.status",
+            item_id: {
+              _id: "$item_data._id",
+              name: "$item_data.name",
+            },
+          },
         },
       },
       { $sort: { createdAt: -1 } },
@@ -224,27 +203,44 @@ const getAllPurchaseRequest = async (req, res) => {
 
     const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
 
-    requests = await Promise.all(
-      requests.map(async (request) => {
-        const pos = await purchaseOrderModells.find({ pr_id: request._id });
+  requests = await Promise.all(
+  requests.map(async (request) => {
+    const pos = await purchaseOrderModells.find({ pr_id: request._id });
 
-        const totalPoValueWithGst = pos.reduce((acc, po) => {
-          const poValue = Number(po.po_value || 0);
-          return acc + poValue;
-        }, 0);
+    const prItemId = request.item?.item_id?._id?.toString?.();
+    const prItemName = request.item?.item_id?.name;
 
-        const poNumbers = pos.map((po) => po.po_number);
+    const filteredPOs = pos.filter((po) => {
+  const poItem = po?.item;
 
-        return {
-          ...request,
-          po_value: totalPoValueWithGst,
-          total_po_count: pos.length,
-          po_numbers: poNumbers,
-        };
-      })
-    );
+  if (!poItem) return false;
 
-    // Apply PO Value Search
+  const poItemStr = poItem.toString?.(); // handles ObjectId or string
+  const prItemIdStr = request.item?.item_id?._id?.toString?.();
+  const prItemName = request.item?.item_id?.name;
+
+  // Match by ObjectId string or name
+  return poItemStr === prItemIdStr || poItem === prItemName;
+});
+
+
+    const totalPoValueWithGst = filteredPOs.reduce((acc, po) => {
+      return acc + Number(po.po_value || 0);
+    }, 0);
+
+    const poNumbers = filteredPOs.map((po) => po.po_number);
+
+    return {
+      ...request,
+      po_value: totalPoValueWithGst,
+      po_numbers: poNumbers,
+    };
+  })
+);
+
+
+
+
     if (poValueSearch) {
       requests = requests.filter(
         (r) => Number(r.po_value) === poValueSearchNumber
@@ -259,9 +255,15 @@ const getAllPurchaseRequest = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message:"Internal Server Error",error: error.message });
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
+
+
+
 
 const getPurchaseRequestById = async (req, res) => {
   try {
