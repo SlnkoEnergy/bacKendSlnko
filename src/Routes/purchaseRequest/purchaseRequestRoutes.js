@@ -8,6 +8,7 @@ const {
   getAllPurchaseRequest,
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
+  updateEditandDeliveryDate,
 } = require("../../Controllers/purchaseRequestController/purchaseRequestController");
 const jwtMW = require("../../middlewares/auth");
 router.post(
@@ -57,6 +58,13 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getPurchaseRequest
+);
+
+router.put(
+  "/:id/item/:item_id/updateEtdOrDelivery",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateEditandDeliveryDate
 );
 
 module.exports = router;
