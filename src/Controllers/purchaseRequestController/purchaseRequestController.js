@@ -189,16 +189,14 @@ const getAllPurchaseRequest = async (req, res) => {
       {
         $project: {
           pr_no: 1,
-          current_status: 1,
-          status_history: 1,
           createdAt: 1,
           project_id: { _id: 1, name: 1, code: 1 },
           created_by: { _id: 1, name: 1 },
           items: {
             item_id: { _id: 1, name: 1 },
-            status:{$first: "$status"}
+            status: "$items.status"
           },
-          status:{$first: "$status"}
+          status:1
         },
       },
       { $sort: { createdAt: -1 } },
@@ -251,7 +249,7 @@ const getAllPurchaseRequest = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Failed to fetch purchase requests" });
+    res.status(500).json({ message:"Internal Server Error",error: error.message });
   }
 };
 
