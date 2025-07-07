@@ -884,8 +884,7 @@ const updateEditandDeliveryDate = async (req, res) => {
 }
 const updateStatusPO = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { status, remarks } = req.body;
+    const { status, remarks, id } = req.body;
     if (!id) {
       return res.status(404).json({
         message: "ID is required",
@@ -896,7 +895,7 @@ const updateStatusPO = async (req, res) => {
         message: "Status and remarks are required",
       });
     }
-    const purchaseOrder = await purchaseOrderModells.find({po_number:id});
+    const purchaseOrder = await purchaseOrderModells.findOne({po_number:id});
     if (!purchaseOrder) {
       return res.status(404).json({
         message: "Purchase Order not found",

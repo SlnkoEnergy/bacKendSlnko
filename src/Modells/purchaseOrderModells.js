@@ -16,7 +16,7 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
     },
     item: {
-      type: mongoose.Schema.Types.ObjectId,
+      type:  mongoose.Schema.Types.Mixed,
       ref: "MaterialCategory",
     },
     other: {
