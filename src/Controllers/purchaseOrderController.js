@@ -265,6 +265,7 @@ const getPaginatedPo = async (req, res) => {
           { item: { $regex: searchRegex } },
         ],
       }),
+      ...(req.query.project_id && { p_id: req.query.project_id }),
     };
 
     const pipeline = [
