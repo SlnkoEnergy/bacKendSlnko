@@ -7,7 +7,11 @@ const statusPriority = {
   delivered: 3,
 };
 
-async function updatePurchaseRequestStatus(doc, statusHistoryKey = "status_history", currentStatusKey = "current_status") {
+async function updatePurchaseRequestStatus(
+  doc,
+  statusHistoryKey = "status_history",
+  currentStatusKey = "current_status"
+) {
   if (!doc) return;
 
   const history = doc[statusHistoryKey];
@@ -30,54 +34,63 @@ async function updatePurchaseRequestStatus(doc, statusHistoryKey = "status_histo
     // Fetch all related POs for the given PR
     const relatedPOs = await PurchaseOrder.find({ pr_id: prId });
 
-    // --- 1. Update individual item status inside `items[]` of PurchaseRequest ---
     const prDoc = await purchaseRequest.findById(prId);
     if (prDoc && Array.isArray(prDoc.items)) {
       const updatedItems = prDoc.items.map((item) => {
-        const poForItem = relatedPOs.filter(po =>
-          po.item && po.item.toString() === item.item_id.toString()
+        const poForItem = relatedPOs.filter(
+          (po) =>
+            po.item && po.item.toString() === item.item_id.toString()
         );
+
         if (poForItem.length > 0) {
-          const itemStatuses = poForItem.map(po => po.current_status?.status || "draft");
+          const itemStatuses = poForItem
+            .map((po) => po.current_status?.status)
+            .filter(Boolean); // remove undefined/null
+
           const uniqueItemStatuses = [...new Set(itemStatuses)];
 
-          if (uniqueItemStatuses.length === 0) {
+          if (uniqueItemStatuses.length === 1) {
             return {
               ...item,
-              status: `fully_${uniqueItemStatuses[0]}`
+              status: `fully_${uniqueItemStatuses[0]}`,
             };
-          } else {
+          } else if (uniqueItemStatuses.length > 1) {
             const maxStatus = itemStatuses.reduce((a, b) =>
               statusPriority[a] > statusPriority[b] ? a : b
             );
             return {
               ...item,
-              status: `partially_${maxStatus}`
+              status: `partially_${maxStatus}`,
             };
           }
         }
-        return item; // unchanged if no matching PO found
+
+        return item; // No related PO
       });
 
       prDoc.items = updatedItems;
       await prDoc.save();
     }
 
-    // --- 2. Update main status field ---
-    const statuses = relatedPOs.map(po => po.current_status?.status || "draft");
+    const statuses = relatedPOs
+      .map((po) => po.current_status?.status)
+      .filter(Boolean);
+
     const uniqueStatuses = [...new Set(statuses)];
 
-    let finalStatus = "";
+    let finalStatus = "draft";
     if (uniqueStatuses.length === 1) {
       finalStatus = `fully_${uniqueStatuses[0]}`;
-    } else {
-      let maxStatus = statuses.reduce((a, b) =>
+    } else if (uniqueStatuses.length > 1) {
+      const maxStatus = statuses.reduce((a, b) =>
         statusPriority[a] > statusPriority[b] ? a : b
       );
       finalStatus = `partially_${maxStatus}`;
     }
 
-    await purchaseRequest.findByIdAndUpdate(prId, { status: finalStatus });
+    await purchaseRequest.findByIdAndUpdate(prId, {
+      status: finalStatus,
+    });
 
   } catch (err) {
     console.error("Error updating purchaseRequest status:", err);
