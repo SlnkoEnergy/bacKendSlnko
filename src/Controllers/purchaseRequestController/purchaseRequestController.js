@@ -381,7 +381,7 @@ const getPurchaseRequest = async (req, res) => {
       return {
         _id: po._id,
         po_number: po.po_number,
-        total_value_with_gst: poValue + gstValue,
+        total_value_with_gst: poValue,
       };
     });
 
