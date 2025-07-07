@@ -41,7 +41,7 @@ async function updatePurchaseRequestStatus(doc, statusHistoryKey = "status_histo
           const itemStatuses = poForItem.map(po => po.current_status?.status || "draft");
           const uniqueItemStatuses = [...new Set(itemStatuses)];
 
-          if (uniqueItemStatuses.length === 1) {
+          if (uniqueItemStatuses.length === 0) {
             return {
               ...item,
               status: `fully_${uniqueItemStatuses[0]}`
