@@ -75,6 +75,7 @@ const getAllPurchaseRequestByProjectId = async (req, res) => {
           const gstValue = Number(po.gst || 0);
           return acc + poValue + gstValue;
         }, 0);
+        
 
         return {
           ...request.toObject(),
@@ -226,7 +227,6 @@ const getAllPurchaseRequest = async (req, res) => {
 
     const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
 
-    // Enrich with PO Value and count
     requests = await Promise.all(
       requests.map(async (request) => {
         const pos = await purchaseOrderModells.find({ pr_id: request._id });
@@ -237,10 +237,13 @@ const getAllPurchaseRequest = async (req, res) => {
           return acc + poValue + gstValue;
         }, 0);
 
+        const poNumbers = pos.map((po) => po.po_number);
+
         return {
           ...request,
           po_value: totalPoValueWithGst,
           total_po_count: pos.length,
+          po_numbers: poNumbers,
         };
       })
     );
