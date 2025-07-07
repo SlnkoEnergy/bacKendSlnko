@@ -188,10 +188,7 @@ const getAllPurchaseRequest = async (req, res) => {
           project_id: { $first: "$project_id" },
           created_by: { $first: "$created_by" },
           items: { $push: "$items" },
-          current_status: { $first: "$current_status" },
-          status_history: { $first: "$status_history" },
-          etd: { $first: "$etd" },
-          delivery_date: { $first: "$delivery_date" },
+          status:{$first: "$status"}
         },
       },
 
@@ -207,9 +204,10 @@ const getAllPurchaseRequest = async (req, res) => {
             item_id: { _id: 1, name: 1 },
             status_history: 1,
             current_status: 1,
+            etd: 1,
+           delivery_date: 1,
           },
-          etd: 1,
-          delivery_date: 1,
+          status:{$first: "$status"}
         },
       },
       { $sort: { createdAt: -1 } },
@@ -408,22 +406,23 @@ const getPurchaseRequest = async (req, res) => {
       purchase_request: {
         _id: purchaseRequest._id,
         pr_no: purchaseRequest.pr_no,
-        current_status: purchaseRequest.current_status,
-        status_history: purchaseRequest.status_history,
         createdAt: purchaseRequest.createdAt,
         project: {
           _id: purchaseRequest.project_id?._id,
           name: purchaseRequest.project_id?.name,
           code: purchaseRequest.project_id?.code,
         },
-        etd: purchaseRequest.etd,
-        delivery_date: purchaseRequest.delivery_date,
+        
       },
       item: {
         ...particularItem.toObject(),
         item_id: {
           _id: particularItem.item_id?._id,
           name: particularItem.item_id?.name,
+          current_status: particularItem?.current_status,
+        status_history: particularItem?.status_history,
+        etd: particularItem?.etd,
+        delivery_date: particularItem?.delivery_date,
         },
       },
       po_details: poDetails,
@@ -469,42 +468,42 @@ const UpdatePurchaseRequest = async (req, res) => {
 
 const updatePurchaseRequestStatus = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id, item_id } = req.params;
     const { status, remarks } = req.body;
 
-    if (!id || !status || !remarks) {
+    if (!id || !item_id || !status || !remarks) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
     const purchaseRequest = await PurchaseRequest.findById(id);
     if (!purchaseRequest) {
-      return res
-        .status(404)
-        .json({ message: "Purchase Request record not found" });
+      return res.status(404).json({ message: "Purchase Request record not found" });
     }
 
-    if (status === "delivered") {
-      purchaseRequest.delivery_date = Date.now();
-    }
+    // Find item by item_id inside items array
+   const particularItem = purchaseRequest.items.find(
+      (itm) => String(itm.item_id) === String(item_id)
+    );
 
-    purchaseRequest.status_history.push({
+    // Push to status_history of that item
+    particularItem.status_history.push({
       status,
       remarks,
       user_id: req.user.userId,
     });
+
     await purchaseRequest.save();
 
     res.status(200).json({
-      message: "Purchase Request status updated successfully",
-      data: purchaseRequest,
+      message: "Purchase Request item status updated successfully",
+      data: particularItem,
     });
   } catch (error) {
-    console.error("Error updating Purchase Request status:", error);
-    return res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    console.error("Error updating Purchase Request item status:", error);
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
+
 
 const deletePurchaseRequest = async (req, res) => {
   try {
