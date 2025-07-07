@@ -257,20 +257,19 @@ const getPaginatedPo = async (req, res) => {
     const searchRegex = new RegExp(search, "i");
 
     const matchStage = {
-  ...(search && {
-    $or: [
-      { p_id: { $regex: searchRegex } },
-      { po_number: { $regex: searchRegex } },
-      { vendor: { $regex: searchRegex } },
-      { item: { $regex: searchRegex } },
-    ],
-  }),
-  ...(req.query.project_id && { p_id: req.query.project_id }),
-  ...(req.query.pr_id && {
-    pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
-  }),
-};
-
+      ...(search && {
+        $or: [
+          { p_id: { $regex: searchRegex } },
+          { po_number: { $regex: searchRegex } },
+          { vendor: { $regex: searchRegex } },
+          { item: { $regex: searchRegex } },
+        ],
+      }),
+      ...(req.query.project_id && { p_id: req.query.project_id }),
+      ...(req.query.pr_id && {
+        pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
+      }),
+    };
 
     const pipeline = [
       { $match: matchStage },
@@ -542,7 +541,6 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
-
 
 const getExportPo = async (req, res) => {
   try {
@@ -842,42 +840,43 @@ const deletePO = async function (req, res) {
   }
 };
 
-// //gtpo test
-// const getAllPoTest = async (req, res) => {
-//   try {
-//     // Set up the cursor to stream the data from MongoDB
-//     const cursor = purchaseOrderModells.find()
-//       .lean()  // Lean queries to speed up the process (returns plain JavaScript objects)
-//       .cursor();  // MongoDB cursor to stream data
-
-//     res.setHeader('Content-Type', 'application/json');
-
-//     // Initialize a JSON array to send back in chunks (streamed)
-//     res.write('{"data":[');  // Start the JSON array
-
-//     let first = true;
-//     cursor.on('data', (doc) => {
-//       if (!first) {
-//         res.write(',');  // Add comma between records
-//       }
-//       first = false;
-//       res.write(JSON.stringify(doc));  // Write each document as a JSON object
-//     });
-
-//     cursor.on('end', () => {
-//       res.write(']}');  // Close the JSON array
-//       res.end();  // End the response stream
-//     });
-
-//     cursor.on('error', (err) => {
-//       console.error(err);
-//       res.status(500).json({ msg: 'Error retrieving data', error: err.message });
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ msg: 'Error retrieving data', error: err.message });
-//   }
-// };
+const updateStatusPO = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, remarks } = req.body;
+    if (!id) {
+      return res.status(404).json({
+        message: "ID is required",
+      });
+    }
+    if (!status && !remarks) {
+      return res.status(404).json({
+        message: "Status and remarks are required",
+      });
+    }
+    const purchaseOrder = await purchaseOrderModells.findById(id);
+    if (!purchaseOrder) {
+      return res.status(404).json({
+        message: "Purchase Order not found",
+      });
+    }
+    purchaseOrder.status_history.push({
+      status: status,
+      remarks: remarks,
+      user_id: req.user.userId,
+    });
+    await purchaseOrder.save();
+    res.status(201).json({
+      message: "Purchase Order Status Updated Successfully",
+      data: purchaseOrder,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   addPo,
@@ -892,4 +891,5 @@ module.exports = {
   deletePO,
   getpohistory,
   getPOHistoryById,
+  updateStatusPO
 };
