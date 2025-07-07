@@ -25,7 +25,7 @@ const addPo = async function (req, res) {
       gst,
       pr_id,
       etd,
-      delivery_date
+      delivery_date,
     } = req.body;
 
     let resolvedItem = item === "Other" ? other : item;
@@ -52,8 +52,8 @@ const addPo = async function (req, res) {
       po_basic,
       gst,
       pr_id,
-      etd:null,
-      delivery_date:null
+      etd: null,
+      delivery_date: null,
     });
 
     await newPO.save();
@@ -412,26 +412,25 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-     {
-  $lookup: {
-    from: "materialcategories",
-    let: { itemField: "$item" },
-    pipeline: [
       {
-        $match: {
-          $expr: {
-            $or: [
-              { $eq: ["$_id", { $toObjectId: "$$itemField" }] },
-              { $eq: ["$name", "$$itemField"] },
-            ],
-          },
+        $lookup: {
+          from: "materialcategories",
+          let: { itemField: "$item" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $eq: ["$_id", { $toObjectId: "$$itemField" }] },
+                    { $eq: ["$name", "$$itemField"] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "itemData",
         },
       },
-    ],
-    as: "itemData",
-  },
-}
-,
       {
         $addFields: {
           item: {
@@ -526,11 +525,13 @@ const getPaginatedPo = async (req, res) => {
 
     const formatDate = (date) =>
       date
-        ? new Date(date).toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          }).replace(/ /g, "/")
+        ? new Date(date)
+            .toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+            .replace(/ /g, "/")
         : "";
 
     const data = result.map((item) => ({
@@ -556,8 +557,6 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
-
-
 
 const getExportPo = async (req, res) => {
   try {
@@ -864,7 +863,9 @@ const updateEditandDeliveryDate = async (req, res) => {
     const { etd, delivery_date } = req.body;
 
     if (!id) {
-      return res.status(400).json({ message: "PR ID and Item ID are required" });
+      return res
+        .status(400)
+        .json({ message: "PR ID and Item ID are required" });
     }
 
     const updateFields = {};
@@ -882,15 +883,19 @@ const updateEditandDeliveryDate = async (req, res) => {
     );
 
     if (!updatedPO) {
-      return res.status(404).json({ message: "Purchase Order or Item not found" });
+      return res
+        .status(404)
+        .json({ message: "Purchase Order or Item not found" });
     }
 
-    res.status(200).json({ message: "ETD/Delivery Date updated successfully", updatedPO });
+    res
+      .status(200)
+      .json({ message: "ETD/Delivery Date updated successfully", updatedPO });
   } catch (error) {
     console.error("Error updating ETD/Delivery Date:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-}
+};
 const updateStatusPO = async (req, res) => {
   try {
     const { status, remarks, id } = req.body;
@@ -904,7 +909,7 @@ const updateStatusPO = async (req, res) => {
         message: "Status and remarks are required",
       });
     }
-    const purchaseOrder = await purchaseOrderModells.findOne({po_number:id});
+    const purchaseOrder = await purchaseOrderModells.findOne({ po_number: id });
     if (!purchaseOrder) {
       return res.status(404).json({
         message: "Purchase Order not found",
@@ -942,5 +947,5 @@ module.exports = {
   getpohistory,
   getPOHistoryById,
   updateEditandDeliveryDate,
-  updateStatusPO
+  updateStatusPO,
 };
