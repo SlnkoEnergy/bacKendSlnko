@@ -896,7 +896,7 @@ const updateStatusPO = async (req, res) => {
         message: "Status and remarks are required",
       });
     }
-    const purchaseOrder = await purchaseOrderModells.findById(id);
+    const purchaseOrder = await purchaseOrderModells.find({po_number: id});
     if (!purchaseOrder) {
       return res.status(404).json({
         message: "Purchase Order not found",
