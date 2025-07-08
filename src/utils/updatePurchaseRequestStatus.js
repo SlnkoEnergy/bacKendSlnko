@@ -52,7 +52,7 @@ async function updatePurchaseRequestStatus(
           if (allSame) {
             return {
               ...item,
-              status: `fully_${itemStatuses[0]}`,
+              status: `${itemStatuses[0]}`,
             };
           } else {
             const maxStatus = itemStatuses.reduce((a, b) =>
@@ -79,7 +79,7 @@ async function updatePurchaseRequestStatus(
     const allSame = statuses.every((status) => status === statuses[0]);
 
     const finalStatus = allSame
-      ? `fully_${statuses[0]}`
+      ? `${statuses[0]}`
       : `partially_${statuses.reduce((a, b) =>
           statusPriority[a] > statusPriority[b] ? a : b
         )}`;
