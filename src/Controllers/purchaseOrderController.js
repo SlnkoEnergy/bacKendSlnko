@@ -196,28 +196,43 @@ const getPOByProjectId = async function (req, res) {
   }
 };
 
-//get po history by id
-const getPOHistoryById = async function (req, res) {
+const getPOById = async (req, res) => {
   try {
-    let id = req.params._id;
-    let data = await pohisttoryModells.findById(id).lean();
+    const { p_id, _id } = req.body;
 
-    if (!data) return res.status(404).json({ msg: "PO History not found" });
+    const query = {};
+    if (_id) query._id = _id;
+    if (p_id) query.p_id = p_id;
 
-    const isObjectId = mongoose.Types.ObjectId.isValid(data.item);
+    const data = await purchaseOrderModells.findOne(query);
 
-    if (isObjectId) {
-      const material = await materialCategoryModells
-        .findById(data.item)
-        .select("name");
-      data.item = material?.name || null;
-    } else {
-      data.item = data.item;
+    if (!data) {
+      return res.status(404).json({ msg: "Purchase Order not found" });
     }
 
-    res.status(200).json({ msg: "PO History Detail", data });
+    res.status(200).json({ msg: "Purchase Order found", data });
   } catch (error) {
-    res.status(500).json({ msg: "Error fetching data", error: error.message });
+    res.status(500).json({ msg: "Error retrieving PO", error: error.message });
+  }
+};
+
+const getPOHistoryById = async (req, res) => {
+  try {
+    const { po_number, _id } = req.query;
+
+    const query = {};
+    if (_id) query._id = _id;
+    if (po_number) query.po_number = po_number;
+
+    const data = await pohisttoryModells.findOne(query);
+
+    if (!data) {
+      return res.status(404).json({ msg: "Purchase Order not found" });
+    }
+
+    res.status(200).json({ msg: "Purchase Order found", data });
+  } catch (error) {
+    res.status(500).json({ msg: "Error retrieving PO", error: error.message });
   }
 };
 
@@ -270,7 +285,7 @@ const getPaginatedPo = async (req, res) => {
     const pipeline = [
       { $match: matchStage },
 
-      { $sort: { date: -1 } },
+      { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: pageSize },
 
@@ -391,18 +406,28 @@ const getPaginatedPo = async (req, res) => {
         },
       },
       {
-        $lookup: {
-          from: "purchaserequests",
-          localField: "pr_id",
-          foreignField: "pr_id",
-          as: "prRequest",
+        $addFields: {
+          itemId: {
+            $cond: {
+              if: { $eq: [{ $type: "$item" }, "objectId"] },
+              then: "$item",
+              else: null,
+            },
+          },
         },
       },
       {
-        $addFields: {
-          pr_no: {
-            $arrayElemAt: ["$prRequest.pr_no", 0],
-          },
+        $lookup: {
+          from: "materialcategories",
+          localField: "itemId",
+          foreignField: "_id",
+          as: "itemDoc",
+        },
+      },
+      {
+        $unwind: {
+          path: "$itemDoc",
+          preserveNullAndEmptyArrays: true,
         },
       },
 
@@ -410,12 +435,14 @@ const getPaginatedPo = async (req, res) => {
 
       {
         $project: {
-          _id: 0,
+          _id: 1,
           po_number: 1,
           p_id: 1,
           pr_no: 1,
           vendor: 1,
-          item: 1,
+          item: {
+            $ifNull: ["$itemDoc.name", "$item"],
+          },
           date: 1,
           po_value: { $toDouble: "$po_value" },
           amount_paid: 1,
@@ -865,6 +892,7 @@ module.exports = {
   exportCSV,
   moverecovery,
   getPOByProjectId,
+  getPOById,
   deletePO,
   getpohistory,
   getPOHistoryById,
