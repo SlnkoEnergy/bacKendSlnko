@@ -94,7 +94,12 @@ const getAllPurchaseRequest = async (req, res) => {
       itemSearch = "",
       poValueSearch = "",
       statusSearch = "",
+      createdFrom = "",
+      createdTo = "",
+      etdFrom = "",
+      etdTo = "",
     } = req.query;
+
     const skip = (page - 1) * limit;
 
     const searchRegex = new RegExp(search, "i");
@@ -172,6 +177,18 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
+      ...(createdFrom && createdTo
+        ? [
+            {
+              $match: {
+                createdAt: {
+                  $gte: new Date(createdFrom),
+                  $lte: new Date(createdTo),
+                },
+              },
+            },
+          ]
+        : []),
       {
         $project: {
           _id: 1,
@@ -201,54 +218,68 @@ const getAllPurchaseRequest = async (req, res) => {
       PurchaseRequest.aggregate(countPipeline),
     ]);
 
-    const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
+    let totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
 
-  requests = await Promise.all(
-  requests.map(async (request) => {
-    const pos = await purchaseOrderModells.find({ pr_id: request._id });
+    // Attach PO details for each request
+    requests = await Promise.all(
+      requests.map(async (request) => {
+        const pos = await purchaseOrderModells.find({ pr_id: request._id });
 
-    const prItemId = request.item?.item_id?._id?.toString?.();
-    const prItemName = request.item?.item_id?.name;
+        const prItemIdStr = request.item?.item_id?._id?.toString?.();
+        const prItemName = request.item?.item_id?.name;
 
-    const filteredPOs = pos.filter((po) => {
-  const poItem = po?.item;
+        const filteredPOs = pos.filter((po) => {
+          const poItemStr = po?.item?.toString?.();
+          return poItemStr === prItemIdStr || po.item === prItemName;
+        });
 
-  if (!poItem) return false;
+        const poDetails = filteredPOs.map((po) => ({
+          po_number: po.po_number,
+          po_value: Number(po.po_value || 0),
+          etd: po.etd ? new Date(po.etd) : null,
+        }));
 
-  const poItemStr = poItem.toString?.(); // handles ObjectId or string
-  const prItemIdStr = request.item?.item_id?._id?.toString?.();
-  const prItemName = request.item?.item_id?.name;
+        const totalPoValueWithGst = poDetails.reduce(
+          (acc, po) => acc + po.po_value,
+          0
+        );
 
-  // Match by ObjectId string or name
-  return poItemStr === prItemIdStr || poItem === prItemName;
-});
+        return {
+          ...request,
+          po_value: totalPoValueWithGst,
+          po_numbers: poDetails.map((p) => p.po_number),
+          po_details: poDetails,
+        };
+      })
+    );
 
-
-    const totalPoValueWithGst = filteredPOs.reduce((acc, po) => {
-      return acc + Number(po.po_value || 0);
-    }, 0);
-
-    const poNumbers = filteredPOs.map((po) => po.po_number);
-
-    return {
-      ...request,
-      po_value: totalPoValueWithGst,
-      po_numbers: poNumbers,
-    };
-  })
-);
-
-
-
-
+    // Filter by PO value
     if (poValueSearch) {
       requests = requests.filter(
         (r) => Number(r.po_value) === poValueSearchNumber
       );
     }
 
+    // Filter by ETD date range
+    if (etdFrom && etdTo) {
+      const etdStart = new Date(etdFrom);
+      const etdEnd = new Date(etdTo);
+      requests = requests.filter((r) =>
+        r.po_details.some((po) => {
+          if (!po.etd) return false;
+          const etdDate = new Date(po.etd);
+          return etdDate >= etdStart && etdDate <= etdEnd;
+        })
+      );
+    }
+
+    // Update total count if filtered
+    if (poValueSearch || (etdFrom && etdTo)) {
+      totalCount = requests.length;
+    }
+
     res.status(200).json({
-      totalCount: poValueSearch ? requests.length : totalCount,
+      totalCount,
       currentPage: Number(page),
       totalPages: Math.ceil(totalCount / limit),
       data: requests,
