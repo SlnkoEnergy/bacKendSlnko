@@ -56,7 +56,7 @@ async function updatePurchaseRequestStatus(
             };
           } else {
             const maxStatus = itemStatuses.reduce((a, b) =>
-              statusPriority[a] > statusPriority[b] ? a : b
+              statusPriority[a] >= statusPriority[b] ? a : b
             );
             return {
               ...item,
