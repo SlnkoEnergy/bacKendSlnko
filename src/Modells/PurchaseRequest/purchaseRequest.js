@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const updateCurrentStatus = require("../../utils/statusUpdateUtils/updateCurrentStatus");
+
 
 const purchaseRequestSchema = new mongoose.Schema(
   {
@@ -13,51 +13,13 @@ const purchaseRequestSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "MaterialCategory",
         },
+        status:{
+          type:String
+        }
       },
     ],
-    status_history: [
-      {
-        status: {
-          type: String,
-          enum: [
-            "submitted",
-            "draft",
-            "approved",
-            "po_created",
-            "rejected",
-            "out_for_delivery",
-            "delivered",
-          ],
-        },
-        remarks: {
-          type: String,
-        },
-        user_id: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-      },
-    ],
-    current_status: {
-      status: {
-        type: String,
-        enum: [
-          "submitted",
-          "draft",
-          "approved",
-          "po_created",
-          "rejected",
-          "out_for_delivery",
-          "delivered",
-        ],
-      },
-      remarks: {
-        type: String,
-      },
-      user_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
+    status: {
+      type: String,
     },
     pr_no: {
       type: String,
@@ -66,19 +28,8 @@ const purchaseRequestSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
-    etd: {
-      type: Date,
-    },
-    delivery_date: {
-      type: Date,
-    },
   },
   { timestamps: true }
 );
-
-purchaseRequestSchema.pre("save", function (next) {
-  updateCurrentStatus(this, "status_history", "current_status");
-  next();
-});
 
 module.exports = mongoose.model("PurchaseRequest", purchaseRequestSchema);
