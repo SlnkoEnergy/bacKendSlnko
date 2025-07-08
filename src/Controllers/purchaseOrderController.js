@@ -416,16 +416,22 @@ const getPaginatedPo = async (req, res) => {
   {
   $addFields: {
     itemObjectId: {
-      $cond: {
-        if: {
+      $cond: [
+        {
           $and: [
             { $eq: [{ $strLenCP: "$item" }, 24] },
-            { $regexMatch: { input: "$item", regex: /^[0-9a-fA-F]{24}$/ } }
+            {
+              $regexMatch: {
+                input: "$item",
+                regex: "^[0-9a-fA-F]{24}$",
+                options: "i"
+              }
+            }
           ]
         },
-        then: { $toObjectId: "$item" },
-        else: null
-      }
+        { $toObjectId: "$item" },
+        null
+      ]
     }
   }
 }
@@ -450,26 +456,33 @@ const getPaginatedPo = async (req, res) => {
     }
   },
       ...(status ? [{ $match: { partial_billing: status } }] : []),
-      {
-        $project: {
-          _id: 0,
-          po_number: 1,
-          p_id: 1,
-          pr_no: 1,
-          vendor: 1,
-          item: 1,
-          date: 1,
-          po_value: 1,
-          amount_paid: 1,
-          total_billed: 1,
-          partial_billing: 1,
-          etd: 1,
-          delivery_date: 1,
-          current_status: 1,
-          status_history: 1,
-          type: "$billingTypes",
-        },
-      },
+     {
+  $project: {
+    _id: 0,
+    po_number: 1,
+    p_id: 1,
+    pr_no: 1,
+    vendor: 1,
+    item: {
+      $cond: {
+        if: { $gt: [{ $size: "$itemData" }, 0] },
+        then: { $arrayElemAt: ["$itemData.name", 0] },
+        else: "$item"
+      }
+    },
+    date: 1,
+    po_value: 1,
+    amount_paid: 1,
+    total_billed: 1,
+    partial_billing: 1,
+    etd: 1,
+    delivery_date: 1,
+    current_status: 1,
+    status_history: 1,
+    type: "$billingTypes"
+  }
+}
+
     ];
 
     const countPipeline = [
