@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const updateCurrentStatusItems = require("../../utils/statusUpdateUtils/updateCurrentStatusItems");
+
 
 const purchaseRequestSchema = new mongoose.Schema(
   {
