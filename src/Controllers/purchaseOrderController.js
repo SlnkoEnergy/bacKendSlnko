@@ -24,6 +24,8 @@ const addPo = async function (req, res) {
       po_basic,
       gst,
       pr_id,
+      etd,
+      delivery_date,
     } = req.body;
 
     let resolvedItem = item === "Other" ? other : item;
@@ -50,6 +52,8 @@ const addPo = async function (req, res) {
       po_basic,
       gst,
       pr_id,
+      etd: null,
+      delivery_date: null,
     });
 
     await newPO.save();
@@ -246,7 +250,6 @@ const getallpo = async function (req, res) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
-
 const getPaginatedPo = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -266,22 +269,28 @@ const getPaginatedPo = async (req, res) => {
         ],
       }),
       ...(req.query.project_id && { p_id: req.query.project_id }),
+      ...(req.query.pr_id && {
+        pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
+      }),
+      ...(req.query.item_id && {
+        $or: [
+          { item: new mongoose.Types.ObjectId(req.query.item_id) },
+          { item: req.query.item_id },
+        ],
+      }),
     };
 
     const pipeline = [
       { $match: matchStage },
-
       { $sort: { date: -1 } },
       { $skip: skip },
       { $limit: pageSize },
-
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
           po_value: { $toDouble: "$po_value" },
         },
       },
-
       {
         $lookup: {
           from: "payrequests",
@@ -303,7 +312,6 @@ const getPaginatedPo = async (req, res) => {
           as: "approvedPayments",
         },
       },
-
       {
         $lookup: {
           from: "biildetails",
@@ -312,7 +320,6 @@ const getPaginatedPo = async (req, res) => {
           as: "billData",
         },
       },
-
       {
         $addFields: {
           amount_paid: {
@@ -349,7 +356,6 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-
       {
         $addFields: {
           partial_billing: {
@@ -391,21 +397,69 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-
+      {
+        $lookup: {
+          from: "purchaserequests",
+          localField: "pr_id",
+          foreignField: "_id",
+          as: "prRequest",
+        },
+      },
+      {
+        $addFields: {
+          pr_no: {
+            $arrayElemAt: ["$prRequest.pr_no", 0],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "materialcategories",
+          let: { itemField: "$item" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $eq: ["$_id", { $toObjectId: "$$itemField" }] },
+                    { $eq: ["$name", "$$itemField"] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "itemData",
+        },
+      },
+      {
+        $addFields: {
+          item: {
+            $cond: {
+              if: { $gt: [{ $size: "$itemData" }, 0] },
+              then: { $arrayElemAt: ["$itemData.name", 0] },
+              else: "-",
+            },
+          },
+        },
+      },
       ...(status ? [{ $match: { partial_billing: status } }] : []),
-
       {
         $project: {
           _id: 0,
           po_number: 1,
           p_id: 1,
+          pr_no: 1,
           vendor: 1,
           item: 1,
           date: 1,
-          po_value: { $toDouble: "$po_value" },
+          po_value: 1,
           amount_paid: 1,
           total_billed: 1,
           partial_billing: 1,
+          etd: 1,
+          delivery_date: 1,
+          current_status: 1,
+          status_history: 1,
           type: "$billingTypes",
         },
       },
@@ -413,8 +467,6 @@ const getPaginatedPo = async (req, res) => {
 
     const countPipeline = [
       { $match: matchStage },
-
-      // replicate necessary computation for status filtering
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
@@ -471,7 +523,6 @@ const getPaginatedPo = async (req, res) => {
 
     const total = countResult[0]?.total || 0;
 
-    // Format date
     const formatDate = (date) =>
       date
         ? new Date(date)
@@ -806,41 +857,81 @@ const deletePO = async function (req, res) {
 };
 
 // //gtpo test
-// const getAllPoTest = async (req, res) => {
-//   try {
-//     // Set up the cursor to stream the data from MongoDB
-//     const cursor = purchaseOrderModells.find()
-//       .lean()  // Lean queries to speed up the process (returns plain JavaScript objects)
-//       .cursor();  // MongoDB cursor to stream data
+const updateEditandDeliveryDate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { etd, delivery_date } = req.body;
 
-//     res.setHeader('Content-Type', 'application/json');
+    if (!id) {
+      return res
+        .status(400)
+        .json({ message: "PR ID and Item ID are required" });
+    }
 
-//     // Initialize a JSON array to send back in chunks (streamed)
-//     res.write('{"data":[');  // Start the JSON array
+    const updateFields = {};
+    if (etd) updateFields["etd"] = etd;
+    if (delivery_date) updateFields["delivery_date"] = delivery_date;
 
-//     let first = true;
-//     cursor.on('data', (doc) => {
-//       if (!first) {
-//         res.write(',');  // Add comma between records
-//       }
-//       first = false;
-//       res.write(JSON.stringify(doc));  // Write each document as a JSON object
-//     });
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ message: "No valid fields to update" });
+    }
 
-//     cursor.on('end', () => {
-//       res.write(']}');  // Close the JSON array
-//       res.end();  // End the response stream
-//     });
+    const updatedPO = await purchaseOrderModells.findOneAndUpdate(
+      { po_number: id },
+      { $set: updateFields },
+      { new: true }
+    );
 
-//     cursor.on('error', (err) => {
-//       console.error(err);
-//       res.status(500).json({ msg: 'Error retrieving data', error: err.message });
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ msg: 'Error retrieving data', error: err.message });
-//   }
-// };
+    if (!updatedPO) {
+      return res
+        .status(404)
+        .json({ message: "Purchase Order or Item not found" });
+    }
+
+    res
+      .status(200)
+      .json({ message: "ETD/Delivery Date updated successfully", updatedPO });
+  } catch (error) {
+    console.error("Error updating ETD/Delivery Date:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+const updateStatusPO = async (req, res) => {
+  try {
+    const { status, remarks, id } = req.body;
+    if (!id) {
+      return res.status(404).json({
+        message: "ID is required",
+      });
+    }
+    if (!status && !remarks) {
+      return res.status(404).json({
+        message: "Status and remarks are required",
+      });
+    }
+    const purchaseOrder = await purchaseOrderModells.findOne({ po_number: id });
+    if (!purchaseOrder) {
+      return res.status(404).json({
+        message: "Purchase Order not found",
+      });
+    }
+    purchaseOrder.status_history.push({
+      status: status,
+      remarks: remarks,
+      user_id: req.user.userId,
+    });
+    await purchaseOrder.save();
+    res.status(201).json({
+      message: "Purchase Order Status Updated Successfully",
+      data: purchaseOrder,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   addPo,
@@ -855,4 +946,6 @@ module.exports = {
   deletePO,
   getpohistory,
   getPOHistoryById,
+  updateEditandDeliveryDate,
+  updateStatusPO,
 };

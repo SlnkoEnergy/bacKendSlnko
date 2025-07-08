@@ -29,17 +29,10 @@ const CreatePurchaseRequest = async (req, res) => {
     const projectCode = project.code || project.name || "UNKNOWN";
     const prNumber = `PR/${projectCode}/${counterString}`;
 
-    const submittedStatus = {
-      status: "submitted",
-      user_id: req.user.userId,
-      remarks: "",
-    };
-
     const newPurchaseRequest = new PurchaseRequest({
       ...purchaseRequestData,
       pr_no: prNumber,
       created_by: req.user.userId,
-      status_history: [submittedStatus],
     });
 
     await newPurchaseRequest.save();
@@ -75,6 +68,7 @@ const getAllPurchaseRequestByProjectId = async (req, res) => {
           const gstValue = Number(po.gst || 0);
           return acc + poValue + gstValue;
         }, 0);
+        
 
         return {
           ...request.toObject(),
@@ -100,7 +94,12 @@ const getAllPurchaseRequest = async (req, res) => {
       itemSearch = "",
       poValueSearch = "",
       statusSearch = "",
+      createdFrom = "",
+      createdTo = "",
+      etdFrom = "",
+      etdTo = "",
     } = req.query;
+
     const skip = (page - 1) * limit;
 
     const searchRegex = new RegExp(search, "i");
@@ -138,16 +137,15 @@ const getAllPurchaseRequest = async (req, res) => {
           from: "materialcategories",
           localField: "items.item_id",
           foreignField: "_id",
-          as: "items.item_id",
+          as: "item_data",
         },
       },
       {
         $unwind: {
-          path: "$items.item_id",
+          path: "$item_data",
           preserveNullAndEmptyArrays: true,
         },
       },
-      // General search on project and PR fields
       ...(search
         ? [
             {
@@ -161,12 +159,11 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
-      // Item search filter
       ...(itemSearch
         ? [
             {
               $match: {
-                "items.item_id.name": itemSearchRegex,
+                "item_data.name": itemSearchRegex,
               },
             },
           ]
@@ -175,39 +172,38 @@ const getAllPurchaseRequest = async (req, res) => {
         ? [
             {
               $match: {
-                "current_status.status": statusSearchRegex,
+                "items.status": statusSearchRegex,
+              },
+            },
+          ]
+        : []),
+      ...(createdFrom && createdTo
+        ? [
+            {
+              $match: {
+                createdAt: {
+                  $gte: new Date(createdFrom),
+                  $lte: new Date(createdTo),
+                },
               },
             },
           ]
         : []),
       {
-        $group: {
-          _id: "$_id",
-          pr_no: { $first: "$pr_no" },
-          createdAt: { $first: "$createdAt" },
-          project_id: { $first: "$project_id" },
-          created_by: { $first: "$created_by" },
-          items: { $push: "$items" },
-          status:{$first: "$status"}
-        },
-      },
-
-      {
         $project: {
+          _id: 1,
           pr_no: 1,
-          current_status: 1,
-          status_history: 1,
           createdAt: 1,
           project_id: { _id: 1, name: 1, code: 1 },
           created_by: { _id: 1, name: 1 },
-          items: {
-            item_id: { _id: 1, name: 1 },
-            status_history: 1,
-            current_status: 1,
-            etd: 1,
-           delivery_date: 1,
+          item: {
+            _id: "$items._id",
+            status: "$items.status",
+            item_id: {
+              _id: "$item_data._id",
+              name: "$item_data.name",
+            },
           },
-          status:{$first: "$status"}
         },
       },
       { $sort: { createdAt: -1 } },
@@ -222,45 +218,83 @@ const getAllPurchaseRequest = async (req, res) => {
       PurchaseRequest.aggregate(countPipeline),
     ]);
 
-    const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
+    let totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
 
-    // Enrich with PO Value and count
+    // Attach PO details for each request
     requests = await Promise.all(
       requests.map(async (request) => {
         const pos = await purchaseOrderModells.find({ pr_id: request._id });
 
-        const totalPoValueWithGst = pos.reduce((acc, po) => {
-          const poValue = Number(po.po_value || 0);
-          const gstValue = Number(po.gst || 0);
-          return acc + poValue + gstValue;
-        }, 0);
+        const prItemIdStr = request.item?.item_id?._id?.toString?.();
+        const prItemName = request.item?.item_id?.name;
+
+        const filteredPOs = pos.filter((po) => {
+          const poItemStr = po?.item?.toString?.();
+          return poItemStr === prItemIdStr || po.item === prItemName;
+        });
+
+        const poDetails = filteredPOs.map((po) => ({
+          po_number: po.po_number,
+          po_value: Number(po.po_value || 0),
+          etd: po.etd ? new Date(po.etd) : null,
+        }));
+
+        const totalPoValueWithGst = poDetails.reduce(
+          (acc, po) => acc + po.po_value,
+          0
+        );
 
         return {
           ...request,
           po_value: totalPoValueWithGst,
-          total_po_count: pos.length,
+          po_numbers: poDetails.map((p) => p.po_number),
+          po_details: poDetails,
         };
       })
     );
 
-    // Apply PO Value Search
+    // Filter by PO value
     if (poValueSearch) {
       requests = requests.filter(
         (r) => Number(r.po_value) === poValueSearchNumber
       );
     }
 
+    // Filter by ETD date range
+    if (etdFrom && etdTo) {
+      const etdStart = new Date(etdFrom);
+      const etdEnd = new Date(etdTo);
+      requests = requests.filter((r) =>
+        r.po_details.some((po) => {
+          if (!po.etd) return false;
+          const etdDate = new Date(po.etd);
+          return etdDate >= etdStart && etdDate <= etdEnd;
+        })
+      );
+    }
+
+    // Update total count if filtered
+    if (poValueSearch || (etdFrom && etdTo)) {
+      totalCount = requests.length;
+    }
+
     res.status(200).json({
-      totalCount: poValueSearch ? requests.length : totalCount,
+      totalCount,
       currentPage: Number(page),
       totalPages: Math.ceil(totalCount / limit),
       data: requests,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Failed to fetch purchase requests" });
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
+
+
+
 
 const getPurchaseRequestById = async (req, res) => {
   try {
@@ -390,7 +424,7 @@ const getPurchaseRequest = async (req, res) => {
       return {
         _id: po._id,
         po_number: po.po_number,
-        total_value_with_gst: poValue + gstValue,
+        total_value_with_gst: poValue,
       };
     });
 
@@ -466,45 +500,6 @@ const UpdatePurchaseRequest = async (req, res) => {
   }
 };
 
-const updatePurchaseRequestStatus = async (req, res) => {
-  try {
-    const { id, item_id } = req.params;
-    const { status, remarks } = req.body;
-
-    if (!id || !item_id || !status || !remarks) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    const purchaseRequest = await PurchaseRequest.findById(id);
-    if (!purchaseRequest) {
-      return res.status(404).json({ message: "Purchase Request record not found" });
-    }
-
-    // Find item by item_id inside items array
-   const particularItem = purchaseRequest.items.find(
-      (itm) => String(itm.item_id) === String(item_id)
-    );
-
-    // Push to status_history of that item
-    particularItem.status_history.push({
-      status,
-      remarks,
-      user_id: req.user.userId,
-    });
-
-    await purchaseRequest.save();
-
-    res.status(200).json({
-      message: "Purchase Request item status updated successfully",
-      data: particularItem,
-    });
-  } catch (error) {
-    console.error("Error updating Purchase Request item status:", error);
-    return res.status(500).json({ message: "Internal server error", error: error.message });
-  }
-};
-
-
 const deletePurchaseRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -538,13 +533,14 @@ const deletePurchaseRequest = async (req, res) => {
   }
 };
 
+
+
 module.exports = {
   CreatePurchaseRequest,
   getAllPurchaseRequest,
   getPurchaseRequestById,
   UpdatePurchaseRequest,
   deletePurchaseRequest,
-  updatePurchaseRequestStatus,
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
 };
