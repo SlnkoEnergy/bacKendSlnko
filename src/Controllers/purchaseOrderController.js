@@ -7,6 +7,8 @@ const fs = require("fs");
 const path = require("path");
 const { default: mongoose } = require("mongoose");
 const materialCategoryModells = require("../Modells/EngineeringModells/materials/materialCategoryModells");
+const { getLowerPriorityStatus } = require("../utils/updatePurchaseRequestStatus");
+const purchaseRequest = require("../Modells/PurchaseRequest/purchaseRequest");
 
 //Add-Purchase-Order
 const addPo = async function (req, res) {
@@ -23,9 +25,7 @@ const addPo = async function (req, res) {
       submitted_By,
       po_basic,
       gst,
-      pr_id,
-      etd,
-      delivery_date,
+      pr_id
     } = req.body;
 
     let resolvedItem = item === "Other" ? other : item;
@@ -899,30 +899,57 @@ const updateEditandDeliveryDate = async (req, res) => {
 const updateStatusPO = async (req, res) => {
   try {
     const { status, remarks, id } = req.body;
-    if (!id) {
-      return res.status(404).json({
-        message: "ID is required",
-      });
-    }
-    if (!status && !remarks) {
-      return res.status(404).json({
-        message: "Status and remarks are required",
-      });
-    }
+    if (!id) return res.status(404).json({ message: "ID is required" });
+    if (!status && !remarks)
+      return res.status(404).json({ message: "Status and remarks are required" });
+
     const purchaseOrder = await purchaseOrderModells.findOne({ po_number: id });
-    if (!purchaseOrder) {
-      return res.status(404).json({
-        message: "Purchase Order not found",
-      });
-    }
+    if (!purchaseOrder) return res.status(404).json({ message: "Purchase Order not found" });
+
     purchaseOrder.status_history.push({
-      status: status,
-      remarks: remarks,
+      status,
+      remarks,
       user_id: req.user.userId,
     });
     await purchaseOrder.save();
+
+    // 👇 Start Processing PR Item Statuses
+    const pr = await purchaseRequest.findById(purchaseOrder.pr_id).lean();
+    if (!pr) return res.status(404).json({ message: "Related Purchase Request not found" });
+
+    const allPOs = await purchaseOrderModells.find({ pr_id: pr._id }).lean();
+
+    const updatedItems = await Promise.all(
+      pr.items.map(async (item) => {
+        const itemIdStr = String(item.item_id);
+
+        // Get all POs that have this item (by id or name)
+        const relevantPOs = allPOs.filter(po => {
+          const poItem = po.item;
+          if (typeof poItem === "string") return poItem === itemIdStr;
+          if (poItem?._id) return String(poItem._id) === itemIdStr;
+          return false;
+        });
+
+        const allStatuses = relevantPOs
+          .map(po => po.current_status?.status)
+          .filter(Boolean);
+
+        if (allStatuses.length === 0) return { ...item };
+
+        const same = allStatuses.every(s => s === allStatuses[0]);
+
+        return {
+          ...item,
+          status: same ? allStatuses[0] : getLowerPriorityStatus(allStatuses),
+        };
+      })
+    );
+
+    await purchaseRequest.findByIdAndUpdate(pr._id, { items: updatedItems });
+
     res.status(201).json({
-      message: "Purchase Order Status Updated Successfully",
+      message: "Purchase Order Status Updated and PR Item Statuses Evaluated",
       data: purchaseOrder,
     });
   } catch (error) {
