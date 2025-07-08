@@ -94,6 +94,10 @@ const getAllPurchaseRequest = async (req, res) => {
       itemSearch = "",
       poValueSearch = "",
       statusSearch = "",
+      createdFrom = "",
+      createdTo = "",
+      etdFrom = "",
+      etdTo = "",
     } = req.query;
     const skip = (page - 1) * limit;
 
@@ -172,6 +176,18 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
+      ...(createdFrom && createdTo
+        ? [
+            {
+              $match: {
+                createdAt: {
+                  $gte: new Date(createdFrom),
+                  $lte: new Date(createdTo),
+                },
+              },
+            },
+          ]
+        : []),
       {
         $project: {
           _id: 1,
@@ -201,54 +217,67 @@ const getAllPurchaseRequest = async (req, res) => {
       PurchaseRequest.aggregate(countPipeline),
     ]);
 
-    const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
+    let totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
 
-  requests = await Promise.all(
-  requests.map(async (request) => {
-    const pos = await purchaseOrderModells.find({ pr_id: request._id });
+    requests = await Promise.all(
+      requests.map(async (request) => {
+        const pos = await purchaseOrderModells.find({ pr_id: request._id });
 
-    const prItemId = request.item?.item_id?._id?.toString?.();
-    const prItemName = request.item?.item_id?.name;
+        const prItemIdStr = request.item?.item_id?._id?.toString?.();
+        const prItemName = request.item?.item_id?.name;
 
-    const filteredPOs = pos.filter((po) => {
-  const poItem = po?.item;
+        const filteredPOs = pos.filter((po) => {
+          const poItemStr = po?.item?.toString?.();
+          return poItemStr === prItemIdStr || po.item === prItemName;
+        });
 
-  if (!poItem) return false;
+        const totalPoValueWithGst = filteredPOs.reduce(
+          (acc, po) => acc + Number(po.po_value || 0),
+          0
+        );
 
-  const poItemStr = poItem.toString?.(); // handles ObjectId or string
-  const prItemIdStr = request.item?.item_id?._id?.toString?.();
-  const prItemName = request.item?.item_id?.name;
+        const poNumbers = filteredPOs.map((po) => po.po_number);
 
-  // Match by ObjectId string or name
-  return poItemStr === prItemIdStr || poItem === prItemName;
-});
+        // Get the earliest ETD date from filtered POs
+        const etdDates = filteredPOs
+          .map((po) => new Date(po.etd))
+          .filter((date) => !isNaN(date));
+        const etd = etdDates.length ? new Date(Math.min(...etdDates)) : null;
 
+        return {
+          ...request,
+          po_value: totalPoValueWithGst,
+          po_numbers: poNumbers,
+          etd,
+        };
+      })
+    );
 
-    const totalPoValueWithGst = filteredPOs.reduce((acc, po) => {
-      return acc + Number(po.po_value || 0);
-    }, 0);
-
-    const poNumbers = filteredPOs.map((po) => po.po_number);
-
-    return {
-      ...request,
-      po_value: totalPoValueWithGst,
-      po_numbers: poNumbers,
-    };
-  })
-);
-
-
-
-
+    // Filter by PO value if provided
     if (poValueSearch) {
       requests = requests.filter(
         (r) => Number(r.po_value) === poValueSearchNumber
       );
     }
 
+    // Filter by ETD date range if provided
+    if (etdFrom && etdTo) {
+      const etdStart = new Date(etdFrom);
+      const etdEnd = new Date(etdTo);
+      requests = requests.filter((r) => {
+        if (!r.etd) return false;
+        const etdDate = new Date(r.etd);
+        return etdDate >= etdStart && etdDate <= etdEnd;
+      });
+    }
+
+    // Recalculate count if PO value or ETD filters applied
+    if (poValueSearch || (etdFrom && etdTo)) {
+      totalCount = requests.length;
+    }
+
     res.status(200).json({
-      totalCount: poValueSearch ? requests.length : totalCount,
+      totalCount,
       currentPage: Number(page),
       totalPages: Math.ceil(totalCount / limit),
       data: requests,
@@ -261,8 +290,6 @@ const getAllPurchaseRequest = async (req, res) => {
     });
   }
 };
-
-
 
 
 const getPurchaseRequestById = async (req, res) => {
