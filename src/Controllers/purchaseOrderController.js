@@ -412,36 +412,43 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-      {
-        $lookup: {
-          from: "materialcategories",
-          let: { itemField: "$item" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $or: [
-                    { $eq: ["$_id", { $toObjectId: "$$itemField" }] },
-                    { $eq: ["$name", "$$itemField"] },
-                  ],
-                },
-              },
-            },
-          ],
-          as: "itemData",
+   
+  {
+  $addFields: {
+    itemObjectId: {
+      $cond: {
+        if: {
+          $and: [
+            { $eq: [{ $strLenCP: "$item" }, 24] },
+            { $regexMatch: { input: "$item", regex: /^[0-9a-fA-F]{24}$/ } }
+          ]
         },
-      },
-      {
-        $addFields: {
-          item: {
-            $cond: {
-              if: { $gt: [{ $size: "$itemData" }, 0] },
-              then: { $arrayElemAt: ["$itemData.name", 0] },
-              else: "-",
-            },
-          },
-        },
-      },
+        then: { $toObjectId: "$item" },
+        else: null
+      }
+    }
+  }
+}
+,
+  {
+    $lookup: {
+      from: "materialcategories",
+      let: { itemField: "$item", itemObjectId: "$itemObjectId" },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $or: [
+                { $eq: ["$_id", "$$itemObjectId"] },
+                { $eq: ["$name", "$$itemField"] }
+              ]
+            }
+          }
+        }
+      ],
+      as: "itemData"
+    }
+  },
       ...(status ? [{ $match: { partial_billing: status } }] : []),
       {
         $project: {
