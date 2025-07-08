@@ -99,6 +99,7 @@ const getAllPurchaseRequest = async (req, res) => {
       etdFrom = "",
       etdTo = "",
     } = req.query;
+
     const skip = (page - 1) * limit;
 
     const searchRegex = new RegExp(search, "i");
@@ -219,6 +220,7 @@ const getAllPurchaseRequest = async (req, res) => {
 
     let totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
 
+    // Attach PO details for each request
     requests = await Promise.all(
       requests.map(async (request) => {
         const pos = await purchaseOrderModells.find({ pr_id: request._id });
@@ -231,47 +233,47 @@ const getAllPurchaseRequest = async (req, res) => {
           return poItemStr === prItemIdStr || po.item === prItemName;
         });
 
-        const totalPoValueWithGst = filteredPOs.reduce(
-          (acc, po) => acc + Number(po.po_value || 0),
+        const poDetails = filteredPOs.map((po) => ({
+          po_number: po.po_number,
+          po_value: Number(po.po_value || 0),
+          etd: po.etd ? new Date(po.etd) : null,
+        }));
+
+        const totalPoValueWithGst = poDetails.reduce(
+          (acc, po) => acc + po.po_value,
           0
         );
-
-        const poNumbers = filteredPOs.map((po) => po.po_number);
-
-        // Get the earliest ETD date from filtered POs
-        const etdDates = filteredPOs
-          .map((po) => new Date(po.etd))
-          .filter((date) => !isNaN(date));
-        const etd = etdDates.length ? new Date(Math.min(...etdDates)) : null;
 
         return {
           ...request,
           po_value: totalPoValueWithGst,
-          po_numbers: poNumbers,
-          etd,
+          po_numbers: poDetails.map((p) => p.po_number),
+          po_details: poDetails,
         };
       })
     );
 
-    // Filter by PO value if provided
+    // Filter by PO value
     if (poValueSearch) {
       requests = requests.filter(
         (r) => Number(r.po_value) === poValueSearchNumber
       );
     }
 
-    // Filter by ETD date range if provided
+    // Filter by ETD date range
     if (etdFrom && etdTo) {
       const etdStart = new Date(etdFrom);
       const etdEnd = new Date(etdTo);
-      requests = requests.filter((r) => {
-        if (!r.etd) return false;
-        const etdDate = new Date(r.etd);
-        return etdDate >= etdStart && etdDate <= etdEnd;
-      });
+      requests = requests.filter((r) =>
+        r.po_details.some((po) => {
+          if (!po.etd) return false;
+          const etdDate = new Date(po.etd);
+          return etdDate >= etdStart && etdDate <= etdEnd;
+        })
+      );
     }
 
-    // Recalculate count if PO value or ETD filters applied
+    // Update total count if filtered
     if (poValueSearch || (etdFrom && etdTo)) {
       totalCount = requests.length;
     }
@@ -290,6 +292,8 @@ const getAllPurchaseRequest = async (req, res) => {
     });
   }
 };
+
+
 
 
 const getPurchaseRequestById = async (req, res) => {
