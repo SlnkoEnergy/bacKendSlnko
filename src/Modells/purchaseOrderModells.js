@@ -1,5 +1,5 @@
 const { default: mongoose } = require("mongoose");
-const updatePurchaseRequestStatus = require("../utils/updatePurchaseRequestStatus");
+const { updatePurchaseRequestStatus } = require( "../utils/updatePurchaseRequestStatus"); 
 
 const purchaseOrderSchema = new mongoose.Schema(
   {
