@@ -30,59 +30,58 @@ async function updatePurchaseRequestStatus(
   try {
     const PurchaseOrder = require("../Modells/purchaseOrderModells");
 
-    // Fetch all related POs for the given PR
     const relatedPOs = await PurchaseOrder.find({ pr_id: prId });
 
     const prDoc = await purchaseRequest.findById(prId);
-    if (prDoc && Array.isArray(prDoc.items)) {
-      const updatedItems = prDoc.items.map((item) => {
-        const poForItem = relatedPOs.filter(
-          (po) => po.item && po.item.toString() === item.item_id.toString()
+    if (!prDoc || !Array.isArray(prDoc.items)) return;
+
+    const updatedItems = prDoc.items.map((item) => {
+      const poForItem = relatedPOs.filter(
+        (po) => po.item && po.item.toString() === item.item_id.toString()
+      );
+
+      const itemStatuses = poForItem
+        .map((po) => po?.current_status?.status || "draft");
+
+      if (itemStatuses.length === 0) return item;
+
+      const allSame = itemStatuses.every((status) => status === itemStatuses[0]);
+
+      if (allSame) {
+        return {
+          ...item,
+          status: `${itemStatuses[0]}`,
+        };
+      } else {
+        const maxStatus = itemStatuses.reduce((a, b) =>
+          statusPriority[a] >= statusPriority[b] ? a : b
         );
+        return {
+          ...item,
+          status: `partially_${maxStatus}`,
+        };
+      }
+    });
 
-        if (poForItem.length > 0) {
-          const itemStatuses = poForItem
-            .map((po) => po.current_status?.status)
-            .filter(Boolean);
+    // Save updated items
+    prDoc.items = updatedItems;
+    await prDoc.save();
 
-          const allSame = itemStatuses.every(
-            (status) => status === itemStatuses[0]
-          );
+    const itemLevelStatuses = updatedItems.map((item) => item.status);
 
-          if (allSame) {
-            return {
-              ...item,
-              status: `${itemStatuses[0]}`,
-            };
-          } else {
-            const maxStatus = itemStatuses.reduce((a, b) =>
-              statusPriority[a] >= statusPriority[b] ? a : b
-            );
-            return {
-              ...item,
-              status: `partially_${maxStatus}`,
-            };
-          }
-        }
+    const allSame = itemLevelStatuses.every((status) => status === itemLevelStatuses[0]);
 
-        return item;
+    let finalStatus;
+    if (allSame) {
+      finalStatus = itemLevelStatuses[0];
+    } else {
+      const maxStatus = itemLevelStatuses.reduce((a, b) => {
+        const aPure = a.replace("partially_", "");
+        const bPure = b.replace("partially_", "");
+        return statusPriority[aPure] >= statusPriority[bPure] ? a : b;
       });
-
-      prDoc.items = updatedItems;
-      await prDoc.save();
+      finalStatus = `partially_${maxStatus.replace("partially_", "")}`;
     }
-
-    const statuses = relatedPOs
-      .map((po) => po.current_status?.status)
-      .filter(Boolean);
-
-    const allSame = statuses.every((status) => status === statuses[0]);
-
-    const finalStatus = allSame
-      ? `${statuses[0]}`
-      : `partially_${statuses.reduce((a, b) =>
-          statusPriority[a] > statusPriority[b] ? a : b
-        )}`;
 
     await purchaseRequest.findByIdAndUpdate(prId, {
       status: finalStatus,
