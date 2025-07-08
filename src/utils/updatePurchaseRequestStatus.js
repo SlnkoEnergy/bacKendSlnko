@@ -2,9 +2,8 @@ const purchaseRequest = require("../Modells/PurchaseRequest/purchaseRequest");
 
 const statusPriority = {
   draft: 0,
-  po_created: 1,
-  out_for_delivery: 2,
-  delivered: 3,
+  out_for_delivery: 1,
+  delivered: 2,
 };
 
 async function updatePurchaseRequestStatus(
@@ -38,23 +37,24 @@ async function updatePurchaseRequestStatus(
     if (prDoc && Array.isArray(prDoc.items)) {
       const updatedItems = prDoc.items.map((item) => {
         const poForItem = relatedPOs.filter(
-          (po) =>
-            po.item && po.item.toString() === item.item_id.toString()
+          (po) => po.item && po.item.toString() === item.item_id.toString()
         );
 
         if (poForItem.length > 0) {
           const itemStatuses = poForItem
             .map((po) => po.current_status?.status)
-            .filter(Boolean); // remove undefined/null
+            .filter(Boolean);
 
-          const uniqueItemStatuses = [...new Set(itemStatuses)];
+          const allSame = itemStatuses.every(
+            (status) => status === itemStatuses[0]
+          );
 
-          if (uniqueItemStatuses.length === 1) {
+          if (allSame) {
             return {
               ...item,
-              status: `fully_${uniqueItemStatuses[0]}`,
+              status: `fully_${itemStatuses[0]}`,
             };
-          } else if (uniqueItemStatuses.length > 1) {
+          } else {
             const maxStatus = itemStatuses.reduce((a, b) =>
               statusPriority[a] > statusPriority[b] ? a : b
             );
@@ -65,7 +65,7 @@ async function updatePurchaseRequestStatus(
           }
         }
 
-        return item; // No related PO
+        return item;
       });
 
       prDoc.items = updatedItems;
@@ -76,17 +76,13 @@ async function updatePurchaseRequestStatus(
       .map((po) => po.current_status?.status)
       .filter(Boolean);
 
-    const uniqueStatuses = [...new Set(statuses)];
+    const allSame = statuses.every((status) => status === statuses[0]);
 
-    let finalStatus = "draft";
-    if (uniqueStatuses.length === 1) {
-      finalStatus = `fully_${uniqueStatuses[0]}`;
-    } else if (uniqueStatuses.length > 1) {
-      const maxStatus = statuses.reduce((a, b) =>
-        statusPriority[a] > statusPriority[b] ? a : b
-      );
-      finalStatus = `partially_${maxStatus}`;
-    }
+    const finalStatus = allSame
+      ? `fully_${statuses[0]}`
+      : `partially_${statuses.reduce((a, b) =>
+          statusPriority[a] > statusPriority[b] ? a : b
+        )}`;
 
     await purchaseRequest.findByIdAndUpdate(prId, {
       status: finalStatus,
