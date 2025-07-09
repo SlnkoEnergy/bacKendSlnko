@@ -7,7 +7,9 @@ const fs = require("fs");
 const path = require("path");
 const { default: mongoose } = require("mongoose");
 const materialCategoryModells = require("../Modells/EngineeringModells/materials/materialCategoryModells");
-const { getLowerPriorityStatus } = require("../utils/updatePurchaseRequestStatus");
+const {
+  getLowerPriorityStatus,
+} = require("../utils/updatePurchaseRequestStatus");
 const purchaseRequest = require("../Modells/PurchaseRequest/purchaseRequest");
 
 //Add-Purchase-Order
@@ -25,7 +27,7 @@ const addPo = async function (req, res) {
       submitted_By,
       po_basic,
       gst,
-      pr_id
+      pr_id,
     } = req.body;
 
     let resolvedItem = item === "Other" ? other : item;
@@ -258,6 +260,15 @@ const getPaginatedPo = async (req, res) => {
     const search = req.query.search?.trim() || "";
     const status = req.query.status?.trim();
     const searchRegex = new RegExp(search, "i");
+    const parseCustomDate = (dateStr) => {
+      return dateStr ? new Date(Date.parse(dateStr)) : null;
+    };
+    const createdFrom = parseCustomDate(req.query.createdFrom);
+    const createdTo = parseCustomDate(req.query.createdTo);
+    const etdFrom = parseCustomDate(req.query.etdFrom);
+    const etdTo = parseCustomDate(req.query.etdTo);
+    const deliveryFrom = parseCustomDate(req.query.deliveryFrom);
+    const deliveryTo = parseCustomDate(req.query.deliveryTo);
 
     const matchStage = {
       ...(search && {
@@ -278,11 +289,50 @@ const getPaginatedPo = async (req, res) => {
           { item: req.query.item_id },
         ],
       }),
+      ...(createdFrom || createdTo
+        ? {
+            dateObj: {
+              ...(createdFrom ? { $gte: new Date(createdFrom) } : {}),
+              ...(createdTo ? { $lte: new Date(createdTo) } : {}),
+            },
+          }
+        : {}),
+      ...(etdFrom || etdTo
+        ? {
+            etd: {
+              ...(etdFrom && { $gte: etdFrom }),
+              ...(etdTo && { $lte: etdTo }),
+            },
+          }
+        : {}),
+      ...(deliveryFrom || deliveryTo
+        ? {
+            delivery_date: {
+              ...(deliveryFrom && { $gte: deliveryFrom }),
+              ...(deliveryTo && { $lte: deliveryTo }),
+            },
+          }
+        : {}),
     };
-
     const pipeline = [
+      {
+        $addFields: {
+          dateObj: {
+            $cond: [
+              { $eq: [{ $type: "$date" }, "string"] },
+              {
+                $dateFromString: {
+                  dateString: "$date",
+                  format: "%Y-%m-%d",
+                },
+              },
+              "$date",
+            ],
+          },
+        },
+      },
       { $match: matchStage },
-      { $sort: { date: -1 } },
+      { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: pageSize },
       {
@@ -291,6 +341,7 @@ const getPaginatedPo = async (req, res) => {
           po_value: { $toDouble: "$po_value" },
         },
       },
+
       {
         $lookup: {
           from: "payrequests",
@@ -356,6 +407,7 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
+
       {
         $addFields: {
           partial_billing: {
@@ -412,16 +464,39 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
+
+      {
+        $addFields: {
+          itemObjectId: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: [{ $strLenCP: "$item" }, 24] },
+                  {
+                    $regexMatch: {
+                      input: "$item",
+                      regex: "^[0-9a-fA-F]{24}$",
+                      options: "i",
+                    },
+                  },
+                ],
+              },
+              { $toObjectId: "$item" },
+              null,
+            ],
+          },
+        },
+      },
       {
         $lookup: {
           from: "materialcategories",
-          let: { itemField: "$item" },
+          let: { itemField: "$item", itemObjectId: "$itemObjectId" },
           pipeline: [
             {
               $match: {
                 $expr: {
                   $or: [
-                    { $eq: ["$_id", { $toObjectId: "$$itemField" }] },
+                    { $eq: ["$_id", "$$itemObjectId"] },
                     { $eq: ["$name", "$$itemField"] },
                   ],
                 },
@@ -429,17 +504,6 @@ const getPaginatedPo = async (req, res) => {
             },
           ],
           as: "itemData",
-        },
-      },
-      {
-        $addFields: {
-          item: {
-            $cond: {
-              if: { $gt: [{ $size: "$itemData" }, 0] },
-              then: { $arrayElemAt: ["$itemData.name", 0] },
-              else: "-",
-            },
-          },
         },
       },
       ...(status ? [{ $match: { partial_billing: status } }] : []),
@@ -450,7 +514,13 @@ const getPaginatedPo = async (req, res) => {
           p_id: 1,
           pr_no: 1,
           vendor: 1,
-          item: 1,
+          item: {
+            $cond: {
+              if: { $gt: [{ $size: "$itemData" }, 0] },
+              then: { $arrayElemAt: ["$itemData.name", 0] },
+              else: "$item",
+            },
+          },
           date: 1,
           po_value: 1,
           amount_paid: 1,
@@ -901,10 +971,13 @@ const updateStatusPO = async (req, res) => {
     const { status, remarks, id } = req.body;
     if (!id) return res.status(404).json({ message: "ID is required" });
     if (!status && !remarks)
-      return res.status(404).json({ message: "Status and remarks are required" });
+      return res
+        .status(404)
+        .json({ message: "Status and remarks are required" });
 
     const purchaseOrder = await purchaseOrderModells.findOne({ po_number: id });
-    if (!purchaseOrder) return res.status(404).json({ message: "Purchase Order not found" });
+    if (!purchaseOrder)
+      return res.status(404).json({ message: "Purchase Order not found" });
 
     purchaseOrder.status_history.push({
       status,
@@ -915,7 +988,10 @@ const updateStatusPO = async (req, res) => {
 
     // 👇 Start Processing PR Item Statuses
     const pr = await purchaseRequest.findById(purchaseOrder.pr_id).lean();
-    if (!pr) return res.status(404).json({ message: "Related Purchase Request not found" });
+    if (!pr)
+      return res
+        .status(404)
+        .json({ message: "Related Purchase Request not found" });
 
     const allPOs = await purchaseOrderModells.find({ pr_id: pr._id }).lean();
 
@@ -924,7 +1000,7 @@ const updateStatusPO = async (req, res) => {
         const itemIdStr = String(item.item_id);
 
         // Get all POs that have this item (by id or name)
-        const relevantPOs = allPOs.filter(po => {
+        const relevantPOs = allPOs.filter((po) => {
           const poItem = po.item;
           if (typeof poItem === "string") return poItem === itemIdStr;
           if (poItem?._id) return String(poItem._id) === itemIdStr;
@@ -932,12 +1008,12 @@ const updateStatusPO = async (req, res) => {
         });
 
         const allStatuses = relevantPOs
-          .map(po => po.current_status?.status)
+          .map((po) => po.current_status?.status)
           .filter(Boolean);
 
         if (allStatuses.length === 0) return { ...item };
 
-        const same = allStatuses.every(s => s === allStatuses[0]);
+        const same = allStatuses.every((s) => s === allStatuses[0]);
 
         return {
           ...item,
