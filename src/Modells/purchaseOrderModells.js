@@ -64,11 +64,14 @@ const purchaseOrderSchema = new mongoose.Schema(
     delivery_date: {
       type: Date,
     },
+    dispatch_date:{
+      type:Date
+    },
     status_history: [
       {
         status: {
           type: String,
-          enum: ["draft", "po_created", "out_for_delivery", "delivered"],
+          enum: ["draft", "po_created", "out_for_delivery","ready_to_dispatch" ,"delivered"],
         },
         remarks: {
           type: String,
@@ -82,7 +85,7 @@ const purchaseOrderSchema = new mongoose.Schema(
     current_status: {
       status: {
         type: String,
-        enum: ["draft", "po_created", "out_for_delivery", "delivered"],
+        enum: ["draft", "po_created", "out_for_delivery", "ready_to_dispatch","delivered"],
       },
       remarks: {
         type: String,

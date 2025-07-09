@@ -468,6 +468,7 @@ const getPurchaseRequest = async (req, res) => {
         status_history: particularItem?.status_history,
         etd: particularItem?.etd,
         delivery_date: particularItem?.delivery_date,
+        dispatch_date: particularItem?.dispatch_date
       },
       po_details: poDetails,
       overall,

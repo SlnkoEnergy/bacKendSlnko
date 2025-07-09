@@ -56,6 +56,7 @@ const addPo = async function (req, res) {
       pr_id,
       etd: null,
       delivery_date: null,
+      dispatch_date:null
     });
 
     await newPO.save();
@@ -528,6 +529,7 @@ const getPaginatedPo = async (req, res) => {
           partial_billing: 1,
           etd: 1,
           delivery_date: 1,
+          dispatch_date:1,
           current_status: 1,
           status_history: 1,
           type: "$billingTypes",
@@ -984,6 +986,11 @@ const updateStatusPO = async (req, res) => {
       remarks,
       user_id: req.user.userId,
     });
+
+    if (status === "ready_to_dispatch") {
+      purchaseOrder.dispatch_date = new Date();
+    }
+
     await purchaseOrder.save();
 
     // 👇 Start Processing PR Item Statuses
