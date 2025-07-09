@@ -46,17 +46,13 @@ router.delete(
   jwtMW.authorization,
   deletePurchaseRequest
 );
-router.put(
-  "/:id/updatePurchaseRequestStatus",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updatePurchaseRequestStatus
-);
+
 router.get(
   "/:project_id/item/:item_id/pr/:pr_id",
   jwtMW.authentication,
   jwtMW.authorization,
   getPurchaseRequest
 );
+
 
 module.exports = router;
