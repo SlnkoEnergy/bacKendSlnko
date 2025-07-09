@@ -148,7 +148,7 @@ const getAllPurchaseRequest = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
-      // General search on project and PR fields
+      
       ...(search
         ? [
             {
@@ -162,7 +162,7 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
-      // Item search filter
+     
       ...(itemSearch
         ? [
             {

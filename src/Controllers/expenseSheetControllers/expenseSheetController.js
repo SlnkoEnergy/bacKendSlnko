@@ -92,7 +92,7 @@ const getAllExpense = async (req, res) => {
         },
       });
     } else if (
-      currentUser.emp !== "Accounts" &&
+      currentUser.department !== "Accounts" &&
       (currentUser.role === "manager" || currentUser.role === "visitor")
     ) {
       pipeline.push({
