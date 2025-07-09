@@ -984,6 +984,11 @@ const updateStatusPO = async (req, res) => {
       remarks,
       user_id: req.user.userId,
     });
+
+    if (status === "ready_to_dispatch") {
+      purchaseOrder.dispatch_date = new Date();
+    }
+
     await purchaseOrder.save();
 
     // 👇 Start Processing PR Item Statuses

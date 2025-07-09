@@ -1,7 +1,8 @@
 const statusPriority = {
   draft: 0,
-  out_for_delivery: 1,
-  delivered: 2,
+  ready_to_dispatch:1,
+  out_for_delivery: 2,
+  delivered: 3,
 };
 
 const getLowerPriorityStatus = (statuses) => {
