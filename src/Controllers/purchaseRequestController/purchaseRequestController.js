@@ -3,6 +3,8 @@ const PurchaseRequest = require("../../Modells/PurchaseRequest/purchaseRequest")
 const PurchaseRequestCounter = require("../../Modells/Globals/purchaseRequestCounter");
 const Project = require("../../Modells/projectModells");
 const purchaseOrderModells = require("../../Modells/purchaseOrderModells");
+const purchaseRequest = require("../../Modells/PurchaseRequest/purchaseRequest");
+const materialCategoryModells = require("../../Modells/EngineeringModells/materials/materialCategoryModells");
 
 const CreatePurchaseRequest = async (req, res) => {
   try {
@@ -386,13 +388,12 @@ const getPurchaseRequest = async (req, res) => {
       });
     }
 
-    // Try to find the PR normally with item_id (assuming it might be an ObjectId)
     let purchaseRequest = await PurchaseRequest.findOne({
       _id: pr_id,
       project_id,
       $or: [
         { "items.item_id": item_id },
-        { "items.item_name": item_id }, // Optional: if you store item name directly
+        { "items.item_name": item_id }, 
       ],
     })
       .populate("project_id", "name code")
@@ -402,7 +403,6 @@ const getPurchaseRequest = async (req, res) => {
       return res.status(404).json({ message: "Purchase Request not found" });
     }
 
-    // Find the specific item from PR by _id or name match
     const particularItem = purchaseRequest.items.find((itm) => {
       const matchById = String(itm.item_id?._id) === String(item_id);
       const matchByName =
@@ -426,7 +426,7 @@ const getPurchaseRequest = async (req, res) => {
       p_id: purchaseRequest.project_id?.code,
       $or: [
         { item: itemIdString },
-        ...(itemName ? [{ item: itemName }] : []), // Only include if name exists
+        ...(itemName ? [{ item: itemName }] : []), 
       ],
       pr_id: pr_id,
     };
@@ -541,6 +541,89 @@ const deletePurchaseRequest = async (req, res) => {
   }
 };
 
+const getMaterialScope = async (req, res) => {
+  try {
+    const { project_id } = req.query;
+
+    if (!project_id) {
+      return res.status(404).json({
+        message: "Project Id Not Found"
+      });
+    }
+
+    // 1. Find PR items for this project
+    const prItems = await PurchaseRequest.aggregate([
+      {
+        $match: {
+          project_id: new mongoose.Types.ObjectId(project_id)
+        }
+      },
+      {
+        $unwind: "$items"
+      },
+      {
+        $lookup: {
+          from: "materialcategories",
+          localField: "items.item_id",
+          foreignField: "_id",
+          as: "material_info"
+        }
+      },
+      {
+        $unwind: {
+          path: "$material_info",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          pr_id: "$_id",
+          pr_no: 1,
+          item_id: "$items.item_id",
+          scope: "$items.scope",
+          status: "$items.status",
+          material_name: "$material_info.name",
+          material_description: "$material_info.description"
+        }
+      }
+    ]);
+
+    const usedItemIds = prItems
+      .filter(item => item.item_id) 
+      .map(item => item.item_id.toString());
+
+    const unusedMaterials = await materialCategoryModells.find({
+      _id: { $nin: usedItemIds }
+    }).lean();
+
+    const unusedFormatted = unusedMaterials.map(mat => ({
+      pr_id: "N/A",
+      pr_no: "N/A",
+      item_id: mat._id,
+      scope: "client",
+      status: "N/A",
+      material_name: mat.name,
+      material_description: mat.description
+    }));
+
+    // 3. Combine and send
+    const combined = [...prItems, ...unusedFormatted];
+
+    return res.status(200).json({
+      message: "Material Scope Fetched Successfully",
+      data: combined
+    });
+
+  } catch (error) {
+    console.error("Error fetching material scope:", error);
+    return res.status(500).json({
+      message: "Internal Server Error"
+    });
+  }
+};
+
+
 module.exports = {
   CreatePurchaseRequest,
   getAllPurchaseRequest,
@@ -549,4 +632,5 @@ module.exports = {
   deletePurchaseRequest,
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
+  getMaterialScope
 };
