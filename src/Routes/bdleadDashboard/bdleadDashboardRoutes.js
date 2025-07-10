@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const {  getAllLeads, getLeadSummary, getLeadSource, taskDashboard, leadSummary,  leadconversationrate, getLeadByLeadIdorId, leadWonAndLost, leadFunnel, getAllLeadDropdown, editLead, deleteLead, updateAssignedToFromSubmittedBy, updateAssignedTo, exportLeadsCSV }=require("../../Controllers/bdController/bdleadDashboard");
 const { getNotesById, createNotes, updateNotes, deleteNotes, getNotesByLeadId } = require("../../Controllers/bdController/notesController");
-const { getTaskById, createTask, updateTask, deleteTask, updateStatus, getAllTask, getTaskByLeadId, toggleViewTask, getNotifications, getAllTaskByAssigned } = require("../../Controllers/bdController/taskController");
+const { getTaskById, createTask, updateTask, deleteTask, updateStatus, getAllTask, getTaskByLeadId, toggleViewTask, getNotifications, getAllTaskByAssigned, migrateAllLeads } = require("../../Controllers/bdController/taskController");
 const jwtMW = require("../../middlewares/auth");
 // Bd lead Dashboard Routes
 router.get("/summary",jwtMW.authentication, jwtMW.authorization,getLeadSummary);
@@ -41,7 +41,7 @@ router.put('/bd-notes/:_id',jwtMW.authentication, jwtMW.authorization, updateNot
 router.delete('/bd-notes/:_id',jwtMW.authentication, jwtMW.authorization, deleteNotes);  
 router.get('/bd-notes',jwtMW.authentication, jwtMW.authorization, getNotesByLeadId);
 
-
+router.put('/bdleadupdate', migrateAllLeads)
 router.put('/updateAssignedto', jwtMW.authentication, jwtMW.authorization, updateAssignedToFromSubmittedBy);
 
 module.exports = router;

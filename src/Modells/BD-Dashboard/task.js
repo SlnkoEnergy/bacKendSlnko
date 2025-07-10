@@ -26,11 +26,7 @@ const taskSchema = new mongoose.Schema(
     },
     lead_id: {
       type: mongoose.Schema.Types.ObjectId,
-      refPath: "lead_model",
-    },
-    lead_model: {
-      type: String,
-      enum: ["Initial", "Followup", "Warm", "Won", "Dead"],
+      ref:"bdleads"
     },
     user_id: {
       type: mongoose.Schema.Types.ObjectId,
