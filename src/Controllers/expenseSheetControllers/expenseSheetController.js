@@ -32,7 +32,11 @@ const getAllExpense = async (req, res) => {
     }
 
     if (status) {
-      match["current_status"] = status;
+      match.$or = [
+        ...(match.$or || []),
+        { current_status: status },
+        { "current_status.status": status },
+      ];
     }
 
     if (from && to) {
@@ -67,6 +71,7 @@ const getAllExpense = async (req, res) => {
       currentUser.department === "superadmin" ||
       currentUser.department === "admin"
     ) {
+      // No additional filtering
     } else if (
       currentUser.department === "HR" &&
       currentUser.emp_id !== "SE-208"
@@ -75,9 +80,13 @@ const getAllExpense = async (req, res) => {
         $match: {
           $or: [
             { current_status: "manager approval" },
+            { "current_status.status": "manager approval" },
             { current_status: "hr approval" },
+            { "current_status.status": "hr approval" },
             { current_status: "final approval" },
+            { "current_status.status": "final approval" },
             { current_status: "rejected" },
+            { "current_status.status": "rejected" },
           ],
         },
       });
@@ -86,13 +95,16 @@ const getAllExpense = async (req, res) => {
         $match: {
           $or: [
             { current_status: "hr approval" },
+            { "current_status.status": "hr approval" },
             { current_status: "final approval" },
+            { "current_status.status": "final approval" },
             { current_status: "rejected" },
+            { "current_status.status": "rejected" },
           ],
         },
       });
     } else if (
-      currentUser.emp !== "Accounts" &&
+      currentUser.department !== "Accounts" &&
       (currentUser.role === "manager" || currentUser.role === "visitor")
     ) {
       pipeline.push({
@@ -140,6 +152,7 @@ const getAllExpense = async (req, res) => {
     });
   }
 };
+
 
 const getExpenseById = async (req, res) => {
   try {
