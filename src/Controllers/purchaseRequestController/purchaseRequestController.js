@@ -146,10 +146,7 @@ const getAllPurchaseRequest = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
-<<<<<<< HEAD
       
-=======
->>>>>>> 70b707d8a51dee448705e66dc09aa45e39cbd8b3
       ...(search
         ? [
             {
@@ -163,10 +160,7 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
-<<<<<<< HEAD
      
-=======
->>>>>>> 70b707d8a51dee448705e66dc09aa45e39cbd8b3
       ...(itemSearch
         ? [
             {

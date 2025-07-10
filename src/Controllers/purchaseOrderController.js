@@ -273,6 +273,15 @@ const getPaginatedPo = async (req, res) => {
     const search = req.query.search?.trim() || "";
     const status = req.query.status?.trim();
     const searchRegex = new RegExp(search, "i");
+    const parseCustomDate = (dateStr) => {
+      return dateStr ? new Date(Date.parse(dateStr)) : null;
+    };
+    const createdFrom = parseCustomDate(req.query.createdFrom);
+    const createdTo = parseCustomDate(req.query.createdTo);
+    const etdFrom = parseCustomDate(req.query.etdFrom);
+    const etdTo = parseCustomDate(req.query.etdTo);
+    const deliveryFrom = parseCustomDate(req.query.deliveryFrom);
+    const deliveryTo = parseCustomDate(req.query.deliveryTo);
 
     const matchStage = {
       ...(search && {
@@ -293,9 +302,48 @@ const getPaginatedPo = async (req, res) => {
           { item: req.query.item_id },
         ],
       }),
+      ...(createdFrom || createdTo
+        ? {
+            dateObj: {
+              ...(createdFrom ? { $gte: new Date(createdFrom) } : {}),
+              ...(createdTo ? { $lte: new Date(createdTo) } : {}),
+            },
+          }
+        : {}),
+      ...(etdFrom || etdTo
+        ? {
+            etd: {
+              ...(etdFrom && { $gte: etdFrom }),
+              ...(etdTo && { $lte: etdTo }),
+            },
+          }
+        : {}),
+      ...(deliveryFrom || deliveryTo
+        ? {
+            delivery_date: {
+              ...(deliveryFrom && { $gte: deliveryFrom }),
+              ...(deliveryTo && { $lte: deliveryTo }),
+            },
+          }
+        : {}),
     };
-
     const pipeline = [
+      {
+        $addFields: {
+          dateObj: {
+            $cond: [
+              { $eq: [{ $type: "$date" }, "string"] },
+              {
+                $dateFromString: {
+                  dateString: "$date",
+                  format: "%Y-%m-%d",
+                },
+              },
+              "$date",
+            ],
+          },
+        },
+      },
       { $match: matchStage },
       { $sort: { createdAt: -1 } },
       { $skip: skip },
@@ -306,6 +354,7 @@ const getPaginatedPo = async (req, res) => {
           po_value: { $toDouble: "$po_value" },
         },
       },
+
       {
         $lookup: {
           from: "payrequests",
@@ -371,6 +420,7 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
+
       {
         $addFields: {
           partial_billing: {
@@ -413,40 +463,53 @@ const getPaginatedPo = async (req, res) => {
         },
       },
       {
+        $lookup: {
+          from: "purchaserequests",
+          localField: "pr_id",
+          foreignField: "_id",
+          as: "prRequest",
+        },
+      },
+      {
         $addFields: {
-          itemId: {
-            $cond: {
-              if: { $eq: [{ $type: "$item" }, "objectId"] },
-              then: "$item",
-              else: null,
-            },
+          pr_no: {
+            $arrayElemAt: ["$prRequest.pr_no", 0],
+          },
+        },
+      },
+
+      {
+        $addFields: {
+          itemObjectId: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: [{ $strLenCP: "$item" }, 24] },
+                  {
+                    $regexMatch: {
+                      input: "$item",
+                      regex: "^[0-9a-fA-F]{24}$",
+                      options: "i",
+                    },
+                  },
+                ],
+              },
+              { $toObjectId: "$item" },
+              null,
+            ],
           },
         },
       },
       {
         $lookup: {
           from: "materialcategories",
-          localField: "itemId",
-          foreignField: "_id",
-          as: "itemDoc",
-        },
-      },
-      {
-        $unwind: {
-          path: "$itemDoc",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $lookup: {
-          from: "materialcategories",
-          let: { itemField: "$item" },
+          let: { itemField: "$item", itemObjectId: "$itemObjectId" },
           pipeline: [
             {
               $match: {
                 $expr: {
                   $or: [
-                    { $eq: ["$_id", { $toObjectId: "$$itemField" }] },
+                    { $eq: ["$_id", "$$itemObjectId"] },
                     { $eq: ["$name", "$$itemField"] },
                   ],
                 },
@@ -456,27 +519,20 @@ const getPaginatedPo = async (req, res) => {
           as: "itemData",
         },
       },
-      {
-        $addFields: {
-          item: {
-            $cond: {
-              if: { $gt: [{ $size: "$itemData" }, 0] },
-              then: { $arrayElemAt: ["$itemData.name", 0] },
-              else: "-",
-            },
-          },
-        },
-      },
       ...(status ? [{ $match: { partial_billing: status } }] : []),
       {
         $project: {
-          _id: 1,
+          _id: 0,
           po_number: 1,
           p_id: 1,
           pr_no: 1,
           vendor: 1,
           item: {
-            $ifNull: ["$itemDoc.name", "$item"],
+            $cond: {
+              if: { $gt: [{ $size: "$itemData" }, 0] },
+              then: { $arrayElemAt: ["$itemData.name", 0] },
+              else: "$item",
+            },
           },
           date: 1,
           po_value: 1,
@@ -485,6 +541,7 @@ const getPaginatedPo = async (req, res) => {
           partial_billing: 1,
           etd: 1,
           delivery_date: 1,
+          dispatch_date: 1,
           current_status: 1,
           status_history: 1,
           type: "$billingTypes",
