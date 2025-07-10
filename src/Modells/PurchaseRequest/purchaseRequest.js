@@ -15,6 +15,10 @@ const purchaseRequestSchema = new mongoose.Schema(
         },
         status:{
           type:String
+        },
+        scope:{
+          type:String,
+          enum:["slnko", "client"]
         }
       },
     ],

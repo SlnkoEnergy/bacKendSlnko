@@ -8,6 +8,7 @@ const {
   getAllPurchaseRequest,
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
+  getMaterialScope,
 } = require("../../Controllers/purchaseRequestController/purchaseRequestController");
 const jwtMW = require("../../middlewares/auth");
 router.post(
@@ -53,6 +54,6 @@ router.get(
   jwtMW.authorization,
   getPurchaseRequest
 );
-
+router.get('/material-scope', jwtMW.authentication, jwtMW.authorization, getMaterialScope);
 
 module.exports = router;

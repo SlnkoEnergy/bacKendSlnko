@@ -53,6 +53,7 @@ const {
   updateMaterial,
   deleteMaterial,
 } = require("../../Controllers/engineeringController/materials/materialController");
+const { getMaterialScope } = require("../../Controllers/purchaseRequestController/purchaseRequestController");
 const jwtMW = require("../../middlewares/auth");
 const upload = require("../../middlewares/multer");
 
@@ -150,6 +151,7 @@ router.get('/:projectId/moduletemplate/:module_template/statusHistory',
   jwtMW.authorization,
   getStatusHistoryForModuleCategory
 );
+
 
 // Boq Categories
 router.post(
