@@ -80,7 +80,12 @@ const getAllPurchaseRequestByProjectId = async (req, res) => {
 
     res.status(200).json(enrichedRequests);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch purchase requests", error:error.message });
+    res
+      .status(500)
+      .json({
+        error: "Failed to fetch purchase requests",
+        error: error.message,
+      });
   }
 };
 
@@ -198,12 +203,12 @@ const getAllPurchaseRequest = async (req, res) => {
           item: {
             _id: "$items._id",
             status: "$items.status",
+            other_item_name: "$items.other_item_name",
+            amount: "$items.amount",
             item_id: {
               _id: "$item_data._id",
               name: "$item_data.name",
             },
-            other_item_name:1,
-            amount:1
           },
         },
       },
@@ -393,10 +398,7 @@ const getPurchaseRequest = async (req, res) => {
     let purchaseRequest = await PurchaseRequest.findOne({
       _id: pr_id,
       project_id,
-      $or: [
-        { "items.item_id": item_id },
-        { "items.item_name": item_id }, 
-      ],
+      $or: [{ "items.item_id": item_id }, { "items.item_name": item_id }],
     })
       .populate("project_id", "name code")
       .populate("items.item_id", "name");
@@ -426,10 +428,7 @@ const getPurchaseRequest = async (req, res) => {
 
     const poQuery = {
       p_id: purchaseRequest.project_id?.code,
-      $or: [
-        { item: itemIdString },
-        ...(itemName ? [{ item: itemName }] : []), 
-      ],
+      $or: [{ item: itemIdString }, ...(itemName ? [{ item: itemName }] : [])],
       pr_id: pr_id,
     };
 
@@ -470,13 +469,15 @@ const getPurchaseRequest = async (req, res) => {
         status_history: particularItem?.status_history,
         etd: particularItem?.etd,
         delivery_date: particularItem?.delivery_date,
-        dispatch_date: particularItem?.dispatch_date
+        dispatch_date: particularItem?.dispatch_date,
       },
       po_details: poDetails,
       overall,
     });
   } catch (error) {
-    res.status(500).json({ message: "Internal Server Error", error:error.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
@@ -549,7 +550,7 @@ const getMaterialScope = async (req, res) => {
 
     if (!project_id) {
       return res.status(404).json({
-        message: "Project Id Not Found"
+        message: "Project Id Not Found",
       });
     }
 
@@ -557,25 +558,25 @@ const getMaterialScope = async (req, res) => {
     const prItems = await PurchaseRequest.aggregate([
       {
         $match: {
-          project_id: new mongoose.Types.ObjectId(project_id)
-        }
+          project_id: new mongoose.Types.ObjectId(project_id),
+        },
       },
       {
-        $unwind: "$items"
+        $unwind: "$items",
       },
       {
         $lookup: {
           from: "materialcategories",
           localField: "items.item_id",
           foreignField: "_id",
-          as: "material_info"
-        }
+          as: "material_info",
+        },
       },
       {
         $unwind: {
           path: "$material_info",
-          preserveNullAndEmptyArrays: true
-        }
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $project: {
@@ -586,27 +587,29 @@ const getMaterialScope = async (req, res) => {
           scope: "$items.scope",
           status: "$items.status",
           material_name: "$material_info.name",
-          material_description: "$material_info.description"
-        }
-      }
+          material_description: "$material_info.description",
+        },
+      },
     ]);
 
     const usedItemIds = prItems
-      .filter(item => item.item_id) 
-      .map(item => item.item_id.toString());
+      .filter((item) => item.item_id)
+      .map((item) => item.item_id.toString());
 
-    const unusedMaterials = await materialCategoryModells.find({
-      _id: { $nin: usedItemIds }
-    }).lean();
+    const unusedMaterials = await materialCategoryModells
+      .find({
+        _id: { $nin: usedItemIds },
+      })
+      .lean();
 
-    const unusedFormatted = unusedMaterials.map(mat => ({
+    const unusedFormatted = unusedMaterials.map((mat) => ({
       pr_id: "N/A",
       pr_no: "N/A",
       item_id: mat._id,
       scope: "client",
       status: "N/A",
       material_name: mat.name,
-      material_description: mat.description
+      material_description: mat.description,
     }));
 
     // 3. Combine and send
@@ -614,17 +617,15 @@ const getMaterialScope = async (req, res) => {
 
     return res.status(200).json({
       message: "Material Scope Fetched Successfully",
-      data: combined
+      data: combined,
     });
-
   } catch (error) {
     console.error("Error fetching material scope:", error);
     return res.status(500).json({
-      message: "Internal Server Error"
+      message: "Internal Server Error",
     });
   }
 };
-
 
 module.exports = {
   CreatePurchaseRequest,
@@ -634,5 +635,5 @@ module.exports = {
   deletePurchaseRequest,
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
-  getMaterialScope
+  getMaterialScope,
 };
