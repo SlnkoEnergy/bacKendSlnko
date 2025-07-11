@@ -202,6 +202,8 @@ const getAllPurchaseRequest = async (req, res) => {
               _id: "$item_data._id",
               name: "$item_data.name",
             },
+            other_item_name:1,
+            amount:1
           },
         },
       },
