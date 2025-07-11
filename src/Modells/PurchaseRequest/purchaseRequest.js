@@ -16,9 +16,11 @@ const purchaseRequestSchema = new mongoose.Schema(
         status:{
           type:String
         },
-        scope:{
-          type:String,
-          enum:["slnko", "client"]
+        other_item_name:{
+          type:String
+        },
+        amount:{
+          type:String
         }
       },
     ],
