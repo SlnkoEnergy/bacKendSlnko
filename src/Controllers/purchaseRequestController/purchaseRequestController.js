@@ -42,7 +42,6 @@ const CreatePurchaseRequest = async (req, res) => {
       data: newPurchaseRequest,
     });
   } catch (error) {
-    console.error("Error Creating Purchase Request:", error);
     return res.status(500).json({
       message: "Internal server error",
       error: error.message,
@@ -68,7 +67,6 @@ const getAllPurchaseRequestByProjectId = async (req, res) => {
           const gstValue = Number(po.gst || 0);
           return acc + poValue + gstValue;
         }, 0);
-        
 
         return {
           ...request.toObject(),
@@ -80,8 +78,7 @@ const getAllPurchaseRequestByProjectId = async (req, res) => {
 
     res.status(200).json(enrichedRequests);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to fetch purchase requests" });
+    res.status(500).json({ error: "Failed to fetch purchase requests", error:error.message });
   }
 };
 
@@ -295,9 +292,6 @@ const getAllPurchaseRequest = async (req, res) => {
   }
 };
 
-
-
-
 const getPurchaseRequestById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -371,7 +365,6 @@ const getPurchaseRequestById = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching purchase request by ID:", error);
     return res.status(500).json({
       message: "Internal server error",
       error: error.message,
@@ -395,10 +388,14 @@ const getPurchaseRequest = async (req, res) => {
       });
     }
 
-    const purchaseRequest = await PurchaseRequest.findOne({
+    // Try to find the PR normally with item_id (assuming it might be an ObjectId)
+    let purchaseRequest = await PurchaseRequest.findOne({
       _id: pr_id,
       project_id,
-      "items.item_id": item_id,
+      $or: [
+        { "items.item_id": item_id },
+        { "items.item_name": item_id }, // Optional: if you store item name directly
+      ],
     })
       .populate("project_id", "name code")
       .populate("items.item_id", "name");
@@ -407,28 +404,42 @@ const getPurchaseRequest = async (req, res) => {
       return res.status(404).json({ message: "Purchase Request not found" });
     }
 
-    const particularItem = purchaseRequest.items.find(
-      (itm) => String(itm.item_id?._id || itm.item_id) === String(item_id)
-    );
+    // Find the specific item from PR by _id or name match
+    const particularItem = purchaseRequest.items.find((itm) => {
+      const matchById = String(itm.item_id?._id) === String(item_id);
+      const matchByName =
+        String(itm.item_id?.name || "").toLowerCase() ===
+        String(item_id).toLowerCase();
+      return matchById || matchByName;
+    });
 
     if (!particularItem) {
-      return res.status(404).json({ message: "Item not found" });
+      return res
+        .status(404)
+        .json({ message: "Item not found in Purchase Request" });
     }
 
-    const purchaseOrders = await purchaseOrderModells.find({
-      item: item_id,
-      p_id: purchaseRequest.project_id?.code,
-    });
+    const itemIdString = String(
+      particularItem.item_id?._id || particularItem.item_id
+    );
+    const itemName = particularItem.item_id?.name;
 
-    const poDetails = purchaseOrders.map((po) => {
-      const poValue = Number(po.po_value || 0);
-      const gstValue = Number(po.gst || 0);
-      return {
-        _id: po._id,
-        po_number: po.po_number,
-        total_value_with_gst: poValue,
-      };
-    });
+    const poQuery = {
+      p_id: purchaseRequest.project_id?.code,
+      $or: [
+        { item: itemIdString },
+        ...(itemName ? [{ item: itemName }] : []), // Only include if name exists
+      ],
+      pr_id: pr_id,
+    };
+
+    const purchaseOrders = await purchaseOrderModells.find(poQuery);
+
+    const poDetails = purchaseOrders.map((po) => ({
+      _id: po._id,
+      po_number: po.po_number,
+      total_value_with_gst: Number(po.po_value || 0),
+    }));
 
     const overall = {
       total_po_count: poDetails.length,
@@ -448,25 +459,24 @@ const getPurchaseRequest = async (req, res) => {
           name: purchaseRequest.project_id?.name,
           code: purchaseRequest.project_id?.code,
         },
-        
       },
       item: {
         ...particularItem.toObject(),
         item_id: {
           _id: particularItem.item_id?._id,
           name: particularItem.item_id?.name,
-          current_status: particularItem?.current_status,
+        },
+        current_status: particularItem?.current_status,
         status_history: particularItem?.status_history,
         etd: particularItem?.etd,
         delivery_date: particularItem?.delivery_date,
-        },
+        dispatch_date: particularItem?.dispatch_date
       },
       po_details: poDetails,
       overall,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Internal Server Error" });
+    res.status(500).json({ message: "Internal Server Error", error:error.message });
   }
 };
 
@@ -494,7 +504,6 @@ const UpdatePurchaseRequest = async (req, res) => {
       data: updatedPurchaseRequest,
     });
   } catch (error) {
-    console.error("Error updating Purchase Request:", error);
     return res.status(500).json({
       message: "Internal server error",
       error: error.message,
@@ -527,15 +536,12 @@ const deletePurchaseRequest = async (req, res) => {
       data: purchaseRequest,
     });
   } catch (error) {
-    console.error("Error deleting Purchase Request:", error);
     return res.status(500).json({
       message: "Internal server error",
       error: error.message,
     });
   }
 };
-
-
 
 module.exports = {
   CreatePurchaseRequest,
