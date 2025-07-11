@@ -21,13 +21,14 @@ const migrateProjectToHandover = async (req, res) => {
     const projects = await projectmodells.find({ p_id: { $nin: existingPids } });
 
     const handoversToInsert = [];
+    const moduleCategoriesToInsert = [];
 
     for (const project of projects) {
       lastIdNum += 1;
       const newId = `BD/LEAD/${lastIdNum}`;
 
       const handoverData = {
-        id: newId,
+        id: " ",
         p_id: project.p_id,
         customer_details: {
           customer: project.customer || "",
@@ -35,8 +36,7 @@ const migrateProjectToHandover = async (req, res) => {
           p_group: project.p_group || "",
           email: project.email || "",
           number: parseInt((project.number || "").replace(/\D/g, "")) || 0,
-alt_number: parseInt((project.alt_number || "").replace(/\D/g, "")) || 0,
-
+          alt_number: parseInt((project.alt_number || "").replace(/\D/g, "")) || 0,
           site_address: {
             village_name: project.site_address?.village_name || "",
             district_name: project.site_address?.district_name || "",
@@ -48,8 +48,7 @@ alt_number: parseInt((project.alt_number || "").replace(/\D/g, "")) || 0,
           project_component: project.project_category || "",
           project_kwp: project.project_kwp || "",
           distance: project.distance || "",
-          tarrif: project.tarrif || "",
-          land: project.land || "",
+          tarrif: project.tarrif || ""
         },
         other_details: {
           service: project.service || "",
@@ -57,14 +56,20 @@ alt_number: parseInt((project.alt_number || "").replace(/\D/g, "")) || 0,
         },
         submitted_by: project.submitted_by || "",
         is_locked: "locked",
-        status_of_handoversheet:"Approved"
+        status_of_handoversheet: "Approved",
       };
 
       handoversToInsert.push(handoverData);
+
+      // Create moduleCategory record
+      moduleCategoriesToInsert.push({
+        project_id: project._id,
+      });
     }
 
     if (handoversToInsert.length > 0) {
       await hanoversheetmodells.insertMany(handoversToInsert);
+      await moduleCategory.insertMany(moduleCategoriesToInsert);
     }
 
     res.status(200).json({
@@ -72,9 +77,10 @@ alt_number: parseInt((project.alt_number || "").replace(/\D/g, "")) || 0,
     });
   } catch (error) {
     console.error("Migration Error:", error);
-    res.status(500).json({ message: "Internal Server Error", error:error.message });
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
+
 
 
 const createhandoversheet = async function (req, res) {

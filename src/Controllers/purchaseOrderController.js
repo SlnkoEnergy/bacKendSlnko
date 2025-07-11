@@ -56,7 +56,7 @@ const addPo = async function (req, res) {
       pr_id,
       etd: null,
       delivery_date: null,
-      dispatch_date:null
+      dispatch_date: null,
     });
 
     await newPO.save();
@@ -465,7 +465,52 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-
+      {
+        $addFields: {
+          itemObjectId: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: [{ $strLenCP: "$item" }, 24] },
+                  {
+                    $regexMatch: {
+                      input: "$item",
+                      regex: "^[0-9a-fA-F]{24}$",
+                      options: "i",
+                    },
+                  },
+                ],
+              },
+              { $toObjectId: "$item" },
+              null,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          matchedItemInPR: {
+            $cond: [
+              { $ne: ["$itemObjectId", null] },
+              {
+                $let: {
+                  vars: {
+                    matched: {
+                      $filter: {
+                        input: { $arrayElemAt: ["$prRequest.items", 0] },
+                        as: "itm",
+                        cond: { $eq: ["$$itm.item_id", "$itemObjectId"] },
+                      },
+                    },
+                  },
+                  in: { $arrayElemAt: ["$$matched", 0] },
+                },
+              },
+              null,
+            ],
+          },
+        },
+      },
       {
         $addFields: {
           itemObjectId: {
@@ -529,10 +574,18 @@ const getPaginatedPo = async (req, res) => {
           partial_billing: 1,
           etd: 1,
           delivery_date: 1,
-          dispatch_date:1,
+          dispatch_date: 1,
           current_status: 1,
           status_history: 1,
           type: "$billingTypes",
+          pr: {
+            other_item_name: {
+              $ifNull: ["$matchedItemInPR.other_item_name", null],
+            },
+            amount: {
+              $ifNull: ["$matchedItemInPR.amount", null],
+            },
+          },
         },
       },
     ];
