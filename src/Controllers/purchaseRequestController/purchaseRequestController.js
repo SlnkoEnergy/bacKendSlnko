@@ -200,6 +200,8 @@ const getAllPurchaseRequest = async (req, res) => {
               _id: "$item_data._id",
               name: "$item_data.name",
             },
+            other_item_name:1,
+            amount:1
           },
         },
       },
@@ -386,13 +388,12 @@ const getPurchaseRequest = async (req, res) => {
       });
     }
 
-    // Try to find the PR normally with item_id (assuming it might be an ObjectId)
     let purchaseRequest = await PurchaseRequest.findOne({
       _id: pr_id,
       project_id,
       $or: [
         { "items.item_id": item_id },
-        { "items.item_name": item_id }, // Optional: if you store item name directly
+        { "items.item_name": item_id }, 
       ],
     })
       .populate("project_id", "name code")
@@ -402,7 +403,6 @@ const getPurchaseRequest = async (req, res) => {
       return res.status(404).json({ message: "Purchase Request not found" });
     }
 
-    // Find the specific item from PR by _id or name match
     const particularItem = purchaseRequest.items.find((itm) => {
       const matchById = String(itm.item_id?._id) === String(item_id);
       const matchByName =
@@ -426,7 +426,7 @@ const getPurchaseRequest = async (req, res) => {
       p_id: purchaseRequest.project_id?.code,
       $or: [
         { item: itemIdString },
-        ...(itemName ? [{ item: itemName }] : []), // Only include if name exists
+        ...(itemName ? [{ item: itemName }] : []), 
       ],
       pr_id: pr_id,
     };

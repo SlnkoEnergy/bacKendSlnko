@@ -15,6 +15,12 @@ const purchaseRequestSchema = new mongoose.Schema(
         },
         status:{
           type:String
+        },
+        other_item_name:{
+          type:String
+        },
+        amount:{
+          type:String
         }
       },
     ],
