@@ -2,6 +2,7 @@ const addBillModells = require("../Modells/billDetailModells");
 const projectModells = require("../Modells/projectModells");
 const purchaseOrderModeslls = require("../Modells/purchaseOrderModells");
 const moment = require("moment");
+const mongoose = require("mongoose");
 const { Parser } = require("json2csv");
 
 //Add-Bill
@@ -327,6 +328,108 @@ const exportBills = async (req, res) => {
   }
 };
 
+const GetBillByID = async (req, res) => {
+  try {
+    const { po_number, _id } = req.query;
+
+    const matchStage = {};
+    if (po_number) matchStage.po_number = po_number;
+    if (_id) matchStage._id = new mongoose.Types.ObjectId(_id);
+
+    const pipeline = [
+      { $match: matchStage },
+
+      {
+        $lookup: {
+          from: "purchaseorders",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "poData",
+        },
+      },
+      { $unwind: { path: "$poData", preserveNullAndEmptyArrays: true } },
+
+      {
+        $addFields: {
+          itemId: {
+            $cond: [{ $eq: [{ $type: "$item" }, "objectId"] }, "$item", null],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "materialcategories",
+          localField: "itemId",
+          foreignField: "_id",
+          as: "itemDoc",
+        },
+      },
+      { $unwind: { path: "$itemDoc", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          itemName: { $ifNull: ["$itemDoc.name", "$item"] },
+        },
+      },
+
+      {
+        $addFields: {
+          poItemId: {
+            $cond: [
+              { $eq: [{ $type: "$poData.item" }, "objectId"] },
+              "$poData.item",
+              null,
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "materialcategories",
+          localField: "poItemId",
+          foreignField: "_id",
+          as: "poItemDoc",
+        },
+      },
+      { $unwind: { path: "$poItemDoc", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          "poData.item": {
+            $ifNull: ["$poItemDoc.name", "$poData.item"],
+          },
+        },
+      },
+
+      {
+        $project: {
+          _id: 1,
+          po_number: 1,
+          bill_number: 1,
+          bill_date: 1,
+          bill_value: 1,
+          submitted_by: 1,
+          type: 1,
+          item: "$itemName",
+          poData: {
+            p_id: "$poData.p_id",
+            date: "$poData.date",
+            po_value: "$poData.po_value",
+            vendor: "$poData.vendor",
+            item: "$poData.item",
+          },
+        },
+      },
+    ];
+
+    const data = await addBillModells.aggregate(pipeline);
+    res.status(200).json({ data, msg: "Bill details fetched successfully" });
+  } catch (error) {
+    res.status(500).json({
+      msg: "Failed to fetch bills by PO",
+      error: error.message,
+    });
+  }
+};
+
 //update-bill
 const updatebill = async function (req, res) {
   try {
@@ -406,6 +509,7 @@ module.exports = {
   addBill,
   getBill,
   getPaginatedBill,
+  GetBillByID,
   updatebill,
   deleteBill,
   bill_approved,
