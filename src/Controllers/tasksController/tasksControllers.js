@@ -50,61 +50,171 @@ const createTask = async (req, res) => {
 
 //get all tasks
 const getAllTasks = async (req, res) => {
-   try {
+  try {
     const currentUser = await User.findById(req.user.userId);
 
     if (!currentUser || !currentUser._id || !currentUser.role) {
-      return res.status(401).json({ message: "Unauthorized: Invalid token or user info" });
+      return res
+        .status(401)
+        .json({ message: "Unauthorized: Invalid token or user info" });
     }
 
     const userId = currentUser._id;
     const userRole = currentUser.role.toLowerCase();
 
-    // Extract page and limit from query, with defaults
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      status = "",
+      createdAt = ""
+    } = req.query;
 
-    let query;
-    if (userRole === "admin" || userRole === "superadmin") {
-      query = {};
-    } else {
-      query = {
+    const skip = (page - 1) * limit;
+    const searchRegex = new RegExp(search, "i");
+
+    const matchConditions = [];
+
+    // Role-based access
+    if (userRole !== "admin" && userRole !== "superadmin") {
+      matchConditions.push({
         $or: [
           { assigned_to: userId },
-          { createdBy: userId }
+          { createdBy: userId },
         ]
-      };
+      });
     }
 
-    const totalTasks = await tasksModells.countDocuments(query);
-    const tasks = await tasksModells.find(query)
-      .skip(skip)
-      .limit(limit)
-         .populate({
-        path: "assigned_to",
-        select: "_id name"
-      })
-      .populate({
-        path: "createdBy",
-        select: "_id name"
-      })
-      .populate({
-        path: "project_id",
-        select: "_id code name"
+    // Search condition
+    if (search) {
+      matchConditions.push({
+        $or: [
+          { title: searchRegex },
+          { description: searchRegex },
+          { taskCode: searchRegex },
+          { "project_id.code": searchRegex },
+          { "project_id.name": searchRegex },
+        ],
       });
+    }
+
+    // Status condition
+    if (status) {
+      matchConditions.push({
+        "current_status.status": status,
+      });
+    }
+
+    // Created Date filter
+    if (createdAt) {
+      const start = new Date(createdAt);
+      const end = new Date(createdAt);
+      end.setDate(end.getDate() + 1);
+
+      matchConditions.push({
+        createdAt: {
+          $gte: start,
+          $lt: end,
+        },
+      });
+    }
+
+    const pipeline = [
+      {
+        $lookup: {
+          from: "projectdetails", // <-- adjust this if your collection is named differently
+          localField: "project_id",
+          foreignField: "_id",
+          as: "project_id",
+        },
+      },
+      {
+        $unwind: {
+          path: "$project_id",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "assigned_to",
+          foreignField: "_id",
+          as: "assigned_to",
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "createdBy",
+        },
+      },
+      {
+        $unwind: {
+          path: "$createdBy",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      ...(matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : []),
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          taskCode: 1,
+          description: 1,
+          createdAt: 1,
+          deadline: 1,
+          priority: 1,
+          current_status: 1,
+          project_id: {
+            _id: 1,
+            code: 1,
+            name: 1,
+          },
+          assigned_to: {
+            _id: 1,
+            name: 1,
+          },
+          createdBy: {
+            _id: 1,
+            name: 1,
+          },
+        },
+      },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: Number(limit) },
+    ];
+
+    const countPipeline = [
+      ...pipeline.slice(0, -3), // exclude skip, limit, sort
+      { $count: "totalCount" },
+    ];
+
+    const [tasks, countResult] = await Promise.all([
+      tasksModells.aggregate(pipeline),
+      tasksModells.aggregate(countPipeline),
+    ]);
+
+    const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
 
     res.status(200).json({
-      totalTasks,
-      page,
-      totalPages: Math.ceil(totalTasks / limit),
-      tasks
+      totalTasks: totalCount,
+      page: Number(page),
+      totalPages: Math.ceil(totalCount / limit),
+      tasks,
     });
   } catch (err) {
     console.error("Error fetching tasks:", err);
-    res.status(400).json({ error: err.message });
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: err.message,
+    });
   }
 };
+
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
