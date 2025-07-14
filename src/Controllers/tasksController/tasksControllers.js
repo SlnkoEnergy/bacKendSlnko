@@ -9,7 +9,7 @@ const createTask = async (req, res) => {
     let assignedUserIds = req.body.assigned_to || [];
 
     const userId = req.user.userId;
-    const user = await userModells.findById(userId);
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
