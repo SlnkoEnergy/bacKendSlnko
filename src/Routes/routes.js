@@ -31,6 +31,7 @@ const {
   verifyandResetPassword,
   verifyOtp,
   getAllUserByDepartment,
+  getAllDepartment,
 } = require("../Controllers/userController");
 
 const {
@@ -276,6 +277,8 @@ router.get(
   jwtMW.authorization,
   getAllUserByDepartment
 );
+router.get('/all-dept', jwtMW.authentication,
+  jwtMW.authorization,getAllDepartment)
 //forget pass through resend
 // router.post("/forget-password",forgetpassword);
 
