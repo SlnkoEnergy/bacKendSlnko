@@ -112,6 +112,7 @@ const getTaskById = async (req, res) => {
       .populate("createdBy", "_id name")
       .populate("project_id", "code name")
       .populate("current_status.user_id", "_id name")
+      .populate("status_history.user_id", "_id name")
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
