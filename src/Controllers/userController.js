@@ -268,9 +268,7 @@ const getAllUserByDepartment = async (req, res) => {
    try {
     const projection = "_id name";
     const {department} = req.query;
-    if(!department){
-     return res.status(404).json({message:"Department is required"});
-    }
+    
     let query = {};
     if(department){
       query.department = department;
