@@ -1,7 +1,8 @@
+const TaskCounterSchema = require("../../Modells/Globals/taskCounter");
 const tasksModells = require("../../Modells/tasks/task");
 const User = require("../../Modells/userModells");
 
-// Create a new task
+
 const createTask = async (req, res) => {
   try {
     const { team } = req.query;
@@ -15,10 +16,22 @@ const createTask = async (req, res) => {
 
     assignedUserIds = [...new Set(assignedUserIds)];
 
+    const userId = req.user.userId;
+
+    // 🔥 Counter logic: get or create counter for user
+    const counter = await TaskCounterSchema.findOneAndUpdate(
+      { createdBy: userId },
+      { $inc: { count: 1 } },
+      { new: true, upsert: true }
+    );
+
+    const taskCode = `T${String(counter.count).padStart(3, "0")}`; // e.g., T001, T002
+
     const task = new tasksModells({
       ...req.body,
       assigned_to: assignedUserIds,
-      createdBy: req.user.userId
+      createdBy: userId,
+      taskCode,
     });
 
     const saved = await task.save();
@@ -27,6 +40,7 @@ const createTask = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
+
 
 //get all tasks
 const getAllTasks = async (req, res) => {

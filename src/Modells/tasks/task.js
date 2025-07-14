@@ -3,6 +3,10 @@ const updateCurrentStatus = require("../../utils/statusUpdateUtils/updateCurrent
 
 const taskSchema = new mongoose.Schema(
   {
+    taskCode:{
+        type:String,
+        required:true
+    },
     title: {
       type: String,
       required: true,
