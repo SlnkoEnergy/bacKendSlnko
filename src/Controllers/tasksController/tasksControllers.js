@@ -8,6 +8,14 @@ const createTask = async (req, res) => {
     const { team } = req.query;
     let assignedUserIds = req.body.assigned_to || [];
 
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const deptCode = user.department?.substring(0, 3).toUpperCase() || "GEN"; 
+
     if (team) {
       const users = await userModells.find({ department: team }, "_id");
       const teamUserIds = users.map((user) => user._id.toString());
@@ -16,16 +24,13 @@ const createTask = async (req, res) => {
 
     assignedUserIds = [...new Set(assignedUserIds)];
 
-    const userId = req.user.userId;
-
-    // 🔥 Counter logic: get or create counter for user
     const counter = await TaskCounterSchema.findOneAndUpdate(
       { createdBy: userId },
       { $inc: { count: 1 } },
       { new: true, upsert: true }
     );
 
-    const taskCode = `T${String(counter.count).padStart(3, "0")}`; // e.g., T001, T002
+    const taskCode = `T/${deptCode}/${String(counter.count).padStart(3, "0")}`; // T/INT/001
 
     const task = new tasksModells({
       ...req.body,
@@ -40,6 +45,7 @@ const createTask = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
+
 
 
 //get all tasks
