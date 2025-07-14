@@ -3,9 +3,9 @@ const updateCurrentStatus = require("../../utils/statusUpdateUtils/updateCurrent
 
 const taskSchema = new mongoose.Schema(
   {
-    taskCode:{
-        type:String,
-        required:true
+    taskCode: {
+      type: String,
+      required: true,
     },
     title: {
       type: String,
@@ -18,9 +18,9 @@ const taskSchema = new mongoose.Schema(
     deadline: {
       type: Date,
     },
-    project_id:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"projectDetail"
+    project_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "projectDetail",
     },
     assigned_to: [
       {
@@ -45,8 +45,13 @@ const taskSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
         },
+        updatedAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
     ],
+
     current_status: {
       status: {
         type: String,
@@ -68,8 +73,8 @@ const taskSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-taskSchema.pre("save", function(next){
-    updateCurrentStatus(this, "status_history", "current_status");
-    next();
-})
+taskSchema.pre("save", function (next) {
+  updateCurrentStatus(this, "status_history", "current_status");
+  next();
+});
 module.exports = mongoose.model("Tasks", taskSchema);
