@@ -28,24 +28,41 @@ const addPo = async function (req, res) {
       po_basic,
       gst,
       pr_id,
+      forceAppend 
     } = req.body;
 
     let resolvedItem = item === "Other" ? other : item;
     const partialItem = await iteamModells.findOne({ item: resolvedItem });
     const partal_billing = partialItem ? partialItem.partial_billing : "";
 
-    // Check if PO Number exists
     const existingPO = await purchaseOrderModells.findOne({ po_number });
-    if (existingPO) {
-      return res.status(400).send({ message: "PO Number already used!" });
+
+    // If PO exists and user has not confirmed to append
+    if (existingPO && !forceAppend) {
+      return res.status(409).send({
+        message: "PO Number already exists. Do you want to add item to the existing PO?",
+        existingPO: {
+          po_number: existingPO.po_number,
+          items: existingPO.item,
+        },
+      });
     }
 
-    // Add new Purchase Order
+    if (existingPO && forceAppend) {
+      existingPO.item.push(resolvedItem);
+      await existingPO.save();
+      return res.status(200).send({
+        message: "Item successfully added to existing PO.",
+        updatedPO: existingPO,
+      });
+    }
+
+    // Create new PO
     const newPO = new purchaseOrderModells({
       p_id,
       po_number,
       date,
-      item: resolvedItem,
+      item: [resolvedItem],
       po_value,
       vendor,
       other,
@@ -56,20 +73,18 @@ const addPo = async function (req, res) {
       pr_id,
       etd: null,
       delivery_date: null,
-      dispatch_date:null
+      dispatch_date: null,
     });
 
     await newPO.save();
 
     res.status(200).send({
       message: "Purchase Order has been added successfully!",
-
       newPO,
     });
   } catch (error) {
-    res
-      .status(500)
-      .send({ message: "An error occurred while processing your request." });
+    console.error(error);
+    res.status(500).send({ message: "An error occurred while processing your request." });
   }
 };
 
@@ -98,7 +113,6 @@ const editPO = async function (req, res) {
       po_basic: update.po_basic,
       gst: update.gst,
       updated_on: new Date().toISOString(),
-
       submitted_By: update.submitted_By,
     };
     await pohisttoryModells.create(pohistory);
@@ -288,6 +302,14 @@ const getPaginatedPo = async (req, res) => {
         $or: [
           { item: new mongoose.Types.ObjectId(req.query.item_id) },
           { item: req.query.item_id },
+          {
+            item: {
+              $elemMatch: {
+                $eq: new mongoose.Types.ObjectId(req.query.item_id),
+              },
+            },
+          },
+          { item: { $elemMatch: { $eq: req.query.item_id } } },
         ],
       }),
       ...(createdFrom || createdTo
@@ -468,37 +490,74 @@ const getPaginatedPo = async (req, res) => {
 
       {
         $addFields: {
-          itemObjectId: {
-            $cond: [
-              {
-                $and: [
-                  { $eq: [{ $strLenCP: "$item" }, 24] },
-                  {
-                    $regexMatch: {
-                      input: "$item",
-                      regex: "^[0-9a-fA-F]{24}$",
-                      options: "i",
-                    },
-                  },
+          itemObjectIds: {
+            $map: {
+              input: {
+                $cond: [
+                  { $isArray: "$item" },
+                  "$item",
+                  [{ $ifNull: ["$item", null] }],
                 ],
               },
-              { $toObjectId: "$item" },
-              null,
-            ],
+              as: "itm",
+              in: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: [{ $strLenCP: "$$itm" }, 24] },
+                      {
+                        $regexMatch: {
+                          input: "$$itm",
+                          regex: "^[0-9a-fA-F]{24}$",
+                          options: "i",
+                        },
+                      },
+                    ],
+                  },
+                  { $toObjectId: "$$itm" },
+                  null,
+                ],
+              },
+            },
           },
         },
       },
       {
         $lookup: {
           from: "materialcategories",
-          let: { itemField: "$item", itemObjectId: "$itemObjectId" },
+          let: {
+            itemFieldsRaw: "$item",
+            itemObjectIdsRaw: "$itemObjectIds",
+          },
           pipeline: [
             {
               $match: {
                 $expr: {
                   $or: [
-                    { $eq: ["$_id", "$$itemObjectId"] },
-                    { $eq: ["$name", "$$itemField"] },
+                    {
+                      $in: [
+                        "$_id",
+                        {
+                          $cond: [
+                            { $isArray: "$$itemObjectIdsRaw" },
+                            "$$itemObjectIdsRaw",
+                            [{ $ifNull: ["$$itemObjectIdsRaw", null] }],
+                          ],
+                        },
+                      ],
+                    },
+                    {
+                      $in: [
+                        "$name",
+                        {
+                          $cond: [
+                            { $isArray: "$$itemFieldsRaw" },
+                            "$$itemFieldsRaw",
+                            [{ $ifNull: ["$$itemFieldsRaw", null] }],
+                          ],
+                        },
+                      ],
+                    },
                   ],
                 },
               },
@@ -518,10 +577,17 @@ const getPaginatedPo = async (req, res) => {
           item: {
             $cond: {
               if: { $gt: [{ $size: "$itemData" }, 0] },
-              then: { $arrayElemAt: ["$itemData.name", 0] },
+              then: {
+                $map: {
+                  input: "$itemData",
+                  as: "itm",
+                  in: "$$itm.name",
+                },
+              },
               else: "$item",
             },
           },
+
           date: 1,
           po_value: 1,
           amount_paid: 1,
@@ -529,7 +595,7 @@ const getPaginatedPo = async (req, res) => {
           partial_billing: 1,
           etd: 1,
           delivery_date: 1,
-          dispatch_date:1,
+          dispatch_date: 1,
           current_status: 1,
           status_history: 1,
           type: "$billingTypes",
@@ -730,6 +796,89 @@ const getExportPo = async (req, res) => {
                   },
                 },
               },
+            },
+          },
+        },
+      },
+
+      // Normalize item to array
+      {
+        $addFields: {
+          itemArray: {
+            $cond: [
+              { $isArray: "$item" },
+              "$item",
+              { $cond: [{ $ne: ["$item", null] }, ["$item"], []] },
+            ],
+          },
+        },
+      },
+
+      // Convert strings to ObjectIds if valid
+      {
+        $addFields: {
+          itemObjectIds: {
+            $map: {
+              input: "$itemArray",
+              as: "itm",
+              in: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: [{ $strLenCP: "$$itm" }, 24] },
+                      {
+                        $regexMatch: {
+                          input: "$$itm",
+                          regex: "^[0-9a-fA-F]{24}$",
+                          options: "i",
+                        },
+                      },
+                    ],
+                  },
+                  { $toObjectId: "$$itm" },
+                  null,
+                ],
+              },
+            },
+          },
+        },
+      },
+
+      // Lookup material category names
+      {
+        $lookup: {
+          from: "materialcategories",
+          let: { itemFields: "$itemArray", itemObjectIds: "$itemObjectIds" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $in: ["$_id", "$$itemObjectIds"] },
+                    { $in: ["$name", "$$itemFields"] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "itemData",
+        },
+      },
+
+      // Replace item with matched names, fallback to original
+      {
+        $addFields: {
+          item: {
+            $cond: {
+              if: { $gt: [{ $size: "$itemData" }, 0] },
+              then: {
+                $map: {
+                  input: "$itemData",
+                  as: "itm",
+                  in: "$$itm.name",
+                },
+              },
+              else: "$itemArray",
             },
           },
         },
