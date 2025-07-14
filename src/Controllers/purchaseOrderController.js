@@ -28,7 +28,7 @@ const addPo = async function (req, res) {
       po_basic,
       gst,
       pr_id,
-      forceAppend 
+      forceAppend,
     } = req.body;
 
     let resolvedItem = item === "Other" ? other : item;
@@ -40,7 +40,8 @@ const addPo = async function (req, res) {
     // If PO exists and user has not confirmed to append
     if (existingPO && !forceAppend) {
       return res.status(409).send({
-        message: "PO Number already exists. Do you want to add item to the existing PO?",
+        message:
+          "PO Number already exists. Do you want to add item to the existing PO?",
         existingPO: {
           po_number: existingPO.po_number,
           items: existingPO.item,
@@ -84,7 +85,9 @@ const addPo = async function (req, res) {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).send({ message: "An error occurred while processing your request." });
+    res
+      .status(500)
+      .send({ message: "An error occurred while processing your request." });
   }
 };
 
@@ -489,23 +492,41 @@ const getPaginatedPo = async (req, res) => {
       },
       {
         $addFields: {
-          itemObjectId: {
-            $cond: [
-              {
-                $and: [
-                  { $eq: [{ $strLenCP: "$item" }, 24] },
-                  {
-                    $regexMatch: {
-                      input: "$item",
-                      regex: "^[0-9a-fA-F]{24}$",
-                      options: "i",
-                    },
+          itemObjectIds: {
+            $filter: {
+              input: {
+                $map: {
+                  input: {
+                    $cond: [
+                      { $isArray: "$item" },
+                      "$item",
+                      [{ $ifNull: ["$item", null] }],
+                    ],
                   },
-                ],
+                  as: "itm",
+                  in: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: [{ $type: "$$itm" }, "string"] },
+                          { $eq: [{ $strLenCP: "$$itm" }, 24] },
+                          {
+                            $regexMatch: {
+                              input: "$$itm",
+                              regex: "^[0-9a-fA-F]{24}$",
+                            },
+                          },
+                        ],
+                      },
+                      { $toObjectId: "$$itm" },
+                      null,
+                    ],
+                  },
+                },
               },
-              { $toObjectId: "$item" },
-              null,
-            ],
+              as: "id",
+              cond: { $ne: ["$$id", null] },
+            },
           },
         },
       },
