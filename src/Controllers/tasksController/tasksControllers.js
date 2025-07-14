@@ -1,9 +1,25 @@
 const tasksModells = require("../../Modells/tasks/task");
+const userModells = require("../../Modells/userModells");
 
 // Create a new task
 const createTask = async (req, res) => {
   try {
-    const task = new tasksModells(req.body);
+    const { team } = req.query;
+    let assignedUserIds = req.body.assigned_to || [];
+
+    if (team) {
+      const users = await userModells.find({ department: team }, "_id");
+      const teamUserIds = users.map((user) => user._id.toString());
+      assignedUserIds = [...assignedUserIds, ...teamUserIds];
+    }
+
+    assignedUserIds = [...new Set(assignedUserIds)];
+
+    const task = new tasksModells({
+      ...req.body,
+      assigned_to: assignedUserIds,
+    });
+
     const saved = await task.save();
     res.status(201).json(saved);
   } catch (err) {
