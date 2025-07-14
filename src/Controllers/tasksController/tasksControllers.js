@@ -64,7 +64,7 @@ const getAllTasks = async (req, res) => {
       limit = 10,
       search = "",
       status = "",
-      createdAt = ""
+      createdAt = "",
     } = req.query;
 
     const skip = (page - 1) * limit;
@@ -76,9 +76,9 @@ const getAllTasks = async (req, res) => {
     if (userRole !== "admin" && userRole !== "superadmin") {
       matchConditions.push({
         $or: [
-          { assigned_to: userId },
+          { assigned_to: { $elemMatch: { _id: userId } } },
           { createdBy: userId },
-        ]
+        ],
       });
     }
 
@@ -153,7 +153,9 @@ const getAllTasks = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
-      ...(matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : []),
+      ...(matchConditions.length > 0
+        ? [{ $match: { $and: matchConditions } }]
+        : []),
       {
         $project: {
           _id: 1,
@@ -211,8 +213,6 @@ const getAllTasks = async (req, res) => {
   }
 };
 
-
-
 // Get a task by ID
 const getTaskById = async (req, res) => {
   try {
@@ -222,7 +222,7 @@ const getTaskById = async (req, res) => {
       .populate("createdBy", "_id name")
       .populate("project_id", "code name")
       .populate("current_status.user_id", "_id name")
-      .populate("status_history.user_id", "_id name")
+      .populate("status_history.user_id", "_id name");
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
@@ -277,8 +277,8 @@ const updateTaskStatus = async (req, res) => {
     await task.save();
     res.status(200).json({
       message: "Task Updated Successfully",
-      data:task
-    })
+      data: task,
+    });
   } catch (error) {
     return res.status(500).json({
       message: "Internal Server Error",
