@@ -14,6 +14,10 @@ const taskSchema = new mongoose.Schema(
     deadline: {
       type: Date,
     },
+    project_id:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:"projectDetail"
+    },
     assigned_to: [
       {
         type: mongoose.Schema.Types.ObjectId,
