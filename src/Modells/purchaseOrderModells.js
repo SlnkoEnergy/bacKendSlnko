@@ -15,10 +15,10 @@ const purchaseOrderSchema = new mongoose.Schema(
     date: {
       type: String,
     },
-    item: {
+    item: [{
       type:  mongoose.Schema.Types.Mixed,
       ref: "MaterialCategory",
-    },
+    }],
     other: {
       type: String,
       default: " ",
