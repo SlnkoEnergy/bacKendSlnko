@@ -286,6 +286,14 @@ const getAllUserByDepartment = async (req, res) => {
    }
 }
 
+const getAllDepartment = async (req, res) => {
+  try {
+    const departments = await userModells.distinct("department");
+    res.status(200).json({ success: true, data: departments });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 module.exports = {
   userRegister,
   login,
@@ -295,5 +303,6 @@ module.exports = {
   verifyandResetPassword,
   deleteUser,
   getSingleUser,
-  getAllUserByDepartment
+  getAllUserByDepartment,
+  getAllDepartment
 };
