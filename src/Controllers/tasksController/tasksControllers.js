@@ -111,8 +111,8 @@ const getTaskById = async (req, res) => {
   try {
     const task = await tasksModells
       .findById(req.params.id)
-      .populate("assigned_to")
-      .populate("createdBy");
+      .populate("assigned_to", "_id name")
+      .populate("createdBy", "_id name");
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
