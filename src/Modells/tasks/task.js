@@ -51,7 +51,6 @@ const taskSchema = new mongoose.Schema(
         },
       },
     ],
-
     current_status: {
       status: {
         type: String,
