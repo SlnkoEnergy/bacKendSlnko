@@ -59,7 +59,6 @@ const getAllTasks = async (req, res) => {
     const userId = currentUser._id;
     const userRole = currentUser.role.toLowerCase();
 
-    // Extract page and limit from query, with defaults
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
