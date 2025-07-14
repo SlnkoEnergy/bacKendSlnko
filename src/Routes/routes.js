@@ -206,6 +206,7 @@ const {
   getbyid,
   search,
   getByIdOrLeadId,
+  migrateProjectToHandover,
 } = require("../Controllers/handoversheetController");
 const {
   addmoduleMaster,
@@ -1114,6 +1115,7 @@ router.get(
   jwtMW.authorization,
   search
 );
+router.put('/migrateProject', jwtMW.authentication, jwtMW.authorization, migrateProjectToHandover)
 
 //module master
 router.post(
