@@ -17,7 +17,7 @@ const createTask = async (req, res) => {
     const deptCode = user.department?.substring(0, 3).toUpperCase() || "GEN"; 
 
     if (team) {
-      const users = await userModells.find({ department: team }, "_id");
+      const users = await User.find({ department: team }, "_id");
       const teamUserIds = users.map((user) => user._id.toString());
       assignedUserIds = [...assignedUserIds, ...teamUserIds];
     }
@@ -30,7 +30,7 @@ const createTask = async (req, res) => {
       { new: true, upsert: true }
     );
 
-    const taskCode = `T/${deptCode}/${String(counter.count).padStart(3, "0")}`; // T/INT/001
+    const taskCode = `T/${deptCode}/${String(counter.count).padStart(3, "0")}`;
 
     const task = new tasksModells({
       ...req.body,
