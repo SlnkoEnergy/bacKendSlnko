@@ -2,7 +2,6 @@ const TaskCounterSchema = require("../../Modells/Globals/taskCounter");
 const tasksModells = require("../../Modells/tasks/task");
 const User = require("../../Modells/userModells");
 
-
 const createTask = async (req, res) => {
   try {
     const { team } = req.query;
@@ -14,7 +13,7 @@ const createTask = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const deptCode = user.department?.substring(0, 3).toUpperCase() || "GEN"; 
+    const deptCode = user.department?.substring(0, 3).toUpperCase() || "GEN";
 
     if (team) {
       const users = await User.find({ department: team }, "_id");
@@ -45,8 +44,6 @@ const createTask = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
-
-
 
 //get all tasks
 const getAllTasks = async (req, res) => {
@@ -221,8 +218,11 @@ const getTaskById = async (req, res) => {
   try {
     const task = await tasksModells
       .findById(req.params.id)
-      .populate("assigned_to")
-      .populate("createdBy");
+      .populate("assigned_to", "_id name")
+      .populate("createdBy", "_id name")
+      .populate("project_id", "code name")
+      .populate("current_status.user_id", "_id name")
+      .populate("status_history.user_id", "_id name")
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
@@ -248,6 +248,45 @@ const updateTask = async (req, res) => {
   }
 };
 
+const updateTaskStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, remarks } = req.body;
+
+    if (!id) {
+      return res.status(404).json({
+        message: "ID Not Found",
+      });
+    }
+    if (!status) {
+      return res.status(404).json({
+        message: "Status is required",
+      });
+    }
+    const task = await tasksModells.findById(id);
+    if (!task) {
+      return res.status(404).json({
+        message: "Task Not Found",
+      });
+    }
+    task.status_history.push({
+      status,
+      remarks,
+      user_id: req.user.userId,
+    });
+    await task.save();
+    res.status(200).json({
+      message: "Task Updated Successfully",
+      data:task
+    })
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 // Delete a task
 const deleteTask = async (req, res) => {
   try {
@@ -267,4 +306,5 @@ module.exports = {
   getTaskById,
   updateTask,
   deleteTask,
+  updateTaskStatus,
 };
