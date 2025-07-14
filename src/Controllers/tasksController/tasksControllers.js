@@ -2,7 +2,6 @@ const TaskCounterSchema = require("../../Modells/Globals/taskCounter");
 const tasksModells = require("../../Modells/tasks/task");
 const User = require("../../Modells/userModells");
 
-
 const createTask = async (req, res) => {
   try {
     const { team } = req.query;
@@ -14,7 +13,7 @@ const createTask = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const deptCode = user.department?.substring(0, 3).toUpperCase() || "GEN"; 
+    const deptCode = user.department?.substring(0, 3).toUpperCase() || "GEN";
 
     if (team) {
       const users = await User.find({ department: team }, "_id");
@@ -46,15 +45,15 @@ const createTask = async (req, res) => {
   }
 };
 
-
-
 //get all tasks
 const getAllTasks = async (req, res) => {
-   try {
+  try {
     const currentUser = await User.findById(req.user.userId);
 
     if (!currentUser || !currentUser._id || !currentUser.role) {
-      return res.status(401).json({ message: "Unauthorized: Invalid token or user info" });
+      return res
+        .status(401)
+        .json({ message: "Unauthorized: Invalid token or user info" });
     }
 
     const userId = currentUser._id;
@@ -70,35 +69,33 @@ const getAllTasks = async (req, res) => {
       query = {};
     } else {
       query = {
-        $or: [
-          { assigned_to: userId },
-          { createdBy: userId }
-        ]
+        $or: [{ assigned_to: userId }, { createdBy: userId }],
       };
     }
 
     const totalTasks = await tasksModells.countDocuments(query);
-    const tasks = await tasksModells.find(query)
+    const tasks = await tasksModells
+      .find(query)
       .skip(skip)
       .limit(limit)
-         .populate({
+      .populate({
         path: "assigned_to",
-        select: "_id name"
+        select: "_id name",
       })
       .populate({
         path: "createdBy",
-        select: "_id name"
+        select: "_id name",
       })
       .populate({
         path: "project_id",
-        select: "_id code name"
+        select: "_id code name",
       });
 
     res.status(200).json({
       totalTasks,
       page,
       totalPages: Math.ceil(totalTasks / limit),
-      tasks
+      tasks,
     });
   } catch (err) {
     console.error("Error fetching tasks:", err);
@@ -113,7 +110,8 @@ const getTaskById = async (req, res) => {
       .findById(req.params.id)
       .populate("assigned_to", "_id name")
       .populate("createdBy", "_id name")
-      .populate("project_id", "code name");
+      .populate("project_id", "code name")
+      .populate("current_status.user_id", "_id name")
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
@@ -139,6 +137,45 @@ const updateTask = async (req, res) => {
   }
 };
 
+const updateTaskStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, remarks } = req.body;
+
+    if (!id) {
+      return res.status(404).json({
+        message: "ID Not Found",
+      });
+    }
+    if (!status) {
+      return res.status(404).json({
+        message: "Status is required",
+      });
+    }
+    const task = await tasksModells.findById(id);
+    if (!task) {
+      return res.status(404).json({
+        message: "Task Not Found",
+      });
+    }
+    task.status_history.push({
+      status,
+      remarks,
+      user_id: req.user.userId,
+    });
+    await task.save();
+    res.status(200).json({
+      message: "Task Updated Successfully",
+      data:task
+    })
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 // Delete a task
 const deleteTask = async (req, res) => {
   try {
@@ -158,4 +195,5 @@ module.exports = {
   getTaskById,
   updateTask,
   deleteTask,
+  updateTaskStatus,
 };
