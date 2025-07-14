@@ -1,5 +1,5 @@
 const tasksModells = require("../../Modells/tasks/task");
-const userModells = require("../../Modells/userModells");
+const User = require("../../Modells/userModells");
 
 // Create a new task
 const createTask = async (req, res) => {
@@ -30,13 +30,58 @@ const createTask = async (req, res) => {
 
 //get all tasks
 const getAllTasks = async (req, res) => {
-  try {
-    const tasks = await tasksModells
-      .find()
-      .populate("assigned_to")
-      .populate("createdBy");
-    res.status(200).json(tasks);
+   try {
+    const currentUser = await User.findById(req.user.userId);
+
+    if (!currentUser || !currentUser._id || !currentUser.role) {
+      return res.status(401).json({ message: "Unauthorized: Invalid token or user info" });
+    }
+
+    const userId = currentUser._id;
+    const userRole = currentUser.role.toLowerCase();
+
+    // Extract page and limit from query, with defaults
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    let query;
+    if (userRole === "admin" || userRole === "superadmin") {
+      query = {};
+    } else {
+      query = {
+        $or: [
+          { assigned_to: userId },
+          { createdBy: userId }
+        ]
+      };
+    }
+
+    const totalTasks = await tasksModells.countDocuments(query);
+    const tasks = await tasksModells.find(query)
+      .skip(skip)
+      .limit(limit)
+         .populate({
+        path: "assigned_to",
+        select: "_id name"
+      })
+      .populate({
+        path: "createdBy",
+        select: "_id name"
+      })
+      .populate({
+        path: "project_id",
+        select: "_id code name"
+      });
+
+    res.status(200).json({
+      totalTasks,
+      page,
+      totalPages: Math.ceil(totalTasks / limit),
+      tasks
+    });
   } catch (err) {
+    console.error("Error fetching tasks:", err);
     res.status(400).json({ error: err.message });
   }
 };
