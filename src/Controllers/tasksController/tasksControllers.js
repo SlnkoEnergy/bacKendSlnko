@@ -18,6 +18,7 @@ const createTask = async (req, res) => {
     const task = new tasksModells({
       ...req.body,
       assigned_to: assignedUserIds,
+      createdBy: req.user.userId
     });
 
     const saved = await task.save();
