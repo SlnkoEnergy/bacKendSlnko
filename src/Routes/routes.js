@@ -31,6 +31,7 @@ const {
   verifyandResetPassword,
   verifyOtp,
   getAllUserByDepartment,
+  getAllDepartment,
 } = require("../Controllers/userController");
 
 const {
@@ -244,8 +245,6 @@ const { create } = require("../Modells/bdleadsModells");
 
 const upload = require("../middlewares/multer.js");
 
-
-
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -275,6 +274,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getAllUserByDepartment
+);
+router.get(
+  "/all-dept",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllDepartment
 );
 //forget pass through resend
 // router.post("/forget-password",forgetpassword);
@@ -413,13 +418,19 @@ router.get(
   jwtMW.authorization,
   getPOHistoryById
 );
-router.put('/updateStatusPO', jwtMW.authentication, jwtMW.authorization, updateStatusPO);
-
-router.put("/:id/updateEtdOrDelivery",
+router.put(
+  "/updateStatusPO",
   jwtMW.authentication,
   jwtMW.authorization,
-  updateEditandDeliveryDate,
-)
+  updateStatusPO
+);
+
+router.put(
+  "/:id/updateEtdOrDelivery",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateEditandDeliveryDate
+);
 
 //Add vendor
 router.post(
@@ -1115,7 +1126,12 @@ router.get(
   jwtMW.authorization,
   search
 );
-router.put('/migrateProject', jwtMW.authentication, jwtMW.authorization, migrateProjectToHandover)
+router.put(
+  "/migrateProject",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  migrateProjectToHandover
+);
 
 //module master
 router.post(
@@ -1251,6 +1267,5 @@ router.put(
   jwtMW.authorization,
   updateLeadStatus
 );
-
 
 module.exports = router;

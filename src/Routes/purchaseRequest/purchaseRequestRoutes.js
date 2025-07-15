@@ -8,6 +8,7 @@ const {
   getAllPurchaseRequest,
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
+  getMaterialScope,
 } = require("../../Controllers/purchaseRequestController/purchaseRequestController");
 const jwtMW = require("../../middlewares/auth");
 router.post(
@@ -46,13 +47,12 @@ router.delete(
   jwtMW.authorization,
   deletePurchaseRequest
 );
-
 router.get(
   "/:project_id/item/:item_id/pr/:pr_id",
   jwtMW.authentication,
   jwtMW.authorization,
   getPurchaseRequest
 );
-
+router.get('/material-scope', jwtMW.authentication, jwtMW.authorization, getMaterialScope);
 
 module.exports = router;

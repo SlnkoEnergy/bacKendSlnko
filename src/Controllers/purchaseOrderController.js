@@ -56,7 +56,7 @@ const addPo = async function (req, res) {
       pr_id,
       etd: null,
       delivery_date: null,
-      dispatch_date: null,
+      dispatch_date:null
     });
 
     await newPO.save();
@@ -203,28 +203,43 @@ const getPOByProjectId = async function (req, res) {
   }
 };
 
-//get po history by id
-const getPOHistoryById = async function (req, res) {
+const getPOById = async (req, res) => {
   try {
-    let id = req.params._id;
-    let data = await pohisttoryModells.findById(id).lean();
+    const { p_id, _id } = req.body;
 
-    if (!data) return res.status(404).json({ msg: "PO History not found" });
+    const query = {};
+    if (_id) query._id = _id;
+    if (p_id) query.p_id = p_id;
 
-    const isObjectId = mongoose.Types.ObjectId.isValid(data.item);
+    const data = await purchaseOrderModells.findOne(query);
 
-    if (isObjectId) {
-      const material = await materialCategoryModells
-        .findById(data.item)
-        .select("name");
-      data.item = material?.name || null;
-    } else {
-      data.item = data.item;
+    if (!data) {
+      return res.status(404).json({ msg: "Purchase Order not found" });
     }
 
-    res.status(200).json({ msg: "PO History Detail", data });
+    res.status(200).json({ msg: "Purchase Order found", data });
   } catch (error) {
-    res.status(500).json({ msg: "Error fetching data", error: error.message });
+    res.status(500).json({ msg: "Error retrieving PO", error: error.message });
+  }
+};
+
+const getPOHistoryById = async (req, res) => {
+  try {
+    const { po_number, _id } = req.query;
+
+    const query = {};
+    if (_id) query._id = _id;
+    if (po_number) query.po_number = po_number;
+
+    const data = await pohisttoryModells.findOne(query);
+
+    if (!data) {
+      return res.status(404).json({ msg: "Purchase Order not found" });
+    }
+
+    res.status(200).json({ msg: "Purchase Order found", data });
+  } catch (error) {
+    res.status(500).json({ msg: "Error retrieving PO", error: error.message });
   }
 };
 
@@ -465,52 +480,7 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-      {
-        $addFields: {
-          itemObjectId: {
-            $cond: [
-              {
-                $and: [
-                  { $eq: [{ $strLenCP: "$item" }, 24] },
-                  {
-                    $regexMatch: {
-                      input: "$item",
-                      regex: "^[0-9a-fA-F]{24}$",
-                      options: "i",
-                    },
-                  },
-                ],
-              },
-              { $toObjectId: "$item" },
-              null,
-            ],
-          },
-        },
-      },
-      {
-        $addFields: {
-          matchedItemInPR: {
-            $cond: [
-              { $ne: ["$itemObjectId", null] },
-              {
-                $let: {
-                  vars: {
-                    matched: {
-                      $filter: {
-                        input: { $arrayElemAt: ["$prRequest.items", 0] },
-                        as: "itm",
-                        cond: { $eq: ["$$itm.item_id", "$itemObjectId"] },
-                      },
-                    },
-                  },
-                  in: { $arrayElemAt: ["$$matched", 0] },
-                },
-              },
-              null,
-            ],
-          },
-        },
-      },
+
       {
         $addFields: {
           itemObjectId: {
@@ -574,18 +544,10 @@ const getPaginatedPo = async (req, res) => {
           partial_billing: 1,
           etd: 1,
           delivery_date: 1,
-          dispatch_date: 1,
+          dispatch_date:1,
           current_status: 1,
           status_history: 1,
           type: "$billingTypes",
-          pr: {
-            other_item_name: {
-              $ifNull: ["$matchedItemInPR.other_item_name", null],
-            },
-            amount: {
-              $ifNull: ["$matchedItemInPR.amount", null],
-            },
-          },
         },
       },
     ];
@@ -1106,6 +1068,7 @@ module.exports = {
   exportCSV,
   moverecovery,
   getPOByProjectId,
+  getPOById,
   deletePO,
   getpohistory,
   getPOHistoryById,
