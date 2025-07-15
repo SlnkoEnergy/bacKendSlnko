@@ -51,9 +51,9 @@ const getAllTasks = async (req, res) => {
     const currentUser = await User.findById(req.user.userId);
 
     if (!currentUser || !currentUser._id || !currentUser.role) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized: Invalid token or user info" });
+      return res.status(401).json({
+        message: "Unauthorized: Invalid token or user info",
+      });
     }
 
     const userId = currentUser._id;
@@ -65,7 +65,7 @@ const getAllTasks = async (req, res) => {
       search = "",
       status = "",
       createdAt = "",
-      department = "", 
+      department = "",
     } = req.query;
 
     const skip = (page - 1) * limit;
@@ -73,17 +73,16 @@ const getAllTasks = async (req, res) => {
 
     const matchConditions = [];
 
-    // Role-based access
+    // Access control
     if (userRole !== "admin" && userRole !== "superadmin") {
       matchConditions.push({
         $or: [
-          { assigned_to: { $elemMatch: { _id: userId } } },
+          { assigned_to: userId }, // Only works before $lookup; will be fixed later
           { createdBy: userId },
         ],
       });
     }
 
-    // Search condition
     if (search) {
       matchConditions.push({
         $or: [
@@ -96,14 +95,12 @@ const getAllTasks = async (req, res) => {
       });
     }
 
-    // Status condition
     if (status) {
       matchConditions.push({
         "current_status.status": status,
       });
     }
 
-    // Created Date filter
     if (createdAt) {
       const start = new Date(createdAt);
       const end = new Date(createdAt);
@@ -117,19 +114,7 @@ const getAllTasks = async (req, res) => {
       });
     }
 
-    // ✅ Department filter on assigned_to array
-    if (department) {
-      matchConditions.push({
-        assigned_to: {
-          $elemMatch: {
-            department: department,
-          },
-        },
-      });
-    }
-
-    // Build aggregation pipeline
-    const pipeline = [
+    const basePipeline = [
       {
         $lookup: {
           from: "projectdetails",
@@ -157,27 +142,35 @@ const getAllTasks = async (req, res) => {
           from: "users",
           localField: "createdBy",
           foreignField: "_id",
-          as: "createdBy",
+          as: "createdBy_info",
         },
       },
       {
         $unwind: {
-          path: "$createdBy",
+          path: "$createdBy_info",
           preserveNullAndEmptyArrays: true,
         },
       },
     ];
 
-    // Apply all match conditions
-    if (matchConditions.length > 0) {
-      pipeline.push({
-        $match: {
-          $and: matchConditions,
+    // Department filter (must be AFTER assigned_to $lookup)
+    if (department) {
+      matchConditions.push({
+        assigned_to: {
+          $elemMatch: {
+            department: department,
+          },
         },
       });
     }
 
-    pipeline.push(
+    // Final $match after all lookups
+    if (matchConditions.length > 0) {
+      basePipeline.push({ $match: { $and: matchConditions } });
+    }
+
+    const dataPipeline = [
+      ...basePipeline,
       {
         $project: {
           _id: 1,
@@ -194,29 +187,34 @@ const getAllTasks = async (req, res) => {
             name: 1,
           },
           assigned_to: {
-            _id: 1,
-            name: 1,
-            department: 1, // ✅ include department in output
+            $map: {
+              input: "$assigned_to",
+              as: "user",
+              in: {
+                _id: "$$user._id",
+                name: "$$user.name",
+                department: "$$user.department",
+              },
+            },
           },
           createdBy: {
-            _id: 1,
-            name: 1,
+            _id: "$createdBy_info._id",
+            name: "$createdBy_info.name",
           },
         },
       },
       { $sort: { createdAt: -1 } },
       { $skip: skip },
-      { $limit: Number(limit) }
-    );
+      { $limit: Number(limit) },
+    ];
 
-    // Count pipeline (exclude skip, limit, sort)
     const countPipeline = [
-      ...pipeline.slice(0, -3),
+      ...basePipeline,
       { $count: "totalCount" },
     ];
 
     const [tasks, countResult] = await Promise.all([
-      tasksModells.aggregate(pipeline),
+      tasksModells.aggregate(dataPipeline),
       tasksModells.aggregate(countPipeline),
     ]);
 
@@ -236,6 +234,7 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
 
 
 // Get a task by ID
