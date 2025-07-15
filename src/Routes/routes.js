@@ -44,6 +44,7 @@ const {
   exportCSV,
   moverecovery,
   getPOByProjectId,
+  getPOById,
   deletePO,
   getpohistory,
   getPOHistoryById,
@@ -91,6 +92,7 @@ const {
   addBill,
   getBill,
   getPaginatedBill,
+  GetBillByID,
   updatebill,
   deleteBill,
   bill_approved,
@@ -400,6 +402,12 @@ router.get(
   jwtMW.authorization,
   getPOByProjectId
 );
+router.get(
+  "/get-po-by-id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getPOById
+);
 router.delete(
   "/delete-pO-IT/:_id",
   jwtMW.authentication,
@@ -413,7 +421,7 @@ router.get(
   getpohistory
 );
 router.get(
-  "/get-po-history-iD/:_id",
+  "/get-po-history",
   jwtMW.authentication,
   jwtMW.authorization,
   getPOHistoryById
@@ -607,6 +615,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getPaginatedBill
+);
+router.get(
+  "/get-bill-by-id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  GetBillByID
 );
 router.put(
   "/update-bill/:_id",

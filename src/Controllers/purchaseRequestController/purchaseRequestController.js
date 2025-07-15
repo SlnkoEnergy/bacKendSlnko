@@ -150,6 +150,7 @@ const getAllPurchaseRequest = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
+      
       ...(search
         ? [
             {
@@ -163,6 +164,7 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
+     
       ...(itemSearch
         ? [
             {
