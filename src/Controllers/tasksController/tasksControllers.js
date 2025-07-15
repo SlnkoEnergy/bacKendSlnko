@@ -65,6 +65,7 @@ const getAllTasks = async (req, res) => {
       search = "",
       status = "",
       createdAt = "",
+      department = "", 
     } = req.query;
 
     const skip = (page - 1) * limit;
@@ -116,10 +117,22 @@ const getAllTasks = async (req, res) => {
       });
     }
 
+    // ✅ Department filter on assigned_to array
+    if (department) {
+      matchConditions.push({
+        assigned_to: {
+          $elemMatch: {
+            department: department,
+          },
+        },
+      });
+    }
+
+    // Build aggregation pipeline
     const pipeline = [
       {
         $lookup: {
-          from: "projectdetails", // <-- adjust this if your collection is named differently
+          from: "projectdetails",
           localField: "project_id",
           foreignField: "_id",
           as: "project_id",
@@ -153,9 +166,18 @@ const getAllTasks = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
-      ...(matchConditions.length > 0
-        ? [{ $match: { $and: matchConditions } }]
-        : []),
+    ];
+
+    // Apply all match conditions
+    if (matchConditions.length > 0) {
+      pipeline.push({
+        $match: {
+          $and: matchConditions,
+        },
+      });
+    }
+
+    pipeline.push(
       {
         $project: {
           _id: 1,
@@ -174,6 +196,7 @@ const getAllTasks = async (req, res) => {
           assigned_to: {
             _id: 1,
             name: 1,
+            department: 1, // ✅ include department in output
           },
           createdBy: {
             _id: 1,
@@ -183,11 +206,12 @@ const getAllTasks = async (req, res) => {
       },
       { $sort: { createdAt: -1 } },
       { $skip: skip },
-      { $limit: Number(limit) },
-    ];
+      { $limit: Number(limit) }
+    );
 
+    // Count pipeline (exclude skip, limit, sort)
     const countPipeline = [
-      ...pipeline.slice(0, -3), // exclude skip, limit, sort
+      ...pipeline.slice(0, -3),
       { $count: "totalCount" },
     ];
 
@@ -212,6 +236,7 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
