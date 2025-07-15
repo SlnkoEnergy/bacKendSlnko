@@ -1,6 +1,6 @@
 async function transformAndSaveOldLead(oldLead) {
   const User = require("../Modells/userModells");
-  const NewBDLead = require("../Modells/bdleadsModells");
+  const NewBDLead = require("../Modells/bdleads/bdleadsModells");
 
   const submittedUser = await User.findOne({ name: oldLead.submitted_by });
   const submittedUserId = submittedUser?._id || null;
@@ -45,7 +45,7 @@ async function transformAndSaveOldLead(oldLead) {
 
     status_history: [
       {
-        name: "dead",
+        name: "initial",
         stage: "",
         remarks: "",
         user_id: submittedUserId,
@@ -53,7 +53,7 @@ async function transformAndSaveOldLead(oldLead) {
       },
     ],
     current_status: {
-      name: "dead",
+      name: "initial",
       stage: "",
       remarks: "",
       user_id: submittedUserId,
@@ -61,9 +61,13 @@ async function transformAndSaveOldLead(oldLead) {
     assigned_to: [
       {
         user_id: submittedUserId,
-        status: "dead",
+        status: "initial",
       },
     ],
+    current_assigned:{
+      user_id: submittedUserId,
+      status: "initial"
+    },
     submitted_by: submittedUserId,
   });
 

@@ -3,10 +3,12 @@ const Followup = require("../../Modells/followupbdModells");
 const Warm = require("../../Modells/warmbdLeadModells");
 const Won = require("../../Modells/wonleadModells");
 const Dead = require("../../Modells/deadleadModells");
-const BDtask = require("../../Modells/BD-Dashboard/task");
+const BDtask = require("../../Modells/bdleads/task");
 const userModells = require("../../Modells/userModells");
 const transformAndSaveOldLead = require("../../utils/bdLeadTransform");
 const deadleadModells = require("../../Modells/deadleadModells");
+const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
+const initialBdLeadModells = require("../../Modells/initialBdLeadModells");
 
 const createTask = async (req, res) => {
   try {
@@ -331,7 +333,7 @@ const getNotifications = async (req, res) => {
 
 const migrateAllLeads = async (req, res) => {
   try {
-    const oldLeads = await deadleadModells.find();
+    const oldLeads = await initialBdLeadModells.find();
     let successCount = 0;
     let failureCount = 0;
 

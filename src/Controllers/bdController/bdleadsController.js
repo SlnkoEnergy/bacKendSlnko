@@ -5,11 +5,11 @@ const wonleadModells = require("../../Modells/wonleadModells");
 const deadleadModells = require("../../Modells/deadleadModells");
 const createbdleads = require("../../Modells/createBDleadModells");
 const handoversheet = require("../../Modells/handoversheetModells");
-const task = require("../../Modells/BD-Dashboard/task");
+const task = require("../../Modells/bdleads/task");
 const userModells = require("../../Modells/userModells");
 const mongoose = require("mongoose");
 const { Parser } = require("json2csv");
-const bdleadsModells = require("../../Modells/bdleadsModells");
+const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
 
 const updateAssignedToFromSubmittedBy = async (req, res) => {
   const models = [
@@ -50,13 +50,7 @@ const updateAssignedToFromSubmittedBy = async (req, res) => {
 };
 const getAllLeads = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      search = "",
-      fromDate,
-      toDate,
-    } = req.query;
+    const { page = 1, limit = 10, search = "", fromDate, toDate } = req.query;
     const userId = req.user.userId;
 
     const user = await userModells.findById(userId);
@@ -64,6 +58,7 @@ const getAllLeads = async (req, res) => {
 
     const isPrivilegedUser =
       user.department === "admin" ||
+      user.department === "superadmin" ||
       (user.department === "BD" && user.role === "manager");
 
     const match = {};
@@ -149,7 +144,28 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { assigned_user_objs: 0 } },
 
-      // Lookup submitted_by
+      // Lookup current_assigned.user_id
+      {
+        $lookup: {
+          from: "users",
+          localField: "current_assigned.user_id",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, name: 1 } }],
+          as: "current_assigned_user",
+        },
+      },
+      {
+        $addFields: {
+          current_assigned: {
+            status: "$current_assigned.status",
+            user_id: {
+              $arrayElemAt: ["$current_assigned_user", 0],
+            },
+          },
+        },
+      },
+      { $project: { current_assigned_user: 0 } },
+
       {
         $lookup: {
           from: "users",
@@ -248,7 +264,6 @@ const getAllLeadDropdown = async (req, res) => {
     });
   }
 };
-
 
 const getLeadSummary = async (req, res) => {
   try {
@@ -923,6 +938,7 @@ const getLeadByLeadIdorId = async (req, res) => {
     const data = await bdleadsModells.aggregate([
       { $match: matchQuery },
 
+      // Lookup submitted_by
       {
         $lookup: {
           from: "users",
@@ -939,7 +955,7 @@ const getLeadByLeadIdorId = async (req, res) => {
       },
       { $project: { submitted_by_user: 0 } },
 
-      // Populate assigned_to.user_id
+      // Lookup assigned_to.user_id
       {
         $lookup: {
           from: "users",
@@ -979,7 +995,7 @@ const getLeadByLeadIdorId = async (req, res) => {
       },
       { $project: { assigned_users: 0 } },
 
-      // Populate status_history.user_id
+      // Lookup status_history.user_id
       {
         $lookup: {
           from: "users",
@@ -1021,6 +1037,30 @@ const getLeadByLeadIdorId = async (req, res) => {
         },
       },
       { $project: { status_users: 0 } },
+
+      // Lookup current_assigned.user_id
+      {
+        $lookup: {
+          from: "users",
+          localField: "current_assigned.user_id",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, name: 1 } }],
+          as: "current_assigned_user",
+        },
+      },
+      {
+        $addFields: {
+          current_assigned: {
+            $mergeObjects: [
+              "$current_assigned",
+              {
+                user_id: { $arrayElemAt: ["$current_assigned_user", 0] },
+              },
+            ],
+          },
+        },
+      },
+      { $project: { current_assigned_user: 0 } },
     ]);
 
     if (!data.length) {
@@ -1038,7 +1078,6 @@ const getLeadByLeadIdorId = async (req, res) => {
     });
   }
 };
-
 
 
 //lead funnel
@@ -1584,7 +1623,8 @@ const exportLeadsCSV = async (req, res) => {
       State: item.address?.state || "",
       Scheme: item.project_details?.scheme || "",
       "Capacity (MW)": item.project_details?.capacity || "",
-      "Distance (KM)": item.project_details?.distance_from_substation?.value || "",
+      "Distance (KM)":
+        item.project_details?.distance_from_substation?.value || "",
       Date: new Date(item.createdAt).toLocaleDateString(),
       "Lead Owner": item.assigned_user?.name || "",
     }));

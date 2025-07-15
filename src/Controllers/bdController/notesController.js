@@ -3,7 +3,7 @@ const Followup = require("../../Modells/followupbdModells");
 const Warm = require("../../Modells/warmbdLeadModells");
 const Won = require("../../Modells/wonleadModells");
 const Dead = require("../../Modells/deadleadModells");
-const BDnotes = require("../../Modells/BD-Dashboard/notes");
+const BDnotes = require("../../Modells/bdleads/notes");
 
 const createNotes = async (req, res) => {
   try {
