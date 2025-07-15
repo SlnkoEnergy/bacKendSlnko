@@ -51,9 +51,9 @@ const getAllTasks = async (req, res) => {
     const currentUser = await User.findById(req.user.userId);
 
     if (!currentUser || !currentUser._id || !currentUser.role) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized: Invalid token or user info" });
+      return res.status(401).json({
+        message: "Unauthorized: Invalid token or user info",
+      });
     }
 
     const userId = currentUser._id;
@@ -65,6 +65,7 @@ const getAllTasks = async (req, res) => {
       search = "",
       status = "",
       createdAt = "",
+      department = "",
     } = req.query;
 
     const skip = (page - 1) * limit;
@@ -72,10 +73,11 @@ const getAllTasks = async (req, res) => {
 
     const matchConditions = [];
 
+    // Access control
     if (userRole !== "admin" && userRole !== "superadmin") {
       matchConditions.push({
         $or: [
-          { assigned_to: userId },
+          { assigned_to: userId }, // Only works before $lookup; will be fixed later
           { createdBy: userId },
         ],
       });
@@ -112,10 +114,7 @@ const getAllTasks = async (req, res) => {
       });
     }
 
-    const baseMatchStage = matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : [];
-
-    const pipeline = [
-      ...baseMatchStage,
+    const basePipeline = [
       {
         $lookup: {
           from: "projectdetails",
@@ -152,6 +151,26 @@ const getAllTasks = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
+    ];
+
+    // Department filter (must be AFTER assigned_to $lookup)
+    if (department) {
+      matchConditions.push({
+        assigned_to: {
+          $elemMatch: {
+            department: department,
+          },
+        },
+      });
+    }
+
+    // Final $match after all lookups
+    if (matchConditions.length > 0) {
+      basePipeline.push({ $match: { $and: matchConditions } });
+    }
+
+    const dataPipeline = [
+      ...basePipeline,
       {
         $project: {
           _id: 1,
@@ -174,6 +193,7 @@ const getAllTasks = async (req, res) => {
               in: {
                 _id: "$$user._id",
                 name: "$$user.name",
+                department: "$$user.department",
               },
             },
           },
@@ -189,14 +209,12 @@ const getAllTasks = async (req, res) => {
     ];
 
     const countPipeline = [
-      ...baseMatchStage,
-      {
-        $count: "totalCount",
-      },
+      ...basePipeline,
+      { $count: "totalCount" },
     ];
 
     const [tasks, countResult] = await Promise.all([
-      tasksModells.aggregate(pipeline),
+      tasksModells.aggregate(dataPipeline),
       tasksModells.aggregate(countPipeline),
     ]);
 
@@ -216,6 +234,7 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
 
 
 // Get a task by ID
