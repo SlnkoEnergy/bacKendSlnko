@@ -75,7 +75,7 @@ const getAllTasks = async (req, res) => {
     if (userRole !== "admin" && userRole !== "superadmin") {
       matchConditions.push({
         $or: [
-          { assigned_to: { $elemMatch: { _id: userId } } },
+          { assigned_to: userId },
           { createdBy: userId },
         ],
       });
@@ -139,12 +139,6 @@ const getAllTasks = async (req, res) => {
         },
       },
       {
-        $unwind: {
-          path: "$assigned_to",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
         $lookup: {
           from: "users",
           localField: "createdBy",
@@ -158,9 +152,6 @@ const getAllTasks = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
-      ...(matchConditions.length > 0
-        ? [{ $match: { $and: matchConditions } }]
-        : []),
       {
         $project: {
           _id: 1,
@@ -177,8 +168,14 @@ const getAllTasks = async (req, res) => {
             name: 1,
           },
           assigned_to: {
-            _id: "$assigned_to._id",
-            name: "$assigned_to.name",
+            $map: {
+              input: "$assigned_to",
+              as: "user",
+              in: {
+                _id: "$$user._id",
+                name: "$$user.name",
+              },
+            },
           },
           createdBy: {
             _id: "$createdBy_info._id",
@@ -219,6 +216,7 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
