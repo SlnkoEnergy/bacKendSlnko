@@ -72,7 +72,6 @@ const getAllTasks = async (req, res) => {
 
     const matchConditions = [];
 
-    // Role-based access
     if (userRole !== "admin" && userRole !== "superadmin") {
       matchConditions.push({
         $or: [
@@ -82,7 +81,6 @@ const getAllTasks = async (req, res) => {
       });
     }
 
-    // Search condition
     if (search) {
       matchConditions.push({
         $or: [
@@ -95,14 +93,12 @@ const getAllTasks = async (req, res) => {
       });
     }
 
-    // Status condition
     if (status) {
       matchConditions.push({
         "current_status.status": status,
       });
     }
 
-    // Created Date filter
     if (createdAt) {
       const start = new Date(createdAt);
       const end = new Date(createdAt);
@@ -116,10 +112,13 @@ const getAllTasks = async (req, res) => {
       });
     }
 
+    const baseMatchStage = matchConditions.length > 0 ? [{ $match: { $and: matchConditions } }] : [];
+
     const pipeline = [
+      ...baseMatchStage,
       {
         $lookup: {
-          from: "projectdetails", // <-- adjust this if your collection is named differently
+          from: "projectdetails",
           localField: "project_id",
           foreignField: "_id",
           as: "project_id",
@@ -140,16 +139,22 @@ const getAllTasks = async (req, res) => {
         },
       },
       {
+        $unwind: {
+          path: "$assigned_to",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
         $lookup: {
           from: "users",
           localField: "createdBy",
           foreignField: "_id",
-          as: "createdBy",
+          as: "createdBy_info",
         },
       },
       {
         $unwind: {
-          path: "$createdBy",
+          path: "$createdBy_info",
           preserveNullAndEmptyArrays: true,
         },
       },
@@ -172,12 +177,12 @@ const getAllTasks = async (req, res) => {
             name: 1,
           },
           assigned_to: {
-            _id: 1,
-            name: 1,
+            _id: "$assigned_to._id",
+            name: "$assigned_to.name",
           },
           createdBy: {
-            _id: 1,
-            name: 1,
+            _id: "$createdBy_info._id",
+            name: "$createdBy_info.name",
           },
         },
       },
@@ -187,8 +192,10 @@ const getAllTasks = async (req, res) => {
     ];
 
     const countPipeline = [
-      ...pipeline.slice(0, -3), // exclude skip, limit, sort
-      { $count: "totalCount" },
+      ...baseMatchStage,
+      {
+        $count: "totalCount",
+      },
     ];
 
     const [tasks, countResult] = await Promise.all([
