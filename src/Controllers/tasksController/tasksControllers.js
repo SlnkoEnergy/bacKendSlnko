@@ -122,6 +122,18 @@ const getAllTasks = async (req, res) => {
 
     const postLookupMatch = [];
 
+    // Status hiding filters
+    const hideStatuses = [];
+    if (req.query.hide_completed === "true") hideStatuses.push("completed");
+    if (req.query.hide_pending === "true") hideStatuses.push("pending");
+    if (req.query.hide_inprogress === "true") hideStatuses.push("in progress");
+
+    if (hideStatuses.length > 0) {
+      postLookupMatch.push({
+        "current_status.status": { $nin: hideStatuses },
+      });
+    }
+
     if (search) {
       postLookupMatch.push({
         $or: [
@@ -130,8 +142,8 @@ const getAllTasks = async (req, res) => {
           { taskCode: searchRegex },
           { "project_details.code": searchRegex },
           { "project_details.name": searchRegex },
-          { type: searchRegex},
-          { sub_type: searchRegex}
+          { type: searchRegex },
+          { sub_type: searchRegex },
         ],
       });
     }
@@ -162,8 +174,8 @@ const getAllTasks = async (req, res) => {
           _id: 1,
           title: 1,
           taskCode: 1,
-          type:1,
-          sub_type:1,
+          type: 1,
+          sub_type: 1,
           description: 1,
           createdAt: 1,
           deadline: 1,
@@ -225,6 +237,7 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
