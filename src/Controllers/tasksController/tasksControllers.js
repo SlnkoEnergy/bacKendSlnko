@@ -72,7 +72,20 @@ const getAllTasks = async (req, res) => {
 
     const preLookupMatch = [];
 
-    if (userRole !== "admin" && userRole !== "superadmin") {
+    // 👇 Handle visibility rules
+    if (currentUser.emp_id === "SE-013" || currentUser.role === "admin" || currentUser.role === "superadmin") {
+
+    } else if (userRole === "manager") {
+      const teamMembers = await User.find({ manager_id: currentUser._id }, "_id");
+      const teamIds = teamMembers.map((u) => u._id);
+
+      preLookupMatch.push({
+        $or: [
+          { assigned_to: { $in: [...teamIds, userId] } },
+          { createdBy: { $in: [...teamIds, userId] } },
+        ],
+      });
+    } else {
       preLookupMatch.push({
         $or: [
           { assigned_to: { $in: [userId] } },
@@ -122,7 +135,7 @@ const getAllTasks = async (req, res) => {
 
     const postLookupMatch = [];
 
-    // Status hiding filters
+    // 👇 Hide statuses logic
     const hideStatuses = [];
     if (req.query.hide_completed === "true") hideStatuses.push("completed");
     if (req.query.hide_pending === "true") hideStatuses.push("pending");
@@ -237,7 +250,6 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
-
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
