@@ -27,7 +27,7 @@ router.put(
   jwtMW.authorization,
   updateTaskStatus
 );
-router.get(
+router.post(
   "/exportTocsv",
   jwtMW.authentication,
   jwtMW.authorization,
