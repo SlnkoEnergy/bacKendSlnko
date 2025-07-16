@@ -11,6 +11,14 @@ const taskSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    type:{
+      type:String,
+      enum:["internal", "helpdesk", "project"]
+    },
+    sub_type:{
+      type:String,
+      enum:["changes", "issue", "new feature"]
+    },
     description: {
       type: String,
       required: true,
@@ -18,10 +26,10 @@ const taskSchema = new mongoose.Schema(
     deadline: {
       type: Date,
     },
-    project_id: {
+    project_id: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: "projectDetail",
-    },
+    }],
     assigned_to: [
       {
         type: mongoose.Schema.Types.ObjectId,
