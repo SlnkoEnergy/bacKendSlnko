@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const updateCurrentStatus = require("../../utils/statusUpdateUtils/updateCurrentStatus");
+const updateCurrentStatusTask = require("../../utils/updateCurrentStatusTask");
 
 const taskSchema = new mongoose.Schema(
   {
@@ -81,7 +81,7 @@ const taskSchema = new mongoose.Schema(
 );
 
 taskSchema.pre("save", function (next) {
-  updateCurrentStatus(this, "status_history", "current_status");
+  updateCurrentStatusTask(this, "status_history", "current_status");
   next();
 });
 module.exports = mongoose.model("Tasks", taskSchema);
