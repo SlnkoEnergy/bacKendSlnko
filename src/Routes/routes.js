@@ -280,7 +280,8 @@ router.get(
 );
 
 router.put(
-  "/edit-user/:_id", editUser)
+  "/edit-user/:_id",jwtMW.authentication,
+  jwtMW.authorization, editUser)
 //forget pass through resend
 // router.post("/forget-password",forgetpassword);
 
