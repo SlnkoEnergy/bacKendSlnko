@@ -73,23 +73,26 @@ const getAllTasks = async (req, res) => {
     const preLookupMatch = [];
 
     // 👇 Handle visibility rules
-    if (currentUser.emp_id === "SE-013" || currentUser.role === "admin" || currentUser.role === "superadmin") {
-
+    if (
+      currentUser.emp_id === "SE-013" ||
+      userRole === "admin" ||
+      userRole === "superadmin"
+    ) {
     } else if (userRole === "manager") {
-      const teamMembers = await User.find({ manager_id: currentUser._id }, "_id");
-      const teamIds = teamMembers.map((u) => u._id);
+      const department = currentUser.department;
+      if (!department) {
+        return res
+          .status(400)
+          .json({ message: "Manager department not found." });
+      }
+
+      const departmentUsers = await User.find({ department }, "_id");
+      const deptUserIds = departmentUsers.map((u) => u._id);
 
       preLookupMatch.push({
         $or: [
-          { assigned_to: { $in: [...teamIds, userId] } },
-          { createdBy: { $in: [...teamIds, userId] } },
-        ],
-      });
-    } else {
-      preLookupMatch.push({
-        $or: [
-          { assigned_to: { $in: [userId] } },
-          { createdBy: userId },
+          { assigned_to: { $in: deptUserIds } },
+          { createdBy: { $in: deptUserIds } },
         ],
       });
     }
@@ -338,7 +341,6 @@ const deleteTask = async (req, res) => {
   }
 };
 
-
 const exportToCsv = async (req, res) => {
   try {
     const { ids } = req.body;
@@ -347,7 +349,8 @@ const exportToCsv = async (req, res) => {
       return res.status(400).json({ message: "No task IDs provided." });
     }
 
-    const tasks = await tasksModells.find({ _id: { $in: ids } })
+    const tasks = await tasksModells
+      .find({ _id: { $in: ids } })
       .populate("project_id", "name")
       .populate("assigned_to", "name")
       .populate("createdBy", "name")
@@ -398,7 +401,6 @@ const exportToCsv = async (req, res) => {
   }
 };
 
-
 module.exports = {
   createTask,
   getAllTasks,
@@ -406,5 +408,5 @@ module.exports = {
   updateTask,
   deleteTask,
   updateTaskStatus,
-  exportToCsv
+  exportToCsv,
 };
