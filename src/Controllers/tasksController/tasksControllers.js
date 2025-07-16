@@ -130,6 +130,7 @@ const getAllTasks = async (req, res) => {
           { taskCode: searchRegex },
           { "project_details.code": searchRegex },
           { "project_details.name": searchRegex },
+          { type: searchRegex}
         ],
       });
     }
