@@ -72,7 +72,6 @@ const getAllTasks = async (req, res) => {
 
     const preLookupMatch = [];
 
-    // 👇 Handle visibility rules
     if (
       currentUser.emp_id === "SE-013" ||
       userRole === "admin" ||
@@ -94,6 +93,10 @@ const getAllTasks = async (req, res) => {
           { assigned_to: { $in: deptUserIds } },
           { createdBy: { $in: deptUserIds } },
         ],
+      });
+    } else {
+      preLookupMatch.push({
+        $or: [{ assigned_to: currentUser._id }, { createdBy: currentUser._id }],
       });
     }
 
