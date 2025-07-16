@@ -1,3 +1,4 @@
+const { default: mongoose } = require("mongoose");
 const TaskCounterSchema = require("../../Modells/Globals/taskCounter");
 const tasksModells = require("../../Modells/tasks/task");
 const User = require("../../Modells/userModells");
@@ -51,9 +52,7 @@ const getAllTasks = async (req, res) => {
     const currentUser = await User.findById(req.user.userId);
 
     if (!currentUser || !currentUser._id || !currentUser.role) {
-      return res.status(401).json({
-        message: "Unauthorized: Invalid token or user info",
-      });
+      return res.status(401).json({ message: "Unauthorized: Invalid user." });
     }
 
     const userId = currentUser._id;
@@ -68,53 +67,27 @@ const getAllTasks = async (req, res) => {
       department = "",
     } = req.query;
 
-    const skip = (page - 1) * limit;
+    const skip = (Number(page) - 1) * Number(limit);
     const searchRegex = new RegExp(search, "i");
 
-    const matchConditions = [];
+    const preLookupMatch = [];
 
-    // Access control
     if (userRole !== "admin" && userRole !== "superadmin") {
-      matchConditions.push({
+      preLookupMatch.push({
         $or: [
-          { assigned_to: userId }, // Only works before $lookup; will be fixed later
+          { assigned_to: { $in: [userId] } },
           { createdBy: userId },
         ],
       });
     }
 
-    if (search) {
-      matchConditions.push({
-        $or: [
-          { title: searchRegex },
-          { description: searchRegex },
-          { taskCode: searchRegex },
-          { "project_id.code": searchRegex },
-          { "project_id.name": searchRegex },
-        ],
-      });
+    const basePipeline = [];
+
+    if (preLookupMatch.length > 0) {
+      basePipeline.push({ $match: { $and: preLookupMatch } });
     }
 
-    if (status) {
-      matchConditions.push({
-        "current_status.status": status,
-      });
-    }
-
-    if (createdAt) {
-      const start = new Date(createdAt);
-      const end = new Date(createdAt);
-      end.setDate(end.getDate() + 1);
-
-      matchConditions.push({
-        createdAt: {
-          $gte: start,
-          $lt: end,
-        },
-      });
-    }
-
-    const basePipeline = [
+    basePipeline.push(
       {
         $lookup: {
           from: "projectdetails",
@@ -150,25 +123,43 @@ const getAllTasks = async (req, res) => {
           path: "$createdBy_info",
           preserveNullAndEmptyArrays: true,
         },
-      },
-    ];
+      }
+    );
 
-    // Department filter (must be AFTER assigned_to $lookup)
-    if (department) {
-      matchConditions.push({
-        assigned_to: {
-          $elemMatch: {
-            department: department,
-          },
-        },
+    const postLookupMatch = [];
+
+    if (search) {
+      postLookupMatch.push({
+        $or: [
+          { title: searchRegex },
+          { description: searchRegex },
+          { taskCode: searchRegex },
+          { "project_id.code": searchRegex },
+          { "project_id.name": searchRegex },
+        ],
       });
     }
 
-    // Final $match after all lookups
-    if (matchConditions.length > 0) {
-      basePipeline.push({ $match: { $and: matchConditions } });
+    if (status) {
+      postLookupMatch.push({ "current_status.status": status });
     }
 
+    if (createdAt) {
+      const start = new Date(createdAt);
+      const end = new Date(createdAt);
+      end.setDate(end.getDate() + 1);
+      postLookupMatch.push({ createdAt: { $gte: start, $lt: end } });
+    }
+
+    if (department) {
+      postLookupMatch.push({ "assigned_to.department": department });
+    }
+
+    if (postLookupMatch.length > 0) {
+      basePipeline.push({ $match: { $and: postLookupMatch } });
+    }
+
+    // Data pipeline
     const dataPipeline = [
       ...basePipeline,
       {
@@ -208,10 +199,7 @@ const getAllTasks = async (req, res) => {
       { $limit: Number(limit) },
     ];
 
-    const countPipeline = [
-      ...basePipeline,
-      { $count: "totalCount" },
-    ];
+    const countPipeline = [...basePipeline, { $count: "totalCount" }];
 
     const [tasks, countResult] = await Promise.all([
       tasksModells.aggregate(dataPipeline),
@@ -234,6 +222,9 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
+
+
 
 
 
