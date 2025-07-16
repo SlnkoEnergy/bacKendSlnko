@@ -160,6 +160,7 @@ const getAllTasks = async (req, res) => {
           _id: 1,
           title: 1,
           taskCode: 1,
+          type:1,
           description: 1,
           createdAt: 1,
           deadline: 1,
