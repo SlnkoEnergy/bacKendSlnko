@@ -15,6 +15,10 @@ const taskSchema = new mongoose.Schema(
       type:String,
       enum:["internal", "helpdesk", "project"]
     },
+    sub_type:{
+      type:String,
+      enum:["changes", "issue", "new feature"]
+    },
     description: {
       type: String,
       required: true,
