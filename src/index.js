@@ -29,7 +29,7 @@ const startServer = async () => {
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);
-    app.use("/v1/dpr", dprRoutes)
+    app.use("/v1/dpr", dprRoutes);
     app.use("/v1/purchaseRequest",purchaseRoutes);
     app.use("/v1/tasks", taskRoutes);
 
