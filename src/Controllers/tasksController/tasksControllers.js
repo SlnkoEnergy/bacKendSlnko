@@ -93,13 +93,7 @@ const getAllTasks = async (req, res) => {
           from: "projectdetails",
           localField: "project_id",
           foreignField: "_id",
-          as: "project_id",
-        },
-      },
-      {
-        $unwind: {
-          path: "$project_id",
-          preserveNullAndEmptyArrays: true,
+          as: "project_details",
         },
       },
       {
@@ -134,8 +128,8 @@ const getAllTasks = async (req, res) => {
           { title: searchRegex },
           { description: searchRegex },
           { taskCode: searchRegex },
-          { "project_id.code": searchRegex },
-          { "project_id.name": searchRegex },
+          { "project_details.code": searchRegex },
+          { "project_details.name": searchRegex },
         ],
       });
     }
@@ -159,7 +153,6 @@ const getAllTasks = async (req, res) => {
       basePipeline.push({ $match: { $and: postLookupMatch } });
     }
 
-    // Data pipeline
     const dataPipeline = [
       ...basePipeline,
       {
@@ -172,10 +165,16 @@ const getAllTasks = async (req, res) => {
           deadline: 1,
           priority: 1,
           current_status: 1,
-          project_id: {
-            _id: 1,
-            code: 1,
-            name: 1,
+          project_details: {
+            $map: {
+              input: "$project_details",
+              as: "proj",
+              in: {
+                _id: "$$proj._id",
+                code: "$$proj.code",
+                name: "$$proj.name",
+              },
+            },
           },
           assigned_to: {
             $map: {
@@ -222,11 +221,6 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
-
-
-
-
-
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
