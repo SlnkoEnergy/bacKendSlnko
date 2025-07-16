@@ -2,6 +2,7 @@ const { default: mongoose } = require("mongoose");
 const TaskCounterSchema = require("../../Modells/Globals/taskCounter");
 const tasksModells = require("../../Modells/tasks/task");
 const User = require("../../Modells/userModells");
+const { Parser } = require("json2csv");
 
 const createTask = async (req, res) => {
   try {
@@ -93,13 +94,7 @@ const getAllTasks = async (req, res) => {
           from: "projectdetails",
           localField: "project_id",
           foreignField: "_id",
-          as: "project_id",
-        },
-      },
-      {
-        $unwind: {
-          path: "$project_id",
-          preserveNullAndEmptyArrays: true,
+          as: "project_details",
         },
       },
       {
@@ -134,8 +129,10 @@ const getAllTasks = async (req, res) => {
           { title: searchRegex },
           { description: searchRegex },
           { taskCode: searchRegex },
-          { "project_id.code": searchRegex },
-          { "project_id.name": searchRegex },
+          { "project_details.code": searchRegex },
+          { "project_details.name": searchRegex },
+          { type: searchRegex},
+          { sub_type: searchRegex}
         ],
       });
     }
@@ -159,7 +156,6 @@ const getAllTasks = async (req, res) => {
       basePipeline.push({ $match: { $and: postLookupMatch } });
     }
 
-    // Data pipeline
     const dataPipeline = [
       ...basePipeline,
       {
@@ -167,15 +163,23 @@ const getAllTasks = async (req, res) => {
           _id: 1,
           title: 1,
           taskCode: 1,
+          type:1,
+          sub_type:1,
           description: 1,
           createdAt: 1,
           deadline: 1,
           priority: 1,
           current_status: 1,
-          project_id: {
-            _id: 1,
-            code: 1,
-            name: 1,
+          project_details: {
+            $map: {
+              input: "$project_details",
+              as: "proj",
+              in: {
+                _id: "$$proj._id",
+                code: "$$proj.code",
+                name: "$$proj.name",
+              },
+            },
           },
           assigned_to: {
             $map: {
@@ -222,11 +226,6 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
-
-
-
-
-
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
@@ -315,6 +314,67 @@ const deleteTask = async (req, res) => {
   }
 };
 
+
+const exportToCsv = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No task IDs provided." });
+    }
+
+    const tasks = await tasksModells.find({ _id: { $in: ids } })
+      .populate("project_id", "name")
+      .populate("assigned_to", "name")
+      .populate("createdBy", "name")
+      .populate("current_status.user_id", "name")
+      .populate("status_history.user_id", "name");
+
+    const formattedTasks = tasks.map((task) => {
+      const statusHistory = task.status_history
+        .map(
+          (entry) =>
+            `[${entry.status}] by ${entry.user_id?.name || "N/A"} on ${new Date(entry.updatedAt).toLocaleDateString("en-GB")} (${entry.remarks || "-"})`
+        )
+        .join(" | ");
+
+      return {
+        TaskCode: task.taskCode,
+        Title: task.title,
+        Type: task.type,
+        SubType: task.sub_type,
+        Description: task.description,
+        Deadline: task.deadline
+          ? new Date(task.deadline).toLocaleDateString("en-GB")
+          : "N/A",
+        Project: task.project_id?.[0]?.name || "N/A",
+        AssignedTo:
+          task.assigned_to?.map((user) => user.name).join(", ") || "N/A",
+        Priority: task.priority,
+        StatusHistory: statusHistory || "N/A",
+        CurrentStatus: task.current_status?.status || "N/A",
+        CurrentStatusRemarks: task.current_status?.remarks || "N/A",
+        CurrentStatusBy: task.current_status?.user_id?.name || "N/A",
+        CreatedBy: task.createdBy?.name || "N/A",
+        CreatedAt: task.createdAt
+          ? new Date(task.createdAt).toLocaleDateString("en-GB")
+          : "N/A",
+      };
+    });
+
+    const parser = new Parser();
+    const csv = parser.parse(formattedTasks);
+
+    res.header("Content-Type", "text/csv");
+    res.attachment("tasks_export.csv");
+    return res.send(csv);
+  } catch (error) {
+    console.error("CSV Export Error:", error);
+    return res.status(500).json({ message: "Error exporting tasks to CSV" });
+  }
+};
+
+
 module.exports = {
   createTask,
   getAllTasks,
@@ -322,4 +382,5 @@ module.exports = {
   updateTask,
   deleteTask,
   updateTaskStatus,
+  exportToCsv
 };
