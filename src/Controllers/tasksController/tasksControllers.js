@@ -76,6 +76,7 @@ const getAllTasks = async (req, res) => {
       userRole === "admin" ||
       userRole === "superadmin"
     ) {
+      // No filter, show everything
     } else if (userRole === "manager") {
       const department = currentUser.department;
       if (!department) {
@@ -91,6 +92,19 @@ const getAllTasks = async (req, res) => {
         $or: [
           { assigned_to: { $in: deptUserIds } },
           { createdBy: { $in: deptUserIds } },
+        ],
+      });
+    } else if (userRole === "visitor") {
+      const projCamUsers = await User.find(
+        { department: { $in: ["Projects", "CAM"] } },
+        "_id"
+      );
+      const projCamUserIds = projCamUsers.map((u) => u._id);
+
+      preLookupMatch.push({
+        $or: [
+          { assigned_to: { $in: projCamUserIds } },
+          { createdBy: { $in: projCamUserIds } },
         ],
       });
     } else {
@@ -140,25 +154,6 @@ const getAllTasks = async (req, res) => {
     );
 
     const postLookupMatch = [];
-
-    if (userRole === "visitor") {
-      postLookupMatch.push({
-        $or: [
-          {
-            $expr: {
-              $anyElementTrue: {
-                $map: {
-                  input: "$assigned_to",
-                  as: "user",
-                  in: { $in: ["$$user.department", ["Projects", "CAM"]] },
-                },
-              },
-            },
-          },
-          { "createdBy_info.department": { $in: ["Projects", "CAM"] } },
-        ],
-      });
-    }
 
     // Hide statuses
     const hideStatuses = [];
@@ -280,6 +275,7 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
