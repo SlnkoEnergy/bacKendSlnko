@@ -72,12 +72,12 @@ const getAllTasks = async (req, res) => {
 
     const preLookupMatch = [];
 
-    // 👇 Handle visibility rules
     if (
       currentUser.emp_id === "SE-013" ||
       userRole === "admin" ||
       userRole === "superadmin"
     ) {
+      // full access, no filter
     } else if (userRole === "manager") {
       const department = currentUser.department;
       if (!department) {
@@ -87,6 +87,20 @@ const getAllTasks = async (req, res) => {
       }
 
       const departmentUsers = await User.find({ department }, "_id");
+      const deptUserIds = departmentUsers.map((u) => u._id);
+
+      preLookupMatch.push({
+        $or: [
+          { assigned_to: { $in: deptUserIds } },
+          { createdBy: { $in: deptUserIds } },
+        ],
+      });
+    } else if (userRole === "visitor") {
+      const allowedDepartments = ["Projects", "CAM"];
+      const departmentUsers = await User.find(
+        { department: { $in: allowedDepartments } },
+        "_id"
+      );
       const deptUserIds = departmentUsers.map((u) => u._id);
 
       preLookupMatch.push({
