@@ -336,16 +336,13 @@ const getPaginatedPo = async (req, res) => {
 
      if (filter) {
       switch (filter) {
-        case "PO To be Raised":
-          matchStage["current_status.status"] = "draft";
-          break;
         case "ETD Pending":
           matchStage["current_status.status"] = "draft";
           matchStage["etd"] = null;
           break;
-        case "RTD Pending":
-          matchStage["current_status.status"] = "ready_to_dispatch";
-          matchStage["dispatch_date"] = null;
+          case "ETD Done":
+          matchStage["current_status.status"] = "draft";
+          matchStage["etd"] = { $ne: null };
           break;
         case "Ready to Dispatch":
           matchStage["current_status.status"] = "ready_to_dispatch";
