@@ -243,10 +243,8 @@ const getAllLeads = async (req, res) => {
         : allLeads;
 
     const sortedLeads = filteredLeads.sort(
-      (a, b) =>
-        new Date(b.entry_date || b.createdAt) -
-        new Date(a.entry_date || a.createdAt)
-    );
+  (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+);
 
     const total = sortedLeads.length;
     const paginatedLeads = sortedLeads.slice((page - 1) * limit, page * limit);
