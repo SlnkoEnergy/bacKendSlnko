@@ -276,6 +276,7 @@ const getAllTasks = async (req, res) => {
   }
 };
 
+
 // Get a task by ID
 const getTaskById = async (req, res) => {
   try {
