@@ -76,7 +76,6 @@ const getAllTasks = async (req, res) => {
       userRole === "admin" ||
       userRole === "superadmin"
     ) {
-    
     } else if (userRole === "manager") {
       const department = currentUser.department;
       if (!department) {
@@ -145,7 +144,17 @@ const getAllTasks = async (req, res) => {
     if (userRole === "visitor") {
       postLookupMatch.push({
         $or: [
-          { "assigned_to.department": { $in: ["Projects", "CAM"] } },
+          {
+            $expr: {
+              $anyElementTrue: {
+                $map: {
+                  input: "$assigned_to",
+                  as: "user",
+                  in: { $in: ["$$user.department", ["Projects", "CAM"]] },
+                },
+              },
+            },
+          },
           { "createdBy_info.department": { $in: ["Projects", "CAM"] } },
         ],
       });
@@ -271,7 +280,6 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
-
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
