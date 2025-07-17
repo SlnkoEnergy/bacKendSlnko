@@ -251,7 +251,7 @@ const getAllLeads = async (req, res) => {
 
 const getAllLeadDropdown = async (req, res) => {
   try {
-    const leads = await bdleadsModells.find({}, "email id _id c_name mobile");
+    const leads = await bdleadsModells.find({}, "id _id name contact_details.email contact_details.mobile");
 
     res.status(200).json({
       message: "All BD Leads",
