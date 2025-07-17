@@ -55,7 +55,6 @@ const getAllTasks = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized: Invalid user." });
     }
 
-    const userId = currentUser._id;
     const userRole = currentUser.role.toLowerCase();
 
     const {
@@ -77,6 +76,7 @@ const getAllTasks = async (req, res) => {
       userRole === "admin" ||
       userRole === "superadmin"
     ) {
+    
     } else if (userRole === "manager") {
       const department = currentUser.department;
       if (!department) {
@@ -106,6 +106,7 @@ const getAllTasks = async (req, res) => {
       basePipeline.push({ $match: { $and: preLookupMatch } });
     }
 
+    // Common lookups
     basePipeline.push(
       {
         $lookup: {
@@ -141,7 +142,16 @@ const getAllTasks = async (req, res) => {
 
     const postLookupMatch = [];
 
-    // 👇 Hide statuses logic
+    if (userRole === "visitor") {
+      postLookupMatch.push({
+        $or: [
+          { "assigned_to.department": { $in: ["Projects", "CAM"] } },
+          { "createdBy_info.department": { $in: ["Projects", "CAM"] } },
+        ],
+      });
+    }
+
+    // Hide statuses
     const hideStatuses = [];
     if (req.query.hide_completed === "true") hideStatuses.push("completed");
     if (req.query.hide_pending === "true") hideStatuses.push("pending");
@@ -153,6 +163,7 @@ const getAllTasks = async (req, res) => {
       });
     }
 
+    // Search
     if (search) {
       postLookupMatch.push({
         $or: [
@@ -167,10 +178,12 @@ const getAllTasks = async (req, res) => {
       });
     }
 
+    // Status filter
     if (status) {
       postLookupMatch.push({ "current_status.status": status });
     }
 
+    // CreatedAt filter
     if (createdAt) {
       const start = new Date(createdAt);
       const end = new Date(createdAt);
@@ -178,10 +191,12 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ createdAt: { $gte: start, $lt: end } });
     }
 
+    // Department filter
     if (department) {
       postLookupMatch.push({ "assigned_to.department": department });
     }
 
+    // Apply post-lookup filters
     if (postLookupMatch.length > 0) {
       basePipeline.push({ $match: { $and: postLookupMatch } });
     }
@@ -256,6 +271,7 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
