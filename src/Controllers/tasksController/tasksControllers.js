@@ -1,4 +1,3 @@
-const { default: mongoose } = require("mongoose");
 const TaskCounterSchema = require("../../Modells/Globals/taskCounter");
 const tasksModells = require("../../Modells/tasks/task");
 const User = require("../../Modells/userModells");
@@ -56,7 +55,6 @@ const getAllTasks = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized: Invalid user." });
     }
 
-    const userId = currentUser._id;
     const userRole = currentUser.role.toLowerCase();
 
     const {
@@ -73,12 +71,31 @@ const getAllTasks = async (req, res) => {
 
     const preLookupMatch = [];
 
-    if (userRole !== "admin" && userRole !== "superadmin") {
+    if (
+      currentUser.emp_id === "SE-013" ||
+      userRole === "admin" ||
+      userRole === "superadmin"
+    ) {
+    } else if (userRole === "manager") {
+      const department = currentUser.department;
+      if (!department) {
+        return res
+          .status(400)
+          .json({ message: "Manager department not found." });
+      }
+
+      const departmentUsers = await User.find({ department }, "_id");
+      const deptUserIds = departmentUsers.map((u) => u._id);
+
       preLookupMatch.push({
         $or: [
-          { assigned_to: { $in: [userId] } },
-          { createdBy: userId },
+          { assigned_to: { $in: deptUserIds } },
+          { createdBy: { $in: deptUserIds } },
         ],
+      });
+    } else {
+      preLookupMatch.push({
+        $or: [{ assigned_to: currentUser._id }, { createdBy: currentUser._id }],
       });
     }
 
@@ -88,6 +105,7 @@ const getAllTasks = async (req, res) => {
       basePipeline.push({ $match: { $and: preLookupMatch } });
     }
 
+    // Common lookups
     basePipeline.push(
       {
         $lookup: {
@@ -123,6 +141,38 @@ const getAllTasks = async (req, res) => {
 
     const postLookupMatch = [];
 
+    if (userRole === "visitor") {
+      postLookupMatch.push({
+        $or: [
+          {
+            $expr: {
+              $anyElementTrue: {
+                $map: {
+                  input: "$assigned_to",
+                  as: "user",
+                  in: { $in: ["$$user.department", ["Projects", "CAM"]] },
+                },
+              },
+            },
+          },
+          { "createdBy_info.department": { $in: ["Projects", "CAM"] } },
+        ],
+      });
+    }
+
+    // Hide statuses
+    const hideStatuses = [];
+    if (req.query.hide_completed === "true") hideStatuses.push("completed");
+    if (req.query.hide_pending === "true") hideStatuses.push("pending");
+    if (req.query.hide_inprogress === "true") hideStatuses.push("in progress");
+
+    if (hideStatuses.length > 0) {
+      postLookupMatch.push({
+        "current_status.status": { $nin: hideStatuses },
+      });
+    }
+
+    // Search
     if (search) {
       postLookupMatch.push({
         $or: [
@@ -131,16 +181,18 @@ const getAllTasks = async (req, res) => {
           { taskCode: searchRegex },
           { "project_details.code": searchRegex },
           { "project_details.name": searchRegex },
-          { type: searchRegex},
-          { sub_type: searchRegex}
+          { type: searchRegex },
+          { sub_type: searchRegex },
         ],
       });
     }
 
+    // Status filter
     if (status) {
       postLookupMatch.push({ "current_status.status": status });
     }
 
+    // CreatedAt filter
     if (createdAt) {
       const start = new Date(createdAt);
       const end = new Date(createdAt);
@@ -148,10 +200,12 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ createdAt: { $gte: start, $lt: end } });
     }
 
+    // Department filter
     if (department) {
       postLookupMatch.push({ "assigned_to.department": department });
     }
 
+    // Apply post-lookup filters
     if (postLookupMatch.length > 0) {
       basePipeline.push({ $match: { $and: postLookupMatch } });
     }
@@ -163,8 +217,8 @@ const getAllTasks = async (req, res) => {
           _id: 1,
           title: 1,
           taskCode: 1,
-          type:1,
-          sub_type:1,
+          type: 1,
+          sub_type: 1,
           description: 1,
           createdAt: 1,
           deadline: 1,
@@ -314,7 +368,6 @@ const deleteTask = async (req, res) => {
   }
 };
 
-
 const exportToCsv = async (req, res) => {
   try {
     const { ids } = req.body;
@@ -323,7 +376,8 @@ const exportToCsv = async (req, res) => {
       return res.status(400).json({ message: "No task IDs provided." });
     }
 
-    const tasks = await tasksModells.find({ _id: { $in: ids } })
+    const tasks = await tasksModells
+      .find({ _id: { $in: ids } })
       .populate("project_id", "name")
       .populate("assigned_to", "name")
       .populate("createdBy", "name")
@@ -374,7 +428,6 @@ const exportToCsv = async (req, res) => {
   }
 };
 
-
 module.exports = {
   createTask,
   getAllTasks,
@@ -382,5 +435,5 @@ module.exports = {
   updateTask,
   deleteTask,
   updateTaskStatus,
-  exportToCsv
+  exportToCsv,
 };
