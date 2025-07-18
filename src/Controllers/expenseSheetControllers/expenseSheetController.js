@@ -481,188 +481,161 @@ const deleteExpense = async (req, res) => {
   }
 };
 
-//Export To CSV
-
-const exportAllExpenseSheetsCSV = async (req, res) => {
-  try {
-    const expenseSheets = await ExpenseSheet.aggregate([
-      { $match: { current_status: "hr approval" } },
-      {
-        $project: {
-          _id: 0,
-          "Expense Code": "$expense_code",
-          "Employee Code": "$emp_id",
-          "Employee Name": "$emp_name",
-          "Requested Amount": { $toDouble: "$total_requested_amount" },
-          "Approval Amount": { $toDouble: "$total_approved_amount" },
-          Status: "$current_status",
-        },
-      },
-    ]);
-
-    const fields = [
-      "Expense Code",
-      "Employee Code",
-      "Employee Name",
-      "Requested Amount",
-      "Approval Amount",
-      "Status",
-    ];
-
-    const json2csvParser = new Parser({ fields });
-    const csv = json2csvParser.parse(expenseSheets);
-
-    res.header("Content-Type", "text/csv");
-    res.attachment("HR_Approved_ExpenseSheets.csv");
-    res.send(csv);
-  } catch (err) {
-    console.error("CSV Export Error:", err.message);
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: err.message });
-  }
-};
 
 const exportExpenseSheetsCSVById = async (req, res) => {
   try {
-    const sheetId = req.params._id;
+    const sheetIds = req.body.sheetIds;
 
-    const expenseSheets = await ExpenseSheet.aggregate([
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(sheetId),
-        },
-      },
-      { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          _id: 0,
-          "Expense Code": "$expense_code",
-          "Emp Code": "$emp_id",
-          "Employee Name": "$emp_name",
-          "Project Code": { $toString: "$items.project_code" },
-          "Sheet Current Status": "$current_status",
-          From: {
-            $dateToString: { format: "%d/%m/%Y", date: "$expense_term.from" },
-          },
-          To: {
-            $dateToString: { format: "%d/%m/%Y", date: "$expense_term.to" },
-          },
-          "Sheet Remarks": "$comments",
-          Category: "$items.category",
-          Description: "$items.description",
-          "Expense Date": {
-            $cond: [
-              { $ifNull: ["$items.expense_date", false] },
-              {
-                $dateToString: {
-                  format: "%d/%m/%Y",
-                  date: "$items.expense_date",
-                },
-              },
-              "",
-            ],
-          },
-          "Invoice Number": "$items.invoice.invoice_number",
-          "Invoice Amount": {
-            $toDouble: "$items.invoice.invoice_amount",
-          },
-          "Item Remarks": "$items.remarks",
-          "Attachment Available": {
-            $cond: [
-              {
-                $and: [
-                  { $ne: ["$items.attachment_url", null] },
-                  { $ne: ["$items.attachment_url", ""] },
-                ],
-              },
-              "Yes",
-              "No",
-            ],
-          },
-        },
-      },
-    ]);
-
-    if (expenseSheets.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No records found or not in HR approval stage." });
+    if (!Array.isArray(sheetIds) || sheetIds.length === 0) {
+      return res.status(400).json({ message: "No sheetIds provided." });
     }
 
-    const firstRow = expenseSheets[0];
-    const headerSection = [
-      ["Expense Code", firstRow["Expense Code"]],
-      ["Emp Code", firstRow["Emp Code"]],
-      ["Employee Name", firstRow["Employee Name"]],
-      ["From", firstRow["From"]],
-      ["To", firstRow["To"]],
-      ["Sheet Current Status", firstRow["Sheet Current Status"]],
-      "",
-    ];
+    let finalCSV = "";
 
-    const fields = Object.keys(firstRow).filter(
-      (field) =>
-        ![
-          "Expense Code",
-          "Emp Code",
-          "Employee Name",
-          "From",
-          "To",
-          "Sheet Current Status",
-          "Current Status",
-        ].includes(field)
-    );
+    for (const sheetId of sheetIds) {
+      const expenseSheets = await ExpenseSheet.aggregate([
+        {
+          $match: {
+            _id: new mongoose.Types.ObjectId(sheetId),
+          },
+        },
+        { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 0,
+            "Expense Code": "$expense_code",
+            "Emp Code": "$emp_id",
+            "Employee Name": "$emp_name",
+            "Project Code": { $toString: "$items.project_code" },
+            "Sheet Current Status": "$current_status",
+            From: {
+              $dateToString: { format: "%d/%m/%Y", date: "$expense_term.from" },
+            },
+            To: {
+              $dateToString: { format: "%d/%m/%Y", date: "$expense_term.to" },
+            },
+            "Sheet Remarks": "$comments",
+            Category: "$items.category",
+            Description: "$items.description",
+            "Expense Date": {
+              $cond: [
+                { $ifNull: ["$items.expense_date", false] },
+                {
+                  $dateToString: {
+                    format: "%d/%m/%Y",
+                    date: "$items.expense_date",
+                  },
+                },
+                "",
+              ],
+            },
+            "Invoice Number": "$items.invoice.invoice_number",
+            "Invoice Amount": {
+              $toDouble: "$items.invoice.invoice_amount",
+            },
+            "Item Remarks": "$items.remarks",
+            "Attachment Available": {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$items.attachment_url", null] },
+                    { $ne: ["$items.attachment_url", ""] },
+                  ],
+                },
+                "Yes",
+                "No",
+              ],
+            },
+          },
+        },
+      ]);
 
-    const json2csvParser = new Parser({ fields });
-    let csvTable = json2csvParser.parse(expenseSheets);
-
-    const summaryMap = {};
-    let totalRequested = 0;
-    let totalApproved = 0;
-
-    for (const row of expenseSheets) {
-      const category = row["Category"] || "Uncategorized";
-      const invoice = parseFloat(row["Invoice Amount"] || 0);
-      const approved = parseFloat(row["Approved Amount"] || 0);
-
-      if (!summaryMap[category]) {
-        summaryMap[category] = { requested: 0, approved: 0 };
+      if (expenseSheets.length === 0) {
+        finalCSV += `Sheet ID: ${sheetId} — No records found.\n\n`;
+        continue;
       }
 
-      summaryMap[category].requested += invoice;
-      summaryMap[category].approved += approved;
+      const firstRow = expenseSheets[0];
+      const headerSection = [
+        ["Expense Code", firstRow["Expense Code"]],
+        ["Emp Code", firstRow["Emp Code"]],
+        ["Employee Name", firstRow["Employee Name"]],
+        ["From", firstRow["From"]],
+        ["To", firstRow["To"]],
+        ["Sheet Current Status", firstRow["Sheet Current Status"]],
+        "",
+      ];
 
-      totalRequested += invoice;
-      totalApproved += approved;
-    }
-
-    const summaryRows = [
-      "",
-      "",
-      "Summary by Category",
-      "Category,Total Requested Amount,Total Approved Amount",
-    ];
-
-    for (const [category, data] of Object.entries(summaryMap)) {
-      summaryRows.push(
-        `"${category}",${data.requested.toFixed(2)},${data.approved.toFixed(2)}`
+      const fields = Object.keys(firstRow).filter(
+        (field) =>
+          ![
+            "Expense Code",
+            "Emp Code",
+            "Employee Name",
+            "From",
+            "To",
+            "Sheet Current Status",
+            "Current Status",
+          ].includes(field)
       );
+
+      const json2csvParser = new Parser({ fields });
+      let csvTable = json2csvParser.parse(expenseSheets);
+
+      // Summary
+      const summaryMap = {};
+      let totalRequested = 0;
+      let totalApproved = 0;
+
+      for (const row of expenseSheets) {
+        const category = row["Category"] || "Uncategorized";
+        const invoice = parseFloat(row["Invoice Amount"] || 0);
+        const approved = parseFloat(row["Approved Amount"] || 0);
+
+        if (!summaryMap[category]) {
+          summaryMap[category] = { requested: 0, approved: 0 };
+        }
+
+        summaryMap[category].requested += invoice;
+        summaryMap[category].approved += approved;
+
+        totalRequested += invoice;
+        totalApproved += approved;
+      }
+
+      const summaryRows = [
+        "",
+        "",
+        "Summary by Category",
+        "Category,Total Requested Amount,Total Approved Amount",
+      ];
+
+      for (const [category, data] of Object.entries(summaryMap)) {
+        summaryRows.push(
+          `"${category}",${data.requested.toFixed(2)},${data.approved.toFixed(2)}`
+        );
+      }
+
+      summaryRows.push(
+        `"Total",${totalRequested.toFixed(2)},${totalApproved.toFixed(2)}`
+      );
+
+      const headerCSV = headerSection
+        .map((row) => (Array.isArray(row) ? row.join(",") : row))
+        .join("\n");
+
+      finalCSV +=
+        headerCSV +
+        "\n" +
+        csvTable +
+        "\n" +
+        summaryRows.join("\n") +
+        "\n\n";
     }
-
-    summaryRows.push(
-      `"Total",${totalRequested.toFixed(2)},${totalApproved.toFixed(2)}`
-    );
-
-    const headerCSV = headerSection
-      .map((row) => (Array.isArray(row) ? row.join(",") : row))
-      .join("\n");
-
-    const fullCSV = headerCSV + "\n" + csvTable + "\n" + summaryRows.join("\n");
 
     res.header("Content-Type", "text/csv");
     res.attachment("expenseSheets.csv");
-    res.send(fullCSV);
+    res.send(finalCSV);
   } catch (err) {
     console.error("CSV Export Error:", err.message);
     res
@@ -670,6 +643,7 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
+
 
 const getExpensePdf = async (req, res) => {
   try {
@@ -733,7 +707,6 @@ module.exports = {
   updateExpenseStatusOverall,
   updateExpenseStatusItems,
   deleteExpense,
-  exportAllExpenseSheetsCSV,
   exportExpenseSheetsCSVById,
   getExpensePdf
 };
