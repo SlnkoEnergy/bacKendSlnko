@@ -32,7 +32,11 @@ const getAllExpense = async (req, res) => {
     }
 
     if (status) {
-      match["current_status"] = status;
+      match.$or = [
+        ...(match.$or || []),
+        { current_status: status },
+        { "current_status.status": status },
+      ];
     }
 
     if (from && to) {
@@ -67,6 +71,7 @@ const getAllExpense = async (req, res) => {
       currentUser.department === "superadmin" ||
       currentUser.department === "admin"
     ) {
+      // No additional filtering
     } else if (
       currentUser.department === "HR" &&
       currentUser.emp_id !== "SE-208"
@@ -75,9 +80,13 @@ const getAllExpense = async (req, res) => {
         $match: {
           $or: [
             { current_status: "manager approval" },
+            { "current_status.status": "manager approval" },
             { current_status: "hr approval" },
+            { "current_status.status": "hr approval" },
             { current_status: "final approval" },
+            { "current_status.status": "final approval" },
             { current_status: "rejected" },
+            { "current_status.status": "rejected" },
           ],
         },
       });
@@ -86,13 +95,16 @@ const getAllExpense = async (req, res) => {
         $match: {
           $or: [
             { current_status: "hr approval" },
+            { "current_status.status": "hr approval" },
             { current_status: "final approval" },
+            { "current_status.status": "final approval" },
             { current_status: "rejected" },
+            { "current_status.status": "rejected" },
           ],
         },
       });
     } else if (
-      currentUser.emp !== "Accounts" &&
+      currentUser.department !== "Accounts" &&
       (currentUser.role === "manager" || currentUser.role === "visitor")
     ) {
       pipeline.push({
@@ -140,6 +152,7 @@ const getAllExpense = async (req, res) => {
     });
   }
 };
+
 
 const getExpenseById = async (req, res) => {
   try {
@@ -195,11 +208,10 @@ const createExpense = async (req, res) => {
     const folderType = user.role === "site" ? "onsite" : "offsite";
     const folderPath = `expense_sheet/${folderType}/${user.emp_id}`;
 
-    // Step 1: Upload files and map index => URL
-    const uploadedFileMap = {}; // { "5": "https://..." }
+    const uploadedFileMap = {}; 
 
     for (const file of req.files || []) {
-      const match = file.fieldname.match(/file_(\d+)/); // Extract index from fieldname
+      const match = file.fieldname.match(/file_(\d+)/); 
       if (!match) continue;
 
       const index = match[1];
@@ -210,7 +222,7 @@ const createExpense = async (req, res) => {
         contentType: file.mimetype,
       });
 
-      const uploadUrl = `https://upload.slnkoprotrac.com?containerName=protrac&foldername=${folderPath}`;
+      const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${folderPath}`;
 
       const response = await axios.post(uploadUrl, form, {
         headers: form.getHeaders(),
@@ -291,7 +303,12 @@ const updateDisbursementDate = async (req, res) => {
       return res.status(404).json({ error: "Expense Sheet not found" });
     }
 
-    if (expense.current_status !== "final approval") {
+    const statusValue =
+      typeof expense.current_status === "string"
+        ? expense.current_status
+        : expense.current_status?.status;
+
+    if (statusValue?.trim().toLowerCase() !== "final approval") {
       return res
         .status(400)
         .json({ error: "Expense Sheet is not in final approval status" });
@@ -303,8 +320,17 @@ const updateDisbursementDate = async (req, res) => {
       return res.status(400).json({ error: "Disbursement date is required" });
     }
 
-    // Update the disbursement date
-    expense.disbursement_date = disbursement_date;
+    const safeDateStr = disbursement_date.replace(/\//g, "-");
+    const parsedDate = new Date(`${safeDateStr}T12:00:00+05:30`);
+
+    if (isNaN(parsedDate.getTime())) {
+      return res
+        .status(400)
+        .json({ error: "Invalid disbursement date format" });
+    }
+
+    expense.disbursement_date = parsedDate;
+
     await expense.save();
     res.status(200).json({
       message: "Disbursement date updated successfully",
@@ -334,7 +360,7 @@ const updateExpenseStatusOverall = async (req, res) => {
     expense.status_history.push({
       status,
       remarks: remarks || "",
-      user_id: req.user._id,
+      user_id: req.user.userId,
       updatedAt: new Date(),
     });
 
@@ -344,14 +370,16 @@ const updateExpenseStatusOverall = async (req, res) => {
       Array.isArray(expense.items) &&
       (status === "manager approval" ||
         status === "rejected" ||
-        status === "hold")
+        status === "hold" ||
+        status === "hr approval" ||
+        status === "final approval")
     ) {
       expense.items = expense.items.map((item) => {
         item.item_status_history = item.item_status_history || [];
         item.item_status_history.push({
           status,
           remarks: remarks || "",
-          user_id: req.user._id,
+          user_id: req.user.userId,
           updatedAt: new Date(),
         });
 
@@ -408,7 +436,7 @@ const updateExpenseStatusItems = async (req, res) => {
     item.item_status_history.push({
       status,
       remarks: remarks || "",
-      user_id: req.user._id,
+      user_id: req.user.userId,
       updatedAt: new Date(),
     });
 

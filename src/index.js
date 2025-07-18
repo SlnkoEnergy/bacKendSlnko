@@ -4,6 +4,9 @@ const app = express();
 const routes = require("../src/Routes/routes");
 const engineeringRoutes = require("../src/Routes/engineering/engineeringRoutes");
 const bdleadsRoutes = require("../src/Routes/bdleadDashboard/bdleadDashboardRoutes");
+const dprRoutes = require("../src/Routes/dpr/dprRoutes");
+const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRoutes");
+const taskRoutes = require("../src/Routes/tasks/tasks");
 const cors = require("cors");
 const { config } = require("dotenv");
 
@@ -16,7 +19,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
-const db = process.env.DB_URL;
+const db = process.env.DB_DEVELOPMENT_URL;
 
 const startServer = async () => {
   try {
@@ -26,6 +29,9 @@ const startServer = async () => {
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);
+    app.use("/v1/dpr", dprRoutes);
+    app.use("/v1/purchaseRequest",purchaseRoutes);
+    app.use("/v1/tasks", taskRoutes);
 
     // Start the server
     app.listen(PORT, () => {

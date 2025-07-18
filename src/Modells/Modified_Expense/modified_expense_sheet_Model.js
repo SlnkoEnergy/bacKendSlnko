@@ -2,63 +2,48 @@ const mongoose = require("mongoose");
 const updateCurrentStatus = require("../../utils/statusUpdateUtils/updateCurrentStatus");
 const updateCurrentStatusItems = require("../../utils/statusUpdateUtils/updateCurrentStatusItems");
 
-
-const expenseSheetSchema = new mongoose.Schema(
+const updatedexpenseSheetSchema = new mongoose.Schema(
   {
     expense_code: { type: String, required: true },
-    items: [
+
+    projects: [
       {
-        category: {
-          type: String,
-        },
         project_id: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "projectDetail",
         },
-        project_code: {
-          type: String,
-        },
-        project_name: {
-          type: String,
-        },
-        description: { type: String },
-        expense_date: { type: Date, default: Date.now },
-        invoice: {
-          invoice_number: String,
-          invoice_amount: { type: String, required: true },
-        },
-        attachment_url: { type: String },
-        item_status_history: [
+        project_code: { type: String },
+        project_name: { type: String },
+        items: [
           {
-            status: {
-              type: String,
+            category: { type: String },
+            description: { type: String },
+            expense_date: { type: Date, default: Date.now },
+            invoice: {
+              invoice_number: String,
+              invoice_amount: { type: String, required: true },
             },
-            remarks: {
-              type: String,
+            attachment_url: { type: String },
+            item_status_history: [
+              {
+                status: { type: String },
+                remarks: { type: String },
+                user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+                updatedAt: { type: Date, default: Date.now },
+              },
+            ],
+            approved_amount: { type: String },
+            remarks: { type: String },
+            item_current_status: {
+              user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+              remarks: { type: String },
+              status: { type: String },
             },
-            user_id: {
-              type: mongoose.Schema.Types.ObjectId,
-              ref: "User",
-            },
-            updatedAt: { type: Date, default: Date.now },
           },
         ],
-        approved_amount: { type: String },
-        remarks: { type: String },
-        item_current_status: {
-          user_id: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-          },
-          remarks: {
-            type: String,
-          },
-          status: {
-            type: String,
-          },
-        },
       },
     ],
+
     user_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -131,14 +116,14 @@ const expenseSheetSchema = new mongoose.Schema(
 );
 
 // ⏱ Auto-update current_status before save
-expenseSheetSchema.pre("save", function (next) {
+updatedexpenseSheetSchema.pre("save", function (next) {
   updateCurrentStatus(this, "status_history", "current_status");
   next();
 });
 
-expenseSheetSchema.pre("save", function (next) {
+updatedexpenseSheetSchema.pre("save", function (next) {
   updateCurrentStatusItems(this, "item_status_history", "item_current_status");
   next();
 });
 
-module.exports = mongoose.model("ExpenseSheet", expenseSheetSchema);
+module.exports = mongoose.model("ModifiedExpenseSheet", updatedexpenseSheetSchema);

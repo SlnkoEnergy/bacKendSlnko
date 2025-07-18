@@ -29,6 +29,7 @@ const {
   createModuleCategory,
   addRemarkToModuleCategory,
   updateModuleCategoryDB,
+  getStatusHistoryForModuleCategory,
 } = require("../../Controllers/engineeringController/engineeringModules/moduleCategoryContoller");
 const {
   updateModuleTemplateCategoryId,
@@ -44,6 +45,7 @@ const {
   updateMaterialCategory,
   deleteMaterialCategory,
   getMaterialCategoryById,
+  getAllMaterialCategoriesDropdown,
 } = require("../../Controllers/engineeringController/materials/materialCategoryController");
 const {
   createMaterial,
@@ -51,6 +53,7 @@ const {
   updateMaterial,
   deleteMaterial,
 } = require("../../Controllers/engineeringController/materials/materialController");
+const { getMaterialScope } = require("../../Controllers/purchaseRequestController/purchaseRequestController");
 const jwtMW = require("../../middlewares/auth");
 const upload = require("../../middlewares/multer");
 
@@ -143,6 +146,12 @@ router.put(
   jwtMW.authorization,
   updateModuleCategoryDB
 )
+router.get('/:projectId/moduletemplate/:module_template/statusHistory',
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getStatusHistoryForModuleCategory
+);
+
 
 // Boq Categories
 router.post(
@@ -251,6 +260,7 @@ router.get(
   jwtMW.authorization,
   getAllMaterialCategories
 );
+router.get("/material-category-drop", jwtMW.authentication,jwtMW.authorization,getAllMaterialCategoriesDropdown);
 router.get(
   "/material-category-id",
   jwtMW.authentication,

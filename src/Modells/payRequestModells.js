@@ -14,7 +14,6 @@ const payRequestschema = new mongoose.Schema(
     po_number: { type: String },
     po_value: { type: String },
     po_balance: { type: String },
-
     pay_mode: {
       type: String,
     },

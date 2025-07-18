@@ -1,4 +1,4 @@
-var router = require("express").Router();
+const router = require("express").Router();
 const jwtMW = require("../middlewares/auth");
 const {
   addMoney,
@@ -16,6 +16,7 @@ const {
   deleteProjectById,
   getProjectById,
   getProjectbyPId,
+  getProjectDropwdown,
 } = require("../Controllers/ProjectController");
 const {
   userRegister,
@@ -30,6 +31,8 @@ const {
   verifyandResetPassword,
   verifyOtp,
   getAllUserByDepartment,
+  editUser,
+  getAllDepartment,
 } = require("../Controllers/userController");
 
 const {
@@ -37,12 +40,17 @@ const {
   editPO,
   getPO,
   getallpo,
+  getPaginatedPo,
+  getExportPo,
   exportCSV,
   moverecovery,
   getPOByProjectId,
+  getPOById,
   deletePO,
   getpohistory,
   getPOHistoryById,
+  updateEditandDeliveryDate,
+  updateStatusPO,
 } = require("../Controllers/purchaseOrderController");
 const {
   addVendor,
@@ -85,6 +93,7 @@ const {
   addBill,
   getBill,
   getPaginatedBill,
+  GetBillByID,
   updatebill,
   deleteBill,
   bill_approved,
@@ -201,6 +210,7 @@ const {
   getbyid,
   search,
   getByIdOrLeadId,
+  migrateProjectToHandover,
 } = require("../Controllers/handoversheetController");
 const {
   addmoduleMaster,
@@ -223,7 +233,12 @@ const {
   updateDisbursementDate,
   getExpensePdf,
 } = require("../Controllers/expenseSheetControllers/expenseSheetController");
-// const updateExpenseStatus = require("../middlewares/expenseSheetMiddlewares/updateExpenseStatus");
+
+const {
+  createModifiedExpense,
+  getAllModifiedExpense,
+  getModifiedExpenseById,
+} = require("../Controllers/expenseSheetControllers/ModifiedexpenseSheetController");
 
 const {
   createlead,
@@ -263,7 +278,26 @@ router.get(
   jwtMW.authorization,
   getSingleUser
 );
-router.get('/all-user', jwtMW.authentication, jwtMW.authorization, getAllUserByDepartment);
+router.get(
+  "/all-user",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllUserByDepartment
+);
+
+router.put(
+  "/edit-user/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  editUser
+);
+
+router.get(
+  "/all-dept",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllDepartment
+);
 //forget pass through resend
 // router.post("/forget-password",forgetpassword);
 
@@ -291,14 +325,26 @@ router.delete(
   jwtMW.authentication,
   jwtMW.authorization,
   deleteProjectById
-); //delete project by id
+);
+//delete project by id
 router.get(
   "/get-project-iD-IT/:_id",
   jwtMW.authentication,
   jwtMW.authorization,
   getProjectById
-); 
-router.get('/project', jwtMW.authentication, jwtMW.authorization, getProjectbyPId);
+);
+router.get(
+  "/project",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getProjectbyPId
+);
+router.get(
+  "/project-dropdown",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getProjectDropwdown
+);
 
 //addMoney APi
 router.post(
@@ -341,6 +387,18 @@ router.get(
   jwtMW.authorization,
   getallpo
 );
+router.get(
+  "/get-paginated-po",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getPaginatedPo
+);
+router.get(
+  "/get-export-po",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getExportPo
+);
 router.post(
   "/export-to-csv",
   jwtMW.authentication,
@@ -354,10 +412,16 @@ router.put(
   moverecovery
 );
 router.get(
-  "/get-po-by-p_id/",
+  "/get-po-by-p_id",
   jwtMW.authentication,
   jwtMW.authorization,
   getPOByProjectId
+);
+router.get(
+  "/get-po-by-id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getPOById
 );
 router.delete(
   "/delete-pO-IT/:_id",
@@ -372,10 +436,23 @@ router.get(
   getpohistory
 );
 router.get(
-  "/get-po-history-iD/:_id",
+  "/get-po-history",
   jwtMW.authentication,
   jwtMW.authorization,
   getPOHistoryById
+);
+router.put(
+  "/updateStatusPO",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateStatusPO
+);
+
+router.put(
+  "/:id/updateEtdOrDelivery",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateEditandDeliveryDate
 );
 
 //Add vendor
@@ -553,6 +630,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getPaginatedBill
+);
+router.get(
+  "/get-bill-by-id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  GetBillByID
 );
 router.put(
   "/update-bill/:_id",
@@ -797,7 +880,12 @@ router.get(
   allbdlead
 );
 
-router.get('/all-leads-won-projects', jwtMW.authentication, jwtMW.authorization, getAllWonLeadsProject)
+router.get(
+  "/all-leads-won-projects",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllWonLeadsProject
+);
 
 router.get(
   "/get-initial-bd-lead-streams",
@@ -1067,6 +1155,12 @@ router.get(
   jwtMW.authorization,
   search
 );
+router.put(
+  "/migrateProject",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  migrateProjectToHandover
+);
 
 //module master
 router.post(
@@ -1164,7 +1258,25 @@ router.get(
   jwtMW.authorization,
   getExpensePdf
 );
-
+router.post(
+  "/create-modified-expense",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  upload,
+  createModifiedExpense
+);
+router.get(
+  "/get-all-modified-expense",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllModifiedExpense
+);
+router.get(
+  "/get-modified-expense-by-id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getModifiedExpenseById
+);
 //bd lead new
 router.post(
   "/create-lead",

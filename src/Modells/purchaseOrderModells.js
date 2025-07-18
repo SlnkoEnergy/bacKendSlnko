@@ -1,4 +1,5 @@
 const { default: mongoose } = require("mongoose");
+const { updatePurchaseRequestStatus } = require( "../utils/updatePurchaseRequestStatus"); 
 
 const purchaseOrderSchema = new mongoose.Schema(
   {
@@ -8,7 +9,6 @@ const purchaseOrderSchema = new mongoose.Schema(
     offer_Id: {
       type: String,
     },
-
     po_number: {
       type: String,
     },
@@ -16,7 +16,8 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
     },
     item: {
-      type: String,
+      type:  mongoose.Schema.Types.Mixed,
+      ref: "MaterialCategory",
     },
     other: {
       type: String,
@@ -37,7 +38,6 @@ const purchaseOrderSchema = new mongoose.Schema(
     partial_billing: {
       type: String,
     },
-
     amount_paid: {
       type: Number,
     },
@@ -53,9 +53,55 @@ const purchaseOrderSchema = new mongoose.Schema(
     po_basic: {
       type: String,
     },
-    gst:{type:String},
+    gst: { type: String },
+    pr_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "purchaseRequest",
+    },
+    etd: {
+      type: Date,
+    },
+    delivery_date: {
+      type: Date,
+    },
+    dispatch_date:{
+      type:Date
+    },
+    status_history: [
+      {
+        status: {
+          type: String,
+          enum: ["draft", "po_created", "out_for_delivery","ready_to_dispatch" ,"delivered"],
+        },
+        remarks: {
+          type: String,
+        },
+        user_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      },
+    ],
+    current_status: {
+      status: {
+        type: String,
+        enum: ["draft", "po_created", "out_for_delivery", "ready_to_dispatch","delivered"],
+      },
+      remarks: {
+        type: String,
+      },
+      user_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    },
   },
   { timestamps: true }
 );
+
+purchaseOrderSchema.pre("save", function (next) {
+  updatePurchaseRequestStatus(this, "status_history", "current_status");
+  next();
+});
 
 module.exports = mongoose.model("purchaseOrder", purchaseOrderSchema);
