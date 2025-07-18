@@ -507,7 +507,7 @@ const exportExpenseSheetsCSV = async (req, res) => {
             "Emp Code": "$emp_id",
             "Employee Name": "$emp_name",
             "Project Code": { $toString: "$items.project_code" },
-            "Sheet Current Status": "$current_status",
+            "Sheet Current Status": "$current_status.status",
             From: {
               $dateToString: { format: "%d/%m/%Y", date: "$expense_term.from" },
             },
