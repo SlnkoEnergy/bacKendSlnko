@@ -226,7 +226,7 @@ const {
   deleteExpense,
   updateExpenseStatusOverall,
   updateExpenseStatusItems,
-  exportExpenseSheetsCSVById,
+  exportExpenseSheetsCSV,
   updateExpenseSheet,
   updateDisbursementDate,
   getExpensePdf,
@@ -1223,10 +1223,10 @@ router.delete(
   deleteExpense
 );
 router.post(
-  "/expense-by-id-csv",
+  "/expense-to-csv",
   jwtMW.authentication,
   jwtMW.authorization,
-  exportExpenseSheetsCSVById
+  exportExpenseSheetsCSV
 );
 //Expense Pdf
 router.post(
