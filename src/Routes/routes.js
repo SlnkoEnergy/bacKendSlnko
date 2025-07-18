@@ -32,6 +32,7 @@ const {
   verifyOtp,
   getAllUserByDepartment,
   editUser,
+  getAllDepartment,
 } = require("../Controllers/userController");
 
 const {
@@ -209,6 +210,7 @@ const {
   getbyid,
   search,
   getByIdOrLeadId,
+  migrateProjectToHandover,
 } = require("../Controllers/handoversheetController");
 const {
   addmoduleMaster,
@@ -238,7 +240,6 @@ const {
   getModifiedExpenseById,
 } = require("../Controllers/expenseSheetControllers/ModifiedexpenseSheetController");
 
-
 const {
   createlead,
   getbdlead,
@@ -252,8 +253,6 @@ const {
 const { create } = require("../Modells/bdleadsModells");
 
 const upload = require("../middlewares/multer.js");
-
-
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -287,8 +286,18 @@ router.get(
 );
 
 router.put(
-  "/edit-user/:_id",jwtMW.authentication,
-  jwtMW.authorization, editUser)
+  "/edit-user/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  editUser
+);
+
+router.get(
+  "/all-dept",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllDepartment
+);
 //forget pass through resend
 // router.post("/forget-password",forgetpassword);
 
@@ -432,13 +441,19 @@ router.get(
   jwtMW.authorization,
   getPOHistoryById
 );
-router.put('/updateStatusPO', jwtMW.authentication, jwtMW.authorization, updateStatusPO);
-
-router.put("/:id/updateEtdOrDelivery",
+router.put(
+  "/updateStatusPO",
   jwtMW.authentication,
   jwtMW.authorization,
-  updateEditandDeliveryDate,
-)
+  updateStatusPO
+);
+
+router.put(
+  "/:id/updateEtdOrDelivery",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateEditandDeliveryDate
+);
 
 //Add vendor
 router.post(
@@ -1140,6 +1155,12 @@ router.get(
   jwtMW.authorization,
   search
 );
+router.put(
+  "/migrateProject",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  migrateProjectToHandover
+);
 
 //module master
 router.post(
@@ -1293,6 +1314,5 @@ router.put(
   jwtMW.authorization,
   updateLeadStatus
 );
-
 
 module.exports = router;

@@ -268,9 +268,7 @@ const getAllUserByDepartment = async (req, res) => {
    try {
     const projection = "_id name";
     const {department} = req.query;
-    if(!department){
-     return res.status(404).json({message:"Department is required"});
-    }
+    
     let query = {};
     if(department){
       query.department = department;
@@ -313,6 +311,14 @@ const editUser = async function (req, res) {
   }
 };
 
+const getAllDepartment = async (req, res) => {
+  try {
+    const departments = await userModells.distinct("department");
+    res.status(200).json({ success: true, data: departments });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 module.exports = {
   userRegister,
   login,
@@ -324,4 +330,5 @@ module.exports = {
   getSingleUser,
   getAllUserByDepartment,
   editUser,
+  getAllDepartment
 };
