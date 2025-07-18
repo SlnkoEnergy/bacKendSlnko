@@ -233,6 +233,13 @@ const {
 } = require("../Controllers/expenseSheetControllers/expenseSheetController");
 
 const {
+  createModifiedExpense,
+  getAllModifiedExpense,
+  getModifiedExpenseById,
+} = require("../Controllers/expenseSheetControllers/ModifiedexpenseSheetController");
+
+
+const {
   createlead,
   getbdlead,
   get_all_lead,
@@ -1230,7 +1237,25 @@ router.get(
   jwtMW.authorization,
   getExpensePdf
 );
-
+router.post(
+  "/create-modified-expense",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  upload,
+  createModifiedExpense
+);
+router.get(
+  "/get-all-modified-expense",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllModifiedExpense
+);
+router.get(
+  "/get-modified-expense-by-id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getModifiedExpenseById
+);
 //bd lead new
 router.post(
   "/create-lead",
