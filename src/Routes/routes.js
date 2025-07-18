@@ -1238,7 +1238,7 @@ router.get(
 );
 //Expense Pdf
 router.get(
-  "/expense-pdf/:_id",
+  "/expense-pdf",
   jwtMW.authentication,
   jwtMW.authorization,
   getExpensePdf

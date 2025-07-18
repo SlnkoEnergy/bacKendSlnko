@@ -1,10 +1,12 @@
-const ExpenseSheet = require("../../Modells/Expense_Sheet/expense_sheet_Model");
+const ExpenseSheet = require("../../Modells/ExpenseSheet/expenseSheetModel");
 const User = require("../../Modells/userModells");
 const { Parser } = require("json2csv");
 const { default: mongoose } = require("mongoose");
 const generateExpenseCode = require("../../utils/generateExpenseCode");
 const axios = require("axios");
 const FormData = require("form-data");
+const sharp = require("sharp");
+const mime = require("mime-types");
 
 const getAllExpense = async (req, res) => {
   try {
@@ -153,7 +155,6 @@ const getAllExpense = async (req, res) => {
   }
 };
 
-
 const getExpenseById = async (req, res) => {
   try {
     const { expense_code, _id } = req.query;
@@ -184,7 +185,6 @@ const getExpenseById = async (req, res) => {
 
 const createExpense = async (req, res) => {
   try {
-    // Parse incoming data (handle string or already parsed object)
     const data =
       typeof req.body.data === "string"
         ? JSON.parse(req.body.data)
@@ -196,9 +196,7 @@ const createExpense = async (req, res) => {
       return res.status(400).json({ message: "User ID is required" });
     }
 
-    // Generate unique expense code
     const expense_code = await generateExpenseCode(user_id);
-
     const user = await User.findById(user_id).select("emp_id name role");
 
     if (!user) {
@@ -207,23 +205,38 @@ const createExpense = async (req, res) => {
 
     const folderType = user.role === "site" ? "onsite" : "offsite";
     const folderPath = `expense_sheet/${folderType}/${user.emp_id}`;
-
-    const uploadedFileMap = {}; 
+    const uploadedFileMap = {};
 
     for (const file of req.files || []) {
-      const match = file.fieldname.match(/file_(\d+)/); 
+      const match = file.fieldname.match(/file_(\d+)/);
       if (!match) continue;
 
       const index = match[1];
+      const mimeType = mime.lookup(file.originalname) || file.mimetype;
+      let buffer = file.buffer;
 
+      if (mimeType.startsWith("image/")) {
+        const extension = mime.extension(mimeType);
+
+        if (extension === "jpeg" || extension === "jpg") {
+          buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+        } else if (extension === "png") {
+          buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
+        } else if (extension === "webp") {
+          buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
+        } else {
+          buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+        }
+      }
+
+      // Upload the file
       const form = new FormData();
-      form.append("file", file.buffer, {
+      form.append("file", buffer, {
         filename: file.originalname,
-        contentType: file.mimetype,
+        contentType: mimeType,
       });
 
       const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${folderPath}`;
-
       const response = await axios.post(uploadUrl, form, {
         headers: form.getHeaders(),
         maxContentLength: Infinity,
@@ -246,13 +259,11 @@ const createExpense = async (req, res) => {
       }
     }
 
-    // Step 2: Attach file URLs to correct items
     const itemsWithAttachments = (data.items || []).map((item, idx) => ({
       ...item,
       attachment_url: uploadedFileMap[idx] || item.attachment_url || null,
     }));
 
-    // Step 3: Create and save the expense sheet
     const expense = new ExpenseSheet({
       expense_code,
       user_id,
@@ -364,7 +375,6 @@ const updateExpenseStatusOverall = async (req, res) => {
       updatedAt: new Date(),
     });
 
-    // Update each item's status and push to item_status_history
     if (
       expense.items &&
       Array.isArray(expense.items) &&
@@ -660,56 +670,56 @@ const exportExpenseSheetsCSVById = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
+
 const getExpensePdf = async (req, res) => {
   try {
-    const { _id } = req.params;
     const { printAttachments } = req.query;
+    const { expenseIds } = req.body;
 
-    if (!_id) {
-      return res.status(400).json({ message: "Expense sheet ID is required" });
+    if (!Array.isArray(expenseIds) || expenseIds.length === 0) {
+      return res.status(400).json({ message: "Expense sheet ID(s) required" });
     }
 
-    // Fetch sheet and populate user
-    const sheet = await ExpenseSheet.findById(_id).populate("user_id").lean();
-    if (!sheet) {
-      return res.status(404).json({ message: "Expense sheet not found" });
+    const sheets = await ExpenseSheet.find({ _id: { $in: expenseIds } })
+      .populate("user_id")
+      .lean();
+
+    if (!sheets.length) {
+      return res.status(404).json({ message: "No expense sheets found" });
     }
 
-    const department = sheet?.user_id?.department || "";
-    const attachmentLinks = sheet.items
-      .map((item) => item.attachment_url)
-      .filter((url) => url && url.startsWith("http"));
+    const processed = sheets.map((sheet) => ({
+      ...sheet,
+      department: sheet?.user_id?.department || "",
+      attachmentLinks: (sheet.items || [])
+        .map((item) => item.attachment_url)
+        .filter((url) => url && url.startsWith("http")),
+    }));
 
     const apiUrl = `${process.env.PDF_PORT}/expensePdf/expense-pdf`;
-    // Axios stream request
+
     const axiosResponse = await axios({
       method: "post",
       url: apiUrl,
       data: {
-        sheet,
+        sheets: processed,
         printAttachments: printAttachments === "true",
-        attachmentLinks,
-        department,
       },
       responseType: "stream",
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
     });
 
-    // Forward headers and stream data to client
     res.set({
       "Content-Type": axiosResponse.headers["content-type"],
       "Content-Disposition":
         axiosResponse.headers["content-disposition"] ||
-        'attachment; filename="expense.pdf"',
+        `attachment; filename="Multiple_Expenses.pdf"`,
     });
 
     axiosResponse.data.pipe(res);
   } catch (error) {
-    console.error("Error proxying PDF request:", error.message);
-    res
-      .status(500)
-      .json({ message: "Error fetching PDF", error: error.message });
+    res.status(500).json({ message: "Error fetching PDF", error: error.message });
   }
 };
 
@@ -725,5 +735,5 @@ module.exports = {
   deleteExpense,
   exportAllExpenseSheetsCSV,
   exportExpenseSheetsCSVById,
-  getExpensePdf,
+  getExpensePdf
 };
