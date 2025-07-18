@@ -226,8 +226,7 @@ const {
   deleteExpense,
   updateExpenseStatusOverall,
   updateExpenseStatusItems,
-  exportAllExpenseSheetsCSV,
-  exportExpenseSheetsCSVById,
+  exportExpenseSheetsCSV,
   updateExpenseSheet,
   updateDisbursementDate,
   getExpensePdf,
@@ -1223,22 +1222,15 @@ router.delete(
   jwtMW.authorization,
   deleteExpense
 );
-//Export to CSV In expense Sheet
-router.get(
-  "/expense-all-csv",
+router.post(
+  "/expense-to-csv",
   jwtMW.authentication,
   jwtMW.authorization,
-  exportAllExpenseSheetsCSV
-);
-router.get(
-  "/expense-by-id-csv/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  exportExpenseSheetsCSVById
+  exportExpenseSheetsCSV
 );
 //Expense Pdf
-router.get(
-  "/expense-pdf/:_id",
+router.post(
+  "/expense-pdf",
   jwtMW.authentication,
   jwtMW.authorization,
   getExpensePdf
