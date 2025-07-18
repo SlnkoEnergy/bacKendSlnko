@@ -482,7 +482,7 @@ const deleteExpense = async (req, res) => {
 };
 
 
-const exportExpenseSheetsCSVById = async (req, res) => {
+const exportExpenseSheetsCSV = async (req, res) => {
   try {
     const sheetIds = req.body.sheetIds;
 
@@ -707,6 +707,6 @@ module.exports = {
   updateExpenseStatusOverall,
   updateExpenseStatusItems,
   deleteExpense,
-  exportExpenseSheetsCSVById,
+  exportExpenseSheetsCSV,
   getExpensePdf
 };
