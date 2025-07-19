@@ -70,7 +70,9 @@ const getAllLeads = async (req, res) => {
     const role = user.role;
 
     const isPrivilegedUser =
-      department === "admin" || department === "superadmin" || (department === "BD" && role === "manager");
+      department === "admin" ||
+      department === "superadmin" ||
+      (department === "BD" && role === "manager");
 
     const stageModelMap = {
       initial: initiallead,
@@ -154,6 +156,41 @@ const getAllLeads = async (req, res) => {
         .select("updatedAt");
       return latestTask?.updatedAt || null;
     };
+const stageCounts = {};
+let allCount = 0;
+
+for (const [key, model] of Object.entries(stageModelMap)) {
+  const count = await model.countDocuments(
+    isPrivilegedUser ? {} : { assigned_to: userId }
+  );
+  stageCounts[key] = count;
+  allCount += count;
+}
+
+stageCounts["all"] = allCount;
+
+const allLeadIds = (
+  await Promise.all(
+    Object.entries(stageModelMap).map(async ([_, model]) => {
+      const leads = await model.find(
+        isPrivilegedUser ? {} : { assigned_to: userId },
+        { _id: 1 }
+      );
+      return leads.map((l) => l._id.toString());
+    })
+  )
+).flat();
+
+const leadsWithTaskIds = (
+  await taskModel.distinct("lead_id")
+).map((id) => id.toString());
+
+const leadWithoutTaskCount = allLeadIds.filter(
+  (id) => !leadsWithTaskIds.includes(id)
+).length;
+
+stageCounts["lead_without_task"] = leadWithoutTaskCount;
+
 
     // Handle stage-specific fetch
     if (stage && stageModelMap[stage]) {
@@ -181,7 +218,10 @@ const getAllLeads = async (req, res) => {
           },
           status: stage,
           createdAt: item.createdAt,
-          lastModifiedTaskDate: await getLastModifiedTaskDate(item._id, stage.charAt(0).toUpperCase() + stage.slice(1)),
+          lastModifiedTaskDate: await getLastModifiedTaskDate(
+            item._id,
+            stage.charAt(0).toUpperCase() + stage.slice(1)
+          ),
         }))
       );
 
@@ -190,6 +230,7 @@ const getAllLeads = async (req, res) => {
         total,
         page: parseInt(page),
         limit: parseInt(limit),
+        stageCounts,
         leads: enriched,
       });
     }
@@ -255,14 +296,11 @@ const getAllLeads = async (req, res) => {
     const total = sortedLeads.length;
     const paginatedLeads = sortedLeads.slice((page - 1) * limit, page * limit);
 
-    // Count of each stage
-    const stageCounts = {};
-    for (const [key, model] of Object.entries(stageModelMap)) {
-      stageCounts[key] = await model.countDocuments(buildMatchQuery());
-    }
-
     return res.status(200).json({
-      message: lead_without_task === "true" ? "Leads without tasks" : "Paginated All BD Leads",
+      message:
+        lead_without_task === "true"
+          ? "Leads without tasks"
+          : "Paginated All BD Leads",
       total,
       page: parseInt(page),
       limit: parseInt(limit),
@@ -271,9 +309,12 @@ const getAllLeads = async (req, res) => {
     });
   } catch (error) {
     console.error("getAllLeads error:", error);
-    res.status(500).json({ message: "Internal Server error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server error", error: error.message });
   }
 };
+
 
 const getAllLeadDropdown = async function (req, res) {
   try {
