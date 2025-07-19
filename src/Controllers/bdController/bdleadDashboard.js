@@ -8,6 +8,7 @@ const handoversheet = require("../../Modells/handoversheetModells");
 const task = require("../../Modells/BD-Dashboard/task");
 const userModells = require("../../Modells/userModells");
 const mongoose = require("mongoose");
+const BDTask = require('../../Modells/BD-Dashboard/task')
 const { Parser } = require("json2csv");
 
 const updateAssignedToFromSubmittedBy = async (req, res) => {
@@ -58,19 +59,18 @@ const getAllLeads = async (req, res) => {
       stage = "",
       fromDate,
       toDate,
+      lead_without_task = false,
     } = req.query;
-    const userId = req.user.userId;
 
+    const userId = req.user.userId;
     const user = await userModells.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     const department = user.department;
     const role = user.role;
 
     const isPrivilegedUser =
-      department === "admin" || (department === "BD" && role === "manager");
+      department === "admin" || department === "superadmin" || (department === "BD" && role === "manager");
 
     const stageModelMap = {
       initial: initiallead,
@@ -79,6 +79,8 @@ const getAllLeads = async (req, res) => {
       won: wonleadModells,
       dead: deadleadModells,
     };
+
+    const taskModel = BDTask;
 
     const buildMatchQuery = (extraMatch = {}) => {
       const baseQuery = [
@@ -102,9 +104,7 @@ const getAllLeads = async (req, res) => {
       if (fromDate && toDate) {
         const start = new Date(fromDate);
         const end = new Date(toDate);
-        if (toDate) {
-          end.setHours(23, 59, 59, 999);
-        }
+        end.setHours(23, 59, 59, 999);
         baseQuery.push({
           createdAt: {
             $gte: start,
@@ -113,10 +113,7 @@ const getAllLeads = async (req, res) => {
         });
       }
 
-      if (extraMatch) {
-        baseQuery.push(extraMatch);
-      }
-
+      if (extraMatch) baseQuery.push(extraMatch);
       return { $and: baseQuery };
     };
 
@@ -150,113 +147,130 @@ const getAllLeads = async (req, res) => {
       return pipeline;
     };
 
+    const getLastModifiedTaskDate = async (leadId, leadModel) => {
+      const latestTask = await taskModel
+        .findOne({ lead_id: leadId, lead_model: leadModel })
+        .sort({ updatedAt: -1 })
+        .select("updatedAt");
+      return latestTask?.updatedAt || null;
+    };
+
+    // Handle stage-specific fetch
     if (stage && stageModelMap[stage]) {
       const model = stageModelMap[stage];
-      const data = await model.aggregate(buildPipeline());
+      const leads = await model.aggregate(buildPipeline());
 
-      const total = await model.aggregate([
-        {
-          $lookup: {
-            from: "users",
-            localField: "assigned_to",
-            foreignField: "_id",
-            as: "assigned_user",
+      const total = await model.countDocuments(buildMatchQuery());
+
+      const enriched = await Promise.all(
+        leads.map(async (item) => ({
+          _id: item._id,
+          id: item.id,
+          c_name: item.c_name,
+          mobile: item.mobile,
+          name: item.name,
+          state: item.state,
+          scheme: item.scheme,
+          capacity: item.capacity,
+          distance: item.distance,
+          entry_date: item.entry_date,
+          submitted_by: item.submitted_by,
+          assigned_to: {
+            id: item.assigned_to,
+            name: item.assigned_user?.name || "",
           },
-        },
-        {
-          $unwind: { path: "$assigned_user", preserveNullAndEmptyArrays: true },
-        },
-        { $match: buildMatchQuery() },
-        { $count: "count" },
-      ]);
-      const count = total[0]?.count || 0;
-
-      const mapped = data.map((item) => ({
-        _id: item._id,
-        id: item.id,
-        c_name: item.c_name,
-        mobile: item.mobile,
-        name: item.name,
-        state: item.state,
-        scheme: item.scheme,
-        capacity: item.capacity,
-        distance: item.distance,
-        entry_date: item.entry_date,
-        submitted_by: item.submitted_by,
-        assigned_to: {
-          id: item.assigned_to,
-          name: item.assigned_user?.name || "",
-        },
-        status: stage,
-        createdAt: item.createdAt,
-      }));
+          status: stage,
+          createdAt: item.createdAt,
+          lastModifiedTaskDate: await getLastModifiedTaskDate(item._id, stage.charAt(0).toUpperCase() + stage.slice(1)),
+        }))
+      );
 
       return res.status(200).json({
         message: `Leads for stage: ${stage}`,
-        total: count,
+        total,
         page: parseInt(page),
         limit: parseInt(limit),
-        leads: mapped,
+        leads: enriched,
       });
     }
 
-    // All stages
+    // Fetch all leads from all stages
     const allLeads = (
       await Promise.all(
         Object.entries(stageModelMap).map(async ([stageName, model]) => {
           const leads = await model.aggregate(buildPipeline({}, false));
-          return leads.map((item) => ({
-            _id: item._id,
-            id: item.id,
-            c_name: item.c_name,
-            mobile: item.mobile,
-            name: item.name,
-            state: item.state,
-            scheme: item.scheme,
-            capacity: item.capacity,
-            distance: item.distance,
-            entry_date: item.entry_date,
-            submitted_by: item.submitted_by,
-            assigned_to: {
-              id: item.assigned_to,
-              name: item.assigned_user?.name || "",
-            },
-            status: stageName,
-            createdAt: item.createdAt,
-          }));
+          return await Promise.all(
+            leads.map(async (item) => {
+              const lastModifiedTaskDate = await getLastModifiedTaskDate(
+                item._id,
+                stageName.charAt(0).toUpperCase() + stageName.slice(1)
+              );
+              return {
+                _id: item._id,
+                id: item.id,
+                c_name: item.c_name,
+                mobile: item.mobile,
+                name: item.name,
+                state: item.state,
+                scheme: item.scheme,
+                capacity: item.capacity,
+                distance: item.distance,
+                entry_date: item.entry_date,
+                submitted_by: item.submitted_by,
+                assigned_to: {
+                  id: item.assigned_to,
+                  name: item.assigned_user?.name || "",
+                },
+                status: stageName,
+                createdAt: item.createdAt,
+                lastModifiedTaskDate,
+              };
+            })
+          );
         })
       )
     ).flat();
-
-    const start = new Date(fromDate);
-    const end = new Date(toDate);
-    
-    console.log("Start Date:", start);
-    console.log("End Date:", end);
 
     const filteredLeads =
       fromDate && toDate
         ? allLeads.filter((lead) => {
             const created = new Date(lead.createdAt);
-            return created >= start && created <= end;
+            return created >= new Date(fromDate) && created <= new Date(toDate);
           })
         : allLeads;
 
-    const sortedLeads = filteredLeads.sort(
-  (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-);
+    let leadsToReturn = filteredLeads;
+
+    if (lead_without_task === "true") {
+      const leadsWithTaskIds = await taskModel.distinct("lead_id");
+      leadsToReturn = filteredLeads.filter(
+        (lead) => !leadsWithTaskIds.some((id) => id.toString() === lead._id.toString())
+      );
+    }
+
+    const sortedLeads = leadsToReturn.sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
 
     const total = sortedLeads.length;
     const paginatedLeads = sortedLeads.slice((page - 1) * limit, page * limit);
 
-    res.status(200).json({
-      message: "Paginated All BD Leads",
+    // Count of each stage
+    const stageCounts = {};
+    for (const [key, model] of Object.entries(stageModelMap)) {
+      stageCounts[key] = await model.countDocuments(buildMatchQuery());
+    }
+
+    return res.status(200).json({
+      message: lead_without_task === "true" ? "Leads without tasks" : "Paginated All BD Leads",
       total,
       page: parseInt(page),
       limit: parseInt(limit),
+      stageCounts,
       leads: paginatedLeads,
     });
   } catch (error) {
+    console.error("getAllLeads error:", error);
     res.status(500).json({ message: "Internal Server error", error: error.message });
   }
 };
