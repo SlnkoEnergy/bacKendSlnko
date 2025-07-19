@@ -56,7 +56,7 @@ const addPo = async function (req, res) {
       pr_id,
       etd: null,
       delivery_date: null,
-      dispatch_date:null
+      dispatch_date: null,
     });
 
     await newPO.save();
@@ -268,6 +268,8 @@ const getallpo = async function (req, res) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
+
+
 const getPaginatedPo = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -276,15 +278,18 @@ const getPaginatedPo = async (req, res) => {
     const search = req.query.search?.trim() || "";
     const status = req.query.status?.trim();
     const searchRegex = new RegExp(search, "i");
-    const filter = req.query.filter?.trim();
-
-    const parseCustomDate = (dateStr) => (dateStr ? new Date(Date.parse(dateStr)) : null);
+    const parseCustomDate = (dateStr) => {
+      return dateStr ? new Date(Date.parse(dateStr)) : null;
+    };
     const createdFrom = parseCustomDate(req.query.createdFrom);
     const createdTo = parseCustomDate(req.query.createdTo);
     const etdFrom = parseCustomDate(req.query.etdFrom);
     const etdTo = parseCustomDate(req.query.etdTo);
     const deliveryFrom = parseCustomDate(req.query.deliveryFrom);
     const deliveryTo = parseCustomDate(req.query.deliveryTo);
+     const filter = req.query.filter?.trim();
+
+    
 
     const matchStage = {
       ...(search && {
@@ -305,33 +310,39 @@ const getPaginatedPo = async (req, res) => {
           { item: req.query.item_id },
         ],
       }),
-      ...(createdFrom || createdTo ? {
-        dateObj: {
-          ...(createdFrom ? { $gte: new Date(createdFrom) } : {}),
-          ...(createdTo ? { $lte: new Date(createdTo) } : {}),
-        },
-      } : {}),
-      ...(etdFrom || etdTo ? {
-        etd: {
-          ...(etdFrom && { $gte: etdFrom }),
-          ...(etdTo && { $lte: etdTo }),
-        },
-      } : {}),
-      ...(deliveryFrom || deliveryTo ? {
-        delivery_date: {
-          ...(deliveryFrom && { $gte: deliveryFrom }),
-          ...(deliveryTo && { $lte: deliveryTo }),
-        },
-      } : {}),
+      ...(createdFrom || createdTo
+        ? {
+            dateObj: {
+              ...(createdFrom ? { $gte: new Date(createdFrom) } : {}),
+              ...(createdTo ? { $lte: new Date(createdTo) } : {}),
+            },
+          }
+        : {}),
+      ...(etdFrom || etdTo
+        ? {
+            etd: {
+              ...(etdFrom && { $gte: etdFrom }),
+              ...(etdTo && { $lte: etdTo }),
+            },
+          }
+        : {}),
+      ...(deliveryFrom || deliveryTo
+        ? {
+            delivery_date: {
+              ...(deliveryFrom && { $gte: deliveryFrom }),
+              ...(deliveryTo && { $lte: deliveryTo }),
+            },
+          }
+        : {}),
     };
 
-    if (filter) {
+     if (filter) {
       switch (filter) {
         case "ETD Pending":
           matchStage["current_status.status"] = "draft";
           matchStage["etd"] = null;
           break;
-        case "ETD Done":
+          case "ETD Done":
           matchStage["current_status.status"] = "draft";
           matchStage["etd"] = { $ne: null };
           break;
@@ -356,19 +367,28 @@ const getPaginatedPo = async (req, res) => {
           dateObj: {
             $cond: [
               { $eq: [{ $type: "$date" }, "string"] },
-              { $dateFromString: { dateString: "$date", format: "%Y-%m-%d" } },
+              {
+                $dateFromString: {
+                  dateString: "$date",
+                  format: "%Y-%m-%d",
+                },
+              },
               "$date",
             ],
           },
         },
       },
       { $match: matchStage },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: pageSize },
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
           po_value: { $toDouble: "$po_value" },
         },
       },
+
       {
         $lookup: {
           from: "payrequests",
@@ -405,7 +425,14 @@ const getPaginatedPo = async (req, res) => {
               $map: {
                 input: "$approvedPayments",
                 as: "pay",
-                in: { $convert: { input: "$$pay.amount_paid", to: "double", onError: 0, onNull: 0 } },
+                in: {
+                  $convert: {
+                    input: "$$pay.amount_paid",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
               },
             },
           },
@@ -414,12 +441,20 @@ const getPaginatedPo = async (req, res) => {
               $map: {
                 input: "$billData",
                 as: "b",
-                in: { $convert: { input: "$$b.bill_value", to: "double", onError: 0, onNull: 0 } },
+                in: {
+                  $convert: {
+                    input: "$$b.bill_value",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
               },
             },
           },
         },
       },
+
       {
         $addFields: {
           partial_billing: {
@@ -440,7 +475,10 @@ const getPaginatedPo = async (req, res) => {
                         {
                           $filter: {
                             input: {
-                              $sortArray: { input: "$billData", sortBy: { updatedAt: -1 } },
+                              $sortArray: {
+                                input: "$billData",
+                                sortBy: { updatedAt: -1 },
+                              },
                             },
                             as: "d",
                             cond: { $ne: ["$$d.type", null] },
@@ -468,9 +506,12 @@ const getPaginatedPo = async (req, res) => {
       },
       {
         $addFields: {
-          pr_no: { $arrayElemAt: ["$prRequest.pr_no", 0] },
+          pr_no: {
+            $arrayElemAt: ["$prRequest.pr_no", 0],
+          },
         },
       },
+
       {
         $addFields: {
           itemObjectId: {
@@ -478,7 +519,13 @@ const getPaginatedPo = async (req, res) => {
               {
                 $and: [
                   { $eq: [{ $strLenCP: "$item" }, 24] },
-                  { $regexMatch: { input: "$item", regex: "^[0-9a-fA-F]{24}$", options: "i" } },
+                  {
+                    $regexMatch: {
+                      input: "$item",
+                      regex: "^[0-9a-fA-F]{24}$",
+                      options: "i",
+                    },
+                  },
                 ],
               },
               { $toObjectId: "$item" },
@@ -507,9 +554,6 @@ const getPaginatedPo = async (req, res) => {
         },
       },
       ...(status ? [{ $match: { partial_billing: status } }] : []),
-      { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: pageSize },
       {
         $project: {
           _id: 0,
@@ -531,7 +575,7 @@ const getPaginatedPo = async (req, res) => {
           partial_billing: 1,
           etd: 1,
           delivery_date: 1,
-          dispatch_date: 1,
+          dispatch_date:1,
           current_status: 1,
           status_history: 1,
           type: "$billingTypes",
@@ -562,7 +606,14 @@ const getPaginatedPo = async (req, res) => {
               $map: {
                 input: "$billData",
                 as: "b",
-                in: { $convert: { input: "$$b.bill_value", to: "double", onError: 0, onNull: 0 } },
+                in: {
+                  $convert: {
+                    input: "$$b.bill_value",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
               },
             },
           },
@@ -608,7 +659,12 @@ const getPaginatedPo = async (req, res) => {
 
     res.status(200).json({
       msg: "All PO Detail With PO Number",
-      meta: { total, page, pageSize, count: data.length },
+      meta: {
+        total,
+        page,
+        pageSize,
+        count: data.length,
+      },
       data,
     });
   } catch (err) {
