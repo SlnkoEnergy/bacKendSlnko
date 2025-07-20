@@ -50,7 +50,14 @@ const updateAssignedToFromSubmittedBy = async (req, res) => {
 };
 const getAllLeads = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "", fromDate, toDate } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      fromDate,
+      toDate,
+      stage,
+    } = req.query;
     const userId = req.user.userId;
 
     const user = await userModells.findById(userId);
@@ -63,6 +70,49 @@ const getAllLeads = async (req, res) => {
 
     const match = {};
     const and = [];
+
+    const stageNames = ["initial", "follow up", "warm", "won", "dead"];
+
+    // Stage-wise counts
+    const stageCountsAgg = await bdleadsModells.aggregate([
+      {
+        $group: {
+          _id: "$current_status.name",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const stageCounts = stageNames.reduce((acc, stage) => {
+      const found = stageCountsAgg.find((s) => s._id === stage);
+      acc[stage] = found ? found.count : 0;
+      return acc;
+    }, {});
+
+    // Total count of all leads
+    const allCountAgg = await bdleadsModells.aggregate([{ $count: "count" }]);
+    stageCounts.all = allCountAgg[0]?.count || 0;
+
+    // Count of leads without tasks
+    const leadWithoutTaskAgg = await bdleadsModells.aggregate([
+      {
+        $lookup: {
+          from: "bdtasks",
+          localField: "_id",
+          foreignField: "lead_id",
+          as: "related_tasks",
+        },
+      },
+      {
+        $match: {
+          related_tasks: { $size: 0 },
+        },
+      },
+      {
+        $count: "count",
+      },
+    ]);
+    stageCounts.lead_without_task = leadWithoutTaskAgg[0]?.count || 0;
 
     if (search) {
       and.push({
@@ -79,6 +129,9 @@ const getAllLeads = async (req, res) => {
 
     if (!isPrivilegedUser) {
       and.push({ "assigned_to.user_id": new mongoose.Types.ObjectId(userId) });
+    }
+    if (stage) {
+      and.push({ "current_status.name": stage });
     }
 
     if (fromDate && toDate) {
@@ -240,6 +293,7 @@ const getAllLeads = async (req, res) => {
       page: +page,
       limit: +limit,
       leads,
+      stageCounts,
     });
   } catch (err) {
     res.status(500).json({
@@ -251,7 +305,10 @@ const getAllLeads = async (req, res) => {
 
 const getAllLeadDropdown = async (req, res) => {
   try {
-    const leads = await bdleadsModells.find({}, "id _id name contact_details.email contact_details.mobile");
+    const leads = await bdleadsModells.find(
+      {},
+      "id _id name contact_details.email contact_details.mobile"
+    );
 
     res.status(200).json({
       message: "All BD Leads",
@@ -1078,7 +1135,6 @@ const getLeadByLeadIdorId = async (req, res) => {
     });
   }
 };
-
 
 //lead funnel
 const leadFunnel = async (req, res) => {

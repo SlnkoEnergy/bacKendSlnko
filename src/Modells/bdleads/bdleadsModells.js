@@ -64,7 +64,7 @@ const bdleadsSchema = new mongoose.Schema(
       name: {
         type: String,
         enum: ["","initial", "follow up", "warm", "won", "dead"],
-        default: "Initial",
+        default: "initial",
       },
       stage: {
         type: String,
@@ -106,14 +106,14 @@ const bdleadsSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-bdleadsSchema.pre("save", function (next) {
-  updateLeadStatus(this);
-  next();
-});
+// bdleadsSchema.pre("save", function (next) {
+//   updateLeadStatus(this);
+//   next();
+// });
 
-bdleadsSchema.pre("save", function(next){
-  updateAssignedTo(this);
-  next();
-})
+// bdleadsSchema.pre("save", function(next){
+//   updateAssignedTo(this);
+//   next();
+// })
 
 module.exports = mongoose.model("bdleads", bdleadsSchema);

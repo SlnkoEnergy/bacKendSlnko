@@ -45,7 +45,7 @@ async function transformAndSaveOldLead(oldLead) {
 
     status_history: [
       {
-        name: "initial",
+        name: "dead",
         stage: "",
         remarks: "",
         user_id: submittedUserId,
@@ -53,7 +53,7 @@ async function transformAndSaveOldLead(oldLead) {
       },
     ],
     current_status: {
-      name: "initial",
+      name: "dead",
       stage: "",
       remarks: "",
       user_id: submittedUserId,
@@ -61,12 +61,12 @@ async function transformAndSaveOldLead(oldLead) {
     assigned_to: [
       {
         user_id: submittedUserId,
-        status: "initial",
+        status: "dead",
       },
     ],
     current_assigned:{
       user_id: submittedUserId,
-      status: "initial"
+      status: "dead"
     },
     submitted_by: submittedUserId,
   });

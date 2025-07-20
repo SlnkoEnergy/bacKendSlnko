@@ -9,6 +9,9 @@ const transformAndSaveOldLead = require("../../utils/bdLeadTransform");
 const deadleadModells = require("../../Modells/deadleadModells");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
 const initialBdLeadModells = require("../../Modells/initialBdLeadModells");
+const followupbdModells = require("../../Modells/followupbdModells");
+const warmbdLeadModells = require("../../Modells/warmbdLeadModells");
+const wonleadModells = require("../../Modells/wonleadModells");
 
 const createTask = async (req, res) => {
   try {
@@ -204,13 +207,12 @@ const getTaskById = async (req, res) => {
     const task = taskDoc.toObject();
 
     if (task.lead_id) {
-      const leadDoc = await bdleadsModells.findById(task.lead_id).select("_id c_name id capacity");
+      const leadDoc = await bdleadsModells.findById(task.lead_id).select("_id name id");
       if (leadDoc) {
         task.lead_id = {
           _id: leadDoc._id,
-          c_name: leadDoc.c_name,
+          name: leadDoc.name,
           id: leadDoc.id,
-          capacity: leadDoc.capacity,
         };
       }
     }
@@ -236,7 +238,6 @@ const getTaskByLeadId = async (req, res) => {
         message: "id or LeadId not found",
       });
     }
-
     const query = { lead_id: leadId };
 
     const data = await BDtask.find(query)
@@ -333,7 +334,7 @@ const getNotifications = async (req, res) => {
 
 const migrateAllLeads = async (req, res) => {
   try {
-    const oldLeads = await initialBdLeadModells.find();
+    const oldLeads = await deadleadModells.find();
     let successCount = 0;
     let failureCount = 0;
 

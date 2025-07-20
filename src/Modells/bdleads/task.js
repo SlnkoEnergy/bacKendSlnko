@@ -58,9 +58,6 @@ const taskSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
-    contact_info: {
-      type: String,
-    },
     description: {
       type: String,
     },
