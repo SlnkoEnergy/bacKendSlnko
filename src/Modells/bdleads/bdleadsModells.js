@@ -118,7 +118,8 @@ const bdleadsSchema = new mongoose.Schema(
         },
         remarks:{
           type: String
-        }
+        },
+         updatedAt: { type: Date, default: Date.now },
       }
     ]
   },

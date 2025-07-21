@@ -18,6 +18,7 @@ const {
   updateLeadStatus,
   uploadDocuments,
   createBDlead,
+  updateExpectedClosing,
 } = require("../../Controllers/bdController/bdleadsController");
 const {
   getNotesById,
@@ -119,8 +120,25 @@ router.get(
   jwtMW.authorization,
   exportLeadsCSV
 );
-router.put('/:_id/updateLeadStatus', jwtMW.authentication, jwtMW.authorization, updateLeadStatus);
-router.put('/uploadDocuments', jwtMW.authentication, jwtMW.authorization, upload ,uploadDocuments)
+router.put(
+  "/:_id/updateLeadStatus",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateLeadStatus
+);
+router.put(
+  "/uploadDocuments",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  upload,
+  uploadDocuments
+);
+router.put(
+  "/:_id/updateClosingDate",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateExpectedClosing
+);
 
 // Task Routes
 router.get(
@@ -219,6 +237,5 @@ router.put(
   jwtMW.authorization,
   updateAssignedToFromSubmittedBy
 );
-
 
 module.exports = router;
