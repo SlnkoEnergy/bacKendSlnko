@@ -200,7 +200,7 @@ router.get(
   getNotesByLeadId
 );
 router.post(
-  "/create-lead",
+  "/lead",
   jwtMW.authentication,
   jwtMW.authorization,
   createBDlead
