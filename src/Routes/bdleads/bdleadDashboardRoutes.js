@@ -15,6 +15,8 @@ const {
   updateAssignedToFromSubmittedBy,
   updateAssignedTo,
   exportLeadsCSV,
+  updateLeadStatus,
+  uploadDocuments,
 } = require("../../Controllers/bdController/bdleadsController");
 const {
   getNotesById,
@@ -37,6 +39,8 @@ const {
   migrateAllLeads,
 } = require("../../Controllers/bdController/taskController");
 const jwtMW = require("../../middlewares/auth");
+const upload = require("../../middlewares/multer.js");
+
 // Bd lead Dashboard Routes
 router.get(
   "/summary",
@@ -114,6 +118,8 @@ router.get(
   jwtMW.authorization,
   exportLeadsCSV
 );
+router.put('/:_id/updateLeadStatus', jwtMW.authentication, jwtMW.authorization, updateLeadStatus);
+router.put('/uploadDocuments', jwtMW.authentication, jwtMW.authorization, upload ,uploadDocuments)
 
 // Task Routes
 router.get(

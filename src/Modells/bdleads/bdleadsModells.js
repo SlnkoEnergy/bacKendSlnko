@@ -37,6 +37,9 @@ const bdleadsSchema = new mongoose.Schema(
       land_type: { type: String },
       scheme: { type: String },
     },
+    expected_closing_date:{
+      type:Date
+    },
     source: {
       from: { type: String, required: false },
       sub_source: { type: String, required: false },
@@ -50,7 +53,7 @@ const bdleadsSchema = new mongoose.Schema(
         },
         stage: {
           type: String,
-          enum: ["loi", "loa", "ppa", "token money", "others"],
+          enum: ["", "loi", "loa", "ppa", "token money", "others", "as per choice"],
         },
         remarks: String,
         updatedAt: { type: Date, default: Date.now },
@@ -63,12 +66,12 @@ const bdleadsSchema = new mongoose.Schema(
     current_status: {
       name: {
         type: String,
-        enum: ["initial", "follow up", "warm", "won", "dead"],
+        enum: ["","initial", "follow up", "warm", "won", "dead"],
         default: "initial",
       },
       stage: {
         type: String,
-        enum: ["loi", "loa", "ppa", "token money", "others"],
+        enum: ["","loi", "loa", "ppa", "token money", "others", "as per choice"],
       },
       remarks: String,
       user_id: {
@@ -102,6 +105,24 @@ const bdleadsSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    documents:[
+      {
+        name:{
+          type:String,
+          enum:["loi", "ppa", "loa", "aadhaar", "other"]
+        },
+        attachment_url:{
+          type:String
+        },
+        user_id:{
+          type:mongoose.Schema.Types.ObjectId,
+          ref:"User"
+        },
+        remarks:{
+          type: String
+        }
+      }
+    ]
   },
   { timestamps: true }
 );
