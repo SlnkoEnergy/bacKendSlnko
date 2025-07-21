@@ -1741,6 +1741,70 @@ const exportLeadsCSV = async (req, res) => {
   }
 };
 
+
+const createBDlead = async function (req, res) {
+  try {
+    // 1. Get the latest BD/Lead ID
+    const lastLead = await bdmodells.aggregate([
+      { $match: { id: { $regex: /^BD\/Lead\// } } },
+      {
+        $addFields: {
+          numericId: {
+            $toInt: { $arrayElemAt: [{ $split: ["$id", "/"] }, -1] },
+          },
+        },
+      },
+      { $sort: { numericId: -1 } },
+      { $limit: 1 },
+    ]);
+
+    const lastNumber = lastLead?.[0]?.numericId || 0;
+    const nextId = `BD/Lead/${lastNumber + 1}`;
+
+    const user_id = req.user.userId;
+
+    // 2. Prepare payload with essential fields
+    const payload = {
+      ...req.body,
+      id: nextId,
+      submitted_by: user_id,
+      assigned_to: [
+        {
+          user_id: user_id,
+          status: "",
+        },
+      ],
+    };
+
+    // 3. Save to bdmodells
+    const bdLead = new bdmodells(payload);
+    await bdLead.save(); // triggers pre-save hooks
+
+    // 4. Save to initialbdleadModells
+    const initialLead = new initialbdleadModells(payload);
+    await initialLead.save();
+
+    // 5. Save initial comment in BDNotes
+    const leadNote = new BDNotes({
+      lead_id: initialLead._id,
+      user_id: user_id,
+      description: req.body.comment,
+      lead_model: "Initial",
+    });
+    await leadNote.save();
+
+    res.status(200).json({
+      message: "BD Lead created successfully",
+      data: bdLead,
+      initial: initialLead,
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+
+
 module.exports = {
   getAllLeads,
   getAllLeadDropdown,
@@ -1757,4 +1821,5 @@ module.exports = {
   updateAssignedToFromSubmittedBy,
   updateAssignedTo,
   exportLeadsCSV,
+  createBDlead,
 };
