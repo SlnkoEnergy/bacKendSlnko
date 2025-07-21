@@ -11,7 +11,8 @@ const mongoose = require("mongoose");
 const { Parser } = require("json2csv");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
 const axios = require("axios");
-const FormData = require( "form-data");
+const FormData = require("form-data");
+const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
 
 const updateAssignedToFromSubmittedBy = async (req, res) => {
   const models = [
@@ -56,7 +57,7 @@ const getLeadSummary = async (req, res) => {
     const { range, startDate, endDate } = req.query;
     const now = new Date();
     let fromDate, toDate;
-    
+
     const rangeKeyMap = {
       today: "day",
       "1 week": "week",
@@ -74,8 +75,8 @@ const getLeadSummary = async (req, res) => {
         fromDate = new Date(now.setHours(0, 0, 0, 0));
         toDate = new Date(now.setHours(23, 59, 59, 999));
         break;
-        case "week":
-          fromDate = new Date();
+      case "week":
+        fromDate = new Date();
         fromDate.setDate(now.getDate() - 7);
         toDate = new Date();
         break;
@@ -84,8 +85,8 @@ const getLeadSummary = async (req, res) => {
         fromDate.setDate(now.getDate() - 14);
         toDate = new Date();
         break;
-        case "1month":
-          fromDate = new Date();
+      case "1month":
+        fromDate = new Date();
         fromDate.setMonth(now.getMonth() - 1);
         toDate = new Date();
         break;
@@ -94,8 +95,8 @@ const getLeadSummary = async (req, res) => {
         fromDate.setMonth(now.getMonth() - 3);
         toDate = new Date();
         break;
-        case "9months":
-          fromDate = new Date();
+      case "9months":
+        fromDate = new Date();
         fromDate.setMonth(now.getMonth() - 9);
         toDate = new Date();
         break;
@@ -104,31 +105,31 @@ const getLeadSummary = async (req, res) => {
         fromDate.setFullYear(now.getFullYear() - 1);
         toDate = new Date();
         break;
-        default:
-          if (startDate && endDate) {
-            fromDate = new Date(startDate);
+      default:
+        if (startDate && endDate) {
+          fromDate = new Date(startDate);
           toDate = new Date(endDate);
         }
         break;
     }
 
     const dateFilter =
-    fromDate && toDate
+      fromDate && toDate
         ? {
             createdAt: {
               $gte: fromDate,
               $lte: toDate,
             },
           }
-          : {};
+        : {};
 
-          // Previous period
+    // Previous period
     const prevDuration = toDate - fromDate;
     const prevFromDate = new Date(fromDate.getTime() - prevDuration);
     const prevToDate = new Date(fromDate.getTime());
-    
+
     const prevDateFilter =
-    fromDate && toDate
+      fromDate && toDate
         ? {
             createdAt: {
               $gte: prevFromDate,
@@ -137,13 +138,13 @@ const getLeadSummary = async (req, res) => {
           }
         : {};
 
-        const calcChange = (current, previous) => {
+    const calcChange = (current, previous) => {
       if (previous === 0) {
         return current > 0 ? "100.00" : "0.00";
       }
       return (((current - previous) / previous) * 100).toFixed(2);
     };
-    
+
     // Leads
     const totalLeads = await createbdleads.countDocuments(dateFilter);
     const prevTotalLeads = await createbdleads.countDocuments(prevDateFilter);
@@ -154,21 +155,21 @@ const getLeadSummary = async (req, res) => {
 
     // Conversion rate
     const conversionRate =
-    totalLeads > 0
-    ? ((totalHandovers / totalLeads) * 100).toFixed(2)
+      totalLeads > 0
+        ? ((totalHandovers / totalLeads) * 100).toFixed(2)
         : "0.00";
 
-        const prevConversionRate =
+    const prevConversionRate =
       prevTotalLeads > 0
         ? ((prevHandovers / prevTotalLeads) * 100).toFixed(2)
         : "0.00";
 
-        // Tasks
+    // Tasks
     const totalAssignedTasks = await task.countDocuments({
       assigned_to: { $exists: true, $not: { $size: 0 } },
       ...dateFilter,
     });
-    
+
     const prevAssignedTasks = await task.countDocuments({
       assigned_to: { $exists: true, $not: { $size: 0 } },
       ...prevDateFilter,
@@ -201,7 +202,7 @@ const getLeadSummary = async (req, res) => {
     ]);
 
     const totalAmountEarned = currentEarningAgg[0]?.total || 0;
-    
+
     const prevEarningAgg = await handoversheet.aggregate([
       {
         $match: {
@@ -249,8 +250,8 @@ const getLeadSummary = async (req, res) => {
     res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
-    }
-  };
+  }
+};
 
 const getLeadSource = async (req, res) => {
   try {
@@ -280,8 +281,8 @@ const getLeadSource = async (req, res) => {
         fromDate.setDate(now.getDate() - 7);
         toDate = new Date();
         break;
-        case "2week":
-          fromDate = new Date();
+      case "2week":
+        fromDate = new Date();
         fromDate.setDate(now.getDate() - 14);
         toDate = new Date();
         break;
@@ -290,8 +291,8 @@ const getLeadSource = async (req, res) => {
         fromDate.setMonth(now.getMonth() - 1);
         toDate = new Date();
         break;
-        case "3months":
-          fromDate = new Date();
+      case "3months":
+        fromDate = new Date();
         fromDate.setMonth(now.getMonth() - 3);
         toDate = new Date();
         break;
@@ -300,8 +301,8 @@ const getLeadSource = async (req, res) => {
         fromDate.setMonth(now.getMonth() - 9);
         toDate = new Date();
         break;
-        case "1year":
-          fromDate = new Date();
+      case "1year":
+        fromDate = new Date();
         fromDate.setFullYear(now.getFullYear() - 1);
         toDate = new Date();
         break;
@@ -311,7 +312,7 @@ const getLeadSource = async (req, res) => {
           toDate = new Date(endDate);
         }
         break;
-      }
+    }
 
     const dateFilter =
       fromDate && toDate
@@ -323,7 +324,7 @@ const getLeadSource = async (req, res) => {
           }
         : {};
 
-        const leadAggregation = await createbdleads.aggregate([
+    const leadAggregation = await createbdleads.aggregate([
       { $match: dateFilter },
       {
         $group: {
@@ -401,10 +402,10 @@ const getLeadSource = async (req, res) => {
   } catch (error) {
     console.error("Lead Source Summary Error:", error);
     res
-    .status(500)
+      .status(500)
       .json({ message: "Internal server error", error: error.message });
-    }
-  };
+  }
+};
 
 //task dashboard
 const taskDashboard = async (req, res) => {
@@ -483,15 +484,15 @@ const leadSummary = async (req, res) => {
         fromDate = new Date(now.setHours(0, 0, 0, 0));
         toDate = new Date(now.setHours(23, 59, 59, 999));
         break;
-        
-        case "week":
-          fromDate = new Date();
+
+      case "week":
+        fromDate = new Date();
         fromDate.setDate(fromDate.getDate() - 7);
         toDate = new Date();
         break;
 
-        case "2week":
-          fromDate = new Date();
+      case "2week":
+        fromDate = new Date();
         fromDate.setDate(fromDate.getDate() - 14);
         toDate = new Date();
         break;
@@ -501,21 +502,21 @@ const leadSummary = async (req, res) => {
         fromDate.setMonth(fromDate.getMonth() - 1);
         toDate = new Date();
         break;
-        
-        case "3months":
-          fromDate = new Date();
+
+      case "3months":
+        fromDate = new Date();
         fromDate.setMonth(fromDate.getMonth() - 3);
         toDate = new Date();
         break;
-        
-        case "9months":
-          fromDate = new Date();
+
+      case "9months":
+        fromDate = new Date();
         fromDate.setMonth(fromDate.getMonth() - 9);
         toDate = new Date();
         break;
 
-        case "1year":
-          fromDate = new Date();
+      case "1year":
+        fromDate = new Date();
         fromDate.setFullYear(fromDate.getFullYear() - 1);
         toDate = new Date();
         break;
@@ -526,7 +527,7 @@ const leadSummary = async (req, res) => {
           toDate = new Date(endDate);
         }
         break;
-      }
+    }
 
     // Apply date filter if applicable
     const dateFilter =
@@ -608,7 +609,7 @@ const leadconversationrate = async (req, res) => {
     };
 
     const normalizedRange = rangeKeyMap[(range || "").toLowerCase()] || range;
-    
+
     switch (normalizedRange) {
       case "day":
         fromDate = new Date();
@@ -621,18 +622,18 @@ const leadconversationrate = async (req, res) => {
         fromDate.setDate(fromDate.getDate() - 7);
         toDate = new Date();
         break;
-        case "2weeks":
-          fromDate = new Date();
+      case "2weeks":
+        fromDate = new Date();
         fromDate.setDate(fromDate.getDate() - 14);
         toDate = new Date();
         break;
-        case "1month":
+      case "1month":
         fromDate = new Date();
         fromDate.setMonth(fromDate.getMonth() - 1);
         toDate = new Date();
         break;
-        case "3months":
-          fromDate = new Date();
+      case "3months":
+        fromDate = new Date();
         fromDate.setMonth(fromDate.getMonth() - 3);
         toDate = new Date();
         break;
@@ -646,8 +647,8 @@ const leadconversationrate = async (req, res) => {
         fromDate.setFullYear(fromDate.getFullYear() - 1);
         toDate = new Date();
         break;
-        default:
-          if (startDate && endDate) {
+      default:
+        if (startDate && endDate) {
           fromDate = new Date(startDate);
           toDate = new Date(endDate);
         } else {
@@ -679,17 +680,17 @@ const leadconversationrate = async (req, res) => {
         },
       },
     ]);
-    
+
     const totalLeads = leadAggregation[0]?.totalLeads || 0;
-    
+
     const totalHandovers = await handoversheet.countDocuments(dateFilter);
-    
+
     const conversionRate =
-    totalLeads > 0
-    ? ((totalHandovers / totalLeads) * 100).toFixed(2)
+      totalLeads > 0
+        ? ((totalHandovers / totalLeads) * 100).toFixed(2)
         : "0.00";
 
-        res.json({
+    res.json({
       filter_used: {
         range: normalizedRange || "custom",
         from: fromDate.toISOString(),
@@ -708,18 +709,17 @@ const leadconversationrate = async (req, res) => {
   }
 };
 
-
 //lead funnel
 const leadFunnel = async (req, res) => {
   try {
     const { range, startDate, endDate, fields } = req.query;
-    
+
     const showLead = !fields || fields.includes("lead");
     const showCapacity = !fields || fields.includes("capacity");
-    
+
     const now = new Date();
     let fromDate, toDate;
-    
+
     const rangeKeyMap = {
       today: "day",
       "1 day": "day",
@@ -734,9 +734,9 @@ const leadFunnel = async (req, res) => {
       "9 months": "9months",
       "1 year": "1year",
     };
-    
+
     const normalizedRange = rangeKeyMap[(range || "").toLowerCase()] || range;
-    
+
     switch (normalizedRange) {
       case "day":
         fromDate = new Date();
@@ -744,80 +744,80 @@ const leadFunnel = async (req, res) => {
         toDate = new Date();
         toDate.setHours(23, 59, 59, 999);
         break;
-        case "week":
-          fromDate = new Date();
-          fromDate.setDate(fromDate.getDate() - 7);
-          toDate = new Date();
-          break;
-          case "2weeks":
-          fromDate = new Date();
-          fromDate.setDate(fromDate.getDate() - 14);
-          toDate = new Date();
-          break;
-          case "1month":
-            fromDate = new Date();
-            fromDate.setMonth(fromDate.getMonth() - 1);
-            toDate = new Date();
-            break;
-            case "3months":
-              fromDate = new Date();
-              fromDate.setMonth(fromDate.getMonth() - 3);
-              toDate = new Date();
+      case "week":
+        fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 7);
+        toDate = new Date();
         break;
-        case "9months":
+      case "2weeks":
+        fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 14);
+        toDate = new Date();
+        break;
+      case "1month":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 1);
+        toDate = new Date();
+        break;
+      case "3months":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 3);
+        toDate = new Date();
+        break;
+      case "9months":
         fromDate = new Date();
         fromDate.setMonth(fromDate.getMonth() - 9);
         toDate = new Date();
         break;
-        case "1year":
-          fromDate = new Date();
-          fromDate.setFullYear(fromDate.getFullYear() - 1);
-          toDate = new Date();
-          break;
-          default:
-            if (startDate && endDate) {
-              fromDate = new Date(startDate);
-              toDate = new Date(endDate);
-            } else {
-              return res.status(400).json({
-                message: "Please provide a valid date range or custom dates",
-              });
+      case "1year":
+        fromDate = new Date();
+        fromDate.setFullYear(fromDate.getFullYear() - 1);
+        toDate = new Date();
+        break;
+      default:
+        if (startDate && endDate) {
+          fromDate = new Date(startDate);
+          toDate = new Date(endDate);
+        } else {
+          return res.status(400).json({
+            message: "Please provide a valid date range or custom dates",
+          });
+        }
+    }
+
+    const dateFilter = {
+      createdAt: {
+        $gte: fromDate,
+        $lte: toDate,
+      },
+    };
+
+    const models = [
+      { name: "initial", model: initiallead },
+      { name: "followup", model: followUpBdleadModells },
+      { name: "warm", model: warmbdLeadModells },
+      { name: "won", model: wonleadModells },
+      { name: "dead", model: deadleadModells },
+    ];
+
+    const result = {};
+
+    for (const { name, model } of models) {
+      const docs = await model.find(dateFilter);
+      let totalCapacity = 0;
+
+      if (showCapacity) {
+        for (const doc of docs) {
+          const rawCap = doc.capacity;
+          if (rawCap) {
+            const numeric = parseFloat(String(rawCap).replace(/[^\d.]/g, ""));
+            if (!isNaN(numeric)) {
+              totalCapacity += numeric;
             }
           }
-          
-          const dateFilter = {
-            createdAt: {
-              $gte: fromDate,
-              $lte: toDate,
-            },
-          };
-          
-          const models = [
-            { name: "initial", model: initiallead },
-            { name: "followup", model: followUpBdleadModells },
-            { name: "warm", model: warmbdLeadModells },
-            { name: "won", model: wonleadModells },
-            { name: "dead", model: deadleadModells },
-          ];
-          
-          const result = {};
-          
-          for (const { name, model } of models) {
-            const docs = await model.find(dateFilter);
-            let totalCapacity = 0;
-            
-            if (showCapacity) {
-              for (const doc of docs) {
-                const rawCap = doc.capacity;
-                if (rawCap) {
-                  const numeric = parseFloat(String(rawCap).replace(/[^\d.]/g, ""));
-                  if (!isNaN(numeric)) {
-                    totalCapacity += numeric;
-                  }
-                }
         }
       }
-      
+
       result[name] = {};
       if (showLead) result[name].count = docs.length;
       if (showCapacity)
@@ -828,7 +828,7 @@ const leadFunnel = async (req, res) => {
     if (showCapacity) {
       const handoverDocs = await handoversheet.find(dateFilter);
       let totalPayment = 0;
-      
+
       for (const doc of handoverDocs) {
         const gstRaw = doc?.other_details?.total_gst;
         if (gstRaw) {
@@ -838,10 +838,10 @@ const leadFunnel = async (req, res) => {
           }
         }
       }
-      
+
       result["payment"] = parseFloat(totalPayment.toFixed(2));
     }
-    
+
     return res.status(200).json(result);
   } catch (error) {
     console.error("Error fetching stats:", error);
@@ -852,10 +852,10 @@ const leadFunnel = async (req, res) => {
 const leadWonAndLost = async (req, res) => {
   try {
     const { range, startDate, endDate } = req.query;
-    
+
     let fromDate, toDate;
     const now = new Date();
-    
+
     const rangeKeyMap = {
       today: "day",
       "1 day": "day",
@@ -866,55 +866,55 @@ const leadWonAndLost = async (req, res) => {
       "9 months": "9months",
       "1 year": "1year",
     };
-    
+
     const normalizedRange = rangeKeyMap[range || ""] || range;
-    
+
     switch (normalizedRange) {
       case "day":
         fromDate = new Date(now.setHours(0, 0, 0, 0));
         toDate = new Date(now.setHours(23, 59, 59, 999));
         break;
-        case "week":
-          fromDate = new Date();
+      case "week":
+        fromDate = new Date();
         fromDate.setDate(fromDate.getDate() - 7);
         toDate = new Date();
         break;
-        case "2weeks":
-          fromDate = new Date();
-          fromDate.setDate(fromDate.getDate() - 14);
-          toDate = new Date();
-          break;
-          case "1month":
-            fromDate = new Date();
-            fromDate.setMonth(fromDate.getMonth() - 1);
-            toDate = new Date();
-            break;
-        case "3months":
-          fromDate = new Date();
+      case "2weeks":
+        fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 14);
+        toDate = new Date();
+        break;
+      case "1month":
+        fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 1);
+        toDate = new Date();
+        break;
+      case "3months":
+        fromDate = new Date();
         fromDate.setMonth(fromDate.getMonth() - 3);
         toDate = new Date();
         break;
-        case "9months":
-          fromDate = new Date();
+      case "9months":
+        fromDate = new Date();
         fromDate.setMonth(fromDate.getMonth() - 9);
         toDate = new Date();
         break;
-        case "1year":
-          fromDate = new Date();
-          fromDate.setFullYear(fromDate.getFullYear() - 1);
+      case "1year":
+        fromDate = new Date();
+        fromDate.setFullYear(fromDate.getFullYear() - 1);
         toDate = new Date();
         break;
-        default:
-          if (startDate && endDate) {
+      default:
+        if (startDate && endDate) {
           fromDate = new Date(startDate);
           toDate = new Date(endDate);
         }
         break;
-      }
+    }
 
-      const dateFilter =
+    const dateFilter =
       fromDate && toDate ? { createdAt: { $gte: fromDate, $lte: toDate } } : {};
-      
+
     // Model Map
     const modelMap = {
       won: wonleadModells,
@@ -923,39 +923,39 @@ const leadWonAndLost = async (req, res) => {
       dead: deadleadModells,
       initial: initiallead,
     };
-    
+
     const [wonCount, followUpCount, warmCount, deadCount, initialCount] =
-    await Promise.all([
-      modelMap.won.countDocuments(dateFilter),
+      await Promise.all([
+        modelMap.won.countDocuments(dateFilter),
         modelMap.followUp.countDocuments(dateFilter),
         modelMap.warm.countDocuments(dateFilter),
         modelMap.dead.countDocuments(dateFilter),
         modelMap.initial.countDocuments(dateFilter),
       ]);
-      
-      const totalLeads =
+
+    const totalLeads =
       wonCount + followUpCount + warmCount + deadCount + initialCount;
-      const activeLeads = wonCount + followUpCount + warmCount + initialCount;
-      const lostLeads = deadCount;
-      
-      const lostPercentage =
+    const activeLeads = wonCount + followUpCount + warmCount + initialCount;
+    const lostLeads = deadCount;
+
+    const lostPercentage =
       totalLeads > 0 ? ((lostLeads / totalLeads) * 100).toFixed(2) : "0.00";
-      const wonPercentage =
+    const wonPercentage =
       totalLeads > 0 ? ((wonCount / totalLeads) * 100).toFixed(2) : "0.00";
-      
-      const [totalHandovers, totalTasks] = await Promise.all([
-        handoversheet.countDocuments(dateFilter),
-        task.countDocuments(),
-      ]);
-      
-      const conversionRate =
+
+    const [totalHandovers, totalTasks] = await Promise.all([
+      handoversheet.countDocuments(dateFilter),
+      task.countDocuments(),
+    ]);
+
+    const conversionRate =
       totalLeads > 0
-      ? ((totalHandovers / totalLeads) * 100).toFixed(2)
-      : "0.00";
-      
-      const monthNames = [
-        "Jan",
-        "Feb",
+        ? ((totalHandovers / totalLeads) * 100).toFixed(2)
+        : "0.00";
+
+    const monthNames = [
+      "Jan",
+      "Feb",
       "Mar",
       "Apr",
       "May",
@@ -967,7 +967,7 @@ const leadWonAndLost = async (req, res) => {
       "Nov",
       "Dec",
     ];
-    
+
     const aggregateAll = async (model) => {
       return model.aggregate([
         { $match: dateFilter },
@@ -982,18 +982,18 @@ const leadWonAndLost = async (req, res) => {
         },
       ]);
     };
-    
+
     const [aggWon, aggFollowUp, aggWarm, aggDead, aggInitial] =
-    await Promise.all([
-      aggregateAll(modelMap.won),
+      await Promise.all([
+        aggregateAll(modelMap.won),
         aggregateAll(modelMap.followUp),
         aggregateAll(modelMap.warm),
         aggregateAll(modelMap.dead),
         aggregateAll(modelMap.initial),
       ]);
-      
-      const monthlyDataMap = {};
-    
+
+    const monthlyDataMap = {};
+
     const processAggregate = (aggArray, field) => {
       aggArray.forEach(({ _id, count }) => {
         const key = `${_id.month}-${_id.year}`;
@@ -1019,23 +1019,23 @@ const leadWonAndLost = async (req, res) => {
 
     const monthlyData = Object.values(monthlyDataMap).map((item) => {
       const wonPercentage =
-      item.total > 0 ? ((item.won / item.total) * 100).toFixed(2) : "0.00";
+        item.total > 0 ? ((item.won / item.total) * 100).toFixed(2) : "0.00";
       const lostPercentage =
-      item.total > 0 ? ((item.lost / item.total) * 100).toFixed(2) : "0.00";
-      
+        item.total > 0 ? ((item.lost / item.total) * 100).toFixed(2) : "0.00";
+
       return {
         month: item.month,
         won_percentage: +wonPercentage,
         lost_percentage: +lostPercentage,
       };
     });
-    
+
     monthlyData.sort((a, b) => {
       const monthIndexA = monthNames.indexOf(a.month);
       const monthIndexB = monthNames.indexOf(b.month);
       return monthIndexA - monthIndexB;
     });
-    
+
     res.json({
       total_leads: totalLeads,
       active_leads: activeLeads,
@@ -1051,19 +1051,19 @@ const leadWonAndLost = async (req, res) => {
     res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
-    }
-  };
+  }
+};
 
 const editLead = async (req, res) => {
   try {
     const { _id } = req.params;
     const { lead_model } = req.query;
     const updatedData = req.body;
-    
+
     if (!lead_model) {
       return res.status(400).json({ message: "Lead model is required" });
     }
-    
+
     let Model;
     switch (lead_model) {
       case "initial":
@@ -1072,80 +1072,80 @@ const editLead = async (req, res) => {
       case "followup":
         Model = followUpBdleadModells;
         break;
-        case "warm":
-          Model = warmbdLeadModells;
-          break;
-          case "won":
-            Model = wonleadModells;
-            break;
-            case "dead":
+      case "warm":
+        Model = warmbdLeadModells;
+        break;
+      case "won":
+        Model = wonleadModells;
+        break;
+      case "dead":
         Model = deadleadModells;
         break;
-        default:
-          return res.status(400).json({ message: "Invalid lead model" });
-        }
-        
-        const updatedLead = await Model.findByIdAndUpdate(_id, updatedData, {
+      default:
+        return res.status(400).json({ message: "Invalid lead model" });
+    }
+
+    const updatedLead = await Model.findByIdAndUpdate(_id, updatedData, {
       new: true,
     });
-    
+
     if (!updatedLead) {
       return res.status(404).json({ message: "Lead not found" });
     }
-    
+
     res
-    .status(200)
-    .json({ message: "Lead updated successfully", data: updatedLead });
+      .status(200)
+      .json({ message: "Lead updated successfully", data: updatedLead });
   } catch (error) {
     res
       .status(500)
       .json({ message: "Error updating lead", error: error.message });
+  }
+};
+
+const deleteLead = async (req, res) => {
+  try {
+    const { _id } = req.params;
+    const { lead_model } = req.query;
+
+    if (!lead_model) {
+      return res.status(400).json({ message: "Lead model is required" });
     }
-  };
-  
-  const deleteLead = async (req, res) => {
-    try {
-      const { _id } = req.params;
-      const { lead_model } = req.query;
-      
-      if (!lead_model) {
-        return res.status(400).json({ message: "Lead model is required" });
-      }
-      
-      let Model;
-      switch (lead_model) {
-        case "initial":
-          Model = initiallead;
-          break;
+
+    let Model;
+    switch (lead_model) {
+      case "initial":
+        Model = initiallead;
+        break;
       case "followup":
         Model = followUpBdleadModells;
         break;
-        case "warm":
-          Model = warmbdLeadModells;
-          break;
-          case "won":
-            Model = wonleadModells;
+      case "warm":
+        Model = warmbdLeadModells;
         break;
-        case "dead":
-          Model = deadleadModells;
-          break;
-          default:
-            return res.status(400).json({ message: "Invalid lead model" });
+      case "won":
+        Model = wonleadModells;
+        break;
+      case "dead":
+        Model = deadleadModells;
+        break;
+      default:
+        return res.status(400).json({ message: "Invalid lead model" });
     }
 
     const deletedLead = await Model.findByIdAndDelete(_id);
-    
+
     if (!deletedLead) {
       return res.status(404).json({ message: "Lead not found" });
     }
-    
+
     res
-    .status(200)
-    .json({ message: "Lead deleted successfully", data: deletedLead });
+      .status(200)
+      .json({ message: "Lead deleted successfully", data: deletedLead });
   } catch (error) {
     res
-    .status(500)
-    .json({ message: "Error deleting lead", error: error.message });
+      .status(500)
+      .json({ message: "Error deleting lead", error: error.message });
   }
 };
 
@@ -1154,13 +1154,13 @@ const updateAssignedTo = async (req, res) => {
     const { _id } = req.params;
     const { lead_model } = req.query;
     const { assigned_to } = req.body;
-    
+
     if (!lead_model || !_id || !assigned_to) {
       return res
-      .status(400)
-      .json({ success: false, message: "Missing required fields" });
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
     }
-    
+
     const modelMap = {
       initial: initiallead,
       followup: followUpBdleadModells,
@@ -1168,15 +1168,15 @@ const updateAssignedTo = async (req, res) => {
       won: wonleadModells,
       dead: deadleadModells,
     };
-    
+
     const Model = modelMap[lead_model];
-    
+
     if (!Model) {
       return res
-      .status(400)
-      .json({ success: false, message: "Invalid model name" });
+        .status(400)
+        .json({ success: false, message: "Invalid model name" });
     }
-    
+
     const updatedLead = await Model.findByIdAndUpdate(
       _id,
       { assigned_to },
@@ -1185,10 +1185,10 @@ const updateAssignedTo = async (req, res) => {
 
     if (!updatedLead) {
       return res
-      .status(404)
-      .json({ success: false, message: "Lead not found" });
+        .status(404)
+        .json({ success: false, message: "Lead not found" });
     }
-    
+
     res.status(200).json({ success: true, data: updatedLead });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server Error", error });
@@ -1199,10 +1199,10 @@ const exportLeadsCSV = async (req, res) => {
   try {
     const { stage = "", search = "" } = req.query;
     const userId = req.user.userId;
-    
+
     const buildMatchQuery = () => {
       const query = [];
-      
+
       if (search) {
         query.push({
           $or: [
@@ -1215,18 +1215,18 @@ const exportLeadsCSV = async (req, res) => {
           ],
         });
       }
-      
+
       query.push({
         "assigned_to.user_id": new mongoose.Types.ObjectId(userId),
       });
-      
+
       if (stage) {
         query.push({ "current_status.name": stage });
       }
-      
+
       return { $and: query };
     };
-    
+
     const leads = await bdleadsModells.aggregate([
       {
         $lookup: {
@@ -1253,14 +1253,14 @@ const exportLeadsCSV = async (req, res) => {
       Scheme: item.project_details?.scheme || "",
       "Capacity (MW)": item.project_details?.capacity || "",
       "Distance (KM)":
-      item.project_details?.distance_from_substation?.value || "",
+        item.project_details?.distance_from_substation?.value || "",
       Date: new Date(item.createdAt).toLocaleDateString(),
       "Lead Owner": item.assigned_user?.name || "",
     }));
 
     const json2csvParser = new Parser();
     const csv = json2csvParser.parse(mapped);
-    
+
     res.header("Content-Type", "text/csv");
     res.attachment("leads.csv");
     return res.send(csv);
@@ -1282,11 +1282,11 @@ const getLeadByLeadIdorId = async (req, res) => {
     const matchQuery = {};
     if (id) matchQuery._id = new mongoose.Types.ObjectId(id);
     if (leadId) matchQuery.id = leadId;
-    
+
     const data = await bdleadsModells.aggregate([
       { $match: matchQuery },
 
-      // Lookup submitted_by
+      // submitted_by
       {
         $lookup: {
           from: "users",
@@ -1302,8 +1302,8 @@ const getLeadByLeadIdorId = async (req, res) => {
         },
       },
       { $project: { submitted_by_user: 0 } },
-      
-      // Lookup assigned_to.user_id
+
+      // assigned_to.user_id
       {
         $lookup: {
           from: "users",
@@ -1343,7 +1343,7 @@ const getLeadByLeadIdorId = async (req, res) => {
       },
       { $project: { assigned_users: 0 } },
 
-      // Lookup status_history.user_id
+      // status_history.user_id
       {
         $lookup: {
           from: "users",
@@ -1386,7 +1386,7 @@ const getLeadByLeadIdorId = async (req, res) => {
       },
       { $project: { status_users: 0 } },
 
-      // Lookup current_assigned.user_id
+      // current_assigned.user_id
       {
         $lookup: {
           from: "users",
@@ -1409,6 +1409,76 @@ const getLeadByLeadIdorId = async (req, res) => {
         },
       },
       { $project: { current_assigned_user: 0 } },
+
+      // store backup of documents
+      {
+        $addFields: {
+          documentsBackup: "$documents",
+        },
+      },
+
+      // populate documents.user_id
+      { $unwind: { path: "$documents", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "documents.user_id",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, name: 1 } }],
+          as: "document_user",
+        },
+      },
+      {
+        $addFields: {
+          "documents.user_id": { $arrayElemAt: ["$document_user", 0] },
+        },
+      },
+      { $project: { document_user: 0 } },
+
+      // group docs back, remove empty ones
+      {
+        $group: {
+          _id: "$_id",
+          doc: { $first: "$$ROOT" },
+          documents: {
+            $push: {
+              $cond: [
+                { $ne: ["$documents", {}] },
+                "$documents",
+                "$$REMOVE",
+              ],
+            },
+          },
+        },
+      },
+
+      {
+        $replaceRoot: {
+          newRoot: {
+            $mergeObjects: ["$doc", { documents: "$documents" }],
+          },
+        },
+      },
+
+      // fallback to empty if [{}]
+      {
+        $addFields: {
+          documents: {
+            $cond: {
+              if: {
+                $and: [
+                  { $isArray: "$documents" },
+                  { $eq: [{ $size: "$documents" }, 1] },
+                  { $eq: ["$documents.0", {}] },
+                ],
+              },
+              then: [],
+              else: "$documents",
+            },
+          },
+        },
+      },
+      { $project: { documentsBackup: 0 } },
     ]);
 
     if (!data.length) {
@@ -1426,6 +1496,8 @@ const getLeadByLeadIdorId = async (req, res) => {
     });
   }
 };
+
+
 const getAllLeads = async (req, res) => {
   try {
     const {
@@ -1734,7 +1806,7 @@ const updateLeadStatus = async function (req, res) {
 
     leads.status_history.push({
       ...req.body,
-      user_id: user_id
+      user_id: user_id,
     });
 
     await leads.save();
@@ -1766,13 +1838,17 @@ const getAllLeadDropdown = async (req, res) => {
 const uploadDocuments = async (req, res) => {
   try {
     const data =
-      typeof req.body.data === "string" ? JSON.parse(req.body.data) : req.body.data;
+      typeof req.body.data === "string"
+        ? JSON.parse(req.body.data)
+        : req.body.data;
 
-    const { lead_id, name, stage } = data;
+    const { lead_id, name, stage, remarks, expected_closing_date } = data;
     const user_id = req.user.userId;
-
+    
     if (!lead_id || !name) {
-      return res.status(400).json({ message: "lead_id, name, and user_id are required" });
+      return res
+        .status(400)
+        .json({ message: "lead_id, name, and user_id are required" });
     }
 
     const lead = await bdleadsModells.findById(lead_id);
@@ -1780,7 +1856,7 @@ const uploadDocuments = async (req, res) => {
       return res.status(404).json({ message: "Lead not found" });
     }
 
-    const folderPath = `Sales/${lead_id}/${name}`;
+    const folderPath = `Sales/${lead.id.replace(/\//g, "_")}/${name.replace(/ /g, "_")}/${stage.replace(/ /g, "_")}`;
     const uploadedFileMap = {};
 
     for (const file of req.files || []) {
@@ -1822,21 +1898,28 @@ const uploadDocuments = async (req, res) => {
     // Add uploaded document to lead.documents
     Object.values(uploadedFileMap).forEach((url) => {
       lead.documents.push({
-        name:stage,
+        name: stage,
         attachment_url: url,
-        user_id
+        user_id,
+        remarks
       });
     });
 
-    // Add status update in status_history
-    if (["loi", "loa", "ppa"].includes(stage)) {
+    const currentStatus = lead.current_status?.name;
+ 
+    if (shouldUpdateStatus(currentStatus, stage) && (name !== "aadhaar" && name !== "other") && ((stage !== "aadhaar" && stage !== "other"))) {
       lead.status_history.push({
-        name:name,
-        stage: stage,
+        name,
+        stage,
         remarks: name.toUpperCase(),
         user_id,
       });
     }
+
+    if(name === "warm" && lead.expected_closing_date === undefined){
+      lead.expected_closing_date = expected_closing_date;
+    }
+    
 
     await lead.save();
 
@@ -1852,8 +1935,6 @@ const uploadDocuments = async (req, res) => {
     });
   }
 };
-
-
 
 const createBDlead = async function (req, res) {
   try {
@@ -1916,7 +1997,24 @@ const createBDlead = async function (req, res) {
   }
 };
 
+const updateExpectedClosing = async(req, res) => {
+  try {
+    const {_id} = req.params;
+    const {date} = req.body;
 
+    const lead = await bdleadsModells.findById(_id);
+    lead.expected_closing_date = date;
+    await lead.save();
+    res.status(200).json({
+      message:"Expected Closing Date updated Successfully"
+    })
+  } catch (error) {
+    res.status(500).json({
+      message:"Internal Server Error",
+      error: error.message
+    })
+  }
+}
 
 module.exports = {
   getLeadSummary,
@@ -1936,5 +2034,6 @@ module.exports = {
   getAllLeads,
   getAllLeadDropdown,
   uploadDocuments,
-  createBDlead
+  createBDlead,
+  updateExpectedClosing
 };
