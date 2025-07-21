@@ -1858,7 +1858,7 @@ const uploadDocuments = async (req, res) => {
 const createBDlead = async function (req, res) {
   try {
     // 1. Get the latest BD/Lead ID
-    const lastLead = await bdmodells.aggregate([
+    const lastLead = await bdleadsModells.aggregate([
       { $match: { id: { $regex: /^BD\/Lead\// } } },
       {
         $addFields: {
@@ -1890,26 +1890,13 @@ const createBDlead = async function (req, res) {
     };
 
     // 3. Save to bdmodells
-    const bdLead = new bdmodells(payload);
+    const bdLead = new bdleadsModells(payload);
     await bdLead.save(); // triggers pre-save hooks
-
-    // 4. Save to initialbdleadModells
-    const initialLead = new initialbdleadModells(payload);
-    await initialLead.save();
-
-    // 5. Save initial comment in BDNotes
-    const leadNote = new BDNotes({
-      lead_id: initialLead._id,
-      user_id: user_id,
-      description: req.body.comment,
-      lead_model: "Initial",
-    });
-    await leadNote.save();
 
     res.status(200).json({
       message: "BD Lead created successfully",
       data: bdLead,
-      initial: initialLead,
+
     });
   } catch (error) {
     res.status(400).json({ error: error.message });

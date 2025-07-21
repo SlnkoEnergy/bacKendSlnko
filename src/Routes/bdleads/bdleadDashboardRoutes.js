@@ -210,7 +210,7 @@ router.post(
   jwtMW.authentication,
   jwtMW.authorization,
   createBDlead
-)
+);
 
 router.put("/bdleadupdate", migrateAllLeads);
 router.put(

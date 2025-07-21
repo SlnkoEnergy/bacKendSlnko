@@ -15,8 +15,6 @@ const bdleadsSchema = new mongoose.Schema(
       type: String,
     },
     address: {
-      line1: String,
-      line2: String,
       village: { type: String, required: false },
       district: { type: String, required: false },
       state: { type: String, required: false },
