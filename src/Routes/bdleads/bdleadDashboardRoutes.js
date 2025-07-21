@@ -17,6 +17,7 @@ const {
   exportLeadsCSV,
   updateLeadStatus,
   uploadDocuments,
+  createBDlead,
 } = require("../../Controllers/bdController/bdleadsController");
 const {
   getNotesById,
@@ -204,6 +205,12 @@ router.get(
   jwtMW.authorization,
   getNotesByLeadId
 );
+router.post(
+  "/create-lead",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  createBDlead
+)
 
 router.put("/bdleadupdate", migrateAllLeads);
 router.put(
@@ -212,5 +219,6 @@ router.put(
   jwtMW.authorization,
   updateAssignedToFromSubmittedBy
 );
+
 
 module.exports = router;

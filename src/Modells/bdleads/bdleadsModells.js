@@ -87,7 +87,7 @@ const bdleadsSchema = new mongoose.Schema(
         },
         status: {
           type: String,
-          enum: ["initial", "follow up", "warm", "won", "dead"],
+          enum: ["","initial", "follow up", "warm", "won", "dead"],
         },
       },
     ],
@@ -98,7 +98,7 @@ const bdleadsSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ["initial", "follow up", "warm", "won", "dead"],
+        enum: ["","initial", "follow up", "warm", "won", "dead"],
       },
     },
     submitted_by: {
