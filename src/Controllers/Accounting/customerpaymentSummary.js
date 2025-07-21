@@ -2,128 +2,132 @@ const CreditModel = require("../../Modells/addMoneyModells");
 const DebitModel = require("../../Modells/debitMoneyModells");
 const AdjustModel = require("../../Modells/adjustmentRequestModells");
 const ClientModel = require("../../Modells/purchaseOrderModells");
+const ProjectModel = require("../../Modells/projectModells");
 
 const getCustomerPaymentSummary = async (req, res) => {
   try {
     const { p_id } = req.query;
+
     if (!p_id) {
-      return res.status(400).json({ error: "Project ID (p_id) is required" });
+      return res.status(400).json({ error: "Project ID (p_id) is required." });
     }
 
-    const projectMatch = { p_id };
+    const projectId = Number(p_id);
 
-    // CREDIT HISTORY
-    const creditHistory = await CreditModel.aggregate([
-      { $match: projectMatch },
+    // 2️⃣ Fetch Project Details using Aggregation
+    const projectPipeline = [
+      { $match: { p_id: projectId } },
       {
         $project: {
-          cr_date: "$cr_date",
-          cr_mode: "$cr_mode",
-          cr_amount:"$cr_amount",
+          customer_name: 1,
+          p_group: 1,
+          project_kwp: 1,
+          name: 1,
+          code: 1,
+          _id: 0,
         },
       },
-    ]);
+      { $limit: 1 },
+    ];
 
-    const totalCredited = creditHistory.reduce((sum, row) => sum + row.cr_amount, 0);
+    const [project] = await ProjectModel.aggregate(projectPipeline);
 
-    // DEBIT HISTORY
-    const debitHistory = await DebitModel.aggregate([
-      { $match: projectMatch },
+    if (!project) {
+      return res.status(404).json({ error: "Project not found." });
+    }
+
+    // 3️⃣ Credit Aggregation (without pagination)
+    const creditPipeline = [
+      { $match: { p_id: projectId } },
       {
-        $project: {
-          dbt_date: "$dbt_date",
-          pay_mode: "$pay_mode",
-          paid_for: "$paid_for",
-          vendor: "$vendor",
-          amount_paid: "$amount_paid",
-          utr: "$utr",
+        $facet: {
+          history: [
+            { $sort: { cr_date: -1 } },
+            {
+              $project: {
+                cr_date: 1,
+                cr_mode: 1,
+                cr_amount: 1,
+              },
+            },
+          ],
+          summary: [
+            {
+              $group: {
+                _id: null,
+                totalCredited: { $sum: "$cr_amount" },
+              },
+            },
+          ],
         },
       },
-    ]);
+    ];
 
-    const totalDebited = debitHistory.reduce((sum, row) => sum + row.amount_paid, 0);
+    const [creditData] = await CreditModel.aggregate(creditPipeline);
+    const creditHistory = creditData?.history || [];
+    const totalCredited = creditData?.summary[0]?.totalCredited || 0;
 
-    // ADJUST HISTORY
-    const adjustHistory = await AdjustModel.aggregate([
-      { $match: projectMatch },
+    // 4️⃣ Debit Aggregation (without pagination)
+    const debitPipeline = [
+      { $match: { p_id: projectId } },
       {
-        $project: {
-          adj_date: "$adj_date",
-          pay_type: "$pay_type",
-          po_number: "$po_number",
-          paid_for: "$paid_for",
-          vendor: "$vendor",
-          adj_type: "$adj_type",
-          adj_amount: "$adj_amount",
+        $facet: {
+          history: [
+            { $sort: { db_date: -1 } },
+            {
+              $project: {
+                db_date: 1,
+                db_mode: 1,
+                amount_paid: 1,
+                paid_for: 1,
+                po_number: 1,
+                utr: 1,
+                updatedAt: 1,
+                paid_to: "$vendor",
+                debit_date: "$dbt_date",
+              },
+            },
+          ],
+          summary: [
+            {
+              $group: {
+                _id: null,
+                totalDebited: { $sum: "$amount_paid" },
+              },
+            },
+          ],
         },
       },
-    ]);
+    ];
 
-    const creditTotal = adjustHistory
-      .filter(row => row.adj_type === "Add")
-      .reduce((sum, row) => sum + parseFloat(row.adj_amount), 0);
+    const [debitData] = await DebitModel.aggregate(debitPipeline);
+    const debitHistory = debitData?.history || [];
+    const totalDebited = debitData?.summary[0]?.totalDebited || 0;
 
-    const debitTotal = adjustHistory
-      .filter(row => row.adj_type === "Subtract")
-      .reduce((sum, row) => sum + parseFloat(row.adj_amount), 0);
+    // 5️⃣ Net Balance Calculation
+    const netBalance = totalCredited - totalDebited;
 
-    const adjTotal = debitTotal - creditTotal;
-
-    // CLIENT PO DATA
-    const clientHistory = await ClientModel.aggregate([
-      { $match: projectMatch },
-      {
-        $project: {
-          po_number: "$po_number",
-          vendor: "$vendor",
-          item: "$item",
-          po_value: "$po_value",
-          totalAdvancePaid: 1,
-          billedValue: 1,
-          calculatedPoBasic: 1,
-        },
+    // 6️⃣ Send Response
+    return res.status(200).json({
+      projectDetails: {
+        customer_name: project.customer_name,
+        p_group: project.p_group,
+        project_kwp: project.project_kwp,
+        name: project.name,
+        code: project.code,
       },
-    ]);
-
-    const totalPOValue = clientHistory.reduce((acc, row) => acc + row.po_value, 0);
-    const totalAdvancePaid = clientHistory.reduce(
-      (acc, row) => acc + (row.totalAdvancePaid || 0),
-      0
-    );
-    const totalBilledValue = clientHistory.reduce((acc, row) => acc + (row.billedValue || 0), 0);
-    const totalPoBasic = clientHistory.reduce(
-      (acc, row) => acc + parseFloat(row.calculatedPoBasic || 0),
-      0
-    );
-
-    const totalReturn = 0; // If you track return somewhere, fetch it here
-
-    const netBalance = totalCredited - totalReturn;
-    const tcs = netBalance > 5000000 ? Math.round(netBalance - 5000000) * 0.001 : 0;
-    const netAdvance = totalAdvancePaid - totalBilledValue;
-    const balancePayable = totalPOValue - totalBilledValue - netAdvance;
-    const balanceSlnko = netBalance - totalAdvancePaid - adjTotal;
-    const balanceRequired = balanceSlnko - balancePayable - tcs;
-
-    res.json({
-      creditHistory,
-      debitHistory,
-      adjustHistory,
-      clientHistory,
+      credit: {
+        history: creditHistory,
+        total: totalCredited,
+      },
+      debit: {
+        history: debitHistory,
+        total: totalDebited,
+      },
       summary: {
         totalCredited,
         totalDebited,
         netBalance,
-        totalAdvancePaid,
-        adjTotal,
-        balanceSlnko,
-        totalPOValue,
-        totalBilledValue,
-        netAdvance,
-        balancePayable,
-        tcs,
-        totalPoBasic,
-        balanceRequired,
       },
     });
   } catch (error) {
@@ -132,4 +136,194 @@ const getCustomerPaymentSummary = async (req, res) => {
   }
 };
 
-module.exports = { getCustomerPaymentSummary };
+//// 7️⃣ Client History
+const clientHistory = async (req, res) => {
+try {
+    const { p_id } = req.query;
+
+    if (!p_id) {
+      return res.status(400).json({ error: "Project ID (p_id) is required." });
+    }
+
+    const cleanPId = isNaN(p_id) ? p_id : Number(p_id);
+
+    const result = await ProjectModel.aggregate([
+      // Match project by p_id
+      { $match: { p_id: cleanPId } },
+      { $project: { code: 1, _id: 0 } },
+
+      // Lookup Purchase Orders using code
+      {
+        $lookup: {
+          from: "purchaseorders",
+          localField: "code",
+          foreignField: "p_id",
+          as: "purchase_orders"
+        }
+      },
+      { $unwind: { path: "$purchase_orders", preserveNullAndEmptyArrays: true } },
+
+      // Lookup Approved and Matched Payments with UTR
+   {
+  $lookup: {
+    from: "payrequests",
+    let: { po_numberStr: { $toString: "$purchase_orders.po_number" } },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: [{ $toString: "$po_number" }, "$$po_numberStr"] },
+              { $eq: ["$approved", "Approved"] },
+              { $eq: ["$acc_match", "matched"] },
+              { $ne: ["$utr", ""] }
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalPaid: { $sum: { $toDouble: "$amount_paid" } }
+        }
+      }
+    ],
+    as: "approved_payment"
+  }
+},
+      // Add advance_paid field
+      {
+        $addFields: {
+          advance_paid: {
+            $cond: {
+              if: { $gt: [{ $size: "$approved_payment" }, 0] },
+              then: { $arrayElemAt: ["$approved_payment.totalPaid", 0] },
+              else: 0
+            }
+          }
+        }
+      }, {
+        $lookup: {
+          from: "biildetails",
+          let: { po_numberStr: { $toString: "$purchase_orders.po_number" } },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [{ $toString: "$po_number" }, "$$po_numberStr"]
+                }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalBilled: { $sum: { $toDouble: "$bill_value" } }
+              }
+            }
+          ],
+          as: "billed_summary"
+        }
+      },
+
+      {
+        $addFields: {
+          total_billed_value: {
+            $cond: {
+              if: { $gt: [{ $size: "$billed_summary" }, 0] },
+              then: { $arrayElemAt: ["$billed_summary.totalBilled", 0] },
+              else: 0
+            }
+          }
+        }
+      },
+
+      {
+        $addFields: {
+          remaining_amount: {
+            $subtract: [
+              { $toDouble: "$purchase_orders.po_value" },
+              { $toDouble: "$advance_paid" }
+            ]
+          }
+        }
+      },
+
+
+      // Final projection for frontend
+      {
+        $project: {
+          project_code: "$code",
+          po_number: "$purchase_orders.po_number",
+          vendor: "$purchase_orders.vendor",
+          item_name: "$purchase_orders.item",
+          po_value: "$purchase_orders.po_value",
+          advance_paid: 1,
+           remaining_amount: 1,
+          total_billed_value: 1
+        }
+      }
+    ]);
+
+        const meta = result.reduce(
+      (acc, curr) => {
+        acc.total_advance_paid += Number(curr.advance_paid || 0);
+        acc.total_remaining_amount += Number(curr.remaining_amount || 0);
+        acc.total_billed_value += Number(curr.total_billed_value || 0);
+        acc.total_po_value += Number(curr.po_value || 0);
+        return acc;
+      },
+      {
+        total_advance_paid: 0,
+        total_remaining_amount: 0,
+        total_billed_value: 0,
+        total_po_value: 0,
+      }
+    );
+
+
+    if (!result.length) {
+      return res.status(404).json({ error: "No project found with this p_id." });
+    }
+
+    return res.status(200).json({ data: result, meta} );
+  } catch (error) {
+    console.error("Error fetching client history:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
+// //Adjustment Data
+//    const adjustData = await =AdjustModel.aggregate([
+//       { $match: { p_id: String(cleanPId) } },
+//       {
+//         $group: {
+//           _id: "$adj_type",
+//           total: { $sum: { $abs: { $toDouble: "$adj_amount" } } }
+//         }
+//       }
+//     ]);
+
+//     const adjustmentSummary = adjustData.reduce(
+//       (acc, curr) => {
+//         if (curr._id === "Add") acc.creditTotal = curr.total;
+//         else if (curr._id === "Subtract") acc.debitTotal = curr.total;
+//         return acc;
+//       },
+//       { creditTotal: 0, debitTotal: 0 }
+//     );
+
+//     // 4️⃣ Final response
+//     res.status(200).json({
+//       project_code: projectCode,
+//       billing_type: billingType,
+//       purchaseOrders: poData,
+//       adjustments: adjustmentSummary
+//     });
+
+//   } catch (err) {
+//     console.error("Error in getClientFinanceSummary:", err);
+//     res.status(500).json({ error: "Internal server error." });
+//   }
+// };
+module.exports = { getCustomerPaymentSummary, clientHistory };
