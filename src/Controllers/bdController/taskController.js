@@ -43,13 +43,7 @@ const createTask = async (req, res) => {
       deadline,
       contact_info,
       priority,
-      description,
-      status_history: [
-        {
-          status: status || "draft",
-          user_id,
-        },
-      ],
+      description
     });
 
     await newTask.save();
@@ -104,7 +98,14 @@ const updateStatus = async (req, res) => {
 const getAllTask = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { type } = req.query;
+    const {
+      status,
+      page = 1,
+      limit = 10,
+      search = "",
+      fromDeadline,
+      toDeadline,
+    } = req.query;
 
     const user = await userModells.findById(userId);
     if (!user) {
@@ -112,58 +113,119 @@ const getAllTask = async (req, res) => {
     }
 
     const isPrivilegedUser =
-      user.department === "admin" || (user.department === "BD" && user.role === "manager");
+      user.department === "admin" ||
+      user.department === "superadmin" ||
+      (user.department === "BD" && user.role === "manager");
 
     const matchQuery = {};
 
     if (!isPrivilegedUser) {
       matchQuery.$or = [
-        { assigned_to: { $in: [userId] } },
+        { assigned_to: userId },
         { user_id: userId },
       ];
     }
 
-    if (type) {
-      matchQuery.type = type;
+    if (status) {
+      matchQuery["current_status"] = status;
     }
 
-    const tasks = await BDtask.find(matchQuery)
-      .select("title priority _id lead_id type current_status assigned_to deadline updatedAt user_id")
-      .populate({
-        path: "assigned_to",
-        select: "_id name",
-      })
-      .populate({
-        path: "user_id",
-        select: "name",
+    if (fromDeadline || toDeadline) {
+      matchQuery.deadline = {};
+      if (fromDeadline) matchQuery.deadline.$gte = new Date(fromDeadline);
+      if (toDeadline) matchQuery.deadline.$lte = new Date(toDeadline);
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const pipeline = [
+      { $match: matchQuery },
+
+      // Lookup lead
+      {
+        $lookup: {
+          from: "bdleads",
+          localField: "lead_id",
+          foreignField: "_id",
+          as: "lead",
+        },
+      },
+      { $unwind: { path: "$lead", preserveNullAndEmptyArrays: true } },
+
+      // Lookup assigned users (array)
+      {
+        $lookup: {
+          from: "users",
+          localField: "assigned_to",
+          foreignField: "_id",
+          as: "assigned_to",
+        },
+      },
+
+      // Optional search
+    ];
+
+    if (search) {
+      const searchRegex = new RegExp(search, "i");
+      pipeline.push({
+        $match: {
+          $or: [
+            { title: { $regex: searchRegex } },
+            { type: { $regex: searchRegex } },
+            { "lead.name": { $regex: searchRegex } },
+            { "lead.id": { $regex: searchRegex } },
+            { "assigned_to.name": { $regex: searchRegex } },
+          ],
+        },
       });
+    }
 
-    const populatedTasks = await Promise.all(
-      tasks.map(async (taskDoc) => {
-        const task = taskDoc.toObject();
+    // Count total
+    const totalPipeline = [...pipeline, { $count: "total" }];
+    const totalResult = await BDtask.aggregate(totalPipeline);
+    const total = totalResult[0]?.total || 0;
 
-        if (task.lead_id) {
-          const leadDoc = await bdleadsModells.findById(task.lead_id).select("_id c_name id capacity");
-          if (leadDoc) {
-            task.lead_id = {
-              _id: leadDoc._id,
-              c_name: leadDoc.c_name,
-              id: leadDoc.id,
-              capacity: leadDoc.capacity,
-            };
-          }
-        }
+    // Pagination & Sorting
+    pipeline.push({ $sort: { createdAt: -1 } });
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: Number(limit) });
 
-        return task;
-      })
-    );
+    // Final projection
+    pipeline.push({
+      $project: {
+        _id: 1,
+        title: 1,
+        type: 1,
+        priority: 1,
+        deadline: 1,
+        updatedAt: 1,
+        current_status: 1,
+        user_id: 1,
+        assigned_to: { _id: 1, name: 1 },
+        lead: { _id: 1, name: 1, id: 1 },
+      },
+    });
 
-    return res.status(200).json({ success: true, data: populatedTasks });
+    const tasks = await BDtask.aggregate(pipeline);
+
+    // Populate user_id separately
+    const populatedTasks = await BDtask.populate(tasks, [
+      { path: "user_id", select: "_id name" },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: populatedTasks,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+    });
   } catch (error) {
     console.error("Error fetching tasks:", error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 
 
 

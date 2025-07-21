@@ -46,11 +46,11 @@ const bdleadsSchema = new mongoose.Schema(
       {
         name: {
           type: String,
-          enum: ["","initial", "follow up", "warm", "won", "dead"],
+          enum: ["initial", "follow up", "warm", "won", "dead"],
         },
         stage: {
           type: String,
-          enum: ["","loi", "loa", "ppa", "token money", "others"],
+          enum: ["loi", "loa", "ppa", "token money", "others"],
         },
         remarks: String,
         updatedAt: { type: Date, default: Date.now },
@@ -63,12 +63,12 @@ const bdleadsSchema = new mongoose.Schema(
     current_status: {
       name: {
         type: String,
-        enum: ["","initial", "follow up", "warm", "won", "dead"],
+        enum: ["initial", "follow up", "warm", "won", "dead"],
         default: "initial",
       },
       stage: {
         type: String,
-        enum: ["","loi", "loa", "ppa", "token money", "others"],
+        enum: ["loi", "loa", "ppa", "token money", "others"],
       },
       remarks: String,
       user_id: {
@@ -84,7 +84,7 @@ const bdleadsSchema = new mongoose.Schema(
         },
         status: {
           type: String,
-          enum: ["","initial", "follow up", "warm", "won", "dead"],
+          enum: ["initial", "follow up", "warm", "won", "dead"],
         },
       },
     ],
@@ -95,7 +95,7 @@ const bdleadsSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ["","initial", "follow up", "warm", "won", "dead"],
+        enum: ["initial", "follow up", "warm", "won", "dead"],
       },
     },
     submitted_by: {
@@ -106,14 +106,14 @@ const bdleadsSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// bdleadsSchema.pre("save", function (next) {
-//   updateLeadStatus(this);
-//   next();
-// });
+bdleadsSchema.pre("save", function (next) {
+  updateLeadStatus(this);
+  next();
+});
 
-// bdleadsSchema.pre("save", function(next){
-//   updateAssignedTo(this);
-//   next();
-// })
+bdleadsSchema.pre("save", function(next){
+  updateAssignedTo(this);
+  next();
+})
 
 module.exports = mongoose.model("bdleads", bdleadsSchema);

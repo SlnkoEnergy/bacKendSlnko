@@ -57,9 +57,10 @@ const getAllLeads = async (req, res) => {
       fromDate,
       toDate,
       stage,
+      lead_without_task,
     } = req.query;
-    const userId = req.user.userId;
 
+    const userId = req.user.userId;
     const user = await userModells.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -68,12 +69,10 @@ const getAllLeads = async (req, res) => {
       user.department === "superadmin" ||
       (user.department === "BD" && user.role === "manager");
 
-    const match = {};
     const and = [];
-
+    const match = {};
     const stageNames = ["initial", "follow up", "warm", "won", "dead"];
 
-    // Stage-wise counts
     const stageCountsAgg = await bdleadsModells.aggregate([
       {
         $group: {
@@ -82,18 +81,14 @@ const getAllLeads = async (req, res) => {
         },
       },
     ]);
-
     const stageCounts = stageNames.reduce((acc, stage) => {
       const found = stageCountsAgg.find((s) => s._id === stage);
       acc[stage] = found ? found.count : 0;
       return acc;
     }, {});
-
-    // Total count of all leads
     const allCountAgg = await bdleadsModells.aggregate([{ $count: "count" }]);
     stageCounts.all = allCountAgg[0]?.count || 0;
 
-    // Count of leads without tasks
     const leadWithoutTaskAgg = await bdleadsModells.aggregate([
       {
         $lookup: {
@@ -130,7 +125,8 @@ const getAllLeads = async (req, res) => {
     if (!isPrivilegedUser) {
       and.push({ "assigned_to.user_id": new mongoose.Types.ObjectId(userId) });
     }
-    if (stage) {
+
+    if (stage && stage !== "lead_without_task") {
       and.push({ "current_status.name": stage });
     }
 
@@ -141,7 +137,21 @@ const getAllLeads = async (req, res) => {
       and.push({ createdAt: { $gte: start, $lte: end } });
     }
 
+    if (lead_without_task === "true") {
+      const leadsWithTask = await task.distinct("lead_id");
+      const leadsWithTaskObjectIds = leadsWithTask.map((id) =>
+        typeof id === "string" ? new mongoose.Types.ObjectId(id) : id
+      );
+      and.push({ _id: { $nin: leadsWithTaskObjectIds } });
+    }
+
     if (and.length) match.$and = and;
+
+    const totalAgg = await bdleadsModells.aggregate([
+      { $match: match },
+      { $count: "count" },
+    ]);
+    const total = totalAgg[0]?.count || 0;
 
     const pipeline = [
       { $match: match },
@@ -149,7 +159,7 @@ const getAllLeads = async (req, res) => {
       { $skip: (parseInt(page) - 1) * parseInt(limit) },
       { $limit: parseInt(limit) },
 
-      // Lookup assigned user info
+      // Lookup assigned users
       {
         $lookup: {
           from: "users",
@@ -197,7 +207,7 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { assigned_user_objs: 0 } },
 
-      // Lookup current_assigned.user_id
+      // Lookup current assigned user
       {
         $lookup: {
           from: "users",
@@ -219,6 +229,7 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { current_assigned_user: 0 } },
 
+      // Lookup submitted by user
       {
         $lookup: {
           from: "users",
@@ -235,7 +246,7 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { submitted_by_user: 0 } },
 
-      // Lookup status_history.user_id
+      // Lookup status history user names
       {
         $lookup: {
           from: "users",
@@ -277,15 +288,48 @@ const getAllLeads = async (req, res) => {
         },
       },
       { $project: { status_users: 0 } },
+
+      // ✅ Lookup latest task updatedAt as lastModifiedTask
+      {
+        $lookup: {
+          from: "bdtasks",
+          let: { leadId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$lead_id", "$$leadId"] } } },
+            {
+              $group: {
+                _id: null,
+                lastModifiedTask: { $max: "$updatedAt" },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                lastModifiedTask: 1,
+              },
+            },
+          ],
+          as: "task_meta",
+        },
+      },
+      {
+        $addFields: {
+          lastModifiedTask: {
+            $ifNull: [
+              { $arrayElemAt: ["$task_meta.lastModifiedTask", 0] },
+              "N/A",
+            ],
+          },
+        },
+      },
+      {
+        $project: {
+          task_meta: 0,
+        },
+      },
     ];
 
     const leads = await bdleadsModells.aggregate(pipeline);
-
-    const totalAgg = await bdleadsModells.aggregate([
-      { $match: match },
-      { $count: "count" },
-    ]);
-    const total = totalAgg[0]?.count || 0;
 
     res.status(200).json({
       message: "BD Leads fetched successfully",

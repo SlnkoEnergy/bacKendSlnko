@@ -2,13 +2,16 @@ function  updateCurrentStatus(lead) {
     if (!lead.status_history || lead.status_history.length === 0) return;
     const latestStatus = lead.status_history[lead.status_history.length - 1];
     const { stage, remarks } = latestStatus;
-    let derivedStatus = "Dead";
+    let derivedStatus = "dead";
     if (!stage || stage.trim() === "") {
-      derivedStatus = "Initial";
-    } else if (stage === "LOI") {
-      derivedStatus = "Follow Up";
-    } else if (stage === "Token Money") {
-      derivedStatus = "Won";
+      derivedStatus = "initial";
+    } else if (stage === "loi") {
+      derivedStatus = "follow up";
+    } else if (stage === "token money") {
+      derivedStatus = "won";
+    }
+    else if(stage === "ppa" || stage === "loa"){
+      derivedStatus = "warm";
     } 
     lead.current_status = {
       name: derivedStatus,
