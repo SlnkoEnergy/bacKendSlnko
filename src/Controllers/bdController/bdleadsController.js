@@ -1106,34 +1106,12 @@ const editLead = async (req, res) => {
 const deleteLead = async (req, res) => {
   try {
     const { _id } = req.params;
-    const { lead_model } = req.query;
 
-    if (!lead_model) {
-      return res.status(400).json({ message: "Lead model is required" });
+    if (!_id) {
+      return res.status(400).json({ message: "Lead ID is required" });
     }
 
-    let Model;
-    switch (lead_model) {
-      case "initial":
-        Model = initiallead;
-        break;
-      case "followup":
-        Model = followUpBdleadModells;
-        break;
-      case "warm":
-        Model = warmbdLeadModells;
-        break;
-      case "won":
-        Model = wonleadModells;
-        break;
-      case "dead":
-        Model = deadleadModells;
-        break;
-      default:
-        return res.status(400).json({ message: "Invalid lead model" });
-    }
-
-    const deletedLead = await Model.findByIdAndDelete(_id);
+    const deletedLead = await bdleadsModells.findByIdAndDelete(_id);
 
     if (!deletedLead) {
       return res.status(404).json({ message: "Lead not found" });
@@ -1148,6 +1126,7 @@ const deleteLead = async (req, res) => {
       .json({ message: "Error deleting lead", error: error.message });
   }
 };
+
 
 const updateAssignedTo = async (req, res) => {
   try {
@@ -1532,7 +1511,12 @@ const getAllLeads = async (req, res) => {
       const leadsWithTaskObjectIds = leadsWithTask.map((id) =>
         typeof id === "string" ? new mongoose.Types.ObjectId(id) : id
       );
-      and.push({ _id: { $nin: leadsWithTaskObjectIds } });
+      and.push({
+        $and: [
+          { _id: { $nin: leadsWithTaskObjectIds } },
+          { "current_status.name": { $ne: "won" } },
+        ],
+      });
     }
 
     if (and.length) match.$and = and;
@@ -1573,7 +1557,12 @@ const getAllLeads = async (req, res) => {
           as: "related_tasks",
         },
       },
-      { $match: { related_tasks: { $size: 0 } } },
+      {
+        $match: {
+          related_tasks: { $size: 0 },
+          "current_status.name": { $ne: "won" },
+        },
+      },
       { $count: "count" },
     ]);
     stageCounts.lead_without_task = leadWithoutTaskAgg[0]?.count || 0;
@@ -1801,9 +1790,6 @@ const getAllLeads = async (req, res) => {
     });
   }
 };
-
-
-module.exports = { getAllLeads };
 
 const updateLeadStatus = async function (req, res) {
   try {
