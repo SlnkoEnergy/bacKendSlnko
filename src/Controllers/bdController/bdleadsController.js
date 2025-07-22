@@ -1552,18 +1552,34 @@ const getAllLeads = async (req, res) => {
 
     if (and.length) match.$and = and;
 
-    // Stage counts
     const stageNames = ["initial", "follow up", "warm", "won", "dead"];
+
+    // Count stage-wise leads as per user privilege
+    const stageMatch = !isPrivilegedUser
+      ? { "assigned_to.user_id": new mongoose.Types.ObjectId(userId) }
+      : {};
+
     const stageCountsAgg = await bdleadsModells.aggregate([
+      { $match: stageMatch },
       { $group: { _id: "$current_status.name", count: { $sum: 1 } } },
     ]);
     const stageCounts = stageNames.reduce((acc, s) => {
       acc[s] = stageCountsAgg.find((x) => x._id === s)?.count || 0;
       return acc;
     }, {});
-    const totalAgg = await bdleadsModells.aggregate([{ $count: "count" }]);
+
+    // Total leads for user
+    const totalAgg = await bdleadsModells.aggregate([
+      { $match: stageMatch },
+      { $count: "count" },
+    ]);
     stageCounts.all = totalAgg[0]?.count || 0;
+
+    // Count leads without task for this user
     const leadWithoutTaskAgg = await bdleadsModells.aggregate([
+      {
+        $match: stageMatch,
+      },
       {
         $lookup: {
           from: "bdtasks",
@@ -1591,7 +1607,6 @@ const getAllLeads = async (req, res) => {
       { $skip: (parseInt(page) - 1) * parseInt(limit) },
       { $limit: parseInt(limit) },
 
-      // Assigned users
       {
         $lookup: {
           from: "users",
@@ -1639,7 +1654,6 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { assigned_user_objs: 0 } },
 
-      // Current assigned
       {
         $lookup: {
           from: "users",
@@ -1659,7 +1673,6 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { current_assigned_user: 0 } },
 
-      // Submitted by
       {
         $lookup: {
           from: "users",
@@ -1676,7 +1689,6 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { submitted_by_user: 0 } },
 
-      // Status history users
       {
         $lookup: {
           from: "users",
@@ -1719,7 +1731,6 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { status_users: 0 } },
 
-      // Last modified task
       {
         $lookup: {
           from: "bdtasks",
@@ -1749,7 +1760,6 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { task_meta: 0 } },
 
-      // Handover info
       {
         $lookup: {
           from: "handoversheets",
@@ -1806,6 +1816,7 @@ const getAllLeads = async (req, res) => {
     });
   }
 };
+
 
 module.exports = { getAllLeads };
 
