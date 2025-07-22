@@ -1937,7 +1937,70 @@ const uploadDocuments = async (req, res) => {
 
 const createBDlead = async function (req, res) {
   try {
-    // 1. Get the latest BD/Lead ID
+    const body = req.body;
+
+    const requiredFields = [
+      "name",
+      "contact_details.mobile",
+      "address.village",
+      "address.district",
+      "address.state",
+      "project_details.capacity",
+      "source.from",
+      "source.sub_source",
+      "comments",
+    ];
+
+    const isMissing = requiredFields.some((path) => {
+      const keys = path.split(".");
+      let current = body;
+      for (const key of keys) {
+        current = current?.[key];
+        if (!current) return true;
+      }
+      return false;
+    });
+    
+    if (isMissing) {
+      return res.status(400).json({ error: "Please fill all required fields." });
+    }
+
+    const mobiles = (body?.contact_details?.mobile || []).map((m) => m.trim());
+
+    const existingLead = await bdleadsModells.aggregate([
+      {
+        $match: {
+          $expr: {
+            $gt: [
+              {
+                $size: {
+                  $setIntersection: [
+                    mobiles,
+                    {
+                      $map: {
+                        input: "$contact_details.mobile",
+                        as: "m",
+                        in: { $trim: { input: "$$m" } },
+                      },
+                    },
+                  ],
+                },
+              },
+              0,
+            ],
+          },
+        },
+      },
+      { $limit: 1 },
+    ]);
+
+    if (existingLead.length > 0) {
+      return res
+        .status(400)
+        .json({ error: "Lead already exists with the provided mobile number!!" });
+    }
+
+    // ✅ Generate next ID
     const lastLead = await bdleadsModells.aggregate([
       { $match: { id: { $regex: /^BD\/Lead\// } } },
       {
@@ -1956,9 +2019,8 @@ const createBDlead = async function (req, res) {
 
     const user_id = req.user.userId;
 
-    // 2. Prepare payload with essential fields
     const payload = {
-      ...req.body,
+      ...body,
       id: nextId,
       submitted_by: user_id,
       assigned_to: [
@@ -1969,18 +2031,19 @@ const createBDlead = async function (req, res) {
       ],
     };
 
-    // 3. Save to bdmodells
     const bdLead = new bdleadsModells(payload);
-    await bdLead.save(); // triggers pre-save hooks
+    await bdLead.save();
 
     res.status(200).json({
       message: "BD Lead created successfully",
       data: bdLead,
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error.message || "Something went wrong" });
   }
 };
+
+
 
 const updateExpectedClosing = async (req, res) => {
   try {

@@ -122,9 +122,12 @@ const getAllTask = async (req, res) => {
 
     const matchQuery = {};
 
-    if (!isPrivilegedUser) {
-      matchQuery.$or = [{ assigned_to: userId }, { user_id: userId }];
-    }
+   if (!isPrivilegedUser) {
+  matchQuery.$or = [
+    { user_id: new mongoose.Types.ObjectId(userId) },
+    { assigned_to: new mongoose.Types.ObjectId(userId) },
+  ];
+}
 
     if (status) {
       matchQuery["current_status"] = status;
