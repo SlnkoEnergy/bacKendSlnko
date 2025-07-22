@@ -1106,34 +1106,12 @@ const editLead = async (req, res) => {
 const deleteLead = async (req, res) => {
   try {
     const { _id } = req.params;
-    const { lead_model } = req.query;
 
-    if (!lead_model) {
-      return res.status(400).json({ message: "Lead model is required" });
+    if (!_id) {
+      return res.status(400).json({ message: "Lead ID is required" });
     }
 
-    let Model;
-    switch (lead_model) {
-      case "initial":
-        Model = initiallead;
-        break;
-      case "followup":
-        Model = followUpBdleadModells;
-        break;
-      case "warm":
-        Model = warmbdLeadModells;
-        break;
-      case "won":
-        Model = wonleadModells;
-        break;
-      case "dead":
-        Model = deadleadModells;
-        break;
-      default:
-        return res.status(400).json({ message: "Invalid lead model" });
-    }
-
-    const deletedLead = await Model.findByIdAndDelete(_id);
+    const deletedLead = await bdleadsModells.findByIdAndDelete(_id);
 
     if (!deletedLead) {
       return res.status(404).json({ message: "Lead not found" });
@@ -1148,6 +1126,7 @@ const deleteLead = async (req, res) => {
       .json({ message: "Error deleting lead", error: error.message });
   }
 };
+
 
 const updateAssignedTo = async (req, res) => {
   try {
