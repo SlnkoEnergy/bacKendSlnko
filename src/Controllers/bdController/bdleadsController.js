@@ -1547,7 +1547,12 @@ const getAllLeads = async (req, res) => {
       const leadsWithTaskObjectIds = leadsWithTask.map((id) =>
         typeof id === "string" ? new mongoose.Types.ObjectId(id) : id
       );
-      and.push({ _id: { $nin: leadsWithTaskObjectIds } });
+      and.push({
+        $and: [
+          { _id: { $nin: leadsWithTaskObjectIds } },
+          { "current_status.name": { $ne: "won" } },
+        ],
+      });
     }
 
     if (and.length) match.$and = and;
@@ -1588,7 +1593,12 @@ const getAllLeads = async (req, res) => {
           as: "related_tasks",
         },
       },
-      { $match: { related_tasks: { $size: 0 } } },
+      {
+        $match: {
+          related_tasks: { $size: 0 },
+          "current_status.name": { $ne: "won" },
+        },
+      },
       { $count: "count" },
     ]);
     stageCounts.lead_without_task = leadWithoutTaskAgg[0]?.count || 0;
@@ -1816,9 +1826,6 @@ const getAllLeads = async (req, res) => {
     });
   }
 };
-
-
-module.exports = { getAllLeads };
 
 const updateLeadStatus = async function (req, res) {
   try {

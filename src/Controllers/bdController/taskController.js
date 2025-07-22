@@ -426,7 +426,8 @@ const migrateAllLeads = async (req, res) => {
 };
 
 const getexportToCsv = async (req, res) => {
-  const { Ids } = req.body;
+  try {
+    const { Ids } = req.body;
 
   const pipeline = [
     {
@@ -479,15 +480,15 @@ const getexportToCsv = async (req, res) => {
   const result = await BDtask.aggregate(pipeline);
 
   const fields = [
-    { label: "Title", value: "title" },
-    { label: "Type", value: "type" },
-    { label: "Current Status", value: "current_status" },
-    { label: "Priority", value: "priority" },
-    { label: "Deadline", value: "deadline" },
-    { label: "Lead Name", value: "lead_name" },
-    { label: "Created By", value: "created_By" },
-    { label: "Assigned Name", value: "Assigned_to_names" },
-  ];
+    { label: 'Title', value: 'title' },
+    { label: 'Type', value: 'type' },
+    { label: 'Current Status', value: 'current_status' },
+    { label: 'Priority', value: 'priority' },
+    { label: 'Deadline', value: 'deadline' },
+    { label: 'Lead Name', value: 'lead_name' },
+    { label: 'Created By', value: 'created_By' },
+    { label: 'Assigned Name', value: 'assigned_to_names' },
+  ]
 
   const json2csvParser = new Parser({ fields });
 
@@ -495,7 +496,16 @@ const getexportToCsv = async (req, res) => {
   res.setHeader("Content-disposition", "attachment; filename=data.csv");
   res.set("Content-Type", "text/csv");
   res.status(200).send(csv);
-};
+
+  } catch (error) {
+    res.status(500).json({
+      message:"Internal Server Error",
+      error: error.message
+    })    
+  }
+
+}
+
 
 module.exports = {
   createTask,
