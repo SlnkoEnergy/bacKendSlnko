@@ -116,11 +116,11 @@ const getLeadSummary = async (req, res) => {
     const dateFilter =
       fromDate && toDate
         ? {
-            createdAt: {
-              $gte: fromDate,
-              $lte: toDate,
-            },
-          }
+          createdAt: {
+            $gte: fromDate,
+            $lte: toDate,
+          },
+        }
         : {};
 
     // Previous period
@@ -131,11 +131,11 @@ const getLeadSummary = async (req, res) => {
     const prevDateFilter =
       fromDate && toDate
         ? {
-            createdAt: {
-              $gte: prevFromDate,
-              $lte: prevToDate,
-            },
-          }
+          createdAt: {
+            $gte: prevFromDate,
+            $lte: prevToDate,
+          },
+        }
         : {};
 
     const calcChange = (current, previous) => {
@@ -317,11 +317,11 @@ const getLeadSource = async (req, res) => {
     const dateFilter =
       fromDate && toDate
         ? {
-            createdAt: {
-              $gte: fromDate,
-              $lte: toDate,
-            },
-          }
+          createdAt: {
+            $gte: fromDate,
+            $lte: toDate,
+          },
+        }
         : {};
 
     const leadAggregation = await createbdleads.aggregate([
@@ -533,11 +533,11 @@ const leadSummary = async (req, res) => {
     const dateFilter =
       fromDate && toDate
         ? {
-            createdAt: {
-              $gte: fromDate,
-              $lte: toDate,
-            },
-          }
+          createdAt: {
+            $gte: fromDate,
+            $lte: toDate,
+          },
+        }
         : {};
 
     // Parallel aggregation of lead status counts
@@ -1173,37 +1173,10 @@ const updateAssignedTo = async (req, res) => {
 
 const exportLeadsCSV = async (req, res) => {
   try {
-    const { stage = "", search = "" } = req.query;
-    const userId = req.user.userId;
-
-    const buildMatchQuery = () => {
-      const query = [];
-
-      if (search) {
-        query.push({
-          $or: [
-            { name: { $regex: search, $options: "i" } },
-            { "contact_details.mobile": { $regex: search, $options: "i" } },
-            { "address.state": { $regex: search, $options: "i" } },
-            { "project_details.scheme": { $regex: search, $options: "i" } },
-            { id: { $regex: search, $options: "i" } },
-            { "assigned_user.name": { $regex: search, $options: "i" } },
-          ],
-        });
-      }
-
-      query.push({
-        "assigned_to.user_id": new mongoose.Types.ObjectId(userId),
-      });
-
-      if (stage) {
-        query.push({ "current_status.name": stage });
-      }
-
-      return { $and: query };
-    };
+    const { Ids = [] } = req.body;
 
     const leads = await bdleadsModells.aggregate([
+      {$match : {_id : {$in : Ids.map(id => new mongoose.Types.ObjectId(id))}}},
       {
         $lookup: {
           from: "users",
@@ -1217,9 +1190,8 @@ const exportLeadsCSV = async (req, res) => {
           assigned_user: { $arrayElemAt: ["$assigned_users", 0] },
         },
       },
-      { $match: buildMatchQuery() },
     ]);
-
+   
     const mapped = leads.map((item) => ({
       Status: item.current_status?.name || "",
       "Lead Id": item.id,
@@ -1234,7 +1206,20 @@ const exportLeadsCSV = async (req, res) => {
       "Lead Owner": item.assigned_user?.name || "",
     }));
 
-    const json2csvParser = new Parser();
+    const fields = [
+      { label: "Status", value: "Status" },
+      { label: "Lead Id", value: "Lead Id" },
+      { label: "Name", value: "Name" },
+      { label: "Mobile", value: "Mobile" },
+      { label: "State", value: "State" },
+      { label: "Scheme", value: "Scheme" },
+      { label: "Capacity (MW)", value: "Capacity (MW)" },
+      { label: "Distance (KM)", value: "Distance (KM)" },
+      { label: "Date", value: "Date" },
+      { label: "Lead Owner", value: "Lead Owner" },
+    ];
+
+    const json2csvParser = new Parser({fields});
     const csv = json2csvParser.parse(mapped);
 
     res.header("Content-Type", "text/csv");
@@ -1893,9 +1878,9 @@ const uploadDocuments = async (req, res) => {
         Array.isArray(respData) && respData.length > 0
           ? respData[0]
           : respData.url ||
-            respData.fileUrl ||
-            (respData.data && respData.data.url) ||
-            null;
+          respData.fileUrl ||
+          (respData.data && respData.data.url) ||
+          null;
 
       if (url) {
         uploadedFileMap[index] = url;

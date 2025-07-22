@@ -722,5 +722,5 @@ module.exports = {
   checkid,
   search,
   getexportToCsv,
-  migrateProjectToHandover,
+  migrateProjectToHandover
 };
