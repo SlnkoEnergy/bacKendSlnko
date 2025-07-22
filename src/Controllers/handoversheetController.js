@@ -76,7 +76,10 @@ const gethandoversheetdata = async function (req, res) {
         $or: [
           { "customer_details.code": { $regex: search, $options: "i" } },
           { "customer_details.name": { $regex: search, $options: "i" } },
+          { "customer_details.customer": { $regex: search, $options: "i" } },
           { "customer_details.state": { $regex: search, $options: "i" } },
+          { "customer_details.p_group": { $regex: search, $options: "i" } },
+          { "leadDetails.id": { $regex: search, $options: "i" } },
           { "leadDetails.scheme": { $regex: search, $options: "i" } },
         ],
       });
