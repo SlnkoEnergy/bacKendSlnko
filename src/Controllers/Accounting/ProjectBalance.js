@@ -6,16 +6,19 @@ const projectBalance = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 10;
     const search = req.query.search || "";
+    const group = req.query.group || "";
 
-    const searchMatch = search
-      ? {
-          $or: [
-            { name: { $regex: search, $options: "i" } },
-            { code: { $regex: search, $options: "i" } },
-            { customer: { $regex: search, $options: "i" } },
-          ],
-        }
-      : {};
+    const searchMatch = {
+      ...(search && {
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { code: { $regex: search, $options: "i" } },
+          { customer: { $regex: search, $options: "i" } },
+          { p_group: { $regex: search, $options: "i" } },
+        ],
+      }),
+      ...(group && { p_group: group }),
+    };
 
     const aggregationPipeline = [
       { $match: searchMatch },
@@ -63,6 +66,7 @@ const projectBalance = async (req, res) => {
                     { $in: ["$po_number", "$$poNumbers"] },
                     { $eq: ["$approved", "Approved"] },
                     { $ne: ["$utr", null] },
+                    { $ne: ["$utr", ""] },
                   ],
                 },
               },
@@ -275,15 +279,16 @@ const projectBalance = async (req, res) => {
               {
                 $sum: {
                   $map: {
-                    input: "$pays",
-                    as: "pay",
-                    in: { $toDouble: "$$pay.amount_paid" },
+                    input: "$debits",
+                    as: "d",
+                    in: { $toDouble: "$$d.amount_paid" },
                   },
                 },
               },
               2,
             ],
           },
+
           balanceSlnko: {
             $round: [
               {
@@ -676,6 +681,50 @@ const projectBalance = async (req, res) => {
           },
         },
       },
+      {
+        $addFields: {
+          latestCreditCreatedAt: {
+            $max: {
+              $map: {
+                input: "$credits",
+                as: "c",
+                in: "$$c.createdAt",
+              },
+            },
+          },
+          latestDebitUpdatedAt: {
+            $max: {
+              $map: {
+                input: "$debits",
+                as: "d",
+                in: "$$d.updatedAt",
+              },
+            },
+          },
+          latestActivityDate: {
+            $max: [
+              {
+                $max: {
+                  $map: {
+                    input: "$credits",
+                    as: "c",
+                    in: "$$c.createdAt",
+                  },
+                },
+              },
+              {
+                $max: {
+                  $map: {
+                    input: "$debits",
+                    as: "d",
+                    in: "$$d.updatedAt",
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
 
       {
         $project: {
@@ -683,10 +732,12 @@ const projectBalance = async (req, res) => {
           code: 1,
           name: 1,
           customer: 1,
+          p_group: 1,
           project_kwp: 1,
           totalCredit: 1,
           totalDebit: 1,
           totalAdjustment: 1,
+          customerAdjustmentTotal: 1,
           availableAmount: 1,
           netBalance: 1,
           totalAmountPaid: 1,
@@ -703,6 +754,7 @@ const projectBalance = async (req, res) => {
 
     const paginatedPipeline = [
       ...aggregationPipeline,
+      { $sort: { latestActivityDate: -1 } },
       { $skip: (page - 1) * pageSize },
       { $limit: pageSize },
     ];
@@ -742,8 +794,6 @@ const projectBalance = async (req, res) => {
             totalBalanceSlnko: { $sum: "$balanceSlnko" },
             totalBalancePayable: { $sum: "$balancePayable" },
             totalBalanceRequired: { $sum: "$balanceRequired" },
-            netBalance: { $sum: "$netBalance" },
-            totalAmountPaid: { $sum: "$totalAmountPaid" },
           },
         },
         {
@@ -754,11 +804,10 @@ const projectBalance = async (req, res) => {
             totalDebitSum: { $round: ["$totalDebitSum", 2] },
             totalAdjustmentSum: { $round: ["$totalAdjustmentSum", 2] },
             totalAvailableAmount: { $round: ["$totalAvailableAmount", 2] },
-            netBalance: { $round: ["$netBalance", 2] },
-            totalAmountPaid: { $round: ["$totalAmountPaid", 2] },
             totalBalanceSlnko: { $round: ["$totalBalanceSlnko", 2] },
             totalBalancePayable: { $round: ["$totalBalancePayable", 2] },
             totalBalanceRequired: { $round: ["$totalBalanceRequired", 2] },
+            
           },
         },
       ]),
@@ -784,10 +833,12 @@ const projectBalance = async (req, res) => {
   }
 };
 
+/**** export project code ****/
+
 const exportProjectBalance = async (req, res) => {
   try {
     const aggregationPipeline = [
-          {
+      {
         $lookup: {
           from: "addmoneys",
           localField: "p_id",
