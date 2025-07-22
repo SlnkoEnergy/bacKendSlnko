@@ -45,7 +45,7 @@ const createTask = async (req, res) => {
       deadline,
       contact_info,
       priority,
-      description
+      description,
     });
 
     await newTask.save();
@@ -61,7 +61,6 @@ const createTask = async (req, res) => {
     });
   }
 };
-
 
 const updateStatus = async (req, res) => {
   try {
@@ -80,7 +79,7 @@ const updateStatus = async (req, res) => {
     task.status_history.push({
       status,
       user_id,
-      remarks
+      remarks,
     });
 
     await task.save();
@@ -111,7 +110,9 @@ const getAllTask = async (req, res) => {
 
     const user = await userModells.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     const isPrivilegedUser =
@@ -122,10 +123,7 @@ const getAllTask = async (req, res) => {
     const matchQuery = {};
 
     if (!isPrivilegedUser) {
-      matchQuery.$or = [
-        { assigned_to: userId },
-        { user_id: userId },
-      ];
+      matchQuery.$or = [{ assigned_to: userId }, { user_id: userId }];
     }
 
     if (status) {
@@ -228,9 +226,6 @@ const getAllTask = async (req, res) => {
   }
 };
 
-
-
-
 const getAllTaskByAssigned = async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -254,7 +249,6 @@ const getAllTaskByAssigned = async (req, res) => {
   }
 };
 
-
 const getTaskById = async (req, res) => {
   try {
     const taskDoc = await BDtask.findById(req.params._id)
@@ -271,7 +265,9 @@ const getTaskById = async (req, res) => {
     const task = taskDoc.toObject();
 
     if (task.lead_id) {
-      const leadDoc = await bdleadsModells.findById(task.lead_id).select("_id name id");
+      const leadDoc = await bdleadsModells
+        .findById(task.lead_id)
+        .select("_id name id");
       if (leadDoc) {
         task.lead_id = {
           _id: leadDoc._id,
@@ -292,7 +288,6 @@ const getTaskById = async (req, res) => {
     });
   }
 };
-
 
 const getTaskByLeadId = async (req, res) => {
   try {
@@ -320,7 +315,6 @@ const getTaskByLeadId = async (req, res) => {
     });
   }
 };
-
 
 const updateTask = async (req, res) => {
   try {
@@ -365,12 +359,15 @@ const toggleViewTask = async (req, res) => {
       await task.save();
     }
 
-    return res.status(200).json({ message: "Marked as viewed", is_viewed: task.is_viewed });
+    return res
+      .status(200)
+      .json({ message: "Marked as viewed", is_viewed: task.is_viewed });
   } catch (err) {
-    return res.status(500).json({ message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
-
 
 const getNotifications = async (req, res) => {
   const userId = req.user.userId;
@@ -378,7 +375,7 @@ const getNotifications = async (req, res) => {
   try {
     const notifications = await BDtask.find({
       assigned_to: userId,
-      is_viewed: { $ne: userId }
+      is_viewed: { $ne: userId },
     })
       .sort({ createdAt: -1 })
       .select("title description createdAt");
@@ -409,7 +406,10 @@ const migrateAllLeads = async (req, res) => {
         console.log(`✅ Migrated lead with ID: ${oldLead.id}`);
       } catch (err) {
         failureCount++;
-        console.error(`❌ Error migrating lead with ID ${oldLead.id}:`, err.message);
+        console.error(
+          `❌ Error migrating lead with ID ${oldLead.id}:`,
+          err.message
+        );
       }
     }
 
@@ -417,7 +417,7 @@ const migrateAllLeads = async (req, res) => {
       message: "Migration completed",
       successCount,
       failureCount,
-      total: oldLeads.length
+      total: oldLeads.length,
     });
   } catch (error) {
     console.error("Migration failed:", error);
@@ -426,11 +426,14 @@ const migrateAllLeads = async (req, res) => {
 };
 
 const getexportToCsv = async (req, res) => {
-
   const { Ids } = req.body;
 
   const pipeline = [
-    { $match: { _id: { $in: Ids.map(id => new mongoose.Types.ObjectId(id)) } } },
+    {
+      $match: {
+        _id: { $in: Ids.map((id) => new mongoose.Types.ObjectId(id)) },
+      },
+    },
     {
       $lookup: {
         from: "bdleads",
@@ -469,32 +472,30 @@ const getexportToCsv = async (req, res) => {
         lead_name: "$lead.name",
         created_By: "$created_by.name",
         assigned_to_names: "$assigned_to.name",
-      }
-    }
+      },
+    },
   ];
 
   const result = await BDtask.aggregate(pipeline);
 
   const fields = [
-    { label: 'Title', value: 'title' },
-    { label: 'Type', value: 'type' },
-    { label: 'Current Status', value: 'current_status' },
-    { label: 'Priority', value: 'priority' },
-    { label: 'Deadline', value: 'deadline' },
-    { label: 'Lead Name', value: 'lead_name' },
-    { label: 'Created By', value: 'created_By' },
-    { label: 'Assigned Name', value: 'Assigned_to_names' },
-  ]
+    { label: "Title", value: "title" },
+    { label: "Type", value: "type" },
+    { label: "Current Status", value: "current_status" },
+    { label: "Priority", value: "priority" },
+    { label: "Deadline", value: "deadline" },
+    { label: "Lead Name", value: "lead_name" },
+    { label: "Created By", value: "created_By" },
+    { label: "Assigned Name", value: "Assigned_to_names" },
+  ];
 
   const json2csvParser = new Parser({ fields });
 
   const csv = json2csvParser.parse(result);
-  res.setHeader('Content-disposition', 'attachment; filename=data.csv')
-  res.set('Content-Type', 'text/csv');
+  res.setHeader("Content-disposition", "attachment; filename=data.csv");
+  res.set("Content-Type", "text/csv");
   res.status(200).send(csv);
-
-}
-
+};
 
 module.exports = {
   createTask,
