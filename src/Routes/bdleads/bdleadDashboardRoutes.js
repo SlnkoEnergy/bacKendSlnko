@@ -115,7 +115,7 @@ router.put(
   jwtMW.authorization,
   updateAssignedTo
 );
-router.get(
+router.post(
   "/export-lead",
   jwtMW.authentication,
   jwtMW.authorization,

@@ -483,7 +483,7 @@ const getexportToCsv = async (req, res) => {
     { label: 'Deadline', value: 'deadline' },
     { label: 'Lead Name', value: 'lead_name' },
     { label: 'Created By', value: 'created_By' },
-    { label: 'Assigned Name', value: 'Assigned_to_names' },
+    { label: 'Assigned Name', value: 'assigned_to_names' },
   ]
 
   const json2csvParser = new Parser({ fields });
@@ -492,6 +492,7 @@ const getexportToCsv = async (req, res) => {
   res.setHeader('Content-disposition', 'attachment; filename=data.csv')
   res.set('Content-Type', 'text/csv');
   res.status(200).send(csv);
+
 
 }
 

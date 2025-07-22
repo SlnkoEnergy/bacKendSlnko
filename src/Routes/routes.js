@@ -206,6 +206,7 @@ const {
   getbyid,
   search,
   getByIdOrLeadId,
+  getexportToCsv,
 } = require("../Controllers/handoversheetController");
 const {
   addmoduleMaster,
@@ -1082,6 +1083,12 @@ router.post(
   jwtMW.authorization,
   createhandoversheet
 );
+router.post(
+  "/handover-export",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getexportToCsv,
+)
 router.get(
   "/get-all-handover-sheet",
   jwtMW.authentication,
