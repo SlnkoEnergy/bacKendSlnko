@@ -203,28 +203,43 @@ const getPOByProjectId = async function (req, res) {
   }
 };
 
-//get po history by id
-const getPOHistoryById = async function (req, res) {
+const getPOById = async (req, res) => {
   try {
-    let id = req.params._id;
-    let data = await pohisttoryModells.findById(id).lean();
+    const { p_id, _id } = req.body;
 
-    if (!data) return res.status(404).json({ msg: "PO History not found" });
+    const query = {};
+    if (_id) query._id = _id;
+    if (p_id) query.p_id = p_id;
 
-    const isObjectId = mongoose.Types.ObjectId.isValid(data.item);
+    const data = await purchaseOrderModells.findOne(query);
 
-    if (isObjectId) {
-      const material = await materialCategoryModells
-        .findById(data.item)
-        .select("name");
-      data.item = material?.name || null;
-    } else {
-      data.item = data.item;
+    if (!data) {
+      return res.status(404).json({ msg: "Purchase Order not found" });
     }
 
-    res.status(200).json({ msg: "PO History Detail", data });
+    res.status(200).json({ msg: "Purchase Order found", data });
   } catch (error) {
-    res.status(500).json({ msg: "Error fetching data", error: error.message });
+    res.status(500).json({ msg: "Error retrieving PO", error: error.message });
+  }
+};
+
+const getPOHistoryById = async (req, res) => {
+  try {
+    const { po_number, _id } = req.query;
+
+    const query = {};
+    if (_id) query._id = _id;
+    if (po_number) query.po_number = po_number;
+
+    const data = await pohisttoryModells.findOne(query);
+
+    if (!data) {
+      return res.status(404).json({ msg: "Purchase Order not found" });
+    }
+
+    res.status(200).json({ msg: "Purchase Order found", data });
+  } catch (error) {
+    res.status(500).json({ msg: "Error retrieving PO", error: error.message });
   }
 };
 
@@ -270,6 +285,9 @@ const getPaginatedPo = async (req, res) => {
     const etdTo = parseCustomDate(req.query.etdTo);
     const deliveryFrom = parseCustomDate(req.query.deliveryFrom);
     const deliveryTo = parseCustomDate(req.query.deliveryTo);
+     const filter = req.query.filter?.trim();
+
+    
 
     const matchStage = {
       ...(search && {
@@ -315,6 +333,32 @@ const getPaginatedPo = async (req, res) => {
           }
         : {}),
     };
+
+     if (filter) {
+      switch (filter) {
+        case "ETD Pending":
+          matchStage["current_status.status"] = "draft";
+          matchStage["etd"] = null;
+          break;
+          case "ETD Done":
+          matchStage["current_status.status"] = "draft";
+          matchStage["etd"] = { $ne: null };
+          break;
+        case "Ready to Dispatch":
+          matchStage["current_status.status"] = "ready_to_dispatch";
+          matchStage["dispatch_date"] = { $ne: null };
+          break;
+        case "Out for Delivery":
+          matchStage["current_status.status"] = "out_for_delivery";
+          break;
+        case "Delivered":
+          matchStage["current_status.status"] = "delivered";
+          break;
+        default:
+          break;
+      }
+    }
+
     const pipeline = [
       {
         $addFields: {
@@ -1053,6 +1097,7 @@ module.exports = {
   exportCSV,
   moverecovery,
   getPOByProjectId,
+  getPOById,
   deletePO,
   getpohistory,
   getPOHistoryById,

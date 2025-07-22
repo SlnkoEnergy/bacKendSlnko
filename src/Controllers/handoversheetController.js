@@ -5,6 +5,87 @@ const projectmodells = require("../Modells/projectModells");
 const { Parser } = require("json2csv");
 const handoversheetModells = require("../Modells/handoversheetModells");
 
+const migrateProjectToHandover = async (req, res) => {
+  try {
+    // 1. Get last handover `id`
+    const lastHandover = await hanoversheetmodells.findOne({ id: { $regex: /^BD\/LEAD\// } })
+      .sort({ createdAt: -1 });
+
+    let lastIdNum = 1000;
+    if (lastHandover && lastHandover.id) {
+      const parts = lastHandover.id.split("/");
+      lastIdNum = parseInt(parts[2]);
+    }
+
+    // 2. Get all existing p_ids in handoversheet
+    const existingPids = await hanoversheetmodells.distinct("p_id");
+
+    // 3. Get all projects that are not already in handoversheet
+    const projects = await projectmodells.find({ p_id: { $nin: existingPids } });
+
+    const handoversToInsert = [];
+    const moduleCategoriesToInsert = [];
+
+    for (const project of projects) {
+      lastIdNum += 1;
+      const newId = `BD/LEAD/${lastIdNum}`;
+
+      const handoverData = {
+        id: " ",
+        p_id: project.p_id,
+        customer_details: {
+          customer: project.customer || "",
+          name: project.name || "",
+          p_group: project.p_group || "",
+          email: project.email || "",
+          number: parseInt((project.number || "").replace(/\D/g, "")) || 0,
+          alt_number: parseInt((project.alt_number || "").replace(/\D/g, "")) || 0,
+          site_address: {
+            village_name: project.site_address?.village_name || "",
+            district_name: project.site_address?.district_name || "",
+          },
+          state: project.state || "",
+          code: project.code || "",
+        },
+        project_detail: {
+          project_component: project.project_category || "",
+          project_kwp: project.project_kwp || "",
+          distance: project.distance || "",
+          tarrif: project.tarrif || ""
+        },
+        other_details: {
+          service: project.service || "",
+          billing_type: project.billing_type || "",
+        },
+        submitted_by: project.submitted_by || "",
+        is_locked: "locked",
+        status_of_handoversheet: "Approved",
+      };
+
+      handoversToInsert.push(handoverData);
+
+      // Create moduleCategory record
+      moduleCategoriesToInsert.push({
+        project_id: project._id,
+      });
+    }
+
+    if (handoversToInsert.length > 0) {
+      await hanoversheetmodells.insertMany(handoversToInsert);
+      await moduleCategory.insertMany(moduleCategoriesToInsert);
+    }
+
+    res.status(200).json({
+      message: `${handoversToInsert.length} project(s) migrated to handoversheet.`,
+    });
+  } catch (error) {
+    console.error("Migration Error:", error);
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+
+
 const createhandoversheet = async function (req, res) {
   try {
     const {
@@ -79,7 +160,10 @@ const gethandoversheetdata = async function (req, res) {
         $or: [
           { "customer_details.code": { $regex: search, $options: "i" } },
           { "customer_details.name": { $regex: search, $options: "i" } },
+          { "customer_details.customer": { $regex: search, $options: "i" } },
           { "customer_details.state": { $regex: search, $options: "i" } },
+          { "customer_details.p_group": { $regex: search, $options: "i" } },
+          { "leadDetails.id": { $regex: search, $options: "i" } },
           { "leadDetails.scheme": { $regex: search, $options: "i" } },
         ],
       });
@@ -616,6 +700,7 @@ const csv = json2csvParser.parse(result);
 
 }
 
+
 module.exports = {
   createhandoversheet,
   gethandoversheetdata,
@@ -624,5 +709,6 @@ module.exports = {
   updatestatus,
   checkid,
   search,
-  getexportToCsv,
+  // getexportToCsv,
+  migrateProjectToHandover
 };

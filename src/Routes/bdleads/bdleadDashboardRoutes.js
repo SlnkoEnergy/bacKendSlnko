@@ -196,8 +196,8 @@ router.post(
   "/task-export",
   jwtMW.authentication,
   jwtMW.authorization,
-  getexportToCsv,
-)
+  getexportToCsv
+);
 
 //Notes Routes
 router.get(
@@ -230,12 +230,7 @@ router.get(
   jwtMW.authorization,
   getNotesByLeadId
 );
-router.post(
-  "/lead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  createBDlead
-);
+router.post("/lead", jwtMW.authentication, jwtMW.authorization, createBDlead);
 
 router.put("/bdleadupdate", migrateAllLeads);
 router.put(

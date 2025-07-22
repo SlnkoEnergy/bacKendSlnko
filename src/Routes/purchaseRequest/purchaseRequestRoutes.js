@@ -47,7 +47,6 @@ router.delete(
   jwtMW.authorization,
   deletePurchaseRequest
 );
-
 router.get(
   "/:project_id/item/:item_id/pr/:pr_id",
   jwtMW.authentication,

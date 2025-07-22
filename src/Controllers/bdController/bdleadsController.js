@@ -1152,46 +1152,43 @@ const deleteLead = async (req, res) => {
 const updateAssignedTo = async (req, res) => {
   try {
     const { _id } = req.params;
-    const { lead_model } = req.query;
     const { assigned_to } = req.body;
 
-    if (!lead_model || !_id || !assigned_to) {
+    if (!_id || !assigned_to) {
       return res
         .status(400)
         .json({ success: false, message: "Missing required fields" });
     }
 
-    const modelMap = {
-      initial: initiallead,
-      followup: followUpBdleadModells,
-      warm: warmbdLeadModells,
-      won: wonleadModells,
-      dead: deadleadModells,
-    };
-
-    const Model = modelMap[lead_model];
-
-    if (!Model) {
+    const user = await userModells.findById(assigned_to);
+    if (!user) {
       return res
-        .status(400)
-        .json({ success: false, message: "Invalid model name" });
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
-    const updatedLead = await Model.findByIdAndUpdate(
-      _id,
-      { assigned_to },
-      { new: true }
-    );
-
-    if (!updatedLead) {
+    const lead = await bdleadsModells.findById(_id);
+    if (!lead) {
       return res
         .status(404)
         .json({ success: false, message: "Lead not found" });
     }
 
-    res.status(200).json({ success: true, data: updatedLead });
+    const status = lead.current_status?.name || "";
+
+    lead.assigned_to.push({
+      user_id: user._id,
+      status,
+    });
+
+    // Save the document
+    await lead.save();
+
+    res.status(200).json({ success: true, data: lead });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Server Error", error });
+    res
+      .status(500)
+      .json({ success: false, message: "Server Error", error: error.message });
   }
 };
 
@@ -1442,11 +1439,7 @@ const getLeadByLeadIdorId = async (req, res) => {
           doc: { $first: "$$ROOT" },
           documents: {
             $push: {
-              $cond: [
-                { $ne: ["$documents", {}] },
-                "$documents",
-                "$$REMOVE",
-              ],
+              $cond: [{ $ne: ["$documents", {}] }, "$documents", "$$REMOVE"],
             },
           },
         },
@@ -1497,7 +1490,6 @@ const getLeadByLeadIdorId = async (req, res) => {
   }
 };
 
-
 const getAllLeads = async (req, res) => {
   try {
     const {
@@ -1515,50 +1507,13 @@ const getAllLeads = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const isPrivilegedUser =
-      user.department === "admin" ||
-      user.department === "superadmin" ||
+      ["admin", "superadmin"].includes(user.department) ||
       (user.department === "BD" && user.role === "manager");
 
-    const and = [];
     const match = {};
-    const stageNames = ["initial", "follow up", "warm", "won", "dead"];
+    const and = [];
 
-    const stageCountsAgg = await bdleadsModells.aggregate([
-      {
-        $group: {
-          _id: "$current_status.name",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-    const stageCounts = stageNames.reduce((acc, stage) => {
-      const found = stageCountsAgg.find((s) => s._id === stage);
-      acc[stage] = found ? found.count : 0;
-      return acc;
-    }, {});
-    const allCountAgg = await bdleadsModells.aggregate([{ $count: "count" }]);
-    stageCounts.all = allCountAgg[0]?.count || 0;
-
-    const leadWithoutTaskAgg = await bdleadsModells.aggregate([
-      {
-        $lookup: {
-          from: "bdtasks",
-          localField: "_id",
-          foreignField: "lead_id",
-          as: "related_tasks",
-        },
-      },
-      {
-        $match: {
-          related_tasks: { $size: 0 },
-        },
-      },
-      {
-        $count: "count",
-      },
-    ]);
-    stageCounts.lead_without_task = leadWithoutTaskAgg[0]?.count || 0;
-
+    // Filtering
     if (search) {
       and.push({
         $or: [
@@ -1597,19 +1552,61 @@ const getAllLeads = async (req, res) => {
 
     if (and.length) match.$and = and;
 
+    const stageNames = ["initial", "follow up", "warm", "won", "dead"];
+
+    // Count stage-wise leads as per user privilege
+    const stageMatch = !isPrivilegedUser
+      ? { "assigned_to.user_id": new mongoose.Types.ObjectId(userId) }
+      : {};
+
+    const stageCountsAgg = await bdleadsModells.aggregate([
+      { $match: stageMatch },
+      { $group: { _id: "$current_status.name", count: { $sum: 1 } } },
+    ]);
+    const stageCounts = stageNames.reduce((acc, s) => {
+      acc[s] = stageCountsAgg.find((x) => x._id === s)?.count || 0;
+      return acc;
+    }, {});
+
+    // Total leads for user
     const totalAgg = await bdleadsModells.aggregate([
+      { $match: stageMatch },
+      { $count: "count" },
+    ]);
+    stageCounts.all = totalAgg[0]?.count || 0;
+
+    // Count leads without task for this user
+    const leadWithoutTaskAgg = await bdleadsModells.aggregate([
+      {
+        $match: stageMatch,
+      },
+      {
+        $lookup: {
+          from: "bdtasks",
+          localField: "_id",
+          foreignField: "lead_id",
+          as: "related_tasks",
+        },
+      },
+      { $match: { related_tasks: { $size: 0 } } },
+      { $count: "count" },
+    ]);
+    stageCounts.lead_without_task = leadWithoutTaskAgg[0]?.count || 0;
+
+    // Pagination count
+    const totalCountAgg = await bdleadsModells.aggregate([
       { $match: match },
       { $count: "count" },
     ]);
-    const total = totalAgg[0]?.count || 0;
+    const total = totalCountAgg[0]?.count || 0;
 
+    // Main pipeline
     const pipeline = [
       { $match: match },
       { $sort: { createdAt: -1 } },
       { $skip: (parseInt(page) - 1) * parseInt(limit) },
       { $limit: parseInt(limit) },
 
-      // Lookup assigned users
       {
         $lookup: {
           from: "users",
@@ -1657,7 +1654,6 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { assigned_user_objs: 0 } },
 
-      // Lookup current assigned user
       {
         $lookup: {
           from: "users",
@@ -1671,15 +1667,12 @@ const getAllLeads = async (req, res) => {
         $addFields: {
           current_assigned: {
             status: "$current_assigned.status",
-            user_id: {
-              $arrayElemAt: ["$current_assigned_user", 0],
-            },
+            user_id: { $arrayElemAt: ["$current_assigned_user", 0] },
           },
         },
       },
       { $project: { current_assigned_user: 0 } },
 
-      // Lookup submitted by user
       {
         $lookup: {
           from: "users",
@@ -1696,7 +1689,6 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { submitted_by_user: 0 } },
 
-      // Lookup status history user names
       {
         $lookup: {
           from: "users",
@@ -1739,7 +1731,6 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { status_users: 0 } },
 
-      // ✅ Lookup latest task updatedAt as lastModifiedTask
       {
         $lookup: {
           from: "bdtasks",
@@ -1752,12 +1743,7 @@ const getAllLeads = async (req, res) => {
                 lastModifiedTask: { $max: "$updatedAt" },
               },
             },
-            {
-              $project: {
-                _id: 0,
-                lastModifiedTask: 1,
-              },
-            },
+            { $project: { _id: 0, lastModifiedTask: 1 } },
           ],
           as: "task_meta",
         },
@@ -1772,16 +1758,50 @@ const getAllLeads = async (req, res) => {
           },
         },
       },
+      { $project: { task_meta: 0 } },
+
       {
-        $project: {
-          task_meta: 0,
+        $lookup: {
+          from: "handoversheets",
+          let: { leadId: "$id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [
+                    { $trim: { input: { $toString: "$id" } } },
+                    { $trim: { input: { $toString: "$$leadId" } } },
+                  ],
+                },
+              },
+            },
+            { $project: { _id: 1 } },
+          ],
+          as: "handover_info",
         },
       },
+      {
+        $addFields: {
+          handover: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ["$current_status.name", "won"] },
+                  { $gt: [{ $size: "$handover_info" }, 0] },
+                ],
+              },
+              true,
+              false,
+            ],
+          },
+        },
+      },
+      { $project: { handover_info: 0 } },
     ];
 
     const leads = await bdleadsModells.aggregate(pipeline);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "BD Leads fetched successfully",
       total,
       page: +page,
@@ -1790,12 +1810,15 @@ const getAllLeads = async (req, res) => {
       stageCounts,
     });
   } catch (err) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Internal Server Error",
       error: err.message,
     });
   }
 };
+
+
+module.exports = { getAllLeads };
 
 const updateLeadStatus = async function (req, res) {
   try {
@@ -1844,7 +1867,7 @@ const uploadDocuments = async (req, res) => {
 
     const { lead_id, name, stage, remarks, expected_closing_date } = data;
     const user_id = req.user.userId;
-    
+
     if (!lead_id || !name) {
       return res
         .status(400)
@@ -1901,13 +1924,19 @@ const uploadDocuments = async (req, res) => {
         name: stage,
         attachment_url: url,
         user_id,
-        remarks
+        remarks,
       });
     });
 
     const currentStatus = lead.current_status?.name;
- 
-    if (shouldUpdateStatus(currentStatus, stage) && (name !== "aadhaar" && name !== "other") && ((stage !== "aadhaar" && stage !== "other"))) {
+
+    if (
+      shouldUpdateStatus(currentStatus, stage) &&
+      name !== "aadhaar" &&
+      name !== "other" &&
+      stage !== "aadhaar" &&
+      stage !== "other"
+    ) {
       lead.status_history.push({
         name,
         stage,
@@ -1916,10 +1945,9 @@ const uploadDocuments = async (req, res) => {
       });
     }
 
-    if(name === "warm" && lead.expected_closing_date === undefined){
+    if (name === "warm" && lead.expected_closing_date === undefined) {
       lead.expected_closing_date = expected_closing_date;
     }
-    
 
     await lead.save();
 
@@ -1977,31 +2005,30 @@ const createBDlead = async function (req, res) {
     res.status(200).json({
       message: "BD Lead created successfully",
       data: bdLead,
-
     });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 };
 
-const updateExpectedClosing = async(req, res) => {
+const updateExpectedClosing = async (req, res) => {
   try {
-    const {_id} = req.params;
-    const {date} = req.body;
+    const { _id } = req.params;
+    const { date } = req.body;
 
     const lead = await bdleadsModells.findById(_id);
     lead.expected_closing_date = date;
     await lead.save();
     res.status(200).json({
-      message:"Expected Closing Date updated Successfully"
-    })
+      message: "Expected Closing Date updated Successfully",
+    });
   } catch (error) {
     res.status(500).json({
-      message:"Internal Server Error",
-      error: error.message
-    })
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
-}
+};
 
 module.exports = {
   getLeadSummary,
@@ -2022,5 +2049,5 @@ module.exports = {
   getAllLeadDropdown,
   uploadDocuments,
   createBDlead,
-  updateExpectedClosing
+  updateExpectedClosing,
 };
