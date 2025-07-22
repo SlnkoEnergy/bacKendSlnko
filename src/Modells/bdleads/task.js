@@ -1,11 +1,11 @@
 const { default: mongoose } = require("mongoose");
-const updateCurrentStatus = require("../../utils/updateCurrentStatus");
+const taskCurrentStatus = require("../../utils/taskCurrentStatus");
 
 const statusHistorySchema = new mongoose.Schema(
   {
     status: {
       type: String,
-      enum: ["draft", "completed", "in progress", "pending"],
+      enum: ["completed", "in progress", "pending"],
     },
     remarks: {
       type: String,
@@ -26,11 +26,7 @@ const taskSchema = new mongoose.Schema(
     },
     lead_id: {
       type: mongoose.Schema.Types.ObjectId,
-      refPath: "lead_model",
-    },
-    lead_model: {
-      type: String,
-      enum: ["Initial", "Followup", "Warm", "Won", "Dead"],
+      ref:"bdleads"
     },
     user_id: {
       type: mongoose.Schema.Types.ObjectId,
@@ -43,7 +39,7 @@ const taskSchema = new mongoose.Schema(
     status_history: [statusHistorySchema],
     current_status: {
       type: String,
-      enum: ["draft", "completed", "in progress", "pending"],
+      enum: ["completed", "in progress", "pending"],
     },
     priority: {
       type: String,
@@ -62,9 +58,6 @@ const taskSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
-    contact_info: {
-      type: String,
-    },
     description: {
       type: String,
     },
@@ -73,7 +66,7 @@ const taskSchema = new mongoose.Schema(
 );
 
 taskSchema.pre("save", function (next) {
-  updateCurrentStatus(this, "status_history", "current_status");
+  taskCurrentStatus(this, "status_history", "current_status");
   next();
 });
 

@@ -1,6 +1,8 @@
+const { default: mongoose } = require("mongoose");
 const moduleCategory = require("../Modells/EngineeringModells/engineeringModules/moduleCategory");
 const hanoversheetmodells = require("../Modells/handoversheetModells");
 const projectmodells = require("../Modells/projectModells");
+const { Parser } = require("json2csv")
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -110,7 +112,7 @@ const createhandoversheet = async function (req, res) {
       submitted_by,
     });
 
-    
+
     cheched_id = await hanoversheetmodells.findOne({ id: id });
     if (cheched_id) {
       return res.status(400).json({ message: "Handoversheet already exists" });
@@ -147,7 +149,7 @@ const gethandoversheetdata = async function (req, res) {
     const limit = 10;
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
-    const statusFilter = req.query.status; 
+    const statusFilter = req.query.status;
 
     const matchConditions = { $and: [] };
 
@@ -157,7 +159,10 @@ const gethandoversheetdata = async function (req, res) {
         $or: [
           { "customer_details.code": { $regex: search, $options: "i" } },
           { "customer_details.name": { $regex: search, $options: "i" } },
+          { "customer_details.customer": { $regex: search, $options: "i" } },
           { "customer_details.state": { $regex: search, $options: "i" } },
+          { "customer_details.p_group": { $regex: search, $options: "i" } },
+          { "leadDetails.id": { $regex: search, $options: "i" } },
           { "leadDetails.scheme": { $regex: search, $options: "i" } },
         ],
       });
@@ -189,7 +194,7 @@ const gethandoversheetdata = async function (req, res) {
       },
       {
         $lookup: {
-          from: "wonleads",
+          from: "bdleads",
           localField: "id",
           foreignField: "id",
           as: "leadDetails",
@@ -203,7 +208,7 @@ const gethandoversheetdata = async function (req, res) {
       },
       {
         $lookup: {
-          from: "projectdetails", 
+          from: "projectdetails",
           localField: "p_id",
           foreignField: "p_id",
           as: "projectInfo",
@@ -243,7 +248,7 @@ const gethandoversheetdata = async function (req, res) {
                 is_locked: 1,
                 comment: 1,
                 p_id: 1,
-                project_id: "$projectInfo._id", 
+                project_id: "$projectInfo._id",
               },
             },
           ],
@@ -280,7 +285,7 @@ const edithandoversheetdata = async function (req, res) {
     if (!id) {
       res.status(400).json({ message: "id not found" });
     }
-    
+
     let edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(
       id,
       data,
@@ -394,7 +399,7 @@ const updatestatus = async function (req, res) {
           project_status: "",
           updated_on: new Date().toISOString(),
           service: other_details.service || "",
-          submitted_by: req?.user?.name || "", 
+          submitted_by: req?.user?.name || "",
           billing_type: other_details.billing_type || "",
         });
 
@@ -455,7 +460,7 @@ const getByIdOrLeadId = async function (req, res) {
     let query = {};
     if (id) query._id = id;
     if (leadId) query.id = leadId;
-    if(p_id) query.p_id = p_id
+    if (p_id) query.p_id = p_id
 
     const handoverSheet = await hanoversheetmodells.findOne(query);
 
@@ -491,6 +496,65 @@ const search = async function (req, res) {
   }
 };
 
+// const getexportToCsv = async (req, res) => {
+
+//   const { Ids } = req.body;
+
+//   const pipeline = [
+
+//     { $match: { _id: { $in: Ids.map(id => new mongoose.Types.ObjectId(id)) } } },
+//     {
+//       $project: {
+//         id: 1,
+//         p_id: 1,
+//         customer_code: "$customer_details.code",
+//         customer_name: "$customer_details.name",
+//         customer: "$customer_details.customer",
+//         epc_developer: "$customer_details.epc_developer",
+//         site_address_village: "$customer_details.site_address.village_name",
+//         site_address_district: "$customer_details.site_address.district_name",
+//         number: "$customer_details.number",
+//         p_group: "$customer_details.p_group",
+//         state: "$customer_details.state",
+//         alt_number: "$customer_details.alt_number",
+//         email: "$customer_details.email",
+//         pan_no: "$customer_details.pan_no",
+//         andharNumbre_of_loa_hoder: "$customer_details.adharNumber_of_loa_holder",
+//         type_business: "$order_details.type_business",
+//         discom_name: "$order_details.discom_name",
+//         design_date: "$order_details.design_date",
+//         feeder_code: "$order_details.feeder_code",
+//         feeder_name: "$order_details.feeder_name",
+//         project_type: "$project_detail.project_type",
+//         module_make_capacity: "project_detail.module_make_capacity",
+//         module_make: "$project_detail.module_make",
+//         module_capacity: "$project_detail.module_capacity",
+//         module_type:
+//         module_make_other:
+//         inverter_make_capacity:
+//         inverter_size:
+//         inverter_make_other:
+//         inverter_type_other:
+
+//         inverter_make: "$project_detail.inverter_make",
+//         inverter_type: "$project_detail.inverter_type",
+//         evacuation_voltage: "$project_detail.evacuation_voltage",
+//         work_by_slnko: "$project_detail.work_by_slnko",
+//         project_kwp: "$project_detail.project_kwp",
+//         substation_name: "$project_detail.substation_name",
+//         project_status: "$other_details.project_status",
+//         loa_number: "$other_details.loa_number",
+//         ppa_number: "$other_details.ppa_number",
+//         submitted_by_BD: "$other_details.submitted_by_BD",
+//         billing_type: "$other_details.billing_type",
+//         status_of_handoversheet: 1,
+//         submitted_by: 1,
+//         createdAt: 1,
+//       }
+//     }
+
+//   ];
+// }
 
 
 module.exports = {
@@ -501,5 +565,6 @@ module.exports = {
   updatestatus,
   checkid,
   search,
+  // getexportToCsv,
   migrateProjectToHandover
 };

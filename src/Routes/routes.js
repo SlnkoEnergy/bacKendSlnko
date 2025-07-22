@@ -242,7 +242,6 @@ const {
   delete_lead,
   updateLeadStatus,
 } = require("../Controllers/bdleadController");
-const { create } = require("../Modells/bdleadsModells");
 
 const upload = require("../middlewares/multer.js");
 

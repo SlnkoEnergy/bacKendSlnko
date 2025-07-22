@@ -3,53 +3,42 @@ const Followup = require("../../Modells/followupbdModells");
 const Warm = require("../../Modells/warmbdLeadModells");
 const Won = require("../../Modells/wonleadModells");
 const Dead = require("../../Modells/deadleadModells");
-const BDnotes = require("../../Modells/BD-Dashboard/notes");
+const BDnotes = require("../../Modells/bdleads/notes");
+const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
 
 const createNotes = async (req, res) => {
   try {
     const { lead_id, user_id, description } = req.body;
 
     if (!lead_id) {
-      return res.status(404).json({
-        message: "Lead Id not found",
-      });
+      return res.status(400).json({ message: "Lead ID is required" });
     }
 
-    let leadModel = null;
-    const leadModels = [
-      { model: Initial, name: "Initial" },
-      { model: Followup, name: "Followup" },
-      { model: Warm, name: "Warm" },
-      { model: Won, name: "Won" },
-      { model: Dead, name: "Dead" },
-    ];
-
-    for (const { model, name } of leadModels) {
-      const found = await model.findById(lead_id);
-      if (found) {
-        leadModel = name;
-        break;
-      }
+    const leadExists = await bdleadsModells.findById(lead_id);
+    if (!leadExists) {
+      return res.status(404).json({ message: "Lead not found" });
     }
 
     const newNotes = new BDnotes({
       lead_id,
-      lead_model: leadModel,
       user_id,
       description,
     });
 
     await newNotes.save();
 
-    res
-      .status(201)
-      .json({ message: "Notes created successfully", task: newNotes });
+    res.status(201).json({
+      message: "Notes created successfully",
+      note: newNotes,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Internal Server Error", details: error.message });
+    res.status(500).json({
+      error: "Internal Server Error",
+      details: error.message,
+    });
   }
 };
+
 
 const getNotesById = async (req, res) => {
   try {

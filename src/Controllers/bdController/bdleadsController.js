@@ -5,11 +5,14 @@ const wonleadModells = require("../../Modells/wonleadModells");
 const deadleadModells = require("../../Modells/deadleadModells");
 const createbdleads = require("../../Modells/createBDleadModells");
 const handoversheet = require("../../Modells/handoversheetModells");
-const task = require("../../Modells/BD-Dashboard/task");
+const task = require("../../Modells/bdleads/task");
 const userModells = require("../../Modells/userModells");
 const mongoose = require("mongoose");
-const BDTask = require('../../Modells/BD-Dashboard/task')
 const { Parser } = require("json2csv");
+const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
+const axios = require("axios");
+const FormData = require("form-data");
+const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
 
 const updateAssignedToFromSubmittedBy = async (req, res) => {
   const models = [
@@ -45,300 +48,6 @@ const updateAssignedToFromSubmittedBy = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating assigned_to:", error);
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-};
-
-// Get All Leads
-const getAllLeads = async (req, res) => {
-  try {
-    const {
-      page = 1,
-      limit = 10,
-      search = "",
-      stage = "",
-      fromDate,
-      toDate,
-      lead_without_task = false,
-    } = req.query;
-
-    const userId = req.user.userId;
-    const user = await userModells.findById(userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const department = user.department;
-    const role = user.role;
-
-    const isPrivilegedUser =
-      department === "admin" ||
-      department === "superadmin" ||
-      (department === "BD" && role === "manager");
-
-    const stageModelMap = {
-      initial: initiallead,
-      followup: followUpBdleadModells,
-      warm: warmbdLeadModells,
-      won: wonleadModells,
-      dead: deadleadModells,
-    };
-
-    const taskModel = BDTask;
-
-    const buildMatchQuery = (extraMatch = {}) => {
-      const baseQuery = [
-        {
-          $or: [
-            { c_name: { $regex: search, $options: "i" } },
-            { mobile: { $regex: search, $options: "i" } },
-            { state: { $regex: search, $options: "i" } },
-            { scheme: { $regex: search, $options: "i" } },
-            { submitted_by: { $regex: search, $options: "i" } },
-            { id: { $regex: search, $options: "i" } },
-            { "assigned_user.name": { $regex: search, $options: "i" } },
-          ],
-        },
-      ];
-
-      if (!isPrivilegedUser) {
-        baseQuery.push({ assigned_to: new mongoose.Types.ObjectId(userId) });
-      }
-
-      if (fromDate && toDate) {
-        const start = new Date(fromDate);
-        const end = new Date(toDate);
-        end.setHours(23, 59, 59, 999);
-        baseQuery.push({
-          createdAt: {
-            $gte: start,
-            $lte: end,
-          },
-        });
-      }
-
-      if (extraMatch) baseQuery.push(extraMatch);
-      return { $and: baseQuery };
-    };
-
-    const buildPipeline = (extraMatch = {}, paginate = true) => {
-      const pipeline = [
-        {
-          $lookup: {
-            from: "users",
-            localField: "assigned_to",
-            foreignField: "_id",
-            as: "assigned_user",
-          },
-        },
-        {
-          $unwind: {
-            path: "$assigned_user",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        { $match: buildMatchQuery(extraMatch) },
-      ];
-
-      if (paginate) {
-        pipeline.push(
-          { $sort: { createdAt: -1 } },
-          { $skip: (parseInt(page) - 1) * parseInt(limit) },
-          { $limit: parseInt(limit) }
-        );
-      }
-
-      return pipeline;
-    };
-
-    const getLastModifiedTaskDate = async (leadId, leadModel) => {
-      const latestTask = await taskModel
-        .findOne({ lead_id: leadId, lead_model: leadModel })
-        .sort({ updatedAt: -1 })
-        .select("updatedAt");
-      return latestTask?.updatedAt || null;
-    };
-const stageCounts = {};
-let allCount = 0;
-
-for (const [key, model] of Object.entries(stageModelMap)) {
-  const count = await model.countDocuments(
-    isPrivilegedUser ? {} : { assigned_to: userId }
-  );
-  stageCounts[key] = count;
-  allCount += count;
-}
-
-stageCounts["all"] = allCount;
-
-const allLeadIds = (
-  await Promise.all(
-    Object.entries(stageModelMap).map(async ([_, model]) => {
-      const leads = await model.find(
-        isPrivilegedUser ? {} : { assigned_to: userId },
-        { _id: 1 }
-      );
-      return leads.map((l) => l._id.toString());
-    })
-  )
-).flat();
-
-const leadsWithTaskIds = (
-  await taskModel.distinct("lead_id")
-).map((id) => id.toString());
-
-const leadWithoutTaskCount = allLeadIds.filter(
-  (id) => !leadsWithTaskIds.includes(id)
-).length;
-
-stageCounts["lead_without_task"] = leadWithoutTaskCount;
-
-
-    // Handle stage-specific fetch
-    if (stage && stageModelMap[stage]) {
-      const model = stageModelMap[stage];
-      const leads = await model.aggregate(buildPipeline());
-
-      const total = await model.countDocuments(buildMatchQuery());
-
-      const enriched = await Promise.all(
-        leads.map(async (item) => ({
-          _id: item._id,
-          id: item.id,
-          c_name: item.c_name,
-          mobile: item.mobile,
-          name: item.name,
-          state: item.state,
-          scheme: item.scheme,
-          capacity: item.capacity,
-          distance: item.distance,
-          entry_date: item.entry_date,
-          submitted_by: item.submitted_by,
-          assigned_to: {
-            id: item.assigned_to,
-            name: item.assigned_user?.name || "",
-          },
-          status: stage,
-          createdAt: item.createdAt,
-          lastModifiedTaskDate: await getLastModifiedTaskDate(
-            item._id,
-            stage.charAt(0).toUpperCase() + stage.slice(1)
-          ),
-        }))
-      );
-
-      return res.status(200).json({
-        message: `Leads for stage: ${stage}`,
-        total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        stageCounts,
-        leads: enriched,
-      });
-    }
-
-    // Fetch all leads from all stages
-    const allLeads = (
-      await Promise.all(
-        Object.entries(stageModelMap).map(async ([stageName, model]) => {
-          const leads = await model.aggregate(buildPipeline({}, false));
-          return await Promise.all(
-            leads.map(async (item) => {
-              const lastModifiedTaskDate = await getLastModifiedTaskDate(
-                item._id,
-                stageName.charAt(0).toUpperCase() + stageName.slice(1)
-              );
-              return {
-                _id: item._id,
-                id: item.id,
-                c_name: item.c_name,
-                mobile: item.mobile,
-                name: item.name,
-                state: item.state,
-                scheme: item.scheme,
-                capacity: item.capacity,
-                distance: item.distance,
-                entry_date: item.entry_date,
-                submitted_by: item.submitted_by,
-                assigned_to: {
-                  id: item.assigned_to,
-                  name: item.assigned_user?.name || "",
-                },
-                status: stageName,
-                createdAt: item.createdAt,
-                lastModifiedTaskDate,
-              };
-            })
-          );
-        })
-      )
-    ).flat();
-
-    const filteredLeads =
-      fromDate && toDate
-        ? allLeads.filter((lead) => {
-            const created = new Date(lead.createdAt);
-            return created >= new Date(fromDate) && created <= new Date(toDate);
-          })
-        : allLeads;
-
-    let leadsToReturn = filteredLeads;
-
-    if (lead_without_task === "true") {
-      const leadsWithTaskIds = await taskModel.distinct("lead_id");
-      leadsToReturn = filteredLeads.filter(
-        (lead) => !leadsWithTaskIds.some((id) => id.toString() === lead._id.toString())
-      );
-    }
-
-    const sortedLeads = leadsToReturn.sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-    );
-
-    const total = sortedLeads.length;
-    const paginatedLeads = sortedLeads.slice((page - 1) * limit, page * limit);
-
-    return res.status(200).json({
-      message:
-        lead_without_task === "true"
-          ? "Leads without tasks"
-          : "Paginated All BD Leads",
-      total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      stageCounts,
-      leads: paginatedLeads,
-    });
-  } catch (error) {
-    console.error("getAllLeads error:", error);
-    res
-      .status(500)
-      .json({ message: "Internal Server error", error: error.message });
-  }
-};
-
-
-const getAllLeadDropdown = async function (req, res) {
-  try {
-    const projection = "email id _id c_name mobile";
-
-    const initialdata = await initiallead.find({}, projection);
-    const followupdata = await followUpBdleadModells.find({}, projection);
-    const warmdata = await warmbdLeadModells.find({}, projection);
-    const wondata = await wonleadModells.find({}, projection);
-    const deaddata = await deadleadModells.find({}, projection);
-
-    const allLeads = [
-      ...initialdata,
-      ...followupdata,
-      ...warmdata,
-      ...wondata,
-      ...deaddata,
-    ];
-
-    res.status(200).json({
-      message: "All BD Leads",
-      leads: allLeads,
-    });
-  } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
@@ -1000,51 +709,6 @@ const leadconversationrate = async (req, res) => {
   }
 };
 
-// Get Lead by LeadId or id
-const getLeadByLeadIdorId = async (req, res) => {
-  try {
-    const { leadId, id, status } = req.query;
-
-    if (!id && !leadId) {
-      return res.status(400).json({
-        message: "Lead Id or id not found",
-      });
-    }
-
-    let query = {};
-    if (id) query._id = id;
-    if (leadId) query.id = leadId;
-
-    const modelMap = {
-      won: wonleadModells,
-      followUp: followUpBdleadModells,
-      warm: warmbdLeadModells,
-      dead: deadleadModells,
-      initial: initiallead,
-    };
-
-    const model = status ? modelMap[status] : initiallead;
-
-    if (!model) {
-      return res.status(400).json({
-        message: "Invalid status",
-      });
-    }
-    console.log(model);
-    const response = await model.findOne(query);
-
-    res.status(200).json({
-      message: "Lead Information retrieved successfully",
-      data: response,
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Internal Server Error",
-      error: error.message,
-    });
-  }
-};
-
 //lead funnel
 const leadFunnel = async (req, res) => {
   try {
@@ -1488,46 +1152,43 @@ const deleteLead = async (req, res) => {
 const updateAssignedTo = async (req, res) => {
   try {
     const { _id } = req.params;
-    const { lead_model } = req.query;
     const { assigned_to } = req.body;
 
-    if (!lead_model || !_id || !assigned_to) {
+    if (!_id || !assigned_to) {
       return res
         .status(400)
         .json({ success: false, message: "Missing required fields" });
     }
 
-    const modelMap = {
-      initial: initiallead,
-      followup: followUpBdleadModells,
-      warm: warmbdLeadModells,
-      won: wonleadModells,
-      dead: deadleadModells,
-    };
-
-    const Model = modelMap[lead_model];
-
-    if (!Model) {
+    const user = await userModells.findById(assigned_to);
+    if (!user) {
       return res
-        .status(400)
-        .json({ success: false, message: "Invalid model name" });
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
-    const updatedLead = await Model.findByIdAndUpdate(
-      _id,
-      { assigned_to },
-      { new: true }
-    );
-
-    if (!updatedLead) {
+    const lead = await bdleadsModells.findById(_id);
+    if (!lead) {
       return res
         .status(404)
         .json({ success: false, message: "Lead not found" });
     }
 
-    res.status(200).json({ success: true, data: updatedLead });
+    const status = lead.current_status?.name || "";
+
+    lead.assigned_to.push({
+      user_id: user._id,
+      status,
+    });
+
+    // Save the document
+    await lead.save();
+
+    res.status(200).json({ success: true, data: lead });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Server Error", error });
+    res
+      .status(500)
+      .json({ success: false, message: "Server Error", error: error.message });
   }
 };
 
@@ -1536,76 +1197,66 @@ const exportLeadsCSV = async (req, res) => {
     const { stage = "", search = "" } = req.query;
     const userId = req.user.userId;
 
-    const stageModelMap = {
-      initial: initiallead,
-      followup: followUpBdleadModells,
-      warm: warmbdLeadModells,
-      won: wonleadModells,
-      dead: deadleadModells,
-    };
-
     const buildMatchQuery = () => {
-      const query = [
-        {
+      const query = [];
+
+      if (search) {
+        query.push({
           $or: [
-            { c_name: { $regex: search, $options: "i" } },
-            { mobile: { $regex: search, $options: "i" } },
-            { state: { $regex: search, $options: "i" } },
-            { scheme: { $regex: search, $options: "i" } },
-            { submitted_by: { $regex: search, $options: "i" } },
+            { name: { $regex: search, $options: "i" } },
+            { "contact_details.mobile": { $regex: search, $options: "i" } },
+            { "address.state": { $regex: search, $options: "i" } },
+            { "project_details.scheme": { $regex: search, $options: "i" } },
             { id: { $regex: search, $options: "i" } },
             { "assigned_user.name": { $regex: search, $options: "i" } },
           ],
-        },
-        {
-          assigned_to: new mongoose.Types.ObjectId(userId),
-        },
-      ];
+        });
+      }
+
+      query.push({
+        "assigned_to.user_id": new mongoose.Types.ObjectId(userId),
+      });
+
+      if (stage) {
+        query.push({ "current_status.name": stage });
+      }
+
       return { $and: query };
     };
 
-    const buildPipeline = () => [
+    const leads = await bdleadsModells.aggregate([
       {
         $lookup: {
           from: "users",
-          localField: "assigned_to",
+          localField: "assigned_to.user_id",
           foreignField: "_id",
-          as: "assigned_user",
+          as: "assigned_users",
         },
       },
       {
-        $unwind: { path: "$assigned_user", preserveNullAndEmptyArrays: true },
+        $addFields: {
+          assigned_user: { $arrayElemAt: ["$assigned_users", 0] },
+        },
       },
       { $match: buildMatchQuery() },
-    ];
+    ]);
 
-    const modelEntries = stage
-      ? [[stage, stageModelMap[stage]]]
-      : Object.entries(stageModelMap);
-
-    let allLeads = [];
-
-    for (const [status, model] of modelEntries) {
-      const leads = await model.aggregate(buildPipeline());
-
-      const mapped = leads.map((item) => ({
-        Status: status,
-        "Lead Id": item.id,
-        Name: item.c_name,
-        Mobile: item.mobile,
-        State: item.state,
-        Scheme: item.scheme,
-        "Capacity (MW)": item.capacity,
-        "Distance (KM)": item.distance,
-        Date: new Date(item.entry_date || item.createdAt).toLocaleDateString(),
-        "Lead Owner": item.assigned_user?.name || "",
-      }));
-
-      allLeads.push(...mapped);
-    }
+    const mapped = leads.map((item) => ({
+      Status: item.current_status?.name || "",
+      "Lead Id": item.id,
+      Name: item.name || "",
+      Mobile: item.contact_details?.mobile?.[0] || "",
+      State: item.address?.state || "",
+      Scheme: item.project_details?.scheme || "",
+      "Capacity (MW)": item.project_details?.capacity || "",
+      "Distance (KM)":
+        item.project_details?.distance_from_substation?.value || "",
+      Date: new Date(item.createdAt).toLocaleDateString(),
+      "Lead Owner": item.assigned_user?.name || "",
+    }));
 
     const json2csvParser = new Parser();
-    const csv = json2csvParser.parse(allLeads);
+    const csv = json2csvParser.parse(mapped);
 
     res.header("Content-Type", "text/csv");
     res.attachment("leads.csv");
@@ -1616,9 +1267,759 @@ const exportLeadsCSV = async (req, res) => {
   }
 };
 
+// Get Lead by LeadId or id
+const getLeadByLeadIdorId = async (req, res) => {
+  try {
+    const { leadId, id } = req.query;
+
+    if (!id && !leadId) {
+      return res.status(400).json({ message: "Lead Id or id is required" });
+    }
+
+    const matchQuery = {};
+    if (id) matchQuery._id = new mongoose.Types.ObjectId(id);
+    if (leadId) matchQuery.id = leadId;
+
+    const data = await bdleadsModells.aggregate([
+      { $match: matchQuery },
+
+      // submitted_by
+      {
+        $lookup: {
+          from: "users",
+          localField: "submitted_by",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, name: 1 } }],
+          as: "submitted_by_user",
+        },
+      },
+      {
+        $addFields: {
+          submitted_by: { $arrayElemAt: ["$submitted_by_user", 0] },
+        },
+      },
+      { $project: { submitted_by_user: 0 } },
+
+      // assigned_to.user_id
+      {
+        $lookup: {
+          from: "users",
+          let: { assignedUsers: "$assigned_to.user_id" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", "$$assignedUsers"] } } },
+            { $project: { _id: 1, name: 1 } },
+          ],
+          as: "assigned_users",
+        },
+      },
+      {
+        $addFields: {
+          assigned_to: {
+            $map: {
+              input: "$assigned_to",
+              as: "a",
+              in: {
+                _id: "$$a._id",
+                status: "$$a.status",
+                user_id: {
+                  $arrayElemAt: [
+                    {
+                      $filter: {
+                        input: "$assigned_users",
+                        as: "u",
+                        cond: { $eq: ["$$u._id", "$$a.user_id"] },
+                      },
+                    },
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+      { $project: { assigned_users: 0 } },
+
+      // status_history.user_id
+      {
+        $lookup: {
+          from: "users",
+          let: { statusUserIds: "$status_history.user_id" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", "$$statusUserIds"] } } },
+            { $project: { _id: 1, name: 1 } },
+          ],
+          as: "status_users",
+        },
+      },
+      {
+        $addFields: {
+          status_history: {
+            $map: {
+              input: "$status_history",
+              as: "s",
+              in: {
+                $mergeObjects: [
+                  "$$s",
+                  {
+                    user_id: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$status_users",
+                            as: "u",
+                            cond: { $eq: ["$$u._id", "$$s.user_id"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      { $project: { status_users: 0 } },
+
+      // current_assigned.user_id
+      {
+        $lookup: {
+          from: "users",
+          localField: "current_assigned.user_id",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, name: 1 } }],
+          as: "current_assigned_user",
+        },
+      },
+      {
+        $addFields: {
+          current_assigned: {
+            $mergeObjects: [
+              "$current_assigned",
+              {
+                user_id: { $arrayElemAt: ["$current_assigned_user", 0] },
+              },
+            ],
+          },
+        },
+      },
+      { $project: { current_assigned_user: 0 } },
+
+      // store backup of documents
+      {
+        $addFields: {
+          documentsBackup: "$documents",
+        },
+      },
+
+      // populate documents.user_id
+      { $unwind: { path: "$documents", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "documents.user_id",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, name: 1 } }],
+          as: "document_user",
+        },
+      },
+      {
+        $addFields: {
+          "documents.user_id": { $arrayElemAt: ["$document_user", 0] },
+        },
+      },
+      { $project: { document_user: 0 } },
+
+      // group docs back, remove empty ones
+      {
+        $group: {
+          _id: "$_id",
+          doc: { $first: "$$ROOT" },
+          documents: {
+            $push: {
+              $cond: [{ $ne: ["$documents", {}] }, "$documents", "$$REMOVE"],
+            },
+          },
+        },
+      },
+
+      {
+        $replaceRoot: {
+          newRoot: {
+            $mergeObjects: ["$doc", { documents: "$documents" }],
+          },
+        },
+      },
+
+      // fallback to empty if [{}]
+      {
+        $addFields: {
+          documents: {
+            $cond: {
+              if: {
+                $and: [
+                  { $isArray: "$documents" },
+                  { $eq: [{ $size: "$documents" }, 1] },
+                  { $eq: ["$documents.0", {}] },
+                ],
+              },
+              then: [],
+              else: "$documents",
+            },
+          },
+        },
+      },
+      { $project: { documentsBackup: 0 } },
+    ]);
+
+    if (!data.length) {
+      return res.status(404).json({ message: "Lead not found" });
+    }
+
+    res.status(200).json({
+      message: "Lead Information retrieved successfully",
+      data: data[0],
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+const getAllLeads = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      fromDate,
+      toDate,
+      stage,
+      lead_without_task,
+    } = req.query;
+
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const isPrivilegedUser =
+      ["admin", "superadmin"].includes(user.department) ||
+      (user.department === "BD" && user.role === "manager");
+
+    const match = {};
+    const and = [];
+
+    // Filtering
+    if (search) {
+      and.push({
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { "contact_details.mobile": { $regex: search, $options: "i" } },
+          { "address.state": { $regex: search, $options: "i" } },
+          { "project_details.scheme": { $regex: search, $options: "i" } },
+          { id: { $regex: search, $options: "i" } },
+          { "current_status.name": { $regex: search, $options: "i" } },
+        ],
+      });
+    }
+
+    if (!isPrivilegedUser) {
+      and.push({ "assigned_to.user_id": new mongoose.Types.ObjectId(userId) });
+    }
+
+    if (stage && stage !== "lead_without_task") {
+      and.push({ "current_status.name": stage });
+    }
+
+    if (fromDate && toDate) {
+      const start = new Date(fromDate);
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      and.push({ createdAt: { $gte: start, $lte: end } });
+    }
+
+    if (lead_without_task === "true") {
+      const leadsWithTask = await task.distinct("lead_id");
+      const leadsWithTaskObjectIds = leadsWithTask.map((id) =>
+        typeof id === "string" ? new mongoose.Types.ObjectId(id) : id
+      );
+      and.push({ _id: { $nin: leadsWithTaskObjectIds } });
+    }
+
+    if (and.length) match.$and = and;
+
+    // Stage counts
+    const stageNames = ["initial", "follow up", "warm", "won", "dead"];
+    const stageCountsAgg = await bdleadsModells.aggregate([
+      { $group: { _id: "$current_status.name", count: { $sum: 1 } } },
+    ]);
+    const stageCounts = stageNames.reduce((acc, s) => {
+      acc[s] = stageCountsAgg.find((x) => x._id === s)?.count || 0;
+      return acc;
+    }, {});
+    const totalAgg = await bdleadsModells.aggregate([{ $count: "count" }]);
+    stageCounts.all = totalAgg[0]?.count || 0;
+    const leadWithoutTaskAgg = await bdleadsModells.aggregate([
+      {
+        $lookup: {
+          from: "bdtasks",
+          localField: "_id",
+          foreignField: "lead_id",
+          as: "related_tasks",
+        },
+      },
+      { $match: { related_tasks: { $size: 0 } } },
+      { $count: "count" },
+    ]);
+    stageCounts.lead_without_task = leadWithoutTaskAgg[0]?.count || 0;
+
+    // Pagination count
+    const totalCountAgg = await bdleadsModells.aggregate([
+      { $match: match },
+      { $count: "count" },
+    ]);
+    const total = totalCountAgg[0]?.count || 0;
+
+    // Main pipeline
+    const pipeline = [
+      { $match: match },
+      { $sort: { createdAt: -1 } },
+      { $skip: (parseInt(page) - 1) * parseInt(limit) },
+      { $limit: parseInt(limit) },
+
+      // Assigned users
+      {
+        $lookup: {
+          from: "users",
+          localField: "assigned_to.user_id",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, name: 1 } }],
+          as: "assigned_user_objs",
+        },
+      },
+      {
+        $addFields: {
+          assigned_to: {
+            $map: {
+              input: "$assigned_to",
+              as: "a",
+              in: {
+                _id: "$$a._id",
+                status: "$$a.status",
+                user_id: {
+                  $let: {
+                    vars: {
+                      matched: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: "$assigned_user_objs",
+                              as: "u",
+                              cond: { $eq: ["$$u._id", "$$a.user_id"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                    in: {
+                      _id: "$$matched._id",
+                      name: "$$matched.name",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      { $project: { assigned_user_objs: 0 } },
+
+      // Current assigned
+      {
+        $lookup: {
+          from: "users",
+          localField: "current_assigned.user_id",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, name: 1 } }],
+          as: "current_assigned_user",
+        },
+      },
+      {
+        $addFields: {
+          current_assigned: {
+            status: "$current_assigned.status",
+            user_id: { $arrayElemAt: ["$current_assigned_user", 0] },
+          },
+        },
+      },
+      { $project: { current_assigned_user: 0 } },
+
+      // Submitted by
+      {
+        $lookup: {
+          from: "users",
+          localField: "submitted_by",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, name: 1 } }],
+          as: "submitted_by_user",
+        },
+      },
+      {
+        $addFields: {
+          submitted_by: { $arrayElemAt: ["$submitted_by_user", 0] },
+        },
+      },
+      { $project: { submitted_by_user: 0 } },
+
+      // Status history users
+      {
+        $lookup: {
+          from: "users",
+          let: { ids: "$status_history.user_id" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", "$$ids"] } } },
+            { $project: { _id: 1, name: 1 } },
+          ],
+          as: "status_users",
+        },
+      },
+      {
+        $addFields: {
+          status_history: {
+            $map: {
+              input: "$status_history",
+              as: "s",
+              in: {
+                $mergeObjects: [
+                  "$$s",
+                  {
+                    user_id: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$status_users",
+                            as: "u",
+                            cond: { $eq: ["$$u._id", "$$s.user_id"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      { $project: { status_users: 0 } },
+
+      // Last modified task
+      {
+        $lookup: {
+          from: "bdtasks",
+          let: { leadId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$lead_id", "$$leadId"] } } },
+            {
+              $group: {
+                _id: null,
+                lastModifiedTask: { $max: "$updatedAt" },
+              },
+            },
+            { $project: { _id: 0, lastModifiedTask: 1 } },
+          ],
+          as: "task_meta",
+        },
+      },
+      {
+        $addFields: {
+          lastModifiedTask: {
+            $ifNull: [
+              { $arrayElemAt: ["$task_meta.lastModifiedTask", 0] },
+              "N/A",
+            ],
+          },
+        },
+      },
+      { $project: { task_meta: 0 } },
+
+      // Handover info
+      {
+        $lookup: {
+          from: "handoversheets",
+          let: { leadId: "$id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [
+                    { $trim: { input: { $toString: "$id" } } },
+                    { $trim: { input: { $toString: "$$leadId" } } },
+                  ],
+                },
+              },
+            },
+            { $project: { _id: 1 } },
+          ],
+          as: "handover_info",
+        },
+      },
+      {
+        $addFields: {
+          handover: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ["$current_status.name", "won"] },
+                  { $gt: [{ $size: "$handover_info" }, 0] },
+                ],
+              },
+              true,
+              false,
+            ],
+          },
+        },
+      },
+      { $project: { handover_info: 0 } },
+    ];
+
+    const leads = await bdleadsModells.aggregate(pipeline);
+
+    return res.status(200).json({
+      message: "BD Leads fetched successfully",
+      total,
+      page: +page,
+      limit: +limit,
+      leads,
+      stageCounts,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: err.message,
+    });
+  }
+};
+
+module.exports = { getAllLeads };
+
+const updateLeadStatus = async function (req, res) {
+  try {
+    const leads = await bdleadsModells.findById(req.params._id);
+    if (!leads) return res.status(404).json({ error: "Lead not found" });
+
+    const user_id = req.user.userId;
+
+    leads.status_history.push({
+      ...req.body,
+      user_id: user_id,
+    });
+
+    await leads.save();
+    res.status(200).json(leads);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+const getAllLeadDropdown = async (req, res) => {
+  try {
+    const leads = await bdleadsModells.find(
+      {},
+      "id _id name contact_details.email contact_details.mobile"
+    );
+
+    res.status(200).json({
+      message: "All BD Leads",
+      leads,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+const uploadDocuments = async (req, res) => {
+  try {
+    const data =
+      typeof req.body.data === "string"
+        ? JSON.parse(req.body.data)
+        : req.body.data;
+
+    const { lead_id, name, stage, remarks, expected_closing_date } = data;
+    const user_id = req.user.userId;
+
+    if (!lead_id || !name) {
+      return res
+        .status(400)
+        .json({ message: "lead_id, name, and user_id are required" });
+    }
+
+    const lead = await bdleadsModells.findById(lead_id);
+    if (!lead) {
+      return res.status(404).json({ message: "Lead not found" });
+    }
+
+    const folderPath = `Sales/${lead.id.replace(/\//g, "_")}/${name.replace(/ /g, "_")}/${stage.replace(/ /g, "_")}`;
+    const uploadedFileMap = {};
+
+    for (const file of req.files || []) {
+      const match = file.fieldname.match(/file_(\d+)/);
+      if (!match) continue;
+
+      const index = match[1];
+
+      const form = new FormData();
+      form.append("file", file.buffer, {
+        filename: file.originalname,
+        contentType: file.mimetype,
+      });
+
+      const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${folderPath}`;
+
+      const response = await axios.post(uploadUrl, form, {
+        headers: form.getHeaders(),
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+
+      const respData = response.data;
+      const url =
+        Array.isArray(respData) && respData.length > 0
+          ? respData[0]
+          : respData.url ||
+            respData.fileUrl ||
+            (respData.data && respData.data.url) ||
+            null;
+
+      if (url) {
+        uploadedFileMap[index] = url;
+      } else {
+        console.warn(`No URL found for uploaded file ${file.originalname}`);
+      }
+    }
+
+    // Add uploaded document to lead.documents
+    Object.values(uploadedFileMap).forEach((url) => {
+      lead.documents.push({
+        name: stage,
+        attachment_url: url,
+        user_id,
+        remarks,
+      });
+    });
+
+    const currentStatus = lead.current_status?.name;
+
+    if (
+      shouldUpdateStatus(currentStatus, stage) &&
+      name !== "aadhaar" &&
+      name !== "other" &&
+      stage !== "aadhaar" &&
+      stage !== "other"
+    ) {
+      lead.status_history.push({
+        name,
+        stage,
+        remarks: name.toUpperCase(),
+        user_id,
+      });
+    }
+
+    if (name === "warm" && lead.expected_closing_date === undefined) {
+      lead.expected_closing_date = expected_closing_date;
+    }
+
+    await lead.save();
+
+    return res.status(200).json({
+      message: `${name.toUpperCase()} document uploaded and status updated successfully`,
+      data: lead,
+    });
+  } catch (error) {
+    console.error("Error uploading document:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message || error.toString(),
+    });
+  }
+};
+
+const createBDlead = async function (req, res) {
+  try {
+    // 1. Get the latest BD/Lead ID
+    const lastLead = await bdleadsModells.aggregate([
+      { $match: { id: { $regex: /^BD\/Lead\// } } },
+      {
+        $addFields: {
+          numericId: {
+            $toInt: { $arrayElemAt: [{ $split: ["$id", "/"] }, -1] },
+          },
+        },
+      },
+      { $sort: { numericId: -1 } },
+      { $limit: 1 },
+    ]);
+
+    const lastNumber = lastLead?.[0]?.numericId || 0;
+    const nextId = `BD/Lead/${lastNumber + 1}`;
+
+    const user_id = req.user.userId;
+
+    // 2. Prepare payload with essential fields
+    const payload = {
+      ...req.body,
+      id: nextId,
+      submitted_by: user_id,
+      assigned_to: [
+        {
+          user_id: user_id,
+          status: "",
+        },
+      ],
+    };
+
+    // 3. Save to bdmodells
+    const bdLead = new bdleadsModells(payload);
+    await bdLead.save(); // triggers pre-save hooks
+
+    res.status(200).json({
+      message: "BD Lead created successfully",
+      data: bdLead,
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+const updateExpectedClosing = async (req, res) => {
+  try {
+    const { _id } = req.params;
+    const { date } = req.body;
+
+    const lead = await bdleadsModells.findById(_id);
+    lead.expected_closing_date = date;
+    await lead.save();
+    res.status(200).json({
+      message: "Expected Closing Date updated Successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
-  getAllLeads,
-  getAllLeadDropdown,
   getLeadSummary,
   getLeadSource,
   taskDashboard,
@@ -1632,4 +2033,10 @@ module.exports = {
   updateAssignedToFromSubmittedBy,
   updateAssignedTo,
   exportLeadsCSV,
+  updateLeadStatus,
+  getAllLeads,
+  getAllLeadDropdown,
+  uploadDocuments,
+  createBDlead,
+  updateExpectedClosing,
 };
