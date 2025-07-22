@@ -39,6 +39,7 @@ const {
   getNotifications,
   getAllTaskByAssigned,
   migrateAllLeads,
+  getexportToCsv,
 } = require("../../Controllers/bdController/taskController");
 const jwtMW = require("../../middlewares/auth");
 const upload = require("../../middlewares/multer.js");
@@ -191,6 +192,12 @@ router.get(
   jwtMW.authorization,
   getAllTaskByAssigned
 );
+router.post(
+  "/task-export",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getexportToCsv,
+)
 
 //Notes Routes
 router.get(

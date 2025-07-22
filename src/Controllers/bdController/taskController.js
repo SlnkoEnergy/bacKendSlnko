@@ -12,6 +12,8 @@ const initialBdLeadModells = require("../../Modells/initialBdLeadModells");
 const followupbdModells = require("../../Modells/followupbdModells");
 const warmbdLeadModells = require("../../Modells/warmbdLeadModells");
 const wonleadModells = require("../../Modells/wonleadModells");
+const { default: mongoose } = require("mongoose");
+const { Parser } = require("json2csv");
 
 const createTask = async (req, res) => {
   try {
@@ -303,9 +305,9 @@ const getTaskByLeadId = async (req, res) => {
     const query = { lead_id: leadId };
 
     const data = await BDtask.find(query)
-      .populate("user_id", "name") 
-      .populate("assigned_to", "name") 
-      .populate("status_history.user_id", "name"); 
+      .populate("user_id", "name")
+      .populate("assigned_to", "name")
+      .populate("status_history.user_id", "name");
 
     res.status(200).json({
       message: "Task detail fetched successfully",
@@ -376,16 +378,16 @@ const getNotifications = async (req, res) => {
   try {
     const notifications = await BDtask.find({
       assigned_to: userId,
-      is_viewed: { $ne: userId } 
+      is_viewed: { $ne: userId }
     })
-    .sort({ createdAt: -1 }) 
-    .select("title description createdAt"); 
+      .sort({ createdAt: -1 })
+      .select("title description createdAt");
 
     const formatted = notifications.map((task) => ({
       _id: task._id,
       title: task.title,
       description: task.description,
-      time: task.createdAt.toLocaleString(), 
+      time: task.createdAt.toLocaleString(),
     }));
 
     res.status(200).json(formatted);
@@ -423,6 +425,76 @@ const migrateAllLeads = async (req, res) => {
   }
 };
 
+const getexportToCsv = async (req, res) => {
+
+  const { Ids } = req.body;
+
+  const pipeline = [
+    { $match: { _id: { $in: Ids.map(id => new mongoose.Types.ObjectId(id)) } } },
+    {
+      $lookup: {
+        from: "bdleads",
+        localField: "lead_id",
+        foreignField: "_id",
+        as: "lead",
+      },
+    },
+    { $unwind: { path: "$lead", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "assigned_to",
+        foreignField: "_id",
+        as: "assigned_to",
+      },
+    },
+    { $unwind: { path: "$assigned_to", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "user_id",
+        foreignField: "_id",
+        as: "created_by",
+      },
+    },
+    { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        title: 1,
+        type: 1,
+        current_status: 1,
+        priority: 1,
+        deadline: 1,
+        description: 1,
+        lead_name: "$lead.name",
+        created_By: "$created_by.name",
+        assigned_to_names: "$assigned_to.name",
+      }
+    }
+  ];
+
+  const result = await BDtask.aggregate(pipeline);
+
+  const fields = [
+    { label: 'Title', value: 'title' },
+    { label: 'Type', value: 'type' },
+    { label: 'Current Status', value: 'current_status' },
+    { label: 'Priority', value: 'priority' },
+    { label: 'Deadline', value: 'deadline' },
+    { label: 'Lead Name', value: 'lead_name' },
+    { label: 'Created By', value: 'created_By' },
+    { label: 'Assigned Name', value: 'Assigned_to_names' },
+  ]
+
+  const json2csvParser = new Parser({ fields });
+
+  const csv = json2csvParser.parse(result);
+  res.setHeader('Content-disposition', 'attachment; filename=data.csv')
+  res.set('Content-Type', 'text/csv');
+  res.status(200).send(csv);
+
+}
+
 
 module.exports = {
   createTask,
@@ -435,5 +507,6 @@ module.exports = {
   toggleViewTask,
   getNotifications,
   getAllTaskByAssigned,
-  migrateAllLeads
+  migrateAllLeads,
+  getexportToCsv,
 };
