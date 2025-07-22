@@ -31,6 +31,7 @@ const {
   verifyandResetPassword,
   verifyOtp,
   getAllUserByDepartment,
+  getAllDepartment,
 } = require("../Controllers/userController");
 
 const {
@@ -43,6 +44,7 @@ const {
   exportCSV,
   moverecovery,
   getPOByProjectId,
+  getPOById,
   deletePO,
   getpohistory,
   getPOHistoryById,
@@ -90,6 +92,7 @@ const {
   addBill,
   getBill,
   getPaginatedBill,
+  GetBillByID,
   updatebill,
   deleteBill,
   bill_approved,
@@ -206,6 +209,7 @@ const {
   getbyid,
   search,
   getByIdOrLeadId,
+  migrateProjectToHandover,
 } = require("../Controllers/handoversheetController");
 const {
   addmoduleMaster,
@@ -222,8 +226,7 @@ const {
   deleteExpense,
   updateExpenseStatusOverall,
   updateExpenseStatusItems,
-  exportAllExpenseSheetsCSV,
-  exportExpenseSheetsCSVById,
+  exportExpenseSheetsCSV,
   updateExpenseSheet,
   updateDisbursementDate,
   getExpensePdf,
@@ -241,8 +244,6 @@ const {
 } = require("../Controllers/bdleadController");
 
 const upload = require("../middlewares/multer.js");
-
-
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -273,6 +274,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getAllUserByDepartment
+);
+router.get(
+  "/all-dept",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllDepartment
 );
 //forget pass through resend
 // router.post("/forget-password",forgetpassword);
@@ -393,6 +400,12 @@ router.get(
   jwtMW.authorization,
   getPOByProjectId
 );
+router.get(
+  "/get-po-by-id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getPOById
+);
 router.delete(
   "/delete-pO-IT/:_id",
   jwtMW.authentication,
@@ -406,18 +419,24 @@ router.get(
   getpohistory
 );
 router.get(
-  "/get-po-history-iD/:_id",
+  "/get-po-history",
   jwtMW.authentication,
   jwtMW.authorization,
   getPOHistoryById
 );
-router.put('/updateStatusPO', jwtMW.authentication, jwtMW.authorization, updateStatusPO);
-
-router.put("/:id/updateEtdOrDelivery",
+router.put(
+  "/updateStatusPO",
   jwtMW.authentication,
   jwtMW.authorization,
-  updateEditandDeliveryDate,
-)
+  updateStatusPO
+);
+
+router.put(
+  "/:id/updateEtdOrDelivery",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateEditandDeliveryDate
+);
 
 //Add vendor
 router.post(
@@ -594,6 +613,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getPaginatedBill
+);
+router.get(
+  "/get-bill-by-id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  GetBillByID
 );
 router.put(
   "/update-bill/:_id",
@@ -1113,6 +1138,12 @@ router.get(
   jwtMW.authorization,
   search
 );
+router.put(
+  "/migrateProject",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  migrateProjectToHandover
+);
 
 //module master
 router.post(
@@ -1190,22 +1221,15 @@ router.delete(
   jwtMW.authorization,
   deleteExpense
 );
-//Export to CSV In expense Sheet
-router.get(
-  "/expense-all-csv",
+router.post(
+  "/expense-to-csv",
   jwtMW.authentication,
   jwtMW.authorization,
-  exportAllExpenseSheetsCSV
-);
-router.get(
-  "/expense-by-id-csv/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  exportExpenseSheetsCSVById
+  exportExpenseSheetsCSV
 );
 //Expense Pdf
-router.get(
-  "/expense-pdf/:_id",
+router.post(
+  "/expense-pdf",
   jwtMW.authentication,
   jwtMW.authorization,
   getExpensePdf
@@ -1248,6 +1272,5 @@ router.put(
   jwtMW.authorization,
   updateLeadStatus
 );
-
 
 module.exports = router;
