@@ -426,7 +426,8 @@ const migrateAllLeads = async (req, res) => {
 };
 
 const getexportToCsv = async (req, res) => {
-  const { Ids } = req.body;
+  try {
+    const { Ids } = req.body;
 
   const pipeline = [
     {
@@ -496,6 +497,12 @@ const getexportToCsv = async (req, res) => {
   res.set("Content-Type", "text/csv");
   res.status(200).send(csv);
 
+  } catch (error) {
+    res.status(500).json({
+      message:"Internal Server Error",
+      error: error.message
+    })    
+  }
 
 }
 
