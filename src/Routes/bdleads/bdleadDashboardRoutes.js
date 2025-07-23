@@ -20,7 +20,7 @@ const {
   createBDlead,
   updateExpectedClosing,
 } = require("../../Controllers/bdController/bdleadsController");
-const { createGroup, getAllGroup, getGroupById, updateGroup, deleteGroup, updateGroupStatus } = require("../../Controllers/bdController/groupController.js");
+const { createGroup, getAllGroup, getGroupById, updateGroup, deleteGroup, updateGroupStatus, groupDropdown } = require("../../Controllers/bdController/groupController.js");
 const {
   getNotesById,
   createNotes,
@@ -250,5 +250,6 @@ router.get('/group/:id', jwtMW.authentication, jwtMW.authorization, getGroupById
 router.put('/group/:id', jwtMW.authentication, jwtMW.authorization, updateGroup);
 router.put('/:id/updateGroupStatus', jwtMW.authentication, jwtMW.authorization, updateGroupStatus);
 router.delete('/group/:id', jwtMW.authentication, jwtMW.authorization, deleteGroup);
+router.get('/group-drop', jwtMW.authentication, jwtMW.authentication, groupDropdown);
 
 module.exports = router;

@@ -6,7 +6,7 @@ const createGroup = async (req, res) => {
     const { data } = req.body;
     const user_id = req.user.userId;
     const requiredFields = [
-      "name",
+      "group_name",
       "contact_details.mobile",
       "address.village",
       "address.district",
@@ -32,12 +32,12 @@ const createGroup = async (req, res) => {
         .json({ error: "Please fill all required fields." });
     }
 
-    const lastLead = await group.aggregate([
-      { $match: { id: { $regex: /^BD\/Lead\// } } },
+    const lastGroup = await group.aggregate([
+      { $match: { group_code: { $regex: /^BD\/Group\// } } },
       {
         $addFields: {
           numericId: {
-            $toInt: { $arrayElemAt: [{ $split: ["$id", "/"] }, -1] },
+            $toInt: { $arrayElemAt: [{ $split: ["$group_code", "/"] }, -1] },
           },
         },
       },
@@ -45,7 +45,7 @@ const createGroup = async (req, res) => {
       { $limit: 1 },
     ]);
 
-    const lastNumber = lastLead?.[0]?.numericId || 0;
+    const lastNumber = lastGroup?.[0]?.numericId || 0;
     const nextId = `BD/Group/${lastNumber + 1}`;
 
     const payload = {
@@ -73,9 +73,10 @@ const getAllGroup = async (req, res) => {
 
     const matchStage = {
       $or: [
-        { name: { $regex: search, $options: "i" } },
+        { group_name: { $regex: search, $options: "i" } },
         { group_code: { $regex: search, $options: "i" } },
         { "contact_details.mobile": { $regex: search, $options: "i" } },
+         { "address.state": { $regex: search, $options: "i" } },
       ],
     };
 
@@ -117,7 +118,7 @@ const getAllGroup = async (req, res) => {
       {
         $project: {
           group_code: 1,
-          name: 1,
+          group_name: 1,
           project_details: 1,
           source: 1,
           contact_details: 1,
@@ -317,6 +318,21 @@ const deleteGroup = async (req, res) => {
   }
 };
 
+const groupDropdown = async (req, res) => {
+  try {
+    const groups = await group.find({}, { _id: 1, name: 1 });
+    return res.status(200).json({
+      message: "Group list fetched successfully",
+      data: groups,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createGroup,
   getAllGroup,
@@ -324,4 +340,6 @@ module.exports = {
   updateGroup,
   updateGroupStatus,
   deleteGroup,
+  groupDropdown,
 };
+
