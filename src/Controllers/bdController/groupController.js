@@ -5,14 +5,14 @@ const createGroup = async (req, res) => {
     const { data } = req.body;
     const user_id = req.user.userId;
     const requiredFields = [
-      "name",
+      "groupName",
       "contact_details.mobile",
       "address.village",
       "address.district",
       "address.state",
       "project_details.capacity",
       "source.from",
-      "source.sub_source",
+      
     ];
 
     const isMissing = requiredFields.some((path) => {
