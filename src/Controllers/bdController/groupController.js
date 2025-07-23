@@ -13,7 +13,6 @@ const createGroup = async (req, res) => {
       "address.state",
       "project_details.capacity",
       "source.from",
-      
     ];
 
     const isMissing = requiredFields.some((path) => {
@@ -25,6 +24,8 @@ const createGroup = async (req, res) => {
       }
       return false;
     });
+    
+    console.log(isMissing);
 
     if (isMissing) {
       return res
