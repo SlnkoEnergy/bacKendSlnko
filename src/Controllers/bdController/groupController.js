@@ -76,12 +76,37 @@ const getAllGroup = async (req, res) => {
         { group_name: { $regex: search, $options: "i" } },
         { group_code: { $regex: search, $options: "i" } },
         { "contact_details.mobile": { $regex: search, $options: "i" } },
-         { "address.state": { $regex: search, $options: "i" } },
+        { "address.state": { $regex: search, $options: "i" } },
       ],
     };
 
     const groups = await group.aggregate([
       { $match: search ? matchStage : {} },
+
+      // Lookup leads to sum their capacity per group
+      {
+        $lookup: {
+          from: "bdleads",
+          localField: "_id",
+          foreignField: "group_id",
+          as: "leads",
+        },
+      },
+      {
+        $addFields: {
+          total_lead_capacity: {
+            $sum: {
+              $map: {
+                input: "$leads",
+                as: "lead",
+                in: {
+                  $toDouble: "$$lead.project_details.capacity",
+                },
+              },
+            },
+          },
+        },
+      },
 
       // Join createdBy user
       {
@@ -116,6 +141,17 @@ const getAllGroup = async (req, res) => {
       },
 
       {
+        $addFields: {
+          left_capacity: {
+            $subtract: [
+              { $toDouble: "$project_details.capacity" },
+              "$total_lead_capacity",
+            ],
+          },
+        },
+      },
+
+      {
         $project: {
           group_code: 1,
           group_name: 1,
@@ -125,6 +161,8 @@ const getAllGroup = async (req, res) => {
           address: 1,
           createdAt: 1,
           updatedAt: 1,
+          total_lead_capacity: 1,
+          left_capacity: 1,
           current_status: {
             status: 1,
             remarks: 1,
@@ -143,9 +181,7 @@ const getAllGroup = async (req, res) => {
       { $limit: limit },
     ]);
 
-    const totalCount = await group.countDocuments(
-      search ? (matchStage.$or.length > 0 ? matchStage : {}) : {}
-    );
+    const totalCount = await group.countDocuments(search ? matchStage : {});
 
     res.status(200).json({
       data: groups,
@@ -157,6 +193,7 @@ const getAllGroup = async (req, res) => {
     res.status(500).json({ error: error.message || "Internal Server Error" });
   }
 };
+
 
 const getGroupById = async (req, res) => {
   try {
@@ -197,16 +234,45 @@ const getGroupById = async (req, res) => {
         },
       },
 
+      // Lookup leads with this group_id
+      {
+        $lookup: {
+          from: "bdleads",
+          localField: "_id",
+          foreignField: "group_id",
+          as: "relatedLeads",
+        },
+      },
+
+      // Add total capacity from related leads
+      {
+        $addFields: {
+          total_lead_capacity: {
+            $sum: {
+              $map: {
+                input: "$relatedLeads",
+                as: "lead",
+                in: {
+                  $toDouble: "$$lead.project_details.capacity"
+                },
+              },
+            },
+          },
+        },
+      },
+
       {
         $project: {
           group_code: 1,
           group_name: 1,
+          company_name:1,
           project_details: 1,
           source: 1,
           contact_details: 1,
           address: 1,
           createdAt: 1,
           updatedAt: 1,
+          total_lead_capacity: 1,
           current_status: {
             status: 1,
             remarks: 1,
@@ -231,6 +297,7 @@ const getGroupById = async (req, res) => {
     res.status(500).json({ error: error.message || "Internal Server Error" });
   }
 };
+
 
 const updateGroup = async (req, res) => {
   try {
@@ -274,7 +341,7 @@ const updateGroupStatus = async (req, res) => {
         message: "Status is required",
       });
     }
-    console.log(status);
+
     const groupData = await group.findById(id);
     if (!groupData) {
       return res.status(404).json({

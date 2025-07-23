@@ -71,7 +71,7 @@ const handoversheetSchema = new mongoose.Schema(
       cam_member_name: { type: String },
       loa_number: { type: String },
       ppa_number: { type: String },
-      submitted_by_BD: { type: mongoose.Schema.Types.ObjectId, ref:"User" },
+      submitted_by_BD: { type:String },
       service: { type: String },
       slnko_basic: { type: String },
       billing_type: {
@@ -95,7 +95,7 @@ const handoversheetSchema = new mongoose.Schema(
       invoicing_GST_status: { type: String },
     },
     status_of_handoversheet: { type: String, default: " " },
-    submitted_by: { type: mongoose.Schema.Types.ObjectId, ref:"User" },
+    submitted_by: { type: String },
     comment: { type: String, default: "" },
     is_locked: { type: String, default: "locked" },
   },
