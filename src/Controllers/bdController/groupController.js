@@ -202,6 +202,7 @@ const getGroupById = async (req, res) => {
         $project: {
           group_code: 1,
           group_name: 1,
+          company_name: 1,
           project_details: 1,
           source: 1,
           contact_details: 1,
