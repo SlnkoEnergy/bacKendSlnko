@@ -320,7 +320,7 @@ const deleteGroup = async (req, res) => {
 
 const groupDropdown = async (req, res) => {
   try {
-    const groups = await group.find({}, { _id: 1, name: 1 });
+    const groups = await group.find({}, { _id: 1, group_name: 1 });
     return res.status(200).json({
       message: "Group list fetched successfully",
       data: groups,
