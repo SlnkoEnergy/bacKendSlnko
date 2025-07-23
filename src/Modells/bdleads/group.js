@@ -26,7 +26,7 @@ const groupSchema = new mongoose.Schema(
       sub_source: { type: String, required: false },
     },
     contact_details: {
-      email: String,
+      email: {type:String},
       mobile: { type: Array, required: true },
     },
     address: {

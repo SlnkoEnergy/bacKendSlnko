@@ -13,7 +13,6 @@ const createGroup = async (req, res) => {
       "address.state",
       "project_details.capacity",
       "source.from",
-      
     ];
 
     const isMissing = requiredFields.some((path) => {
@@ -25,6 +24,8 @@ const createGroup = async (req, res) => {
       }
       return false;
     });
+    
+    console.log(isMissing);
 
     if (isMissing) {
       return res
@@ -265,7 +266,7 @@ const getGroupById = async (req, res) => {
         $project: {
           group_code: 1,
           group_name: 1,
-          company_name:1,
+          company_name: 1,
           project_details: 1,
           source: 1,
           contact_details: 1,
