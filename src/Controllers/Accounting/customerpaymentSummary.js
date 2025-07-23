@@ -688,12 +688,12 @@ const totalBalanceSummary = async (req, res) => {
           }
         }
       },
-      // 👇 Add this stage before the final projection
+       //Add this stage before the final projection
 {
   $addFields: {
     Balance_Payable_to_vendors: {
       $subtract: [
-        { $add: ["$total_po_value", "$total_billed_value"] },
+        { $subtract: ["$total_po_value", "$total_billed_value"] },
         { $subtract: ["$total_advance_paid", "$total_billed_value"] }
       ]
     }
@@ -728,6 +728,21 @@ const totalBalanceSummary = async (req, res) => {
     }
   }
 },
+{
+  $addFields: {
+    balance_required: {
+      $subtract: [
+        { $ifNull: ["$balance_with_slnko", 0] },
+        {
+          $add: [
+            { $cond: [{ $gte: ["$Balance_Payable_to_vendors", 0] }, "$Balance_Payable_to_vendors", 0] },
+            { $cond: [{ $gte: ["$TCS_as_applicable", 0] }, "$TCS_as_applicable", 0] }
+          ]
+        }
+      ]
+    }
+  }
+},
       // Final Projection
       {
         $project: {
@@ -742,8 +757,9 @@ const totalBalanceSummary = async (req, res) => {
           total_billed_value: 1,
           extraGST: 1,
           balance_with_slnko: 1,
+          balance_required: 1,
         
-           Balance_Payable_to_vendors: 1,
+          Balance_Payable_to_vendors: 1,
           TCS_as_applicable: 1,
           Total_Adjustment: {
             $subtract: ["$totalCreditAdjustment", "$totalDebitAdjustment"],
