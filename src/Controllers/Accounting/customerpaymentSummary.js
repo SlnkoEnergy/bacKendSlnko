@@ -373,8 +373,6 @@ const clientHistory = async (req, res) => {
   }
 };
 
-//Total Balance Summary
-
 const totalBalanceSummary = async (req, res) => {
   try {
     const { p_id } = req.query;
@@ -386,9 +384,8 @@ const totalBalanceSummary = async (req, res) => {
     const cleanPId = isNaN(p_id) ? p_id : Number(p_id);
 
     const result = await ProjectModel.aggregate([
-         { $match: { p_id: cleanPId } },
+      { $match: { p_id: cleanPId } },
 
-      // Credit (Add Moneys)
       {
         $lookup: {
           from: "addmoneys",
@@ -412,7 +409,6 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
-      // Return (Subtract Moneys)
       {
         $lookup: {
           from: "subtract moneys",
@@ -422,7 +418,12 @@ const totalBalanceSummary = async (req, res) => {
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: [{ $toString: "$p_id" }, { $toString: "$$projectId" }] },
+                    {
+                      $eq: [
+                        { $toString: "$p_id" },
+                        { $toString: "$$projectId" },
+                      ],
+                    },
                     { $eq: ["$paid_for", "Customer Adjustment"] },
                   ],
                 },
@@ -431,7 +432,7 @@ const totalBalanceSummary = async (req, res) => {
             {
               $group: {
                 _id: null,
-                totalReturn: { $sum: { $toDouble: "$amount_paid" } },
+                total_return: { $sum: { $toDouble: "$amount_paid" } },
               },
             },
           ],
@@ -439,7 +440,6 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
-      // Vendor Advances (PayRequests)
       {
         $lookup: {
           from: "payrequests",
@@ -449,7 +449,12 @@ const totalBalanceSummary = async (req, res) => {
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: [{ $toString: "$p_id" }, { $toString: "$$projectId" }] },
+                    {
+                      $eq: [
+                        { $toString: "$p_id" },
+                        { $toString: "$$projectId" },
+                      ],
+                    },
                     { $eq: ["$acc_match", "matched"] },
                     { $eq: ["$approved", "Approved"] },
                     { $ne: ["$utr", ""] },
@@ -470,21 +475,19 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
-      // Purchase Orders Lookup
       {
         $lookup: {
           from: "purchaseorders",
           localField: "code",
           foreignField: "p_id",
-          as: "purchase_orders"
-        }
+          as: "purchase_orders",
+        },
       },
 
       {
-        $unwind: { path: "$purchase_orders", preserveNullAndEmptyArrays: true }
+        $unwind: { path: "$purchase_orders", preserveNullAndEmptyArrays: true },
       },
 
-      // PO-level Advance Payments
       {
         $lookup: {
           from: "payrequests",
@@ -513,7 +516,6 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
-      // Billed Values
       {
         $lookup: {
           from: "biildetails",
@@ -535,7 +537,6 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
-      // Add Advance Paid & Billed Per PO
       {
         $addFields: {
           "purchase_orders.total_billed_value": {
@@ -555,7 +556,6 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
-      // Adjustments
       {
         $lookup: {
           from: "adjustmentrequests",
@@ -598,7 +598,6 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
-      // Final Grouping
       {
         $group: {
           _id: "$p_id",
@@ -608,9 +607,9 @@ const totalBalanceSummary = async (req, res) => {
               $ifNull: [{ $arrayElemAt: ["$creditData.totalCredit", 0] }, 0],
             },
           },
-          totalReturn: {
+          total_return: {
             $first: {
-              $ifNull: [{ $arrayElemAt: ["$returnData.totalReturn", 0] }, 0],
+              $ifNull: [{ $arrayElemAt: ["$returnData.total_return", 0] }, 0],
             },
           },
           totalAdvancePaidToVendors: {
@@ -657,7 +656,6 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
-      // Compute expected_po_value and extraGST
       {
         $addFields: {
           expected_po_value: {
@@ -683,91 +681,13 @@ const totalBalanceSummary = async (req, res) => {
             $cond: [
               { $gt: ["$total_po_basic", 0] },
               { $subtract: ["$total_po_value", "$total_po_basic"] },
-              { $subtract: ["$total_po_value", "$expected_po_value"] }
-            ]
-          }
-        }
-      },
-       //Add this stage before the final projection
-{
-  $addFields: {
-    Balance_Payable_to_vendors: {
-      $subtract: [
-        { $subtract: ["$total_po_value", "$total_billed_value"] },
-        { $subtract: ["$total_advance_paid", "$total_billed_value"] }
-      ]
-    }
-  }
-},
-{
-  $addFields: {
-    TCS_as_applicable: {
-      $multiply: [
-        { $subtract: [{ $subtract: ["$totalCredit", "$totalReturn"] }, 5000000] },
-        0.001
-      ]
-    }
-  }
-},{
-  $addFields: {
-    balance_with_slnko: {
-      $subtract: [
-        {
-          $subtract: [
-            {
-              $subtract: [
-                { $ifNull: ["$totalCredit", 0] },
-                { $ifNull: ["$totalReturn", 0] }
-              ]
-            },
-            { $ifNull: ["$total_advance_paid", 0] }
-          ]
+              { $subtract: ["$total_po_value", "$expected_po_value"] },
+            ],
+          },
         },
-        { $ifNull: ["$total_adjustment", 0] }
-      ]
-    }
-  }
-},
-{
-  $addFields: {
-    balance_required: {
-      $subtract: [
-        { $ifNull: ["$balance_with_slnko", 0] },
-        {
-          $add: [
-            { $cond: [{ $gte: ["$Balance_Payable_to_vendors", 0] }, "$Balance_Payable_to_vendors", 0] },
-            { $cond: [{ $gte: ["$TCS_as_applicable", 0] }, "$TCS_as_applicable", 0] }
-          ]
-        }
-      ]
-    }
-  }
-},
-
-      // Final Projection
+      },
       {
-        $project: {
-          _id: 0,
-          p_id: "$_id",
-          totalReceived: "$totalCredit",
-          totalReturn: 1,
-          netBalance: { $subtract: ["$totalCredit", "$totalReturn"] },
-          total_po_value: 1,
-          total_po_basic: 1,
-          total_advance_paid: 1,
-          total_billed_value: 1,
-          extraGST: 1,
-          balance_with_slnko: 1,
-          balance_required: 1,
-        
-          Balance_Payable_to_vendors: 1,
-          TCS_as_applicable: 1,
-          Total_Adjustment: {
-            $subtract: ["$totalCreditAdjustment", "$totalDebitAdjustment"],
-          },
-          net_advanced_paid: {
-            $subtract: ["$total_advance_paid", "$total_billed_value"],
-          },
+        $addFields: {
           balance_payable_to_vendors: {
             $subtract: [
               { $subtract: ["$total_po_value", "$total_billed_value"] },
@@ -775,7 +695,147 @@ const totalBalanceSummary = async (req, res) => {
             ],
           },
         },
-      }
+      },
+      {
+        $addFields: {
+          tcs_as_applicable: {
+            $multiply: [
+              {
+                $subtract: [
+                  { $subtract: ["$totalCredit", "$total_return"] },
+                  5000000,
+                ],
+              },
+              0.001,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          balance_with_slnko: {
+            $subtract: [
+              {
+                $subtract: [
+                  {
+                    $subtract: [
+                      { $ifNull: ["$totalCredit", 0] },
+                      { $ifNull: ["$total_return", 0] },
+                    ],
+                  },
+                  { $ifNull: ["$total_advance_paid", 0] },
+                ],
+              },
+              { $ifNull: ["$total_adjustment", 0] },
+            ],
+          },
+        },
+      },
+
+      {
+        $addFields: {
+          gst_as_po_basic: {
+            $multiply: ["$total_po_basic", 0.17],
+          },
+        },
+      },
+      {
+        $addFields: {
+          total_po_with_gst: {
+            $add: ["$total_po_basic", "$gst_as_po_basic"],
+          },
+        },
+      },
+      {
+        $addFields: {
+          gst_with_type_percentage: {
+            $switch: {
+              branches: [
+                {
+                  case: { $eq: ["$billing_type", "Composite"] },
+                  then: { $multiply: ["$total_po_basic", 0.138] },
+                },
+                {
+                  case: { $eq: ["$billing_type", "Individual"] },
+                  then: { $multiply: ["$total_po_basic", 0.18] },
+                },
+              ],
+              default: 0,
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          gst_difference: {
+            $cond: {
+              if: { $gt: ["$gst_with_type_percentage", "$gst_as_po_basic"] },
+              then: {
+                $subtract: ["$gst_with_type_percentage", "$gst_as_po_basic"],
+              },
+              else: 0,
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          balance_required: {
+            $subtract: [
+              { $ifNull: ["$balance_with_slnko", 0] },
+              {
+                $add: [
+                  {
+                    $cond: [
+                      { $gte: ["$balance_payable_to_vendors", 0] },
+                      "$balance_payable_to_vendors",
+                      0,
+                    ],
+                  },
+                  {
+                    $cond: [
+                      { $gte: ["$tcs_as_applicable", 0] },
+                      "$tcs_as_applicable",
+                      0,
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          p_id: "$_id",
+          billing_type: 1,
+          total_received: "$totalCredit",
+          total_return: 1,
+          netBalance: { $subtract: ["$totalCredit", "$total_return"] },
+          total_po_value: 1,
+          total_po_basic: 1,
+          total_advance_paid: 1,
+          total_billed_value: 1,
+          extraGST: 1,
+          balance_with_slnko: 1,
+          balance_payable_to_vendors: 1,
+          tcs_as_applicable: 1,
+          total_adjustment: {
+            $subtract: ["$totalCreditAdjustment", "$totalDebitAdjustment"],
+          },
+          net_advanced_paid: {
+            $subtract: ["$total_advance_paid", "$total_billed_value"],
+          },
+
+          gst_as_po_basic: 1,
+          total_po_with_gst: 1,
+          gst_with_type_percentage: 1,
+          gst_difference: 1,
+          balance_required: 1,
+        },
+      },
     ]);
     return res.status(200).json({ result });
   } catch (error) {
@@ -784,224 +844,8 @@ const totalBalanceSummary = async (req, res) => {
   }
 };
 
-
-const getCreditSummary = async (req, res) => {
-   try {
-    const { p_id, start_date, end_date } = req.query;
-
-    if (!p_id) {
-      return res.status(400).json({ error: "Project ID (p_id) is required." });
-    }
-
-    const projectId = isNaN(p_id) ? p_id : Number(p_id);
-
-    const match = { p_id: projectId };
-
-    // Date range filter
-    if (start_date && end_date) {
-      const start = new Date(start_date);
-      const end = new Date(end_date);
-      end.setHours(23, 59, 59, 999);
-      match.cr_date = { $gte: start, $lte: end };
-    }
-
-    const [creditData] = await CreditModel.aggregate([
-      { $match: match }, // ⬅️ this match handles both p_id and date filter
-      {
-        $facet: {
-          history: [
-            { $sort: { cr_date: 1 } },
-            {
-              $project: {
-                _id: 0,
-                p_id: 1,
-                cr_date: 1,
-                cr_mode: 1,
-                cr_amount: 1,
-                createdAt: 1,
-              },
-            },
-          ],
-          summary: [
-            {
-              $group: {
-                _id: null,
-                totalCredited: { $sum: "$cr_amount" },
-              },
-            },
-          ],
-        },
-      },
-    ]);
-
-    const total = creditData?.summary[0]?.totalCredited || 0;
-
-    return res.status(200).json({
-      history: creditData?.history || [],
-      total,
-    });
-
-  } catch (error) {
-    console.error("Credit summary error:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-const getDebitSummary = async (req, res) => {
-  try {
-    const { p_id, start_date, end_date, vendor } = req.query;
-    if (!p_id) return res.status(400).json({ error: "Project ID (p_id) is required." });
-
-    const projectId = isNaN(p_id) ? p_id : Number(p_id);
-    const match = { p_id: projectId };
-
-    if (vendor) {
-      match.vendor = { $regex: vendor, $options: "i" };
-    }
-
-    if (start_date && end_date) {
-      const start = new Date(start_date);
-      const end = new Date(end_date);
-      end.setHours(23, 59, 59, 999);
-      match.dbt_date = { $gte: start, $lte: end };
-    }
-
-    const [debitData] = await DebitModel.aggregate([
-         {
-    $addFields: {
-      dbt_date: { $toDate: "$dbt_date" }
-    }
-  },
-  {
-    $match: {
-      ...match,
-      ...(start_date && end_date && {
-        dbt_date: {
-          $gte: new Date(start_date),
-          $lte: new Date(new Date(end_date).setHours(23, 59, 59, 999)),
-        },
-      }),
-    }
-  },
-  {
-    $facet: {
-      history: [
-        { $sort: { dbt_date: -1 } },
-        {
-          $project: {
-            _id: 0,
-            db_date: 1,
-            db_mode: 1,
-            amount_paid: 1,
-            paid_for: 1,
-            po_number: 1,
-            utr: 1,
-            updatedAt: 1,
-            createdAt: 1,
-            paid_to: "$vendor",
-            debit_date: "$dbt_date",
-          },
-        },
-      ],
-      summary: [
-        {
-          $group: {
-            _id: null,
-            totalDebited: { $sum: "$amount_paid" },
-          },
-        },
-      ],
-    },
-  },
-]);
-    res.status(200).json({
-      history: debitData?.history || [],
-      total: debitData?.summary[0]?.totalDebited || 0,
-    });
-  } catch (error) {
-    console.error("Debit summary error:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-const getAdjustmentHistory = async (req, res) => {
-  try {
-    const { p_id, start_date, end_date } = req.query;
-    if (!p_id) return res.status(400).json({ error: "Project ID (p_id) is required." });
-
-    const projectId = isNaN(p_id) ? p_id : Number(p_id);
-    const match = { p_id: projectId };
-
-    if (start_date && end_date) {
-      const start = new Date(start_date);
-      const end = new Date(end_date);
-      end.setHours(23, 59, 59, 999);
-      match.createdAt = { $gte: start, $lte: end };
-    }
-
-    const [adjustmentData] = await AdjustmentModel.aggregate([
-      { $match: match },
-      {
-        $facet: {
-          history: [
-            { $sort: { createdAt: -1 } },
-            {
-              $project: {
-                _id: 0,
-                adj_type: 1,
-                adj_amount: 1,
-                adj_date: 1,
-                comment: 1,
-                po_number: 1,
-                updatedAt: 1,
-                createdAt: 1,
-                paid_for: 1,
-                debit_adjustment: {
-                  $cond: [
-                    { $eq: ["$adj_type", "Subtract"] },
-                    "$adj_amount",
-                    null,
-                  ],
-                },
-                credit_adjustment: {
-                  $cond: [
-                    { $eq: ["$adj_type", "Add"] },
-                    "$adj_amount",
-                    null,
-                  ],
-                },
-                description: "$comment",
-              },
-            },
-          ],
-          summary: [
-            {
-              $group: {
-                _id: null,
-                totalAdjusted: { $sum: "$adj_amount" },
-              },
-            },
-          ],
-        },
-      },
-    ]);
-
-    res.status(200).json({
-      history: adjustmentData?.history || [],
-      total: adjustmentData?.summary[0]?.totalAdjusted || 0,
-    });
-  } catch (error) {
-    console.error("Adjustment history error:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-
 module.exports = {
   getCustomerPaymentSummary,
   clientHistory,
   totalBalanceSummary,
-  getCreditSummary,
-  getDebitSummary,
-  getAdjustmentHistory
 };
