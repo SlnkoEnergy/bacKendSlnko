@@ -20,6 +20,7 @@ const {
   createBDlead,
   updateExpectedClosing,
 } = require("../../Controllers/bdController/bdleadsController");
+const { createGroup } = require("../../Controllers/bdController/groupController.js");
 const {
   getNotesById,
   createNotes,
@@ -239,5 +240,9 @@ router.put(
   jwtMW.authorization,
   updateAssignedToFromSubmittedBy
 );
+
+
+//Group
+router.post('/group', jwtMW.authentication, jwtMW.authorization, createGroup);
 
 module.exports = router;

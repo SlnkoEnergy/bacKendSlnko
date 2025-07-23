@@ -1916,7 +1916,7 @@ const uploadDocuments = async (req, res) => {
       });
     }
 
-    if (name === "warm" && lead.expected_closing_date === undefined) {
+    if (lead.expected_closing_date === undefined) {
       lead.expected_closing_date = expected_closing_date;
     }
 
