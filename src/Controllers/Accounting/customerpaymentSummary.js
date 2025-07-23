@@ -695,7 +695,7 @@ const totalBalanceSummary = async (req, res) => {
        //Add this stage before the final projection
 {
   $addFields: {
-    Balance_Payable_to_vendors: {
+    balance_payable_to_vendors: {
       $subtract: [
         { $subtract: ["$total_po_value", "$total_billed_value"] },
         { $subtract: ["$total_advance_paid", "$total_billed_value"] }
@@ -739,7 +739,7 @@ const totalBalanceSummary = async (req, res) => {
         { $ifNull: ["$balance_with_slnko", 0] },
         {
           $add: [
-            { $cond: [{ $gte: ["$Balance_Payable_to_vendors", 0] }, "$Balance_Payable_to_vendors", 0] },
+            { $cond: [{ $gte: ["$balance_payable_to_vendors", 0] }, "$balance_payable_to_vendors", 0] },
             { $cond: [{ $gte: ["$TCS_as_applicable", 0] }, "$TCS_as_applicable", 0] }
           ]
         }
@@ -857,7 +857,7 @@ const totalBalanceSummary = async (req, res) => {
           balance_with_slnko: 1,
           balance_required: 1,
         
-          Balance_Payable_to_vendors: 1,
+          // Balance_Payable_to_vendors: 1,
           TCS_as_applicable: 1,
           Total_Adjustment: {
           balance_payable_to_vendors: 1,
@@ -874,6 +874,7 @@ const totalBalanceSummary = async (req, res) => {
           gst_difference: 1,
         },
       },
+    }
     ]);
     return res.status(200).json({ result });
   } catch (error) {
