@@ -1,17 +1,8 @@
-const Initial = require("../../Modells/initialBdLeadModells");
-const Followup = require("../../Modells/followupbdModells");
-const Warm = require("../../Modells/warmbdLeadModells");
-const Won = require("../../Modells/wonleadModells");
-const Dead = require("../../Modells/deadleadModells");
 const BDtask = require("../../Modells/bdleads/task");
 const userModells = require("../../Modells/userModells");
 const transformAndSaveOldLead = require("../../utils/bdLeadTransform");
 const deadleadModells = require("../../Modells/deadleadModells");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
-const initialBdLeadModells = require("../../Modells/initialBdLeadModells");
-const followupbdModells = require("../../Modells/followupbdModells");
-const warmbdLeadModells = require("../../Modells/warmbdLeadModells");
-const wonleadModells = require("../../Modells/wonleadModells");
 const { default: mongoose } = require("mongoose");
 const { Parser } = require("json2csv");
 

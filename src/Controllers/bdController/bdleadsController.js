@@ -1499,6 +1499,10 @@ const getAllLeads = async (req, res) => {
       and.push({ "current_status.name": stage });
     }
 
+    if (req.query.group_id) {
+  and.push({ group_id: new mongoose.Types.ObjectId(req.query.group_id) });
+}
+
     if (fromDate && toDate) {
       const start = new Date(fromDate);
       const end = new Date(toDate);
@@ -1916,7 +1920,7 @@ const uploadDocuments = async (req, res) => {
       });
     }
 
-    if (name === "warm" && lead.expected_closing_date === undefined) {
+    if (lead.expected_closing_date === undefined) {
       lead.expected_closing_date = expected_closing_date;
     }
 
@@ -2042,8 +2046,6 @@ const createBDlead = async function (req, res) {
     res.status(400).json({ error: error.message || "Something went wrong" });
   }
 };
-
-
 
 const updateExpectedClosing = async (req, res) => {
   try {

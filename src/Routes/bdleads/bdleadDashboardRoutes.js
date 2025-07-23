@@ -20,6 +20,7 @@ const {
   createBDlead,
   updateExpectedClosing,
 } = require("../../Controllers/bdController/bdleadsController");
+const { createGroup, getAllGroup, getGroupById, updateGroup, deleteGroup, updateGroupStatus } = require("../../Controllers/bdController/groupController.js");
 const {
   getNotesById,
   createNotes,
@@ -43,6 +44,7 @@ const {
 } = require("../../Controllers/bdController/taskController");
 const jwtMW = require("../../middlewares/auth");
 const upload = require("../../middlewares/multer.js");
+const updateStatusGroup = require("../../utils/updateStatusGroup.js");
 
 // Bd lead Dashboard Routes
 router.get(
@@ -239,5 +241,14 @@ router.put(
   jwtMW.authorization,
   updateAssignedToFromSubmittedBy
 );
+
+
+//Group
+router.post('/group', jwtMW.authentication, jwtMW.authorization, createGroup);
+router.get('/group', jwtMW.authentication, jwtMW.authorization, getAllGroup);
+router.get('/group/:id', jwtMW.authentication, jwtMW.authorization, getGroupById);
+router.put('/group/:id', jwtMW.authentication, jwtMW.authorization, updateGroup);
+router.put('/:id/updateGroupStatus', jwtMW.authentication, jwtMW.authorization, updateGroupStatus);
+router.delete('/group/:id', jwtMW.authentication, jwtMW.authorization, deleteGroup);
 
 module.exports = router;
