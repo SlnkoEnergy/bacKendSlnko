@@ -827,8 +827,224 @@ const totalBalanceSummary = async (req, res) => {
   }
 };
 
+
+const getCreditSummary = async (req, res) => {
+   try {
+    const { p_id, start_date, end_date } = req.query;
+
+    if (!p_id) {
+      return res.status(400).json({ error: "Project ID (p_id) is required." });
+    }
+
+    const projectId = isNaN(p_id) ? p_id : Number(p_id);
+
+    const match = { p_id: projectId };
+
+    // Date range filter
+    if (start_date && end_date) {
+      const start = new Date(start_date);
+      const end = new Date(end_date);
+      end.setHours(23, 59, 59, 999);
+      match.cr_date = { $gte: start, $lte: end };
+    }
+
+    const [creditData] = await CreditModel.aggregate([
+      { $match: match }, // ⬅️ this match handles both p_id and date filter
+      {
+        $facet: {
+          history: [
+            { $sort: { cr_date: 1 } },
+            {
+              $project: {
+                _id: 0,
+                p_id: 1,
+                cr_date: 1,
+                cr_mode: 1,
+                cr_amount: 1,
+                createdAt: 1,
+              },
+            },
+          ],
+          summary: [
+            {
+              $group: {
+                _id: null,
+                totalCredited: { $sum: "$cr_amount" },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const total = creditData?.summary[0]?.totalCredited || 0;
+
+    return res.status(200).json({
+      history: creditData?.history || [],
+      total,
+    });
+
+  } catch (error) {
+    console.error("Credit summary error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const getDebitSummary = async (req, res) => {
+  try {
+    const { p_id, start_date, end_date, vendor } = req.query;
+    if (!p_id) return res.status(400).json({ error: "Project ID (p_id) is required." });
+
+    const projectId = isNaN(p_id) ? p_id : Number(p_id);
+    const match = { p_id: projectId };
+
+    if (vendor) {
+      match.vendor = { $regex: vendor, $options: "i" };
+    }
+
+    if (start_date && end_date) {
+      const start = new Date(start_date);
+      const end = new Date(end_date);
+      end.setHours(23, 59, 59, 999);
+      match.dbt_date = { $gte: start, $lte: end };
+    }
+
+    const [debitData] = await DebitModel.aggregate([
+         {
+    $addFields: {
+      dbt_date: { $toDate: "$dbt_date" }
+    }
+  },
+  {
+    $match: {
+      ...match,
+      ...(start_date && end_date && {
+        dbt_date: {
+          $gte: new Date(start_date),
+          $lte: new Date(new Date(end_date).setHours(23, 59, 59, 999)),
+        },
+      }),
+    }
+  },
+  {
+    $facet: {
+      history: [
+        { $sort: { dbt_date: -1 } },
+        {
+          $project: {
+            _id: 0,
+            db_date: 1,
+            db_mode: 1,
+            amount_paid: 1,
+            paid_for: 1,
+            po_number: 1,
+            utr: 1,
+            updatedAt: 1,
+            createdAt: 1,
+            paid_to: "$vendor",
+            debit_date: "$dbt_date",
+          },
+        },
+      ],
+      summary: [
+        {
+          $group: {
+            _id: null,
+            totalDebited: { $sum: "$amount_paid" },
+          },
+        },
+      ],
+    },
+  },
+]);
+    res.status(200).json({
+      history: debitData?.history || [],
+      total: debitData?.summary[0]?.totalDebited || 0,
+    });
+  } catch (error) {
+    console.error("Debit summary error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const getAdjustmentHistory = async (req, res) => {
+  try {
+    const { p_id, start_date, end_date } = req.query;
+    if (!p_id) return res.status(400).json({ error: "Project ID (p_id) is required." });
+
+    const projectId = isNaN(p_id) ? p_id : Number(p_id);
+    const match = { p_id: projectId };
+
+    if (start_date && end_date) {
+      const start = new Date(start_date);
+      const end = new Date(end_date);
+      end.setHours(23, 59, 59, 999);
+      match.createdAt = { $gte: start, $lte: end };
+    }
+
+    const [adjustmentData] = await AdjustmentModel.aggregate([
+      { $match: match },
+      {
+        $facet: {
+          history: [
+            { $sort: { createdAt: -1 } },
+            {
+              $project: {
+                _id: 0,
+                adj_type: 1,
+                adj_amount: 1,
+                adj_date: 1,
+                comment: 1,
+                po_number: 1,
+                updatedAt: 1,
+                createdAt: 1,
+                paid_for: 1,
+                debit_adjustment: {
+                  $cond: [
+                    { $eq: ["$adj_type", "Subtract"] },
+                    "$adj_amount",
+                    null,
+                  ],
+                },
+                credit_adjustment: {
+                  $cond: [
+                    { $eq: ["$adj_type", "Add"] },
+                    "$adj_amount",
+                    null,
+                  ],
+                },
+                description: "$comment",
+              },
+            },
+          ],
+          summary: [
+            {
+              $group: {
+                _id: null,
+                totalAdjusted: { $sum: "$adj_amount" },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      history: adjustmentData?.history || [],
+      total: adjustmentData?.summary[0]?.totalAdjusted || 0,
+    });
+  } catch (error) {
+    console.error("Adjustment history error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
 module.exports = {
   getCustomerPaymentSummary,
   clientHistory,
   totalBalanceSummary,
+  getCreditSummary,
+  getDebitSummary,
+  getAdjustmentHistory
 };
