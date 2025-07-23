@@ -6,7 +6,7 @@ const groupSchema = new mongoose.Schema(
     group_code: {
       type: String,
     },
-    group_name: {
+    groupName: {
       type: String,
     },
     company_name:{
@@ -23,7 +23,7 @@ const groupSchema = new mongoose.Schema(
     },
     source: {
       from: { type: String, required: true },
-      sub_source: { type: String, required: true },
+      sub_source: { type: String, required: false },
     },
     contact_details: {
       email: String,
