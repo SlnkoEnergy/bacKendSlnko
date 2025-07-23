@@ -6,7 +6,7 @@ const groupSchema = new mongoose.Schema(
     group_code: {
       type: String,
     },
-    groupName: {
+    group_name: {
       type: String,
     },
     company_name:{
