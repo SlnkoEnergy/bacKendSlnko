@@ -9,6 +9,9 @@ const groupSchema = new mongoose.Schema(
     group_name: {
       type: String,
     },
+    company_name:{
+      type:String
+    },
     project_details: {
       capacity: {
         type: String,
