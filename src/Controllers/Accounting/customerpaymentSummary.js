@@ -807,12 +807,6 @@ const totalBalanceSummary = async (req, res) => {
           net_advanced_paid: {
             $subtract: ["$total_advance_paid", "$total_billed_value"],
           },
-          // balance_payable_to_vendors: {
-          //   $subtract: [
-          //     { $subtract: ["$total_po_value", "$total_billed_value"] },
-          //     { $subtract: ["$total_advance_paid", "$total_billed_value"] },
-          //   ],
-          // },
           gst_as_po_basic: 1,
           total_po_with_gst: 1,
           gst_with_type_percentage: 1,
