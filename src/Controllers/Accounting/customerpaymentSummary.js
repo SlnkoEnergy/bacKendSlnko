@@ -386,9 +386,9 @@ const totalBalanceSummary = async (req, res) => {
     const cleanPId = isNaN(p_id) ? p_id : Number(p_id);
 
     const result = await ProjectModel.aggregate([
-           {
-        $match: { p_id: cleanPId }
-      },
+              { $match: { p_id: cleanPId } },
+
+      // Lookup credit data from addmoneys
       {
         $lookup: {
           from: "addmoneys",
@@ -397,23 +397,25 @@ const totalBalanceSummary = async (req, res) => {
             {
               $match: {
                 $expr: {
-                  $eq: [{ $toString: "$p_id" }, { $toString: "$$projectId" }]
-                }
-              }
+                  $eq: [{ $toString: "$p_id" }, { $toString: "$$projectId" }],
+                },
+              },
             },
             {
               $group: {
                 _id: null,
-                totalCredit: { $sum: { $toDouble: "$cr_amount" } }
-              }
-            }
+                totalCredit: { $sum: { $toDouble: "$cr_amount" } },
+              },
+            },
           ],
-          as: "creditData"
-        }
+          as: "creditData",
+        },
       },
+
+      // Lookup returns from subtract moneys
       {
         $lookup: {
-          from: "subtract moneys", // Make sure collection name has no space
+          from: "subtract moneys",
           let: { projectId: "$p_id" },
           pipeline: [
             {
@@ -421,64 +423,182 @@ const totalBalanceSummary = async (req, res) => {
                 $expr: {
                   $and: [
                     { $eq: [{ $toString: "$p_id" }, { $toString: "$$projectId" }] },
-                    { $eq: ["$paid_for", "Customer Adjustment"] }
-                  ]
-                }
-              }
+                    { $eq: ["$paid_for", "Customer Adjustment"] },
+                  ],
+                },
+              },
             },
             {
               $group: {
                 _id: null,
-                totalReturn: { $sum: { $toDouble: "$amount_paid" } }
-              }
-            }
+                totalReturn: { $sum: { $toDouble: "$amount_paid" } },
+              },
+            },
           ],
-          as: "returnData"
-        }
+          as: "returnData",
+        },
       },
-      
-         
-{
-  $addFields: {
-    advanced_paid: {
-      $sum: "$approved_payment.amount_paid"
-    }
+
+      // Lookup advance payments from payrequests per project
+      {
+        $lookup: {
+          from: "payrequests",
+          let: { projectId: "$p_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: [{ $toString: "$p_id" }, { $toString: "$$projectId" }] },
+                    { $eq: ["$acc_match", "matched"] },
+                    { $eq: ["$approved", "Approved"] },
+                    { $ne: ["$utr", ""] },
+                  ],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalAdvancePaidToVendors: { $sum: { $toDouble: "$amount_paid" } },
+              },
+            },
+          ],
+          as: "advancePaymentData",
+        },
+      },
+
+      // Lookup purchase orders by project code
+      {
+        $lookup: {
+          from: "purchaseorders",
+          localField: "code",
+          foreignField: "p_id",
+          as: "purchase_orders",
+        },
+      },
+
+      // Unwind purchase orders for per-PO advance payment calculation
+      { $unwind: { path: "$purchase_orders", preserveNullAndEmptyArrays: true } },
+
+      // Lookup advance payments per purchase order
+      {
+        $lookup: {
+          from: "payrequests",
+          let: { po_numberStr: { $toString: "$purchase_orders.po_number" } },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: [{ $toString: "$po_number" }, "$$po_numberStr"] },
+                    { $eq: ["$approved", "Approved"] },
+                    { $eq: ["$acc_match", "matched"] },
+                    { $ne: ["$utr", ""] },
+                  ],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalPaid: { $sum: { $toDouble: "$amount_paid" } },
+              },
+            },
+          ],
+          as: "po_advance_payments",
+        },
+      },
+
+      {
+  $lookup: {
+    from: "biildetails",
+    let: { poNumber: { $toString: "$purchase_orders.po_number" } },
+    pipeline: [
+      { $match: { $expr: { $eq: [{ $toString: "$po_number" }, "$$poNumber"] } } },
+      { $group: { _id: null, totalBilled: { $sum: { $toDouble: "$bill_value" } } } }
+    ],
+    as: "billed_summary"
   }
 },
-      
-      {
-        $addFields: {
-          totalCredit: {
-            $ifNull: [{ $arrayElemAt: ["$creditData.totalCredit", 0] }, 0]
-          },
-          totalReturn: {
-            $ifNull: [{ $arrayElemAt: ["$returnData.totalReturn", 0] }, 0]
-          },
-          netBalance: {
-            $subtract: [
-              { $ifNull: [{ $arrayElemAt: ["$creditData.totalCredit", 0] }, 0] },
-              { $ifNull: [{ $arrayElemAt: ["$returnData.totalReturn", 0] }, 0] }
-            ]
-          },   advanced_paid: {
-      $ifNull: [
-        { $sum: "$approved_payment.amount_paid" },
+{
+  $addFields: {
+    "purchase_orders.total_billed_value": {
+      $cond: [
+        { $gt: [{ $size: "$billed_summary" }, 0] },
+        { $arrayElemAt: ["$billed_summary.totalBilled", 0] },
         0
       ]
     }
-        }
+  }
+},
+
+
+      // Add advance_paid field to each purchase order
+      {
+        $addFields: {
+          "purchase_orders.advance_paid": {
+            $cond: [
+              { $gt: [{ $size: "$po_advance_payments" }, 0] },
+              { $arrayElemAt: ["$po_advance_payments.totalPaid", 0] },
+              0,
+            ],
+          },
+        },
       },
+
+     
+      {
+        $group: {
+          _id: "$p_id",
+          totalCredit: {
+            $first: {
+              $ifNull: [{ $arrayElemAt: ["$creditData.totalCredit", 0] }, 0],
+            },
+          },
+          totalReturn: {
+            $first: {
+              $ifNull: [{ $arrayElemAt: ["$returnData.totalReturn", 0] }, 0],
+            },
+          },
+          totalAdvancePaidToVendors: {
+            $first: {
+              $ifNull: [
+                { $arrayElemAt: ["$advancePaymentData.totalAdvancePaidToVendors", 0] },
+                0,
+              ],
+            },
+          },
+          total_po_value: { $sum: { $toDouble: "$purchase_orders.po_value" } },
+          total_advance_paid: { $sum: "$purchase_orders.advance_paid" },
+           total_billed_value: { $sum: "$purchase_orders.total_billed_value" } 
+        },
+      },
+
+      // Calculate netBalance and format output
       {
         $project: {
           _id: 0,
-          project_id: "$p_id",
-          credit_amount: "$totalCredit",
+          project_id: "$_id",
+          totalReceived: "$totalCredit",
           totalReturn: 1,
-          netBalance: 1,
-          advanced_paid: 1,
-        }
-      }
+          netBalance: { $subtract: ["$totalCredit", "$totalReturn"] },
+        
+          total_po_value: 1,
+          total_advance_paid: 1,
+          total_billed_value: 1,
+            net_advanced_paid: {
+      $subtract: ["$total_advance_paid", "$total_billed_value"]
+    },
+    balance_payable_to_vendors: {
+      $subtract: [
+        { $subtract: ["$total_po_value", "$total_billed_value"] },
+        { $subtract: ["$total_advance_paid", "$total_billed_value"] }
+      ]
+    }
+        },
+      },
     ]);
-
     return res.status(200).json({ result });
   } catch (error) {
     console.error("Error fetching total balance summary:", error);
