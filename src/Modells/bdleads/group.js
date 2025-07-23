@@ -9,6 +9,9 @@ const groupSchema = new mongoose.Schema(
     groupName: {
       type: String,
     },
+    company_name:{
+      type:String
+    },
     project_details: {
       capacity: {
         type: String,
@@ -69,8 +72,8 @@ const groupSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-groupSchema.pre("save", function(next){
-    updateStatusGroup(this);
+groupSchema.pre("save", function(next) {
+    updateStatusGroup(this); 
     next();
 })
 
