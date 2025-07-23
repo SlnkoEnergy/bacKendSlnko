@@ -373,7 +373,7 @@ const clientHistory = async (req, res) => {
   }
 };
 
-
+//Total Balance Summary
 
 const totalBalanceSummary = async (req, res) => {
   try {
@@ -386,9 +386,9 @@ const totalBalanceSummary = async (req, res) => {
     const cleanPId = isNaN(p_id) ? p_id : Number(p_id);
 
     const result = await ProjectModel.aggregate([
-      { $match: { p_id: cleanPId } },
+         { $match: { p_id: cleanPId } },
 
-  
+      // Credit (Add Moneys)
       {
         $lookup: {
           from: "addmoneys",
@@ -412,7 +412,7 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
-
+      // Return (Subtract Moneys)
       {
         $lookup: {
           from: "subtract moneys",
@@ -422,12 +422,7 @@ const totalBalanceSummary = async (req, res) => {
               $match: {
                 $expr: {
                   $and: [
-                    {
-                      $eq: [
-                        { $toString: "$p_id" },
-                        { $toString: "$$projectId" },
-                      ],
-                    },
+                    { $eq: [{ $toString: "$p_id" }, { $toString: "$$projectId" }] },
                     { $eq: ["$paid_for", "Customer Adjustment"] },
                   ],
                 },
@@ -436,7 +431,7 @@ const totalBalanceSummary = async (req, res) => {
             {
               $group: {
                 _id: null,
-                total_return: { $sum: { $toDouble: "$amount_paid" } },
+                totalReturn: { $sum: { $toDouble: "$amount_paid" } },
               },
             },
           ],
@@ -444,7 +439,7 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
- 
+      // Vendor Advances (PayRequests)
       {
         $lookup: {
           from: "payrequests",
@@ -454,12 +449,7 @@ const totalBalanceSummary = async (req, res) => {
               $match: {
                 $expr: {
                   $and: [
-                    {
-                      $eq: [
-                        { $toString: "$p_id" },
-                        { $toString: "$$projectId" },
-                      ],
-                    },
+                    { $eq: [{ $toString: "$p_id" }, { $toString: "$$projectId" }] },
                     { $eq: ["$acc_match", "matched"] },
                     { $eq: ["$approved", "Approved"] },
                     { $ne: ["$utr", ""] },
@@ -480,20 +470,21 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
- 
+      // Purchase Orders Lookup
       {
         $lookup: {
           from: "purchaseorders",
           localField: "code",
           foreignField: "p_id",
-          as: "purchase_orders",
-        },
+          as: "purchase_orders"
+        }
       },
 
       {
-        $unwind: { path: "$purchase_orders", preserveNullAndEmptyArrays: true },
+        $unwind: { path: "$purchase_orders", preserveNullAndEmptyArrays: true }
       },
 
+      // PO-level Advance Payments
       {
         $lookup: {
           from: "payrequests",
@@ -522,6 +513,7 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
+      // Billed Values
       {
         $lookup: {
           from: "biildetails",
@@ -543,6 +535,7 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
+      // Add Advance Paid & Billed Per PO
       {
         $addFields: {
           "purchase_orders.total_billed_value": {
@@ -562,6 +555,7 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
+      // Adjustments
       {
         $lookup: {
           from: "adjustmentrequests",
@@ -604,6 +598,7 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
+      // Final Grouping
       {
         $group: {
           _id: "$p_id",
@@ -613,9 +608,9 @@ const totalBalanceSummary = async (req, res) => {
               $ifNull: [{ $arrayElemAt: ["$creditData.totalCredit", 0] }, 0],
             },
           },
-          total_return: {
+          totalReturn: {
             $first: {
-              $ifNull: [{ $arrayElemAt: ["$returnData.total_return", 0] }, 0],
+              $ifNull: [{ $arrayElemAt: ["$returnData.totalReturn", 0] }, 0],
             },
           },
           totalAdvancePaidToVendors: {
@@ -662,6 +657,7 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
+      // Compute expected_po_value and extraGST
       {
         $addFields: {
           expected_po_value: {
@@ -687,15 +683,15 @@ const totalBalanceSummary = async (req, res) => {
             $cond: [
               { $gt: ["$total_po_basic", 0] },
               { $subtract: ["$total_po_value", "$total_po_basic"] },
-              { $subtract: ["$total_po_value", "$expected_po_value"] },
-            ],
-          },
-        },
+              { $subtract: ["$total_po_value", "$expected_po_value"] }
+            ]
+          }
+        }
       },
        //Add this stage before the final projection
 {
   $addFields: {
-    balance_payable_to_vendors: {
+    Balance_Payable_to_vendors: {
       $subtract: [
         { $subtract: ["$total_po_value", "$total_billed_value"] },
         { $subtract: ["$total_advance_paid", "$total_billed_value"] }
@@ -739,7 +735,7 @@ const totalBalanceSummary = async (req, res) => {
         { $ifNull: ["$balance_with_slnko", 0] },
         {
           $add: [
-            { $cond: [{ $gte: ["$balance_payable_to_vendors", 0] }, "$balance_payable_to_vendors", 0] },
+            { $cond: [{ $gte: ["$Balance_Payable_to_vendors", 0] }, "$Balance_Payable_to_vendors", 0] },
             { $cond: [{ $gte: ["$TCS_as_applicable", 0] }, "$TCS_as_applicable", 0] }
           ]
         }
@@ -747,108 +743,15 @@ const totalBalanceSummary = async (req, res) => {
     }
   }
 },
+
       // Final Projection
-      {
-        $addFields: {
-          balance_payable_to_vendors: {
-            $subtract: [
-              { $subtract: ["$total_po_value", "$total_billed_value"] },
-              { $subtract: ["$total_advance_paid", "$total_billed_value"] },
-            ],
-          },
-        },
-      },
-      {
-        $addFields: {
-          tcs_as_applicable: {
-            $multiply: [
-              {
-                $subtract: [
-                  { $subtract: ["$totalCredit", "$total_return"] },
-                  5000000,
-                ],
-              },
-              0.001,
-            ],
-          },
-        },
-      },
-      {
-        $addFields: {
-          balance_with_slnko: {
-            $subtract: [
-              {
-                $subtract: [
-                  {
-                    $subtract: [
-                      { $ifNull: ["$totalCredit", 0] },
-                      { $ifNull: ["$total_return", 0] },
-                    ],
-                  },
-                  { $ifNull: ["$total_advance_paid", 0] },
-                ],
-              },
-              { $ifNull: ["$total_adjustment", 0] },
-            ],
-          },
-        },
-      },
-
-      {
-        $addFields: {
-          gst_as_po_basic: {
-            $multiply: ["$total_po_basic", 0.17],
-          },
-        },
-      },
-      {
-        $addFields: {
-          total_po_with_gst: {
-            $add: ["$total_po_basic", "$gst_as_po_basic"],
-          },
-        },
-      },
-      {
-        $addFields: {
-          gst_with_type_percentage: {
-            $switch: {
-              branches: [
-                {
-                  case: { $eq: ["$billing_type", "Composite"] },
-                  then: { $multiply: ["$total_po_basic", 0.138] },
-                },
-                {
-                  case: { $eq: ["$billing_type", "Individual"] },
-                  then: { $multiply: ["$total_po_basic", 0.18] },
-                },
-              ],
-              default: 0,
-            },
-          },
-        },
-      },
-      {
-        $addFields: {
-          gst_difference: {
-            $cond: {
-              if: { $gt: ["$gst_with_type_percentage", "$gst_as_po_basic"] },
-              then: {
-                $subtract: ["$gst_with_type_percentage", "$gst_as_po_basic"],
-              },
-              else: 0,
-            },
-          },
-        },
-      },
-
       {
         $project: {
           _id: 0,
           p_id: "$_id",
-          billing_type:1,
-          total_received: "$totalCredit",
-          total_return: 1,
-          netBalance: { $subtract: ["$totalCredit", "$total_return"] },
+          totalReceived: "$totalCredit",
+          totalReturn: 1,
+          netBalance: { $subtract: ["$totalCredit", "$totalReturn"] },
           total_po_value: 1,
           total_po_basic: 1,
           total_advance_paid: 1,
@@ -857,24 +760,22 @@ const totalBalanceSummary = async (req, res) => {
           balance_with_slnko: 1,
           balance_required: 1,
         
-          // Balance_Payable_to_vendors: 1,
+          Balance_Payable_to_vendors: 1,
           TCS_as_applicable: 1,
           Total_Adjustment: {
-          balance_payable_to_vendors: 1,
-          tcs_as_applicable: 1,
-          total_adjustment: {
             $subtract: ["$totalCreditAdjustment", "$totalDebitAdjustment"],
           },
           net_advanced_paid: {
             $subtract: ["$total_advance_paid", "$total_billed_value"],
           },
-          gst_as_po_basic: 1,
-          total_po_with_gst: 1,
-          gst_with_type_percentage: 1,
-          gst_difference: 1,
+          balance_payable_to_vendors: {
+            $subtract: [
+              { $subtract: ["$total_po_value", "$total_billed_value"] },
+              { $subtract: ["$total_advance_paid", "$total_billed_value"] },
+            ],
+          },
         },
-      },
-    }
+      }
     ]);
     return res.status(200).json({ result });
   } catch (error) {
