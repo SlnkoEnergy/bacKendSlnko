@@ -44,8 +44,8 @@ router.get(
 );
 router.get(
   "/payment-approval",
-  jwtMW.authentication,
-  jwtMW.authorization,
+   jwtMW.authentication,
+   jwtMW.authorization,
   paymentApproval
 );
 router.get(
