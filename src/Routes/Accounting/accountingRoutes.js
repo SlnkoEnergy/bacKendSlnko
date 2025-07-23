@@ -1,21 +1,75 @@
 const router = require("express").Router();
-const { paymentApproved, utrSubmission }=require("../../Controllers/Accounting/approvedPayment");
-const { getCustomerPaymentSummary, clientHistory, totalBalanceSummary, getCreditSummary, getDebitSummary, getAdjustmentHistory } = require("../../Controllers/Accounting/customerpaymentSummary");
-const { paymentApproval } = require("../../Controllers/Accounting/paymentApproval");
-const { projectBalance , exportProjectBalance  }= require("../../Controllers/Accounting/ProjectBalance");
+const {
+  paymentApproved,
+  utrSubmission,
+} = require("../../Controllers/Accounting/approvedPayment");
+const {
+  getCustomerPaymentSummary,
+  clientHistory,
+  totalBalanceSummary,
+} = require("../../Controllers/Accounting/customerpaymentSummary");
+const {
+  paymentApproval,
+} = require("../../Controllers/Accounting/paymentApproval");
+const {
+  projectBalance,
+  exportProjectBalance,
+} = require("../../Controllers/Accounting/ProjectBalance");
 const { standbyRecord } = require("../../Controllers/Accounting/standbyRecord");
+const jwtMW = require("../../middlewares/auth");
 
-
-router.get("/approved-payment",paymentApproved);
-router.get("/utr-submission", utrSubmission);
-router.get("/project-balance",projectBalance);
-router.get("/export-project-balance",exportProjectBalance);
-router.get("/payment-approval",paymentApproval);
-router.get("/standby-record",standbyRecord);
-router.get("/customer-payment-summary",getCustomerPaymentSummary);
-router.get("/client-history",clientHistory);
-router.get("/balance-summary",totalBalanceSummary) ;
-router.get("/credit-summary",getCreditSummary);
-router.get("/debit-summary",getDebitSummary);
-router.get("/adjustment-history",getAdjustmentHistory);
+router.get(
+  "/approved-payment",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  paymentApproved
+);
+router.get(
+  "/utr-submission",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  utrSubmission
+);
+router.get(
+  "/project-balance",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  projectBalance
+);
+router.get(
+  "/export-project-balance",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  exportProjectBalance
+);
+router.get(
+  "/payment-approval",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  paymentApproval
+);
+router.get(
+  "/standby-record",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  standbyRecord
+);
+router.get(
+  "/customer-payment-summary",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getCustomerPaymentSummary
+);
+router.get(
+  "/client-history",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  clientHistory
+);
+router.get(
+  "/balance-summary",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  totalBalanceSummary
+);
 module.exports = router;
