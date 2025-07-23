@@ -6,7 +6,7 @@ const groupSchema = new mongoose.Schema(
     group_code: {
       type: String,
     },
-    name: {
+    group_name: {
       type: String,
     },
     project_details: {
@@ -69,8 +69,8 @@ const groupSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-groupSchema.pre("save", function(next){
-    updateStatusGroup(this);
+groupSchema.pre("save", function(next) {
+    updateStatusGroup(this); 
     next();
 })
 

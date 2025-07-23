@@ -5,6 +5,10 @@ const updateAssignedTo = require("../../middlewares/bdLeadMiddlewares/updateAssi
 const bdleadsSchema = new mongoose.Schema(
   {
     id: String,
+    group_id:{
+      type:mongoose.Schema.Types.ObjectId,
+      ref:"group"
+    },
     name: { type: String, required: true },
     company_name: String,
     contact_details: {
