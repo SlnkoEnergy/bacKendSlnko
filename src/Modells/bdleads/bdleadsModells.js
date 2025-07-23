@@ -8,7 +8,7 @@ const bdleadsSchema = new mongoose.Schema(
     name: { type: String, required: true },
     company_name: String,
     contact_details: {
-      email: String,
+      email: {type : String},
       mobile: { type: Array, required: true },
     },
     group: {
@@ -40,7 +40,7 @@ const bdleadsSchema = new mongoose.Schema(
     },
     source: {
       from: { type: String, required: true },
-      sub_source: { type: String, required: true },
+      sub_source: { type: String, required: false },
     },
     comments: { type: String, required: true },
     status_history: [
