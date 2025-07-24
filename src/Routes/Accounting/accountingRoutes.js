@@ -7,6 +7,9 @@ const {
   getCustomerPaymentSummary,
   clientHistory,
   totalBalanceSummary,
+  getCreditSummary,
+  getDebitSummary,
+  getAdjustmentHistory,
 } = require("../../Controllers/Accounting/customerpaymentSummary");
 const {
   paymentApproval,
@@ -72,4 +75,8 @@ router.get(
   jwtMW.authorization,
   totalBalanceSummary
 );
+router.get("/credit-summary", getCreditSummary);
+router.get("/debit-summary", getDebitSummary);
+
+router.get("/adjustment-history",getAdjustmentHistory);
 module.exports = router;
