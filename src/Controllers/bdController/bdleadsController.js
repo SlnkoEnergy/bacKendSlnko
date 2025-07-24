@@ -1375,7 +1375,7 @@ const getLeadByLeadIdorId = async (req, res) => {
       },
       { $project: { current_assigned_user: 0 } },
 
-            {
+      {
         $lookup: {
           from: "groups",
           localField: "group_id",
@@ -1499,6 +1499,7 @@ const getAllLeads = async (req, res) => {
       toDate,
       stage,
       lead_without_task,
+      handover_statusFilter,
     } = req.query;
 
     const userId = req.user.userId;
@@ -1512,18 +1513,22 @@ const getAllLeads = async (req, res) => {
     const match = {};
     const and = [];
 
-    // Filtering
     if (search) {
       and.push({
         $or: [
           { name: { $regex: search, $options: "i" } },
           { "contact_details.mobile": { $regex: search, $options: "i" } },
-          { "address.state": { $regex: search, $options: "i" } },
           { "project_details.scheme": { $regex: search, $options: "i" } },
           { id: { $regex: search, $options: "i" } },
           { "current_status.name": { $regex: search, $options: "i" } },
         ],
       });
+    }
+
+    if (req.query.stateFilter) {
+      const raw = decodeURIComponent(req.query.stateFilter);
+      const stateList = raw.split(",").map((s) => s.trim());
+      and.push({ "address.state": { $in: stateList } });
     }
 
     if (!isPrivilegedUser) {
@@ -1545,14 +1550,19 @@ const getAllLeads = async (req, res) => {
       and.push({ createdAt: { $gte: start, $lte: end } });
     }
 
+    const inactiveDays = parseInt(req.query.inactiveFilter);
+    const leadAgingFilter = parseInt(req.query.leadAgingFilter);
+
     if (lead_without_task === "true") {
-      const leadsWithTask = await task.distinct("lead_id");
-      const leadsWithTaskObjectIds = leadsWithTask.map((id) =>
-        typeof id === "string" ? new mongoose.Types.ObjectId(id) : id
-      );
+      const leadsWithPendingOrInProgressTasks = await task.aggregate([
+        { $match: { current_status: { $ne: "completed" } } },
+        { $group: { _id: "$lead_id" } },
+      ]);
+      const leadsToExclude = leadsWithPendingOrInProgressTasks.map((doc) => doc._id);
+
       and.push({
         $and: [
-          { _id: { $nin: leadsWithTaskObjectIds } },
+          { _id: { $nin: leadsToExclude } },
           { "current_status.name": { $ne: "won" } },
         ],
       });
@@ -1561,8 +1571,6 @@ const getAllLeads = async (req, res) => {
     if (and.length) match.$and = and;
 
     const stageNames = ["initial", "follow up", "warm", "won", "dead"];
-
-    // Count stage-wise leads as per user privilege
     const stageMatch = !isPrivilegedUser
       ? { "assigned_to.user_id": new mongoose.Types.ObjectId(userId) }
       : {};
@@ -1575,19 +1583,14 @@ const getAllLeads = async (req, res) => {
       acc[s] = stageCountsAgg.find((x) => x._id === s)?.count || 0;
       return acc;
     }, {});
-
-    // Total leads for user
     const totalAgg = await bdleadsModells.aggregate([
       { $match: stageMatch },
       { $count: "count" },
     ]);
     stageCounts.all = totalAgg[0]?.count || 0;
 
-    // Count leads without task for this user
     const leadWithoutTaskAgg = await bdleadsModells.aggregate([
-      {
-        $match: stageMatch,
-      },
+      { $match: stageMatch },
       {
         $lookup: {
           from: "bdtasks",
@@ -1606,20 +1609,19 @@ const getAllLeads = async (req, res) => {
     ]);
     stageCounts.lead_without_task = leadWithoutTaskAgg[0]?.count || 0;
 
-    // Pagination count
     const totalCountAgg = await bdleadsModells.aggregate([
       { $match: match },
       { $count: "count" },
     ]);
     const total = totalCountAgg[0]?.count || 0;
 
-    // Main pipeline
     const pipeline = [
       { $match: match },
       { $sort: { createdAt: -1 } },
       { $skip: (parseInt(page) - 1) * parseInt(limit) },
       { $limit: parseInt(limit) },
 
+      // Assigned user population
       {
         $lookup: {
           from: "users",
@@ -1667,6 +1669,7 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { assigned_user_objs: 0 } },
 
+      // Current assigned user
       {
         $lookup: {
           from: "users",
@@ -1686,6 +1689,7 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { current_assigned_user: 0 } },
 
+      // Submitted by user
       {
         $lookup: {
           from: "users",
@@ -1702,6 +1706,7 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { submitted_by_user: 0 } },
 
+      // Status history user mapping
       {
         $lookup: {
           from: "users",
@@ -1744,6 +1749,7 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { status_users: 0 } },
 
+      // Task Meta: last updated
       {
         $lookup: {
           from: "bdtasks",
@@ -1766,13 +1772,75 @@ const getAllLeads = async (req, res) => {
           lastModifiedTask: {
             $ifNull: [
               { $arrayElemAt: ["$task_meta.lastModifiedTask", 0] },
-              "N/A",
+              "$createdAt",
+            ],
+          },
+          inactiveDays: {
+            $divide: [
+              { $subtract: [new Date(), "$lastModifiedTask"] },
+              1000 * 60 * 60 * 24,
             ],
           },
         },
       },
-      { $project: { task_meta: 0 } },
+      ...(inactiveDays
+        ? [
+            {
+              $match: {
+                inactiveDays: { $gte: inactiveDays },
+              },
+            },
+          ]
+        : []),
 
+      {
+        $addFields: {
+          wonStatusDate: {
+            $let: {
+              vars: {
+                wonEntry: {
+                  $first: {
+                    $filter: {
+                      input: "$status_history",
+                      as: "s",
+                      cond: { $eq: ["$$s.status", "won"] },
+                    },
+                  },
+                },
+              },
+              in: "$$wonEntry.updatedAt",
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          leadAging: {
+            $ceil: {
+              $divide: [
+                {
+                  $subtract: [
+                    { $ifNull: ["$wonStatusDate", "$$NOW"] },
+                    "$createdAt",
+                  ],
+                },
+                1000 * 60 * 60 * 24,
+              ],
+            },
+          },
+        },
+      },
+      ...(leadAgingFilter
+        ? [
+            {
+              $match: {
+                leadAging: { $gte: leadAgingFilter },
+              },
+            },
+          ]
+        : []),
+
+      // Handover + handover_status logic
       {
         $lookup: {
           from: "handoversheets",
@@ -1788,7 +1856,7 @@ const getAllLeads = async (req, res) => {
                 },
               },
             },
-            { $project: { _id: 1 } },
+            { $project: { _id: 1, status_of_handoversheet: 1 } },
           ],
           as: "handover_info",
         },
@@ -1807,10 +1875,59 @@ const getAllLeads = async (req, res) => {
               false,
             ],
           },
+          handover_status: {
+            $cond: [
+              { $gt: [{ $size: "$handover_info" }, 0] },
+              {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $eq: [
+                          { $arrayElemAt: ["$handover_info.status_of_handoversheet", 0] },
+                          "draft",
+                        ],
+                      },
+                      then: "in process",
+                    },
+                    {
+                      case: {
+                        $eq: [
+                          { $arrayElemAt: ["$handover_info.status_of_handoversheet", 0] },
+                          "Rejected",
+                        ],
+                      },
+                      then: "rejected",
+                    },
+                    {
+                      case: {
+                        $eq: [
+                          { $arrayElemAt: ["$handover_info.status_of_handoversheet", 0] },
+                          "submitted",
+                        ],
+                      },
+                      then: "completed",
+                    },
+                  ],
+                  default: "unknown",
+                },
+              },
+              null,
+            ],
+          },
         },
       },
-      { $project: { handover_info: 0 } },
+      ...(handover_statusFilter
+        ? [
+            {
+              $match: {
+                handover_status: handover_statusFilter,
+              },
+            },
+          ]
+        : []),
 
+      // Group info
       {
         $lookup: {
           from: "groups",
@@ -1829,10 +1946,6 @@ const getAllLeads = async (req, res) => {
               else: null,
             },
           },
-        },
-      },
-      {
-        $addFields: {
           group_name: {
             $cond: {
               if: { $gt: [{ $size: "$group_info" }, 0] },
@@ -1842,7 +1955,7 @@ const getAllLeads = async (req, res) => {
           },
         },
       },
-      { $project: { group_info: 0 } },
+      { $project: { task_meta: 0, handover_info: 0 } },
     ];
 
     const leads = await bdleadsModells.aggregate(pipeline);
@@ -1862,6 +1975,8 @@ const getAllLeads = async (req, res) => {
     });
   }
 };
+
+
 
 const updateLeadStatus = async function (req, res) {
   try {
@@ -1988,7 +2103,10 @@ const uploadDocuments = async (req, res) => {
       });
     }
 
-    if (lead.expected_closing_date === undefined || lead.expected_closing_date === null) {
+    if (
+      lead.expected_closing_date === undefined ||
+      lead.expected_closing_date === null
+    ) {
       lead.expected_closing_date = expected_closing_date;
     }
 
@@ -2150,7 +2268,7 @@ const updateExpectedClosing = async (req, res) => {
     await lead.save();
     res.status(200).json({
       message: "Expected Closing Date updated Successfully",
-      data: lead
+      data: lead,
     });
   } catch (error) {
     res.status(500).json({
