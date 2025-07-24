@@ -278,6 +278,7 @@ const getAllGroupDropdown = async (req, res) => {
           project_details: 1,
           source: 1,
           contact_details: 1,
+          company_name:1,
           address: 1,
           createdAt: 1,
           updatedAt: 1,
