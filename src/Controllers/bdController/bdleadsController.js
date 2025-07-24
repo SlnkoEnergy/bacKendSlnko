@@ -1988,7 +1988,7 @@ const uploadDocuments = async (req, res) => {
       });
     }
 
-    if (lead.expected_closing_date === undefined) {
+    if (lead.expected_closing_date === undefined || lead.expected_closing_date === null) {
       lead.expected_closing_date = expected_closing_date;
     }
 
@@ -2150,6 +2150,7 @@ const updateExpectedClosing = async (req, res) => {
     await lead.save();
     res.status(200).json({
       message: "Expected Closing Date updated Successfully",
+      data: lead
     });
   } catch (error) {
     res.status(500).json({
