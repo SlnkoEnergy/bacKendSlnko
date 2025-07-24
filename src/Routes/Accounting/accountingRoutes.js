@@ -47,8 +47,8 @@ router.get(
 );
 router.get(
   "/payment-approval",
-   jwtMW.authentication,
-   jwtMW.authorization,
+  jwtMW.authentication,
+  jwtMW.authorization,
   paymentApproval
 );
 router.get(
@@ -75,8 +75,11 @@ router.get(
   jwtMW.authorization,
   totalBalanceSummary
 );
-router.get("/credit-summary", getCreditSummary);
-router.get("/debit-summary", getDebitSummary);
+router.get("/credit-summary", jwtMW.authentication,
+  jwtMW.authorization, getCreditSummary);
+router.get("/debit-summary", jwtMW.authentication,
+  jwtMW.authorization, getDebitSummary);
 
-router.get("/adjustment-history",getAdjustmentHistory);
+router.get("/adjustment-history", jwtMW.authentication,
+  jwtMW.authorization, getAdjustmentHistory);
 module.exports = router;
