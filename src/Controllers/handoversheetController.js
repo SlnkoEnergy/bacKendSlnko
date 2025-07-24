@@ -4,6 +4,7 @@ const hanoversheetmodells = require("../Modells/handoversheetModells");
 const projectmodells = require("../Modells/projectModells");
 const { Parser } = require("json2csv");
 const handoversheetModells = require("../Modells/handoversheetModells");
+const userModells = require("../Modells/userModells");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -83,7 +84,6 @@ const migrateProjectToHandover = async (req, res) => {
       message: `${handoversToInsert.length} project(s) migrated to handoversheet.`,
     });
   } catch (error) {
-    console.error("Migration Error:", error);
     res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
@@ -158,7 +158,18 @@ const gethandoversheetdata = async function (req, res) {
     const search = req.query.search || "";
     const statusFilter = req.query.status;
 
+  const userId = req.user.userId;
+const userDoc = await userModells.findById(userId).lean();
+const userName = userDoc?.name;
     const matchConditions = { $and: [] };
+    
+     const allowedNames = ["admin", "IT Team", "Deepak Manodi"];
+    if (!allowedNames.includes(userName)) {
+      matchConditions.$and.push({
+        "other_details.submitted_by_BD": userName,
+      });
+    }
+
 
     // Keyword search
     if (search) {
@@ -215,6 +226,20 @@ const gethandoversheetdata = async function (req, res) {
       },
       {
         $lookup: {
+          from: "users", 
+          localField: "leadDetails.submitted_by",
+          foreignField: "_id",
+          as: "submittedUser",
+        },
+      },
+      {
+        $unwind: {
+          path: "$submittedUser",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
           from: "projectdetails",
           localField: "p_id",
           foreignField: "p_id",
@@ -249,7 +274,7 @@ const gethandoversheetdata = async function (req, res) {
                 project_kwp: "$project_detail.project_kwp",
                 total_gst: "$other_details.total_gst",
                 service: "$other_details.service",
-                submitted_by: "$leadDetails.submitted_by",
+                submitted_by: "$submittedUser.name", // ← Now you get name here
                 leadDetails: 1,
                 status_of_handoversheet: 1,
                 is_locked: 1,
@@ -278,10 +303,10 @@ const gethandoversheetdata = async function (req, res) {
       data,
     });
   } catch (error) {
-    console.error("Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
+
 
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {

@@ -13,6 +13,7 @@ const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
 const axios = require("axios");
 const FormData = require("form-data");
 const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
+const group = require("../../Modells/bdleads/group");
 
 const updateAssignedToFromSubmittedBy = async (req, res) => {
   const models = [
@@ -116,11 +117,11 @@ const getLeadSummary = async (req, res) => {
     const dateFilter =
       fromDate && toDate
         ? {
-          createdAt: {
-            $gte: fromDate,
-            $lte: toDate,
-          },
-        }
+            createdAt: {
+              $gte: fromDate,
+              $lte: toDate,
+            },
+          }
         : {};
 
     // Previous period
@@ -131,11 +132,11 @@ const getLeadSummary = async (req, res) => {
     const prevDateFilter =
       fromDate && toDate
         ? {
-          createdAt: {
-            $gte: prevFromDate,
-            $lte: prevToDate,
-          },
-        }
+            createdAt: {
+              $gte: prevFromDate,
+              $lte: prevToDate,
+            },
+          }
         : {};
 
     const calcChange = (current, previous) => {
@@ -317,11 +318,11 @@ const getLeadSource = async (req, res) => {
     const dateFilter =
       fromDate && toDate
         ? {
-          createdAt: {
-            $gte: fromDate,
-            $lte: toDate,
-          },
-        }
+            createdAt: {
+              $gte: fromDate,
+              $lte: toDate,
+            },
+          }
         : {};
 
     const leadAggregation = await createbdleads.aggregate([
@@ -533,11 +534,11 @@ const leadSummary = async (req, res) => {
     const dateFilter =
       fromDate && toDate
         ? {
-          createdAt: {
-            $gte: fromDate,
-            $lte: toDate,
-          },
-        }
+            createdAt: {
+              $gte: fromDate,
+              $lte: toDate,
+            },
+          }
         : {};
 
     // Parallel aggregation of lead status counts
@@ -1127,7 +1128,6 @@ const deleteLead = async (req, res) => {
   }
 };
 
-
 const updateAssignedTo = async (req, res) => {
   try {
     const { _id } = req.params;
@@ -1176,7 +1176,11 @@ const exportLeadsCSV = async (req, res) => {
     const { Ids = [] } = req.body;
 
     const leads = await bdleadsModells.aggregate([
-      {$match : {_id : {$in : Ids.map(id => new mongoose.Types.ObjectId(id))}}},
+      {
+        $match: {
+          _id: { $in: Ids.map((id) => new mongoose.Types.ObjectId(id)) },
+        },
+      },
       {
         $lookup: {
           from: "users",
@@ -1191,7 +1195,7 @@ const exportLeadsCSV = async (req, res) => {
         },
       },
     ]);
-   
+
     const mapped = leads.map((item) => ({
       Status: item.current_status?.name || "",
       "Lead Id": item.id,
@@ -1219,7 +1223,7 @@ const exportLeadsCSV = async (req, res) => {
       { label: "Lead Owner", value: "Lead Owner" },
     ];
 
-    const json2csvParser = new Parser({fields});
+    const json2csvParser = new Parser({ fields });
     const csv = json2csvParser.parse(mapped);
 
     res.header("Content-Type", "text/csv");
@@ -1371,7 +1375,38 @@ const getLeadByLeadIdorId = async (req, res) => {
       },
       { $project: { current_assigned_user: 0 } },
 
-      // store backup of documents
+            {
+        $lookup: {
+          from: "groups",
+          localField: "group_id",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, group_code: 1, group_name: 1 } }],
+          as: "group_info",
+        },
+      },
+      {
+        $addFields: {
+          group_code: {
+            $cond: {
+              if: { $gt: [{ $size: "$group_info" }, 0] },
+              then: { $arrayElemAt: ["$group_info.group_code", 0] },
+              else: null,
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          group_name: {
+            $cond: {
+              if: { $gt: [{ $size: "$group_info" }, 0] },
+              then: { $arrayElemAt: ["$group_info.group_name", 0] },
+              else: null,
+            },
+          },
+        },
+      },
+      { $project: { group_info: 0 } },
       {
         $addFields: {
           documentsBackup: "$documents",
@@ -1497,6 +1532,10 @@ const getAllLeads = async (req, res) => {
 
     if (stage && stage !== "lead_without_task") {
       and.push({ "current_status.name": stage });
+    }
+
+    if (req.query.group_id) {
+      and.push({ group_id: new mongoose.Types.ObjectId(req.query.group_id) });
     }
 
     if (fromDate && toDate) {
@@ -1771,6 +1810,39 @@ const getAllLeads = async (req, res) => {
         },
       },
       { $project: { handover_info: 0 } },
+
+      {
+        $lookup: {
+          from: "groups",
+          localField: "group_id",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, group_code: 1, group_name: 1 } }],
+          as: "group_info",
+        },
+      },
+      {
+        $addFields: {
+          group_code: {
+            $cond: {
+              if: { $gt: [{ $size: "$group_info" }, 0] },
+              then: { $arrayElemAt: ["$group_info.group_code", 0] },
+              else: null,
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          group_name: {
+            $cond: {
+              if: { $gt: [{ $size: "$group_info" }, 0] },
+              then: { $arrayElemAt: ["$group_info.group_name", 0] },
+              else: null,
+            },
+          },
+        },
+      },
+      { $project: { group_info: 0 } },
     ];
 
     const leads = await bdleadsModells.aggregate(pipeline);
@@ -1878,9 +1950,9 @@ const uploadDocuments = async (req, res) => {
         Array.isArray(respData) && respData.length > 0
           ? respData[0]
           : respData.url ||
-          respData.fileUrl ||
-          (respData.data && respData.data.url) ||
-          null;
+            respData.fileUrl ||
+            (respData.data && respData.data.url) ||
+            null;
 
       if (url) {
         uploadedFileMap[index] = url;
@@ -1916,7 +1988,7 @@ const uploadDocuments = async (req, res) => {
       });
     }
 
-    if (name === "warm" && lead.expected_closing_date === undefined) {
+    if (lead.expected_closing_date === undefined || lead.expected_closing_date === null) {
       lead.expected_closing_date = expected_closing_date;
     }
 
@@ -1937,7 +2009,97 @@ const uploadDocuments = async (req, res) => {
 
 const createBDlead = async function (req, res) {
   try {
-    // 1. Get the latest BD/Lead ID
+    const body = req.body;
+
+    const requiredFields = [
+      "name",
+      "contact_details.mobile",
+      "address.village",
+      "address.district",
+      "address.state",
+      "project_details.capacity",
+      "source.from",
+      "source.sub_source",
+      "comments",
+    ];
+
+    const isMissing = requiredFields.some((path) => {
+      const keys = path.split(".");
+      let current = body;
+      for (const key of keys) {
+        current = current?.[key];
+        if (!current) return true;
+      }
+      return false;
+    });
+
+    if (isMissing) {
+      return res
+        .status(400)
+        .json({ error: "Please fill all required fields." });
+    }
+
+    const user_id = req.user.userId;
+    const groupId = body.group_id;
+    const currentCapacity = parseFloat(body?.project_details?.capacity || 0);
+
+    if (groupId) {
+      const groupData = await group.findById(groupId);
+      if (!groupData) {
+        return res.status(404).json({ error: "Group not found." });
+      }
+
+      const leadsInGroup = await bdleadsModells.find({ group_id: groupId });
+      const totalExistingCapacity = leadsInGroup.reduce(
+        (acc, lead) => acc + (parseFloat(lead?.project_details?.capacity) || 0),
+        0
+      );
+
+      const totalAfterAdding = totalExistingCapacity + currentCapacity;
+      if (totalAfterAdding > groupData?.project_details?.capacity) {
+        return res.status(400).json({
+          error: `Total capacity (${totalAfterAdding} MW) exceeds group limit (${groupData.project_details?.capacity} MW).`,
+        });
+      }
+    } else {
+      const mobiles = (body?.contact_details?.mobile || []).map((m) =>
+        m.trim()
+      );
+
+      const existingLead = await bdleadsModells.aggregate([
+        {
+          $match: {
+            $expr: {
+              $gt: [
+                {
+                  $size: {
+                    $setIntersection: [
+                      mobiles,
+                      {
+                        $map: {
+                          input: "$contact_details.mobile",
+                          as: "m",
+                          in: { $trim: { input: "$$m" } },
+                        },
+                      },
+                    ],
+                  },
+                },
+                0,
+              ],
+            },
+          },
+        },
+        { $limit: 1 },
+      ]);
+
+      if (existingLead.length > 0) {
+        return res.status(400).json({
+          error: "Lead already exists with the provided mobile number!!",
+        });
+      }
+    }
+
     const lastLead = await bdleadsModells.aggregate([
       { $match: { id: { $regex: /^BD\/Lead\// } } },
       {
@@ -1954,11 +2116,8 @@ const createBDlead = async function (req, res) {
     const lastNumber = lastLead?.[0]?.numericId || 0;
     const nextId = `BD/Lead/${lastNumber + 1}`;
 
-    const user_id = req.user.userId;
-
-    // 2. Prepare payload with essential fields
     const payload = {
-      ...req.body,
+      ...body,
       id: nextId,
       submitted_by: user_id,
       assigned_to: [
@@ -1969,16 +2128,15 @@ const createBDlead = async function (req, res) {
       ],
     };
 
-    // 3. Save to bdmodells
     const bdLead = new bdleadsModells(payload);
-    await bdLead.save(); // triggers pre-save hooks
+    await bdLead.save();
 
     res.status(200).json({
       message: "BD Lead created successfully",
       data: bdLead,
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error.message || "Something went wrong" });
   }
 };
 
@@ -1992,6 +2150,7 @@ const updateExpectedClosing = async (req, res) => {
     await lead.save();
     res.status(200).json({
       message: "Expected Closing Date updated Successfully",
+      data: lead
     });
   } catch (error) {
     res.status(500).json({

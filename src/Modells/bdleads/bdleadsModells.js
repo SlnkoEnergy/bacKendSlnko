@@ -5,24 +5,28 @@ const updateAssignedTo = require("../../middlewares/bdLeadMiddlewares/updateAssi
 const bdleadsSchema = new mongoose.Schema(
   {
     id: String,
-    name: { type: String, required: false },
+    group_id:{
+      type:mongoose.Schema.Types.ObjectId,
+      ref:"group"
+    },
+    name: { type: String, required: true },
     company_name: String,
     contact_details: {
-      email: String,
-      mobile: { type: Array, required: false },
+      email: {type : String},
+      mobile: { type: Array, required: true },
     },
     group: {
       type: String,
     },
     address: {
-      village: { type: String, required: false },
-      district: { type: String, required: false },
-      state: { type: String, required: false },
+      village: { type: String, required: true },
+      district: { type: String, required: true },
+      state: { type: String, required: true },
       postalCode: String,
       country: String,
     },
     project_details: {
-      capacity: { type: String, required: false },
+      capacity: { type: String, required: true },
       distance_from_substation: {
         unit: { type: String, default: "km" },
         value: String,
@@ -39,10 +43,10 @@ const bdleadsSchema = new mongoose.Schema(
       type:Date
     },
     source: {
-      from: { type: String, required: false },
+      from: { type: String, required: true },
       sub_source: { type: String, required: false },
     },
-    comments: { type: String, required: false },
+    comments: { type: String, required: true },
     status_history: [
       {
         name: {
@@ -87,6 +91,10 @@ const bdleadsSchema = new mongoose.Schema(
           type: String,
           enum: ["","initial", "follow up", "warm", "won", "dead"],
         },
+        updatedAt:{
+          type:Date,
+          default: Date.now()
+        }
       },
     ],
     current_assigned: {
