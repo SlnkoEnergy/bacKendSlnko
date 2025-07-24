@@ -1,6 +1,6 @@
 const mongoose =require("mongoose");
 const adjustmentRequestSchema = new mongoose.Schema({
-     p_id: { type: String },
+     p_id: { type: Number },
      name: { type: String },
      customer: { type: String },
      p_group: { type: String },

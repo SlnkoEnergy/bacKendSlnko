@@ -285,6 +285,9 @@ const getPaginatedPo = async (req, res) => {
     const etdTo = parseCustomDate(req.query.etdTo);
     const deliveryFrom = parseCustomDate(req.query.deliveryFrom);
     const deliveryTo = parseCustomDate(req.query.deliveryTo);
+     const filter = req.query.filter?.trim();
+
+    
 
     const matchStage = {
       ...(search && {
@@ -330,6 +333,32 @@ const getPaginatedPo = async (req, res) => {
           }
         : {}),
     };
+
+     if (filter) {
+      switch (filter) {
+        case "ETD Pending":
+          matchStage["current_status.status"] = "draft";
+          matchStage["etd"] = null;
+          break;
+          case "ETD Done":
+          matchStage["current_status.status"] = "draft";
+          matchStage["etd"] = { $ne: null };
+          break;
+        case "Ready to Dispatch":
+          matchStage["current_status.status"] = "ready_to_dispatch";
+          matchStage["dispatch_date"] = { $ne: null };
+          break;
+        case "Out for Delivery":
+          matchStage["current_status.status"] = "out_for_delivery";
+          break;
+        case "Delivered":
+          matchStage["current_status.status"] = "delivered";
+          break;
+        default:
+          break;
+      }
+    }
+
     const pipeline = [
       {
         $addFields: {
@@ -1057,6 +1086,9 @@ const updateStatusPO = async (req, res) => {
     });
   }
 };
+
+
+//get All PO With
 
 module.exports = {
   addPo,

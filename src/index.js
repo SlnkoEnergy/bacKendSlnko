@@ -7,6 +7,7 @@ const bdleadsRoutes = require("../src/Routes/bdleadDashboard/bdleadDashboardRout
 const dprRoutes = require("../src/Routes/dpr/dprRoutes");
 const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRoutes");
 const taskRoutes = require("../src/Routes/tasks/tasks");
+const accountingRoutes =require("../src/Routes/Accounting/accountingRoutes");
 const cors = require("cors");
 const { config } = require("dotenv");
 
@@ -32,6 +33,7 @@ const startServer = async () => {
     app.use("/v1/dpr", dprRoutes);
     app.use("/v1/purchaseRequest",purchaseRoutes);
     app.use("/v1/tasks", taskRoutes);
+    app.use("/v1/accounting", accountingRoutes);
 
     // Start the server
     app.listen(PORT, () => {
