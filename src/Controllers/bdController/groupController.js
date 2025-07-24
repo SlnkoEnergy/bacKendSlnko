@@ -1,5 +1,6 @@
 const { default: mongoose } = require("mongoose");
 const group = require("../../Modells/bdleads/group");
+const userModells = require("../../Modells/userModells");
 
 const createGroup = async (req, res) => {
   try {
@@ -25,8 +26,6 @@ const createGroup = async (req, res) => {
       return false;
     });
     
-    console.log(isMissing);
-
     if (isMissing) {
       return res
         .status(400)
@@ -71,8 +70,13 @@ const getAllGroup = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const search = req.query.search || "";
+    const user_id = req.user.userId;
 
-    const matchStage = {
+    const user = await userModells.findById(user_id);
+    const name = user?.name;
+
+    // Common search match
+    const searchMatch = {
       $or: [
         { group_name: { $regex: search, $options: "i" } },
         { group_code: { $regex: search, $options: "i" } },
@@ -81,10 +85,20 @@ const getAllGroup = async (req, res) => {
       ],
     };
 
-    const groups = await group.aggregate([
-      { $match: search ? matchStage : {} },
+    // Role-based access condition
+    const isAdmin = name === "admin" || name === "IT Team" || name === "Deepak Manodi";
 
-      // Lookup leads to sum their capacity per group
+    const accessMatch = isAdmin
+      ? {} 
+      : { createdBy: user._id }; 
+
+    const matchStage = {
+      $and: [search ? searchMatch : {}, accessMatch],
+    };
+
+    const groups = await group.aggregate([
+      { $match: matchStage },
+
       {
         $lookup: {
           from: "bdleads",
@@ -100,16 +114,12 @@ const getAllGroup = async (req, res) => {
               $map: {
                 input: "$leads",
                 as: "lead",
-                in: {
-                  $toDouble: "$$lead.project_details.capacity",
-                },
+                in: { $toDouble: "$$lead.project_details.capacity" },
               },
             },
           },
         },
       },
-
-      // Join createdBy user
       {
         $lookup: {
           from: "users",
@@ -124,8 +134,6 @@ const getAllGroup = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
-
-      // Join current_status.user_id
       {
         $lookup: {
           from: "users",
@@ -140,7 +148,6 @@ const getAllGroup = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
-
       {
         $addFields: {
           left_capacity: {
@@ -151,7 +158,6 @@ const getAllGroup = async (req, res) => {
           },
         },
       },
-
       {
         $project: {
           group_code: 1,
@@ -176,13 +182,12 @@ const getAllGroup = async (req, res) => {
           },
         },
       },
-
       { $sort: { createdAt: -1 } },
       { $skip: (page - 1) * limit },
       { $limit: limit },
     ]);
 
-    const totalCount = await group.countDocuments(search ? matchStage : {});
+    const totalCount = await group.countDocuments(matchStage);
 
     res.status(200).json({
       data: groups,
@@ -299,6 +304,7 @@ const getAllGroupDropdown = async (req, res) => {
     res.status(500).json({ error: error.message || "Internal Server Error" });
   }
 };
+
 
 
 const getGroupById = async (req, res) => {

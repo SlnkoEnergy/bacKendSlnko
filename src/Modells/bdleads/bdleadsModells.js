@@ -91,6 +91,10 @@ const bdleadsSchema = new mongoose.Schema(
           type: String,
           enum: ["","initial", "follow up", "warm", "won", "dead"],
         },
+        updatedAt:{
+          type:Date,
+          default: Date.now()
+        }
       },
     ],
     current_assigned: {

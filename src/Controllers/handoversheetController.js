@@ -84,7 +84,6 @@ const migrateProjectToHandover = async (req, res) => {
       message: `${handoversToInsert.length} project(s) migrated to handoversheet.`,
     });
   } catch (error) {
-    console.error("Migration Error:", error);
     res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
@@ -304,7 +303,6 @@ const userName = userDoc?.name;
       data,
     });
   } catch (error) {
-    console.error("Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
