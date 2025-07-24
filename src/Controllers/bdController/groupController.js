@@ -200,6 +200,111 @@ const getAllGroup = async (req, res) => {
   }
 };
 
+const getAllGroupDropdown = async (req, res) => {
+  try {
+    const groups = await group.aggregate([
+      // Lookup leads to sum their capacity per group
+      {
+        $lookup: {
+          from: "bdleads",
+          localField: "_id",
+          foreignField: "group_id",
+          as: "leads",
+        },
+      },
+      {
+        $addFields: {
+          total_lead_capacity: {
+            $sum: {
+              $map: {
+                input: "$leads",
+                as: "lead",
+                in: {
+                  $toDouble: "$$lead.project_details.capacity",
+                },
+              },
+            },
+          },
+        },
+      },
+
+      // Join createdBy user
+      {
+        $lookup: {
+          from: "users",
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "createdByUser",
+        },
+      },
+      {
+        $unwind: {
+          path: "$createdByUser",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // Join current_status.user_id
+      {
+        $lookup: {
+          from: "users",
+          localField: "current_status.user_id",
+          foreignField: "_id",
+          as: "statusUser",
+        },
+      },
+      {
+        $unwind: {
+          path: "$statusUser",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      {
+        $addFields: {
+          left_capacity: {
+            $subtract: [
+              { $toDouble: "$project_details.capacity" },
+              "$total_lead_capacity",
+            ],
+          },
+        },
+      },
+
+      {
+        $project: {
+          group_code: 1,
+          group_name: 1,
+          project_details: 1,
+          source: 1,
+          contact_details: 1,
+          address: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          total_lead_capacity: 1,
+          left_capacity: 1,
+          current_status: {
+            status: 1,
+            remarks: 1,
+            user_id: "$current_status.user_id",
+            user_name: "$statusUser.name",
+          },
+          createdBy: {
+            _id: "$createdByUser._id",
+            name: "$createdByUser.name",
+          },
+        },
+      },
+
+      { $sort: { createdAt: -1 } },
+    ]);
+
+    res.status(200).json({ data: groups });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Internal Server Error" });
+  }
+};
+
 
 
 const getGroupById = async (req, res) => {
@@ -392,21 +497,6 @@ const deleteGroup = async (req, res) => {
   }
 };
 
-const groupDropdown = async (req, res) => {
-  try {
-    const groups = await group.find({}, { _id: 1, group_name: 1, group_code:1 });
-    return res.status(200).json({
-      message: "Group list fetched successfully",
-      data: groups,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Internal Server Error",
-      error: error.message,
-    });
-  }
-};
-
 module.exports = {
   createGroup,
   getAllGroup,
@@ -414,6 +504,6 @@ module.exports = {
   updateGroup,
   updateGroupStatus,
   deleteGroup,
-  groupDropdown,
+  getAllGroupDropdown
 };
 
