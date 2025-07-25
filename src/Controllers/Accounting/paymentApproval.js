@@ -3,16 +3,18 @@ const payRequestModells = require("../../Modells/payRequestModells");
 
 const paymentApproval = async function (req, res) {
    try {
-    const {
-      code: searchProjectId = '',
-      name: searchClientName = '',
-      p_group: searchGroupName = '',
-    } = req.query;
+    const search = req.query.search || "";
 
-    const matchStage = {};
-    if (searchProjectId) matchStage["project.code"] = { $regex: searchProjectId, $options: 'i' };
-    if (searchClientName) matchStage["project.name"] = { $regex: searchClientName, $options: 'i' };
-    if (searchGroupName) matchStage["project.p_group"] = { $regex: searchGroupName, $options: 'i' };
+    const matchStage = {
+      ...(search && {
+        $or: [
+          { code: { $regex: search, $options: "i" } },
+          { pay_id: { $regex: search, $options: "i" } },
+          { name: { $regex: search, $options: "i" } },
+          { p_group: { $regex: search, $options: "i" } },
+        ],
+      }),
+    };
 
     const pipeline = [
       { $match: { approved: "Pending" } },
