@@ -677,20 +677,39 @@ const totalBalanceSummary = async (req, res) => {
       },
       {
         $addFields: {
-          extraGST: {
-            $cond: [
-              { $gt: ["$total_po_basic", 0] },
-              { $subtract: ["$total_po_value", "$total_po_basic"] },
-              { $subtract: ["$total_po_value", "$expected_po_value"] },
-            ],
+          gst_as_po_basic: {
+            $multiply: ["$total_po_basic", 0.17],
           },
         },
       },
       {
         $addFields: {
+          total_po_with_gst: {
+            $add: ["$total_po_basic", "$gst_as_po_basic"],
+          },
+        },
+      },
+      {
+        $addFields: {
+          extraGST: {
+            $round: [
+              {
+                $cond: [
+                  { $gt: ["$total_po_basic", 0] },
+                  { $subtract: ["$total_po_with_gst", "$total_po_basic"] },
+                  0,
+                ],
+              },
+            ],
+          },
+        },
+      },
+
+      {
+        $addFields: {
           balance_payable_to_vendors: {
             $subtract: [
-              { $subtract: ["$total_po_value", "$total_billed_value"] },
+              { $subtract: ["$total_po_with_gst", "$total_billed_value"] },
               { $subtract: ["$total_advance_paid", "$total_billed_value"] },
             ],
           },
@@ -699,15 +718,28 @@ const totalBalanceSummary = async (req, res) => {
       {
         $addFields: {
           tcs_as_applicable: {
-            $multiply: [
+            $round: [
               {
-                $subtract: [
-                  { $subtract: ["$totalCredit", "$total_return"] },
-                  5000000,
+                $multiply: [
+                  {
+                    $subtract: [
+                      { $subtract: ["$totalCredit", "$total_return"] },
+                      5000000,
+                    ],
+                  },
+                  0.001,
                 ],
               },
-              0.001,
+              2,
             ],
+          },
+        },
+      },
+
+      {
+        $addFields: {
+          total_adjustment: {
+            $subtract: ["$totalCreditAdjustment", "$totalDebitAdjustment"],
           },
         },
       },
@@ -732,20 +764,20 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
 
-      {
-        $addFields: {
-          gst_as_po_basic: {
-            $multiply: ["$total_po_basic", 0.17],
-          },
-        },
-      },
-      {
-        $addFields: {
-          total_po_with_gst: {
-            $add: ["$total_po_basic", "$gst_as_po_basic"],
-          },
-        },
-      },
+      // {
+      //   $addFields: {
+      //     gst_as_po_basic: {
+      //       $multiply: ["$total_po_basic", 0.17],
+      //     },
+      //   },
+      // },
+      // {
+      //   $addFields: {
+      //     total_po_with_gst: {
+      //       $add: ["$total_po_basic", "$gst_as_po_basic"],
+      //     },
+      //   },
+      // },
       {
         $addFields: {
           gst_with_type_percentage: {
@@ -753,11 +785,23 @@ const totalBalanceSummary = async (req, res) => {
               branches: [
                 {
                   case: { $eq: ["$billing_type", "Composite"] },
-                  then: { $multiply: ["$total_po_basic", 0.138] },
+                  then: {
+                    $round: [
+                      {
+                        $multiply: ["$total_po_basic", 0.138],
+                      },
+                    ],
+                  },
                 },
                 {
                   case: { $eq: ["$billing_type", "Individual"] },
-                  then: { $multiply: ["$total_po_basic", 0.18] },
+                  then: {
+                    $round: [
+                      {
+                        $multiply: ["$total_po_basic", 0.18],
+                      },
+                    ],
+                  },
                 },
               ],
               default: 0,
@@ -781,26 +825,19 @@ const totalBalanceSummary = async (req, res) => {
       {
         $addFields: {
           balance_required: {
-            $subtract: [
-              { $ifNull: ["$balance_with_slnko", 0] },
+            $round: [
               {
-                $add: [
+                $subtract: [
+                  { $ifNull: ["$balance_with_slnko", 0] },
                   {
-                    $cond: [
-                      { $gte: ["$balance_payable_to_vendors", 0] },
-                      "$balance_payable_to_vendors",
-                      0,
-                    ],
-                  },
-                  {
-                    $cond: [
-                      { $gte: ["$tcs_as_applicable", 0] },
-                      "$tcs_as_applicable",
-                      0,
+                    $add: [
+                      { $ifNull: ["$balance_payable_to_vendors", 0] },
+                      { $ifNull: ["$tcs_as_applicable", 0] },
                     ],
                   },
                 ],
               },
+              2, // number of decimal places
             ],
           },
         },
@@ -814,7 +851,7 @@ const totalBalanceSummary = async (req, res) => {
           total_received: "$totalCredit",
           total_return: 1,
           netBalance: { $subtract: ["$totalCredit", "$total_return"] },
-          total_po_value: 1,
+          // total_po_value: 1,
           total_po_basic: 1,
           total_advance_paid: 1,
           total_billed_value: 1,
@@ -845,7 +882,7 @@ const totalBalanceSummary = async (req, res) => {
 };
 
 const getCreditSummary = async (req, res) => {
-   try {
+  try {
     const { p_id, start_date, end_date } = req.query;
 
     if (!p_id) {
@@ -899,7 +936,6 @@ const getCreditSummary = async (req, res) => {
       history: creditData?.history || [],
       total,
     });
-
   } catch (error) {
     console.error("Credit summary error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -909,7 +945,8 @@ const getCreditSummary = async (req, res) => {
 const getDebitSummary = async (req, res) => {
   try {
     const { p_id, start_date, end_date, vendor } = req.query;
-    if (!p_id) return res.status(400).json({ error: "Project ID (p_id) is required." });
+    if (!p_id)
+      return res.status(400).json({ error: "Project ID (p_id) is required." });
 
     const projectId = isNaN(p_id) ? p_id : Number(p_id);
     const match = { p_id: projectId };
@@ -926,53 +963,54 @@ const getDebitSummary = async (req, res) => {
     }
 
     const [debitData] = await DebitModel.aggregate([
-         {
-    $addFields: {
-      dbt_date: { $toDate: "$dbt_date" }
-    }
-  },
-  {
-    $match: {
-      ...match,
-      ...(start_date && end_date && {
-        dbt_date: {
-          $gte: new Date(start_date),
-          $lte: new Date(new Date(end_date).setHours(23, 59, 59, 999)),
+      {
+        $addFields: {
+          dbt_date: { $toDate: "$dbt_date" },
         },
-      }),
-    }
-  },
-  {
-    $facet: {
-      history: [
-        { $sort: { dbt_date: -1 } },
-        {
-          $project: {
-            _id: 0,
-            db_date: 1,
-            db_mode: 1,
-            amount_paid: 1,
-            paid_for: 1,
-            po_number: 1,
-            utr: 1,
-            updatedAt: 1,
-            createdAt: 1,
-            paid_to: "$vendor",
-            debit_date: "$dbt_date",
-          },
+      },
+      {
+        $match: {
+          ...match,
+          ...(start_date &&
+            end_date && {
+              dbt_date: {
+                $gte: new Date(start_date),
+                $lte: new Date(new Date(end_date).setHours(23, 59, 59, 999)),
+              },
+            }),
         },
-      ],
-      summary: [
-        {
-          $group: {
-            _id: null,
-            totalDebited: { $sum: "$amount_paid" },
-          },
+      },
+      {
+        $facet: {
+          history: [
+            { $sort: { dbt_date: -1 } },
+            {
+              $project: {
+                _id: 0,
+                db_date: 1,
+                db_mode: 1,
+                amount_paid: 1,
+                paid_for: 1,
+                po_number: 1,
+                utr: 1,
+                updatedAt: 1,
+                createdAt: 1,
+                paid_to: "$vendor",
+                debit_date: "$dbt_date",
+              },
+            },
+          ],
+          summary: [
+            {
+              $group: {
+                _id: null,
+                totalDebited: { $sum: "$amount_paid" },
+              },
+            },
+          ],
         },
-      ],
-    },
-  },
-]);
+      },
+    ]);
     res.status(200).json({
       history: debitData?.history || [],
       total: debitData?.summary[0]?.totalDebited || 0,
@@ -987,7 +1025,8 @@ const getAdjustmentHistory = async (req, res) => {
   try {
     const { p_id, start_date, end_date, search } = req.query;
 
-    if (!p_id) return res.status(400).json({ error: "Project ID (p_id) is required." });
+    if (!p_id)
+      return res.status(400).json({ error: "Project ID (p_id) is required." });
 
     const projectId = isNaN(p_id) ? p_id : Number(p_id);
 
@@ -1005,8 +1044,8 @@ const getAdjustmentHistory = async (req, res) => {
     // Search on paid_for OR po_number
     if (search) {
       match.$or = [
-        { paid_for: { $regex: search, $options: 'i' } },
-        { po_number: { $regex: search, $options: 'i' } }
+        { paid_for: { $regex: search, $options: "i" } },
+        { po_number: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -1026,8 +1065,8 @@ const getAdjustmentHistory = async (req, res) => {
             $cond: {
               if: { $eq: [{ $type: "$adj_amount" }, "string"] },
               then: { $toDouble: "$adj_amount" },
-              else: "$adj_amount"
-            }
+              else: "$adj_amount",
+            },
           },
           debit_adjustment: {
             $cond: [
@@ -1036,11 +1075,11 @@ const getAdjustmentHistory = async (req, res) => {
                 $cond: {
                   if: { $eq: [{ $type: "$adj_amount" }, "string"] },
                   then: { $toDouble: "$adj_amount" },
-                  else: "$adj_amount"
-                }
+                  else: "$adj_amount",
+                },
               },
-              0
-            ]
+              0,
+            ],
           },
           credit_adjustment: {
             $cond: [
@@ -1049,31 +1088,29 @@ const getAdjustmentHistory = async (req, res) => {
                 $cond: {
                   if: { $eq: [{ $type: "$adj_amount" }, "string"] },
                   then: { $toDouble: "$adj_amount" },
-                  else: "$adj_amount"
-                }
+                  else: "$adj_amount",
+                },
               },
-              0
-            ]
+              0,
+            ],
           },
-          description: "$comment"
-        }
+          description: "$comment",
+        },
       },
       {
         $facet: {
-          history: [
-            { $sort: { createdAt: -1 } }
-          ],
+          history: [{ $sort: { createdAt: -1 } }],
           summary: [
             {
               $group: {
                 _id: null,
                 totalCreditAdjustment: { $sum: "$credit_adjustment" },
-                totalDebitAdjustment: { $sum: "$debit_adjustment" }
-              }
-            }
-          ]
-        }
-      }
+                totalDebitAdjustment: { $sum: "$debit_adjustment" },
+              },
+            },
+          ],
+        },
+      },
     ]);
 
     const summary = adjustmentData?.summary?.[0] || {};
@@ -1081,9 +1118,8 @@ const getAdjustmentHistory = async (req, res) => {
     res.status(200).json({
       history: adjustmentData?.history || [],
       totalCreditAdjustment: summary.totalCreditAdjustment || 0,
-      totalDebitAdjustment: summary.totalDebitAdjustment || 0
+      totalDebitAdjustment: summary.totalDebitAdjustment || 0,
     });
-
   } catch (error) {
     console.error("Adjustment history error:", error);
     res.status(500).json({ error: "Internal server error" });
