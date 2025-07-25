@@ -1551,7 +1551,7 @@ const getAllLeads = async (req, res) => {
     }
 
     const inactiveDays = Number(req.query.inactiveFilter);
-    const leadAgingFilter = Number(req.query.leadAgingFilter);
+   const leadAgingFilter = req.query.leadAgingFilter?.trim();
 
     if (lead_without_task === "true") {
       const leadsWithPendingOrInProgressTasks = await task.aggregate([
@@ -1820,9 +1820,8 @@ const getAllLeads = async (req, res) => {
           ...(Number.isFinite(inactiveDays) && {
             inactiveDays: { $lte: inactiveDays },
           }),
-          ...(Number.isFinite(leadAgingFilter) && {
-            leadAging: { $lte: leadAgingFilter },
-          }),
+          ...(leadAgingFilter && !isNaN(Number(leadAgingFilter)) && { leadAging: { $lte: Number(leadAgingFilter) } }),
+
         },
       },
       // Assigned user population
