@@ -7,7 +7,7 @@ const { Parser } = require("json2csv");
 
 const getCustomerPaymentSummary = async (req, res) => {
   try {
-    const { p_id,export: exportToCSV } = req.query;
+    const { p_id, export: exportToCSV } = req.query;
 
     if (!p_id) {
       return res.status(400).json({ error: "Project ID (p_id) is required." });
@@ -617,169 +617,167 @@ const getCustomerPaymentSummary = async (req, res) => {
         },
       },
 
-    //client histrory
-    // 6️⃣ Client History Aggregation (No filters) -- moved outside the aggregation pipeline
-    
-          {
-            $project: {
-              _id: 0,
-              p_id: "$_id",
-              billing_type: 1,
-              total_received: "$totalCredit",
-              total_return: 1,
-              netBalance: { $subtract: ["$totalCredit", "$total_return"] },
-              total_po_basic: 1,
-              total_advance_paid: 1,
-              total_billed_value: 1,
-              extraGST: 1,
-              balance_with_slnko: 1,
-              balance_payable_to_vendors: 1,
-              tcs_as_applicable: 1,
-              total_adjustment: 1,
-              net_advanced_paid: {
-                $subtract: ["$total_advance_paid", "$total_billed_value"],
-              },
-              gst_as_po_basic: 1,
-              total_po_with_gst: 1,
-              gst_with_type_percentage: 1,
-              gst_difference: 1,
-              balance_required: 1,
-            },
-          },
-        ]);
-    
-    // Now perform client history aggregation after the balance summary aggregation
-        const clientHistoryResult = await ProjectModel.aggregate([
-          { $match: { p_id: projectId } },
-          { $project: { code: 1, _id: 0 } },
-    
-          {
-            $lookup: {
-              from: "purchaseorders",
-              localField: "code",
-              foreignField: "p_id",
-              as: "purchase_orders",
-            },
-          },
-          {
-            $unwind: {
-              path: "$purchase_orders",
-              preserveNullAndEmptyArrays: true,
-            },
-          },
-          {
-            $lookup: {
-              from: "payrequests",
-              let: { po_numberStr: { $toString: "$purchase_orders.po_number" } },
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $and: [
-                        { $eq: [{ $toString: "$po_number" }, "$$po_numberStr"] },
-                        { $eq: ["$approved", "Approved"] },
-                        { $eq: ["$acc_match", "matched"] },
-                        { $ne: ["$utr", ""] },
-                      ],
-                    },
-                  },
-                },
-                {
-                  $group: {
-                    _id: null,
-                    totalPaid: { $sum: { $toDouble: "$amount_paid" } },
-                  },
-                },
-              ],
-              as: "approved_payment",
-            },
-          },
-          {
-            $addFields: {
-              advance_paid: {
-                $cond: {
-                  if: { $gt: [{ $size: "$approved_payment" }, 0] },
-                  then: { $arrayElemAt: ["$approved_payment.totalPaid", 0] },
-                  else: 0,
-                },
-              },
-            },
-          },
-          {
-            $lookup: {
-              from: "biildetails",
-              let: { po_numberStr: { $toString: "$purchase_orders.po_number" } },
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $eq: [{ $toString: "$po_number" }, "$$po_numberStr"],
-                    },
-                  },
-                },
-                {
-                  $group: {
-                    _id: null,
-                    totalBilled: { $sum: { $toDouble: "$bill_value" } },
-                  },
-                },
-              ],
-              as: "billed_summary",
-            },
-          },
-          {
-            $addFields: {
-              total_billed_value: {
-                $cond: {
-                  if: { $gt: [{ $size: "$billed_summary" }, 0] },
-                  then: { $arrayElemAt: ["$billed_summary.totalBilled", 0] },
-                  else: 0,
-                },
-              },
-            },
-          },
-          {
-            $addFields: {
-              remaining_amount: {
-                $subtract: [
-                  { $toDouble: "$purchase_orders.po_value" },
-                  { $toDouble: "$advance_paid" },
-                ],
-              },
-            },
-          },
-          {
-            $project: {
-              _id: 0,
-              project_code: "$code",
-              po_number: "$purchase_orders.po_number",
-              vendor: "$purchase_orders.vendor",
-              item_name: "$purchase_orders.item",
-              po_value: "$purchase_orders.po_value",
-              advance_paid: 1,
-              remaining_amount: 1,
-              total_billed_value: 1,
-            },
-          },
-        ]);
-    
-        const clientMeta = clientHistoryResult.reduce(
-          (acc, curr) => {
-            acc.total_advance_paid += Number(curr.advance_paid || 0);
-            acc.total_remaining_amount += Number(curr.remaining_amount || 0);
-            acc.total_billed_value += Number(curr.total_billed_value || 0);
-            acc.total_po_value += Number(curr.po_value || 0);
-            return acc;
-          },
-          {
-            total_advance_paid: 0,
-            total_remaining_amount: 0,
-            total_billed_value: 0,
-            total_po_value: 0,
-          }
-        );
+      //client histrory
+      // 6️⃣ Client History Aggregation (No filters) -- moved outside the aggregation pipeline
 
-   
+      {
+        $project: {
+          _id: 0,
+          p_id: "$_id",
+          billing_type: 1,
+          total_received: "$totalCredit",
+          total_return: 1,
+          netBalance: { $subtract: ["$totalCredit", "$total_return"] },
+          total_po_basic: 1,
+          total_advance_paid: 1,
+          total_billed_value: 1,
+          extraGST: 1,
+          balance_with_slnko: 1,
+          balance_payable_to_vendors: 1,
+          tcs_as_applicable: 1,
+          total_adjustment: 1,
+          net_advanced_paid: {
+            $subtract: ["$total_advance_paid", "$total_billed_value"],
+          },
+          gst_as_po_basic: 1,
+          total_po_with_gst: 1,
+          gst_with_type_percentage: 1,
+          gst_difference: 1,
+          balance_required: 1,
+        },
+      },
+    ]);
+
+ 
+    const clientHistoryResult = await ProjectModel.aggregate([
+      { $match: { p_id: projectId } },
+      { $project: { code: 1, _id: 0 } },
+
+      {
+        $lookup: {
+          from: "purchaseorders",
+          localField: "code",
+          foreignField: "p_id",
+          as: "purchase_orders",
+        },
+      },
+      {
+        $unwind: {
+          path: "$purchase_orders",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "payrequests",
+          let: { po_numberStr: { $toString: "$purchase_orders.po_number" } },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: [{ $toString: "$po_number" }, "$$po_numberStr"] },
+                    { $eq: ["$approved", "Approved"] },
+                    { $eq: ["$acc_match", "matched"] },
+                    { $ne: ["$utr", ""] },
+                  ],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalPaid: { $sum: { $toDouble: "$amount_paid" } },
+              },
+            },
+          ],
+          as: "approved_payment",
+        },
+      },
+      {
+        $addFields: {
+          advance_paid: {
+            $cond: {
+              if: { $gt: [{ $size: "$approved_payment" }, 0] },
+              then: { $arrayElemAt: ["$approved_payment.totalPaid", 0] },
+              else: 0,
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "biildetails",
+          let: { po_numberStr: { $toString: "$purchase_orders.po_number" } },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [{ $toString: "$po_number" }, "$$po_numberStr"],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalBilled: { $sum: { $toDouble: "$bill_value" } },
+              },
+            },
+          ],
+          as: "billed_summary",
+        },
+      },
+      {
+        $addFields: {
+          total_billed_value: {
+            $cond: {
+              if: { $gt: [{ $size: "$billed_summary" }, 0] },
+              then: { $arrayElemAt: ["$billed_summary.totalBilled", 0] },
+              else: 0,
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          remaining_amount: {
+            $subtract: [
+              { $toDouble: "$purchase_orders.po_value" },
+              { $toDouble: "$advance_paid" },
+            ],
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          project_code: "$code",
+          po_number: "$purchase_orders.po_number",
+          vendor: "$purchase_orders.vendor",
+          item_name: "$purchase_orders.item",
+          po_value: "$purchase_orders.po_value",
+          advance_paid: 1,
+          remaining_amount: 1,
+          total_billed_value: 1,
+        },
+      },
+    ]);
+
+    const clientMeta = clientHistoryResult.reduce(
+      (acc, curr) => {
+        acc.total_advance_paid += Number(curr.advance_paid || 0);
+        acc.total_remaining_amount += Number(curr.remaining_amount || 0);
+        acc.total_billed_value += Number(curr.total_billed_value || 0);
+        acc.total_po_value += Number(curr.po_value || 0);
+        return acc;
+      },
+      {
+        total_advance_paid: 0,
+        total_remaining_amount: 0,
+        total_billed_value: 0,
+        total_po_value: 0,
+      }
+    );
 
     const responseData = {
       projectDetails: {
@@ -828,7 +826,7 @@ const getCustomerPaymentSummary = async (req, res) => {
       if (creditHistory.length) {
         csvContent += "Credit History\n";
         csvContent += Object.keys(creditHistory[0]).join(",") + "\n";
-        creditHistory.forEach(item => {
+        creditHistory.forEach((item) => {
           csvContent += Object.values(item).join(",") + "\n";
         });
         csvContent += "\n";
@@ -838,7 +836,7 @@ const getCustomerPaymentSummary = async (req, res) => {
       if (debitHistory.length) {
         csvContent += "Debit History\n";
         csvContent += Object.keys(debitHistory[0]).join(",") + "\n";
-        debitHistory.forEach(item => {
+        debitHistory.forEach((item) => {
           csvContent += Object.values(item).join(",") + "\n";
         });
         csvContent += "\n";
@@ -848,7 +846,7 @@ const getCustomerPaymentSummary = async (req, res) => {
       if (adjustmentHistory.length) {
         csvContent += "Adjustment History\n";
         csvContent += Object.keys(adjustmentHistory[0]).join(",") + "\n";
-        adjustmentHistory.forEach(item => {
+        adjustmentHistory.forEach((item) => {
           csvContent += Object.values(item).join(",") + "\n";
         });
         csvContent += "\n";
@@ -858,7 +856,7 @@ const getCustomerPaymentSummary = async (req, res) => {
       if (clientHistoryResult.length) {
         csvContent += "Client History\n";
         csvContent += Object.keys(clientHistoryResult[0]).join(",") + "\n";
-        clientHistoryResult.forEach(item => {
+        clientHistoryResult.forEach((item) => {
           csvContent += Object.values(item).join(",") + "\n";
         });
         csvContent += "\n";
@@ -1821,4 +1819,4 @@ module.exports = {
   getAdjustmentHistory,
 };
 
-//asked by viplove sir
+
