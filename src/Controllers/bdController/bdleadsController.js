@@ -1550,15 +1550,17 @@ const getAllLeads = async (req, res) => {
       and.push({ createdAt: { $gte: start, $lte: end } });
     }
 
-    const inactiveDays = parseInt(req.query.inactiveFilter);
-    const leadAgingFilter = parseInt(req.query.leadAgingFilter);
+    const inactiveDays = Number(req.query.inactiveFilter);
+    const leadAgingFilter = Number(req.query.leadAgingFilter);
 
     if (lead_without_task === "true") {
       const leadsWithPendingOrInProgressTasks = await task.aggregate([
         { $match: { current_status: { $ne: "completed" } } },
         { $group: { _id: "$lead_id" } },
       ]);
-      const leadsToExclude = leadsWithPendingOrInProgressTasks.map((doc) => doc._id);
+      const leadsToExclude = leadsWithPendingOrInProgressTasks.map(
+        (doc) => doc._id
+      );
 
       and.push({
         $and: [
@@ -1617,10 +1619,212 @@ const getAllLeads = async (req, res) => {
 
     const pipeline = [
       { $match: match },
-      { $sort: { createdAt: -1 } },
-      { $skip: (parseInt(page) - 1) * parseInt(limit) },
-      { $limit: parseInt(limit) },
 
+      {
+        $lookup: {
+          from: "handoversheets",
+          let: { leadId: "$id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [
+                    { $trim: { input: { $toString: "$id" } } },
+                    { $trim: { input: { $toString: "$$leadId" } } },
+                  ],
+                },
+              },
+            },
+            { $project: { _id: 1, status_of_handoversheet: 1 } },
+          ],
+          as: "handover_info",
+        },
+      },
+      {
+        $addFields: {
+          handover: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ["$current_status.name", "won"] },
+                  { $gt: [{ $size: "$handover_info" }, 0] },
+                ],
+              },
+              true,
+              false,
+            ],
+          },
+          handover_status: {
+            $cond: [
+              { $gt: [{ $size: "$handover_info" }, 0] },
+              {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $eq: [
+                          {
+                            $toLower: {
+                              $ifNull: [
+                                {
+                                  $getField: {
+                                    field: "status_of_handoversheet",
+                                    input: {
+                                      $arrayElemAt: ["$handover_info", 0],
+                                    },
+                                  },
+                                },
+                                "",
+                              ],
+                            },
+                          },
+                          "draft",
+                        ],
+                      },
+                      then: "in process",
+                    },
+                    {
+                      case: {
+                        $eq: [
+                          {
+                            $toLower: {
+                              $ifNull: [
+                                {
+                                  $getField: {
+                                    field: "status_of_handoversheet",
+                                    input: {
+                                      $arrayElemAt: ["$handover_info", 0],
+                                    },
+                                  },
+                                },
+                                "",
+                              ],
+                            },
+                          },
+                          "Rejected",
+                        ],
+                      },
+                      then: "rejected",
+                    },
+                    {
+                      case: {
+                        $eq: [
+                          {
+                            $toLower: {
+                              $ifNull: [
+                                {
+                                  $getField: {
+                                    field: "status_of_handoversheet",
+                                    input: {
+                                      $arrayElemAt: ["$handover_info", 0],
+                                    },
+                                  },
+                                },
+                                "",
+                              ],
+                            },
+                          },
+                          "submitted",
+                        ],
+                      },
+                      then: "completed",
+                    },
+                  ],
+                  default: "unknown",
+                },
+              },
+              "pending",
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "bdtasks",
+          let: { leadId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$lead_id", "$$leadId"] } } },
+            {
+              $group: {
+                _id: null,
+                lastModifiedTask: { $max: "$updatedAt" },
+              },
+            },
+            { $project: { _id: 0, lastModifiedTask: 1 } },
+          ],
+          as: "task_meta",
+        },
+      },
+      {
+        $addFields: {
+          lastModifiedTask: {
+            $ifNull: [
+              { $arrayElemAt: ["$task_meta.lastModifiedTask", 0] },
+              "$createdAt",
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          inactiveDays: {
+            $divide: [
+              { $subtract: ["$$NOW", "$lastModifiedTask"] },
+              1000 * 60 * 60 * 24,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          wonStatusDate: {
+            $let: {
+              vars: {
+                wonEntry: {
+                  $first: {
+                    $filter: {
+                      input: "$status_history",
+                      as: "s",
+                      cond: { $eq: ["$$s.name", "won"] },
+                    },
+                  },
+                },
+              },
+              in: "$$wonEntry.updatedAt",
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          leadAging: {
+            $ceil: {
+              $divide: [
+                {
+                  $subtract: [
+                    { $ifNull: ["$wonStatusDate", "$$NOW"] },
+                    "$createdAt",
+                  ],
+                },
+                1000 * 60 * 60 * 24,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $match: {
+          ...(handover_statusFilter && {
+            handover_status: handover_statusFilter,
+          }),
+          ...(Number.isFinite(inactiveDays) && {
+            inactiveDays: { $lte: inactiveDays },
+          }),
+          ...(Number.isFinite(leadAgingFilter) && {
+            leadAging: { $lte: leadAgingFilter },
+          }),
+        },
+      },
       // Assigned user population
       {
         $lookup: {
@@ -1669,7 +1873,6 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { assigned_user_objs: 0 } },
 
-      // Current assigned user
       {
         $lookup: {
           from: "users",
@@ -1689,7 +1892,6 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { current_assigned_user: 0 } },
 
-      // Submitted by user
       {
         $lookup: {
           from: "users",
@@ -1706,7 +1908,6 @@ const getAllLeads = async (req, res) => {
       },
       { $project: { submitted_by_user: 0 } },
 
-      // Status history user mapping
       {
         $lookup: {
           from: "users",
@@ -1748,186 +1949,6 @@ const getAllLeads = async (req, res) => {
         },
       },
       { $project: { status_users: 0 } },
-
-      // Task Meta: last updated
-      {
-        $lookup: {
-          from: "bdtasks",
-          let: { leadId: "$_id" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$lead_id", "$$leadId"] } } },
-            {
-              $group: {
-                _id: null,
-                lastModifiedTask: { $max: "$updatedAt" },
-              },
-            },
-            { $project: { _id: 0, lastModifiedTask: 1 } },
-          ],
-          as: "task_meta",
-        },
-      },
-      {
-        $addFields: {
-          lastModifiedTask: {
-            $ifNull: [
-              { $arrayElemAt: ["$task_meta.lastModifiedTask", 0] },
-              "$createdAt",
-            ],
-          },
-          inactiveDays: {
-            $divide: [
-              { $subtract: [new Date(), "$lastModifiedTask"] },
-              1000 * 60 * 60 * 24,
-            ],
-          },
-        },
-      },
-      ...(inactiveDays
-        ? [
-            {
-              $match: {
-                inactiveDays: { $gte: inactiveDays },
-              },
-            },
-          ]
-        : []),
-
-      {
-        $addFields: {
-          wonStatusDate: {
-            $let: {
-              vars: {
-                wonEntry: {
-                  $first: {
-                    $filter: {
-                      input: "$status_history",
-                      as: "s",
-                      cond: { $eq: ["$$s.status", "won"] },
-                    },
-                  },
-                },
-              },
-              in: "$$wonEntry.updatedAt",
-            },
-          },
-        },
-      },
-      {
-        $addFields: {
-          leadAging: {
-            $ceil: {
-              $divide: [
-                {
-                  $subtract: [
-                    { $ifNull: ["$wonStatusDate", "$$NOW"] },
-                    "$createdAt",
-                  ],
-                },
-                1000 * 60 * 60 * 24,
-              ],
-            },
-          },
-        },
-      },
-      ...(leadAgingFilter
-        ? [
-            {
-              $match: {
-                leadAging: { $gte: leadAgingFilter },
-              },
-            },
-          ]
-        : []),
-
-      // Handover + handover_status logic
-      {
-        $lookup: {
-          from: "handoversheets",
-          let: { leadId: "$id" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $eq: [
-                    { $trim: { input: { $toString: "$id" } } },
-                    { $trim: { input: { $toString: "$$leadId" } } },
-                  ],
-                },
-              },
-            },
-            { $project: { _id: 1, status_of_handoversheet: 1 } },
-          ],
-          as: "handover_info",
-        },
-      },
-      {
-        $addFields: {
-          handover: {
-            $cond: [
-              {
-                $and: [
-                  { $eq: ["$current_status.name", "won"] },
-                  { $gt: [{ $size: "$handover_info" }, 0] },
-                ],
-              },
-              true,
-              false,
-            ],
-          },
-          handover_status: {
-            $cond: [
-              { $gt: [{ $size: "$handover_info" }, 0] },
-              {
-                $switch: {
-                  branches: [
-                    {
-                      case: {
-                        $eq: [
-                          { $arrayElemAt: ["$handover_info.status_of_handoversheet", 0] },
-                          "draft",
-                        ],
-                      },
-                      then: "in process",
-                    },
-                    {
-                      case: {
-                        $eq: [
-                          { $arrayElemAt: ["$handover_info.status_of_handoversheet", 0] },
-                          "Rejected",
-                        ],
-                      },
-                      then: "rejected",
-                    },
-                    {
-                      case: {
-                        $eq: [
-                          { $arrayElemAt: ["$handover_info.status_of_handoversheet", 0] },
-                          "submitted",
-                        ],
-                      },
-                      then: "completed",
-                    },
-                  ],
-                  default: "unknown",
-                },
-              },
-              null,
-            ],
-          },
-        },
-      },
-      ...(handover_statusFilter
-        ? [
-            {
-              $match: {
-                handover_status: handover_statusFilter,
-              },
-            },
-          ]
-        : []),
-
-      // Group info
       {
         $lookup: {
           from: "groups",
@@ -1956,6 +1977,9 @@ const getAllLeads = async (req, res) => {
         },
       },
       { $project: { task_meta: 0, handover_info: 0 } },
+      { $sort: { createdAt: -1 } },
+      { $skip: (parseInt(page) - 1) * parseInt(limit) },
+      { $limit: parseInt(limit) },
     ];
 
     const leads = await bdleadsModells.aggregate(pipeline);
@@ -1975,8 +1999,6 @@ const getAllLeads = async (req, res) => {
     });
   }
 };
-
-
 
 const updateLeadStatus = async function (req, res) {
   try {
