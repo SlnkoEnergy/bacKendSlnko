@@ -800,6 +800,7 @@ const getCustomerPaymentSummary = async (req, res) => {
       },
       clientHistory: {
         data: clientHistoryResult,
+        meta: clientMeta,
       },
       adjustment: {
         history: adjustmentHistory,
