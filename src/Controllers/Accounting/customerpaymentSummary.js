@@ -3,10 +3,11 @@ const DebitModel = require("../../Modells/debitMoneyModells");
 const AdjustmentModel = require("../../Modells/adjustmentRequestModells");
 const ClientModel = require("../../Modells/purchaseOrderModells");
 const ProjectModel = require("../../Modells/projectModells");
+const { Parser } = require("json2csv");
 
 const getCustomerPaymentSummary = async (req, res) => {
   try {
-    const { p_id } = req.query;
+    const { p_id,export: exportToCSV } = req.query;
 
     if (!p_id) {
       return res.status(400).json({ error: "Project ID (p_id) is required." });
@@ -778,8 +779,9 @@ const getCustomerPaymentSummary = async (req, res) => {
           }
         );
 
-    // 6️⃣ Final Response
-    return res.status(200).json({
+   
+
+    const responseData = {
       projectDetails: {
         customer_name: project.customer_name,
         p_group: project.p_group,
@@ -796,9 +798,8 @@ const getCustomerPaymentSummary = async (req, res) => {
         history: debitHistory,
         total: totalDebited,
       },
-       clientHistory: {
+      clientHistory: {
         data: clientHistoryResult,
-        meta: clientMeta,
       },
       adjustment: {
         history: adjustmentHistory,
@@ -808,15 +809,84 @@ const getCustomerPaymentSummary = async (req, res) => {
         totalDebited,
         netBalance: totalCredited - totalDebited,
       },
-      balanceSummary, 
-      
-    });
-    
+      balanceSummary,
+    };
+
+    // If export=csv, create custom CSV
+    if (exportToCSV === "csv") {
+      let csvContent = "";
+
+      // ➤ 1. Project Details Section
+      csvContent += "Project Details\n";
+      Object.entries(responseData.projectDetails).forEach(([key, value]) => {
+        csvContent += `${key},${value}\n`;
+      });
+      csvContent += "\n";
+
+      // ➤ 2. Credit History Section
+      if (creditHistory.length) {
+        csvContent += "Credit History\n";
+        csvContent += Object.keys(creditHistory[0]).join(",") + "\n";
+        creditHistory.forEach(item => {
+          csvContent += Object.values(item).join(",") + "\n";
+        });
+        csvContent += "\n";
+      }
+
+      // ➤ 3. Debit History Section
+      if (debitHistory.length) {
+        csvContent += "Debit History\n";
+        csvContent += Object.keys(debitHistory[0]).join(",") + "\n";
+        debitHistory.forEach(item => {
+          csvContent += Object.values(item).join(",") + "\n";
+        });
+        csvContent += "\n";
+      }
+
+      // ➤ 4. Adjustment History Section
+      if (adjustmentHistory.length) {
+        csvContent += "Adjustment History\n";
+        csvContent += Object.keys(adjustmentHistory[0]).join(",") + "\n";
+        adjustmentHistory.forEach(item => {
+          csvContent += Object.values(item).join(",") + "\n";
+        });
+        csvContent += "\n";
+      }
+
+      // ➤ 5. Client History Section
+      if (clientHistoryResult.length) {
+        csvContent += "Client History\n";
+        csvContent += Object.keys(clientHistoryResult[0]).join(",") + "\n";
+        clientHistoryResult.forEach(item => {
+          csvContent += Object.values(item).join(",") + "\n";
+        });
+        csvContent += "\n";
+      }
+
+      // ➤ 6. Balance Summary
+      csvContent += "Balance Summary\n";
+      Object.entries(balanceSummary).forEach(([key, value]) => {
+        csvContent += `${key},${value}\n`;
+      });
+
+      // Set headers and send
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="payment_summary_${project.code || projectId}.csv"`
+      );
+      return res.send(csvContent);
+    }
+
+    // 🔁 Else, return JSON
+    return res.status(200).json(responseData);
   } catch (error) {
     console.error("Error fetching payment summary:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+
 // Client History
 const clientHistory = async (req, res) => {
   try {
