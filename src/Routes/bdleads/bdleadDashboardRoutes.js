@@ -1,26 +1,15 @@
 const router = require("express").Router();
 const {
-  getAllLeads,
   getLeadSummary,
   getLeadSource,
   taskDashboard,
   leadSummary,
   leadconversationrate,
-  getLeadByLeadIdorId,
   leadWonAndLost,
   leadFunnel,
-  getAllLeadDropdown,
-  editLead,
-  deleteLead,
-  updateAssignedToFromSubmittedBy,
-  updateAssignedTo,
-  exportLeadsCSV,
-  updateLeadStatus,
-  uploadDocuments,
-  createBDlead,
-  updateExpectedClosing,
 } = require("../../Controllers/bdController/bdleadsController");
 const { createGroup, getAllGroup, getGroupById, updateGroup, deleteGroup, updateGroupStatus, groupDropdown, getAllGroupDropdown } = require("../../Controllers/bdController/groupController.js");
+const { deleteLead, updateAssignedTo, exportLeadsCSV, updateLeadStatus, uploadDocuments, updateExpectedClosing, getLeadByLeadIdorId, getAllLeads, getAllLeadDropdown, editLead, createBDlead, updateAssignedToFromSubmittedBy } = require("../../Controllers/bdController/leadsController.js");
 const {
   getNotesById,
   createNotes,
@@ -44,7 +33,7 @@ const {
 } = require("../../Controllers/bdController/taskController");
 const jwtMW = require("../../middlewares/auth");
 const upload = require("../../middlewares/multer.js");
-const updateStatusGroup = require("../../utils/updateStatusGroup.js");
+
 
 // Bd lead Dashboard Routes
 router.get(
