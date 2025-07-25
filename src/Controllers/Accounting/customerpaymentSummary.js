@@ -25,7 +25,8 @@ const getCustomerPaymentSummary = async (req, res) => {
       {
         $project: {
           _id: 0,
-          customer_name: 1,
+          name: 1,
+        //  customer_name: 1,
           p_group: 1,
           project_kwp: 1,
           name: 1,
@@ -781,7 +782,7 @@ const getCustomerPaymentSummary = async (req, res) => {
 
     const responseData = {
       projectDetails: {
-        customer_name: project.customer_name,
+        customer_name: project.name,
         p_group: project.p_group,
         project_kwp: project.project_kwp,
         name: project.name,
