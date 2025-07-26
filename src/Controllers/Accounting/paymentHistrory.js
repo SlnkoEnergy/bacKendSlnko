@@ -37,7 +37,12 @@ const paymentHistory = async (req, res) => {
                 createdAt: 1,
                 paid_to: "$vendor",
                 debit_date: "$dbt_date",
-                utr_submitted_date: "$updatedAt", 
+                 utr_submitted_date: {
+                  $dateToString: {
+                    format: "%d-%m-%Y",
+                    date: "$updatedAt",
+                  },
+                },
               },
             },
           ],
