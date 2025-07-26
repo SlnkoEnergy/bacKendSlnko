@@ -21,7 +21,7 @@ app.use(express.urlencoded({ extended: true }));
 
 
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_URL;
 
 const startServer = async () => {
   try {

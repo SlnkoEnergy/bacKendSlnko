@@ -8,6 +8,7 @@ async function transformAndSaveOldLead(oldLead) {
   const timestamp = oldLead.createdAt || new Date();
 
   const newLead = new NewBDLead({
+    _id: oldLead._id,
     id: oldLead.id,
     name: oldLead.c_name,
     company_name: oldLead.company,
@@ -61,12 +62,12 @@ async function transformAndSaveOldLead(oldLead) {
     assigned_to: [
       {
         user_id: submittedUserId,
-        status: "dead",
+        status: "initial",
       },
     ],
     current_assigned:{
       user_id: submittedUserId,
-      status: "dead"
+      status: "initial"
     },
     submitted_by: submittedUserId,
   });
