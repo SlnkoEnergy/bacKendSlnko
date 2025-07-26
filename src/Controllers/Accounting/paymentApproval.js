@@ -1,9 +1,10 @@
 const payRequestModells = require("../../Modells/payRequestModells");
 
-
 const paymentApproval = async function (req, res) {
-   try {
+  try {
     const search = req.query.search || "";
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
 
     const matchStage = {
       ...(search && {
@@ -24,8 +25,8 @@ const paymentApproval = async function (req, res) {
           from: "projectdetails",
           localField: "p_id",
           foreignField: "p_id",
-          as: "project"
-        }
+          as: "project",
+        },
       },
       { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
 
@@ -38,10 +39,15 @@ const paymentApproval = async function (req, res) {
           let: { pid: "$p_id" },
           pipeline: [
             { $match: { $expr: { $eq: ["$p_id", "$$pid"] } } },
-            { $group: { _id: null, totalCredit: { $sum: { $toDouble: "$cr_amount" } } } }
+            {
+              $group: {
+                _id: null,
+                totalCredit: { $sum: { $toDouble: "$cr_amount" } },
+              },
+            },
           ],
-          as: "creditData"
-        }
+          as: "creditData",
+        },
       },
       {
         $lookup: {
@@ -49,37 +55,61 @@ const paymentApproval = async function (req, res) {
           let: { pid: "$p_id" },
           pipeline: [
             { $match: { $expr: { $eq: ["$p_id", "$$pid"] } } },
-            { $group: { _id: null, totalDebit: { $sum: { $toDouble: "$amount_paid" } } } }
+            {
+              $group: {
+                _id: null,
+                totalDebit: { $sum: { $toDouble: "$amount_paid" } },
+              },
+            },
           ],
-          as: "debitData"
-        }
+          as: "debitData",
+        },
       },
       {
         $addFields: {
           Available_Amount: {
-            $subtract: [
-              { $ifNull: [{ $arrayElemAt: ["$creditData.totalCredit", 0] }, 0] },
-              { $ifNull: [{ $arrayElemAt: ["$debitData.totalDebit", 0] }, 0] }
-            ]
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$creditData.totalCredit", 0] },
+                      0,
+                    ],
+                  },
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$debitData.totalDebit", 0] },
+                      0,
+                    ],
+                  },
+                ],
+              },
+            ],
           },
           trimmedGroup: {
             $trim: {
-              input: "$project.p_group"
-            }
-          }
-        }
+              input: "$project.p_group",
+            },
+          },
+        },
       },
 
       {
         $addFields: {
           hasValidGroup: {
             $cond: [
-              { $or: [{ $eq: ["$trimmedGroup", ""] }, { $eq: ["$trimmedGroup", null] }] },
+              {
+                $or: [
+                  { $eq: ["$trimmedGroup", ""] },
+                  { $eq: ["$trimmedGroup", null] },
+                ],
+              },
               false,
-              true
-            ]
-          }
-        }
+              true,
+            ],
+          },
+        },
       },
 
       // Conditionally lookup group project IDs
@@ -89,10 +119,10 @@ const paymentApproval = async function (req, res) {
           let: { grp: "$trimmedGroup" },
           pipeline: [
             { $match: { $expr: { $eq: ["$p_group", "$$grp"] } } },
-            { $project: { p_id: 1, _id: 0 } }
+            { $project: { p_id: 1, _id: 0 } },
           ],
-          as: "groupProjects"
-        }
+          as: "groupProjects",
+        },
       },
       {
         $addFields: {
@@ -100,10 +130,10 @@ const paymentApproval = async function (req, res) {
             $cond: [
               "$hasValidGroup",
               { $map: { input: "$groupProjects", as: "gp", in: "$$gp.p_id" } },
-              []
-            ]
-          }
-        }
+              [],
+            ],
+          },
+        },
       },
 
       // Lookup group credits
@@ -113,10 +143,15 @@ const paymentApproval = async function (req, res) {
           let: { gids: "$groupProjectIds" },
           pipeline: [
             { $match: { $expr: { $in: ["$p_id", "$$gids"] } } },
-            { $group: { _id: null, totalGroupCredit: { $sum: { $toDouble: "$cr_amount" } } } }
+            {
+              $group: {
+                _id: null,
+                totalGroupCredit: { $sum: { $toDouble: "$cr_amount" } },
+              },
+            },
           ],
-          as: "groupCreditData"
-        }
+          as: "groupCreditData",
+        },
       },
       {
         $lookup: {
@@ -124,10 +159,15 @@ const paymentApproval = async function (req, res) {
           let: { gids: "$groupProjectIds" },
           pipeline: [
             { $match: { $expr: { $in: ["$p_id", "$$gids"] } } },
-            { $group: { _id: null, totalGroupDebit: { $sum: { $toDouble: "$amount_paid" } } } }
+            {
+              $group: {
+                _id: null,
+                totalGroupDebit: { $sum: { $toDouble: "$amount_paid" } },
+              },
+            },
           ],
-          as: "groupDebitData"
-        }
+          as: "groupDebitData",
+        },
       },
 
       {
@@ -137,14 +177,26 @@ const paymentApproval = async function (req, res) {
               "$hasValidGroup",
               {
                 $subtract: [
-                  { $ifNull: [{ $arrayElemAt: ["$groupCreditData.totalGroupCredit", 0] }, 0] },
-                  { $ifNull: [{ $arrayElemAt: ["$groupDebitData.totalGroupDebit", 0] }, 0] }
-                ]
+                  {
+                    $ifNull: [
+                      {
+                        $arrayElemAt: ["$groupCreditData.totalGroupCredit", 0],
+                      },
+                      0,
+                    ],
+                  },
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$groupDebitData.totalGroupDebit", 0] },
+                      0,
+                    ],
+                  },
+                ],
               },
-              0
-            ]
-          }
-        }
+              0,
+            ],
+          },
+        },
       },
 
       {
@@ -159,21 +211,43 @@ const paymentApproval = async function (req, res) {
           client_name: "$project.name",
           group_name: "$project.p_group",
           ClientBalance: "$Available_Amount",
-          groupBalance: 1
-        }
-      }
+          groupBalance: 1,
+        },
+      },
     ];
 
-    const data = await payRequestModells.aggregate(pipeline);
-    res.json({ totalCount: data.length, data });
+    const countPipeline = [...pipeline, { $count: "total" }];
+    const paginatedPipeline = [
+      ...pipeline,
+      { $skip: (page - 1) * pageSize },
+      { $limit: pageSize },
+    ];
 
+    const [data, countResult] = await Promise.all([
+      payRequestModells.aggregate(paginatedPipeline),
+      payRequestModells.aggregate(countPipeline),
+    ]);
+
+    const total = countResult[0]?.total || 0;
+
+    res.json({
+      success: true,
+      meta: {
+        total,
+        page,
+        pageSize,
+        count: data.length,
+      },
+      data,
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "An error occurred while processing the request." });
+    res
+      .status(500)
+      .json({ message: "An error occurred while processing the request." });
   }
 };
 
-
 module.exports = {
-  paymentApproval
+  paymentApproval,
 };
