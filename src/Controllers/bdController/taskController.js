@@ -1,10 +1,10 @@
-const Initial = require("../../Modells/initialBdLeadModells");
-const Followup = require("../../Modells/followupbdModells");
-const Warm = require("../../Modells/warmbdLeadModells");
-const Won = require("../../Modells/wonleadModells");
-const Dead = require("../../Modells/deadleadModells");
-const BDtask = require("../../Modells/BD-Dashboard/task");
+const BDtask = require("../../Modells/bdleads/task");
 const userModells = require("../../Modells/userModells");
+const transformAndSaveOldLead = require("../../utils/bdLeadTransform");
+const deadleadModells = require("../../Modells/deadleadModells");
+const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
+const { default: mongoose } = require("mongoose");
+const { Parser } = require("json2csv");
 
 const createTask = async (req, res) => {
   try {
@@ -21,31 +21,15 @@ const createTask = async (req, res) => {
       description,
     } = req.body;
 
-    let leadModel = null;
-    const leadModels = [
-      { model: Initial, name: "Initial" },
-      { model: Followup, name: "Followup" },
-      { model: Warm, name: "Warm" },
-      { model: Won, name: "Won" },
-      { model: Dead, name: "Dead" },
-    ];
-
-    for (const { model, name } of leadModels) {
-      const found = await model.findById(lead_id);
-      if (found) {
-        leadModel = name;
-        break;
-      }
-    }
-
-    if (!leadModel) {
+    // Check lead existence in single model
+    const lead = await bdleadsModells.findById(lead_id);
+    if (!lead) {
       return res.status(400).json({ error: "Invalid lead_id" });
     }
 
     const newTask = new BDtask({
       title,
       lead_id,
-      lead_model: leadModel,
       user_id,
       type,
       assigned_to,
@@ -53,23 +37,19 @@ const createTask = async (req, res) => {
       contact_info,
       priority,
       description,
-      status_history: [
-        {
-          status: status || "draft",
-          user_id,
-        },
-      ],
     });
 
     await newTask.save();
 
-    res
-      .status(201)
-      .json({ message: "Task created successfully", task: newTask });
+    res.status(201).json({
+      message: "Task created successfully",
+      task: newTask,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Internal Server Error", details: error.message });
+    res.status(500).json({
+      error: "Internal Server Error",
+      details: error.message,
+    });
   }
 };
 
@@ -90,7 +70,7 @@ const updateStatus = async (req, res) => {
     task.status_history.push({
       status,
       user_id,
-      remarks
+      remarks,
     });
 
     await task.save();
@@ -110,76 +90,135 @@ const updateStatus = async (req, res) => {
 const getAllTask = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { type } = req.query;
+    const {
+      status,
+      page = 1,
+      limit = 10,
+      search = "",
+      fromDeadline,
+      toDeadline,
+    } = req.query;
 
     const user = await userModells.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     const isPrivilegedUser =
-      user.department === "admin" || (user.department === "BD" && user.role === "manager");
+      user.department === "admin" ||
+      user.department === "superadmin" ||
+      (user.department === "BD" && user.role === "manager");
 
     const matchQuery = {};
 
-    if (!isPrivilegedUser) {
-      matchQuery.$or = [
-        { assigned_to: { $in: [userId] } },
-        { user_id: userId },
-      ];
+   if (!isPrivilegedUser) {
+  matchQuery.$or = [
+    { user_id: new mongoose.Types.ObjectId(userId) },
+    { assigned_to: new mongoose.Types.ObjectId(userId) },
+  ];
+}
+
+    if (status) {
+      matchQuery["current_status"] = status;
     }
 
-    if (type) {
-      matchQuery.type = type;
+    if (fromDeadline || toDeadline) {
+      matchQuery.deadline = {};
+      if (fromDeadline) matchQuery.deadline.$gte = new Date(fromDeadline);
+      if (toDeadline) matchQuery.deadline.$lte = new Date(toDeadline);
     }
 
-    const tasks = await BDtask.find(matchQuery)
-      .select("title priority _id lead_id lead_model type current_status assigned_to deadline updatedAt user_id")
-      .populate({
-        path: "assigned_to",
-        select: "_id name",
-      })
-      .populate({
-        path: "user_id",
-        select: "name",
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const pipeline = [
+      { $match: matchQuery },
+
+      // Lookup lead
+      {
+        $lookup: {
+          from: "bdleads",
+          localField: "lead_id",
+          foreignField: "_id",
+          as: "lead",
+        },
+      },
+      { $unwind: { path: "$lead", preserveNullAndEmptyArrays: true } },
+
+      // Lookup assigned users (array)
+      {
+        $lookup: {
+          from: "users",
+          localField: "assigned_to",
+          foreignField: "_id",
+          as: "assigned_to",
+        },
+      },
+
+      // Optional search
+    ];
+
+    if (search) {
+      const searchRegex = new RegExp(search, "i");
+      pipeline.push({
+        $match: {
+          $or: [
+            { title: { $regex: searchRegex } },
+            { type: { $regex: searchRegex } },
+            { "lead.name": { $regex: searchRegex } },
+            { "lead.id": { $regex: searchRegex } },
+            { "assigned_to.name": { $regex: searchRegex } },
+          ],
+        },
       });
+    }
 
-    const leadModels = {
-      Initial,
-      Followup,
-      Warm,
-      Won,
-      Dead,
-    };
+    // Count total
+    const totalPipeline = [...pipeline, { $count: "total" }];
+    const totalResult = await BDtask.aggregate(totalPipeline);
+    const total = totalResult[0]?.total || 0;
 
-    const populatedTasks = await Promise.all(
-      tasks.map(async (taskDoc) => {
-        const task = taskDoc.toObject();
+    // Pagination & Sorting
+    pipeline.push({ $sort: { createdAt: -1 } });
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: Number(limit) });
 
-        const Model = leadModels[task.lead_model];
-        if (Model && task.lead_id) {
-          const leadDoc = await Model.findById(task.lead_id).select("_id c_name id capacity");
-          if (leadDoc) {
-            task.lead_id = {
-              _id: leadDoc._id,
-              c_name: leadDoc.c_name,
-              id: leadDoc.id,
-              capacity: leadDoc.capacity,
-            };
-          }
-        }
+    // Final projection
+    pipeline.push({
+      $project: {
+        _id: 1,
+        title: 1,
+        type: 1,
+        priority: 1,
+        deadline: 1,
+        updatedAt: 1,
+        current_status: 1,
+        user_id: 1,
+        assigned_to: { _id: 1, name: 1 },
+        lead: { _id: 1, name: 1, id: 1 },
+      },
+    });
 
-        return task;
-      })
-    );
+    const tasks = await BDtask.aggregate(pipeline);
 
-    return res.status(200).json({ success: true, data: populatedTasks });
+    // Populate user_id separately
+    const populatedTasks = await BDtask.populate(tasks, [
+      { path: "user_id", select: "_id name" },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: populatedTasks,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+    });
   } catch (error) {
     console.error("Error fetching tasks:", error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
 
 const getAllTaskByAssigned = async (req, res) => {
   try {
@@ -204,7 +243,6 @@ const getAllTaskByAssigned = async (req, res) => {
   }
 };
 
-
 const getTaskById = async (req, res) => {
   try {
     const taskDoc = await BDtask.findById(req.params._id)
@@ -220,23 +258,15 @@ const getTaskById = async (req, res) => {
 
     const task = taskDoc.toObject();
 
-    const leadModels = {
-      Initial,
-      Followup,
-      Warm,
-      Won,
-      Dead,
-    };
-
-    const Model = leadModels[task.lead_model];
-    if (Model && task.lead_id) {
-      const leadDoc = await Model.findById(task.lead_id).select("_id c_name id capacity");
+    if (task.lead_id) {
+      const leadDoc = await bdleadsModells
+        .findById(task.lead_id)
+        .select("_id name id");
       if (leadDoc) {
         task.lead_id = {
           _id: leadDoc._id,
-          c_name: leadDoc.c_name,
+          name: leadDoc.name,
           id: leadDoc.id,
-          capacity:leadDoc.capacity
         };
       }
     }
@@ -261,13 +291,12 @@ const getTaskByLeadId = async (req, res) => {
         message: "id or LeadId not found",
       });
     }
-
     const query = { lead_id: leadId };
 
     const data = await BDtask.find(query)
-      .populate("user_id", "name") 
-      .populate("assigned_to", "name") 
-      .populate("status_history.user_id", "name"); 
+      .populate("user_id", "name")
+      .populate("assigned_to", "name")
+      .populate("status_history.user_id", "name");
 
     res.status(200).json({
       message: "Task detail fetched successfully",
@@ -280,7 +309,6 @@ const getTaskByLeadId = async (req, res) => {
     });
   }
 };
-
 
 const updateTask = async (req, res) => {
   try {
@@ -325,12 +353,15 @@ const toggleViewTask = async (req, res) => {
       await task.save();
     }
 
-    return res.status(200).json({ message: "Marked as viewed", is_viewed: task.is_viewed });
+    return res
+      .status(200)
+      .json({ message: "Marked as viewed", is_viewed: task.is_viewed });
   } catch (err) {
-    return res.status(500).json({ message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
-
 
 const getNotifications = async (req, res) => {
   const userId = req.user.userId;
@@ -338,16 +369,16 @@ const getNotifications = async (req, res) => {
   try {
     const notifications = await BDtask.find({
       assigned_to: userId,
-      is_viewed: { $ne: userId } 
+      is_viewed: { $ne: userId },
     })
-    .sort({ createdAt: -1 }) 
-    .select("title description createdAt"); 
+      .sort({ createdAt: -1 })
+      .select("title description createdAt");
 
     const formatted = notifications.map((task) => ({
       _id: task._id,
       title: task.title,
       description: task.description,
-      time: task.createdAt.toLocaleString(), 
+      time: task.createdAt.toLocaleString(),
     }));
 
     res.status(200).json(formatted);
@@ -356,6 +387,118 @@ const getNotifications = async (req, res) => {
   }
 };
 
+const migrateAllLeads = async (req, res) => {
+  try {
+    const oldLeads = await deadleadModells.find();
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const oldLead of oldLeads) {
+      try {
+        await transformAndSaveOldLead(oldLead);
+        successCount++;
+        console.log(`✅ Migrated lead with ID: ${oldLead.id}`);
+      } catch (err) {
+        failureCount++;
+        console.error(
+          `❌ Error migrating lead with ID ${oldLead.id}:`,
+          err.message
+        );
+      }
+    }
+
+    res.status(200).json({
+      message: "Migration completed",
+      successCount,
+      failureCount,
+      total: oldLeads.length,
+    });
+  } catch (error) {
+    console.error("Migration failed:", error);
+    res.status(500).json({ message: "Migration failed", error: error.message });
+  }
+};
+
+const getexportToCsv = async (req, res) => {
+  try {
+    const { Ids } = req.body;
+
+  const pipeline = [
+    {
+      $match: {
+        _id: { $in: Ids.map((id) => new mongoose.Types.ObjectId(id)) },
+      },
+    },
+    {
+      $lookup: {
+        from: "bdleads",
+        localField: "lead_id",
+        foreignField: "_id",
+        as: "lead",
+      },
+    },
+    { $unwind: { path: "$lead", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "assigned_to",
+        foreignField: "_id",
+        as: "assigned_to",
+      },
+    },
+    { $unwind: { path: "$assigned_to", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "user_id",
+        foreignField: "_id",
+        as: "created_by",
+      },
+    },
+    { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        title: 1,
+        type: 1,
+        current_status: 1,
+        priority: 1,
+        deadline: 1,
+        description: 1,
+        lead_name: "$lead.name",
+        created_By: "$created_by.name",
+        assigned_to_names: "$assigned_to.name",
+      },
+    },
+  ];
+
+  const result = await BDtask.aggregate(pipeline);
+
+  const fields = [
+    { label: 'Title', value: 'title' },
+    { label: 'Type', value: 'type' },
+    { label: 'Current Status', value: 'current_status' },
+    { label: 'Priority', value: 'priority' },
+    { label: 'Deadline', value: 'deadline' },
+    { label: 'Lead Name', value: 'lead_name' },
+    { label: 'Created By', value: 'created_By' },
+    { label: 'Assigned Name', value: 'assigned_to_names' },
+  ]
+
+  const json2csvParser = new Parser({ fields });
+
+  const csv = json2csvParser.parse(result);
+  res.setHeader("Content-disposition", "attachment; filename=data.csv");
+  res.set("Content-Type", "text/csv");
+  res.status(200).send(csv);
+
+  } catch (error) {
+    res.status(500).json({
+      message:"Internal Server Error",
+      error: error.message
+    })    
+  }
+
+}
 
 
 module.exports = {
@@ -368,5 +511,7 @@ module.exports = {
   getTaskByLeadId,
   toggleViewTask,
   getNotifications,
-  getAllTaskByAssigned
+  getAllTaskByAssigned,
+  migrateAllLeads,
+  getexportToCsv,
 };

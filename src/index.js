@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const app = express();
 const routes = require("../src/Routes/routes");
 const engineeringRoutes = require("../src/Routes/engineering/engineeringRoutes");
-const bdleadsRoutes = require("../src/Routes/bdleadDashboard/bdleadDashboardRoutes");
+const bdleadsRoutes = require("../src/Routes/bdleads/bdleadDashboardRoutes");
 const dprRoutes = require("../src/Routes/dpr/dprRoutes");
 const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRoutes");
 const taskRoutes = require("../src/Routes/tasks/tasks");
@@ -19,8 +19,9 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+
 const PORT = process.env.PORT;
-const db = process.env.DB_URL;
+const db = process.env.DB_DEVELOPMENT_URL;
 
 const startServer = async () => {
   try {

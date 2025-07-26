@@ -1,4 +1,4 @@
-const BDNotes = require("../Modells/BD-Dashboard/notes");
+const BDNotes = require("../Modells/bdleads/notes");
 const bdmodells = require("../Modells/createBDleadModells");
 const initialbdleadModells = require("../Modells/initialBdLeadModells");
 const userModells = require("../Modells/userModells");

@@ -53,6 +53,11 @@ router.get(
   jwtMW.authorization,
   getPurchaseRequest
 );
-router.get('/material-scope', jwtMW.authentication, jwtMW.authorization, getMaterialScope);
+router.get(
+  "/material-scope",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getMaterialScope
+);
 
 module.exports = router;

@@ -210,6 +210,7 @@ const {
   getbyid,
   search,
   getByIdOrLeadId,
+  getexportToCsv,
   migrateProjectToHandover,
 } = require("../Controllers/handoversheetController");
 const {
@@ -249,7 +250,6 @@ const {
   delete_lead,
   updateLeadStatus,
 } = require("../Controllers/bdleadController");
-const { create } = require("../Modells/bdleadsModells");
 
 const upload = require("../middlewares/multer.js");
 
@@ -1123,6 +1123,12 @@ router.post(
   jwtMW.authorization,
   createhandoversheet
 );
+router.post(
+  "/handover-export",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getexportToCsv,
+)
 router.get(
   "/get-all-handover-sheet",
   jwtMW.authentication,
