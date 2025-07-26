@@ -15,6 +15,9 @@ const {
   paymentApproval,
 } = require("../../Controllers/Accounting/paymentApproval");
 const {
+  paymentHistory,
+} = require("../../Controllers/Accounting/paymentHistrory");
+const {
   projectBalance,
   exportProjectBalance,
 } = require("../../Controllers/Accounting/ProjectBalance");
@@ -93,5 +96,11 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getAdjustmentHistory
+);
+router.get(
+  "/payment-history",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  paymentHistory
 );
 module.exports = router;
