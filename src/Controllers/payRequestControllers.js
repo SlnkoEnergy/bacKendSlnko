@@ -399,7 +399,7 @@ const accApproved = async function (req, res) {
 
       if (newTotalPaid > poValue) {
         return res.status(400).json({
-          message: `Cannot approve: total paid (${newTotalPaid}) exceeds PO value (${poValue})`,
+          message: `Approval Denied: The total amount exceeds the PO limit of (₹${poValue.toLocaleString("en-IN")}). Please review and update the PO value before proceeding`,
         });
       }
     }
