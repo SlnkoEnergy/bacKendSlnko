@@ -1,6 +1,7 @@
 const { default: mongoose } = require("mongoose");
 const group = require("../../Modells/bdleads/group");
 const userModells = require("../../Modells/userModells");
+const {Parser } = require("json2csv")
 
 const createGroup = async (req, res) => {
   try {
@@ -498,6 +499,126 @@ const deleteGroup = async (req, res) => {
   }
 };
 
+const getexportToCSVGroup = async (req, res) => {
+  try {
+    const { Ids } = req.body;
+
+    const objectIds = Ids.map((id) => new mongoose.Types.ObjectId(id));
+
+    const groupData = await group.aggregate([
+      {
+        $match: {
+          _id: { $in: objectIds },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "createdByUser",
+        },
+      },
+      {
+        $unwind: {
+          path: "$createdByUser",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "current_status.user_id",
+          foreignField: "_id",
+          as: "statusUser",
+        },
+      },
+      {
+        $unwind: {
+          path: "$statusUser",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "bdleads",
+          localField: "_id",
+          foreignField: "group_id",
+          as: "relatedLeads",
+        },
+      },
+      {
+        $addFields: {
+          total_lead_capacity: {
+            $sum: {
+              $map: {
+                input: "$relatedLeads",
+                as: "lead",
+                in: {
+                  $toDouble: "$$lead.project_details.capacityf",
+                },
+              },
+            },
+          },
+          createdByName: "$createdByUser.name",
+          statusUserName: "$statusUser.name",
+        },
+      },
+      {
+        $project: {
+          group_code: 1,
+          group_name: 1,
+          "project_details.scheme": 1,
+          capacity: "$project_details.capacity",
+          company_name: 1,
+          "address.state": 1,
+          "contact_details.email": 1,
+          total_lead_capacity: 1,
+          createdAt: 1,
+          createdByName: 1,
+          statusUserName: 1,
+          "current_status.status": 1,
+        },
+      },
+    ]);
+
+    // Flatten records for CSV
+    const flattenedData = groupData.map((item) => ({
+      "Group Code": item.group_code,
+      "Group Name": item.group_name,
+      "Total Capacity": item.capacity,
+      "State": item.address?.state || "",
+      "Scheme": item.project_details?.scheme || "",
+      "Created At": new Date(item.createdAt).toLocaleString("en-IN"),
+      "Created By": item.createdByName || "",
+      "Status": item.current_status?.status || "",
+    }));
+
+    const fields = [
+      "Group Code",
+      "Group Name",
+      "Total Capacity",
+      "State",
+      "Scheme",
+      "Created At",
+      "Created By",
+      "Status",
+    ];
+
+    const json2csvParser = new Parser({ fields });
+    const csv = json2csvParser.parse(flattenedData);
+
+    res.header("Content-Type", "text/csv");
+    res.attachment("groups.csv");
+    return res.send(csv);
+  } catch (err) {
+    console.error("CSV Export Error:", err);
+    res
+      .status(500)
+      .json({ message: "CSV export failed", error: err.message });
+  }
+};
+
 module.exports = {
   createGroup,
   getAllGroup,
@@ -505,6 +626,7 @@ module.exports = {
   updateGroup,
   updateGroupStatus,
   deleteGroup,
-  getAllGroupDropdown
+  getAllGroupDropdown,
+  getexportToCSVGroup
 };
 

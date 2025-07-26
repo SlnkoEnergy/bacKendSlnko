@@ -8,7 +8,7 @@ const {
   leadWonAndLost,
   leadFunnel,
 } = require("../../Controllers/bdController/bdleadsController");
-const { createGroup, getAllGroup, getGroupById, updateGroup, deleteGroup, updateGroupStatus, groupDropdown, getAllGroupDropdown } = require("../../Controllers/bdController/groupController.js");
+const { createGroup, getAllGroup, getGroupById, updateGroup, deleteGroup, updateGroupStatus, groupDropdown, getAllGroupDropdown, getexportToCSVGroup } = require("../../Controllers/bdController/groupController.js");
 const { deleteLead, updateAssignedTo, exportLeadsCSV, updateLeadStatus, uploadDocuments, updateExpectedClosing, getLeadByLeadIdorId, getAllLeads, getAllLeadDropdown, editLead, createBDlead, updateAssignedToFromSubmittedBy } = require("../../Controllers/bdController/leadsController.js");
 const {
   getNotesById,
@@ -240,5 +240,6 @@ router.put('/group/:id', jwtMW.authentication, jwtMW.authorization, updateGroup)
 router.put('/:id/updateGroupStatus', jwtMW.authentication, jwtMW.authorization, updateGroupStatus);
 router.delete('/group/:id', jwtMW.authentication, jwtMW.authorization, deleteGroup);
 router.get('/group-drop', jwtMW.authentication, jwtMW.authentication, getAllGroupDropdown);
+router.post('/group-export', jwtMW.authentication, jwtMW.authentication, getexportToCSVGroup);
 
 module.exports = router;
