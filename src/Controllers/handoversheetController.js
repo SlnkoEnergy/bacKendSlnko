@@ -152,28 +152,26 @@ const createhandoversheet = async function (req, res) {
 // get  bd handover sheet data
 const gethandoversheetdata = async function (req, res) {
   try {
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = 10;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
     const statusFilter = req.query.status;
 
-  const userId = req.user.userId;
-const userDoc = await userModells.findById(userId).lean();
-const userName = userDoc?.name;
+    const userId = req.user.userId;
+    const userDoc = await userModells.findById(userId).lean();
+    const userName = userDoc?.name;
     const matchConditions = { $and: [] };
-    
-     const allowedNames = ["admin", "IT Team", "Deepak Manodi"];
-   if (!allowedNames.includes(userName)) {
-  matchConditions.$and.push({
-    $or: [
-      { "other_details.submitted_by_BD": userName },
-      { submitted_by: userName },
-    ],
-  });
-}
 
-
+    const allowedNames = ["admin", "IT Team", "Deepak Manodi"];
+    if (!allowedNames.includes(userName)) {
+      matchConditions.$and.push({
+        $or: [
+          { "other_details.submitted_by_BD": userName },
+          { submitted_by: userName },
+        ],
+      });
+    }
 
     // Keyword search
     if (search) {
@@ -230,7 +228,7 @@ const userName = userDoc?.name;
       },
       {
         $lookup: {
-          from: "users", 
+          from: "users",
           localField: "leadDetails.submitted_by",
           foreignField: "_id",
           as: "submittedUser",
@@ -278,7 +276,7 @@ const userName = userDoc?.name;
                 project_kwp: "$project_detail.project_kwp",
                 total_gst: "$other_details.total_gst",
                 service: "$other_details.service",
-                submitted_by: "$submittedUser.name", // ← Now you get name here
+                submitted_by: "$submittedUser.name",
                 leadDetails: 1,
                 status_of_handoversheet: 1,
                 is_locked: 1,
@@ -310,7 +308,6 @@ const userName = userDoc?.name;
     res.status(500).json({ message: error.message });
   }
 };
-
 
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
@@ -751,5 +748,5 @@ module.exports = {
   checkid,
   search,
   getexportToCsv,
-  migrateProjectToHandover
+  migrateProjectToHandover,
 };
