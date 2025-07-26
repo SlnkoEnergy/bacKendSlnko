@@ -800,6 +800,7 @@ const getPay = async (req, res) => {
                   { vendor: { $regex: searchRegex } },
                   { approved: { $regex: searchRegex } },
                   { utr: { $regex: searchRegex } },
+                  { po_number: { $regex: searchRegex } },
                   { "project.customer": { $regex: searchRegex } },
                 ],
               },
