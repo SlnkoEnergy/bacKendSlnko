@@ -96,6 +96,38 @@ const getPaginatedBill = async (req, res) => {
     const search = req.query.search?.trim() || "";
     const status = req.query.status?.trim();
     const searchRegex = new RegExp(search, "i");
+    const rawDate = req.query.date;
+    let dateMatchStage = [];
+
+    if (rawDate) {
+      const [day, month, year] = rawDate.split("/");
+      const start = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+      const end = new Date(`${year}-${month}-${day}T23:59:59.999Z`);
+
+      dateMatchStage = [
+        {
+          $addFields: {
+            bills: {
+              $filter: {
+                input: "$bills",
+                as: "bill",
+                cond: {
+                  $and: [
+                    { $gte: ["$$bill.created_on", start] },
+                    { $lte: ["$$bill.created_on", end] },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $match: {
+            "bills.0": { $exists: true },
+          },
+        },
+      ];
+    }
 
     const matchStage = search
       ? {
@@ -176,6 +208,7 @@ const getPaginatedBill = async (req, res) => {
         },
       },
       ...(status ? [{ $match: { po_status: status } }] : []),
+      ...dateMatchStage,
       {
         $facet: {
           paginatedResults: [

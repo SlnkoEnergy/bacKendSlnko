@@ -284,7 +284,32 @@ const getAllUserByDepartment = async (req, res) => {
       error:error.message
      })
    }
-}
+};
+
+//edit user
+const editUser = async function (req, res) {
+  const userId = req.params._id;
+  const { name, emp_id, email, phone, department, role } = req.body;
+
+  try {
+    const updatedUser = await userModells.findByIdAndUpdate(
+      userId,
+      { name, emp_id, email, phone, department, role },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({
+      message: "User updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error updating user", error: error.message });
+  }
+};
 
 const getAllDepartment = async (req, res) => {
   try {
@@ -304,5 +329,6 @@ module.exports = {
   deleteUser,
   getSingleUser,
   getAllUserByDepartment,
+  editUser,
   getAllDepartment
 };
