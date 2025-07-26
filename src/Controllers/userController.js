@@ -1,9 +1,10 @@
-const userModells = require("../Modells/userModells");
+const userModells = require("../Modells/users/userModells");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
-const { config } = require("dotenv");
+const getSystemIdentifier = require("../utils/generateSystemIdentifier");
 const getEmailTemplate = require("../utils/emailTemplate");
+const session = require("../Modells/users/session");
 
 //user Registration
 
@@ -206,16 +207,11 @@ const login = async function (req, res) {
       return res.status(400).json({ msg: "Password is required" });
     }
 
-    // Combine all identity fields into a single search term
     const identity = name || emp_id || email;
-
     if (!identity) {
-      return res
-        .status(400)
-        .json({ msg: "Enter any of username, emp_id, or email" });
+      return res.status(400).json({ msg: "Enter any of username, emp_id, or email" });
     }
 
-    // Search user where ANY of the fields match the identity value
     const user = await userModells.findOne({
       $or: [{ name: identity }, { emp_id: identity }, { email: identity }],
     });
@@ -229,10 +225,34 @@ const login = async function (req, res) {
       return res.status(401).json({ msg: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.PASSKEY);
+    const currentSystemID = getSystemIdentifier();
 
+    const existingSession = await session.findOne({
+      user_id: user._id,
+      device_id: currentSystemID,
+    });
+
+    if (!existingSession) {
+      const otherDeviceSession = await session.findOne({ user_id: user._id });
+
+      if (otherDeviceSession) {
+        return res.status(403).json({ msg: "Access denied: Login allowed only from the registered device." });
+      }
+
+      await session.create({
+        user_id: user._id,
+        device_id: currentSystemID,
+        login_time: new Date(),
+      });
+    } else {
+      existingSession.login_time = new Date();
+      await existingSession.save();
+    }
+
+    const token = jwt.sign({ userId: user._id }, process.env.PASSKEY);
     return res.status(200).json({ token, userId: user._id });
   } catch (error) {
+    console.error("Login Error:", error);
     res.status(500).json({ msg: "Server error: " + error.message });
   }
 };
