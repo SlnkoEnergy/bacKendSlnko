@@ -11,7 +11,6 @@ const task = require("../../Modells/bdleads/task");
 const createBDlead = async function (req, res) {
   try {
     const body = req.body;
-
     const requiredFields = [
       "name",
       "contact_details.mobile",
@@ -1300,6 +1299,13 @@ const updateLeadStatus = async function (req, res) {
       ...req.body,
       user_id: user_id,
     });
+
+    if (
+      leads.expected_closing_date === undefined ||
+      leads.expected_closing_date === null
+    ) {
+      leads.expected_closing_date = req.body.expected_closing_date;
+    }
 
     await leads.save();
     res.status(200).json(leads);

@@ -7,7 +7,6 @@ const createbdleads = require("../../Modells/createBDleadModells");
 const handoversheet = require("../../Modells/handoversheetModells");
 const task = require("../../Modells/bdleads/task");
 
-
 const getLeadSummary = async (req, res) => {
   try {
     const { range, startDate, endDate } = req.query;
@@ -1009,7 +1008,6 @@ const leadWonAndLost = async (req, res) => {
       .json({ message: "Internal server error", error: error.message });
   }
 };
-
 
 module.exports = {
   getLeadSummary,
