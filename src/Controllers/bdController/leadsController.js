@@ -151,6 +151,7 @@ const getAllLeads = async (req, res) => {
       stage,
       lead_without_task,
       handover_statusFilter,
+      name,
     } = req.query;
 
     const userId = req.user.userId;
@@ -498,6 +499,18 @@ const getAllLeads = async (req, res) => {
           },
         },
       },
+      ...(name
+        ? [
+            {
+              $match: {
+                "current_assigned.user_id.name": {
+                  $regex: name,
+                  $options: "i",
+                },
+              },
+            },
+          ]
+        : []),
       { $project: { current_assigned_user: 0 } },
 
       {
@@ -830,6 +843,36 @@ const getAllLeads = async (req, res) => {
             }),
         },
       },
+      {
+        $lookup: {
+          from: "users",
+          localField: "current_assigned.user_id",
+          foreignField: "_id",
+          pipeline: [{ $project: { _id: 1, name: 1 } }],
+          as: "current_assigned_user",
+        },
+      },
+      {
+        $addFields: {
+          current_assigned: {
+            status: "$current_assigned.status",
+            user_id: { $arrayElemAt: ["$current_assigned_user", 0] },
+          },
+        },
+      },
+      ...(name
+        ? [
+            {
+              $match: {
+                "current_assigned.user_id.name": {
+                  $regex: name,
+                  $options: "i",
+                },
+              },
+            },
+          ]
+        : []),
+
       { $count: "count" },
     ];
 
