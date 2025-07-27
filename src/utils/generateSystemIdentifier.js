@@ -1,11 +1,14 @@
+const os = require("os");
+const { v4: uuidv4 } = require("uuid");
 
-async function getSystemIdentifier() {
-   let device_id = req.cookies.device_id;
+async function getSystemIdentifier(req, res) {
+  let device_id = req.cookies.device_id;
   if (!device_id) {
     device_id = uuidv4();
-    res.cookie("device_id", device_id, { httpOnly: true, maxAge: 31536000000 });
+    res.cookie("device_id", device_id, { httpOnly: true, maxAge: 31536000000 }); // 1 year
   }
-  
+
+  const interfaces = Object.values(os.networkInterfaces()).flat();
   const externalIfaces = interfaces.filter(
     iface => !iface.internal && iface.mac !== "00:00:00:00:00:00"
   );
