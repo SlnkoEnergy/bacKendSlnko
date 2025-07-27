@@ -23,16 +23,15 @@ const {
   login,
   getalluser,
   forgettpass,
-
-  verifyandSendPass,
+  logout,
   deleteUser,
   getSingleUser,
-  forgetpassword,
   verifyandResetPassword,
   verifyOtp,
   getAllUserByDepartment,
   editUser,
   getAllDepartment,
+  finalizeBdLogin,
 } = require("../Controllers/userController");
 
 const {
@@ -256,6 +255,8 @@ const upload = require("../middlewares/multer.js");
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
+router.put('/logout', jwtMW.authentication, jwtMW.authorization,logout)
+router.post('/session-verify', finalizeBdLogin);
 router.get(
   "/get-all-useR-IT",
   jwtMW.authentication,
