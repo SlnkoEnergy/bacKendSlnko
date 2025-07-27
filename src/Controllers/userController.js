@@ -225,7 +225,7 @@ const login = async function (req, res) {
       return res.status(401).json({ msg: "Invalid credentials" });
     }
 
-    const { device_id, ip } = await getSystemIdentifier();
+    const { device_id, ip } = await getSystemIdentifier(req, res);
 
     if (user.department === "BD") {
       const registeredDevice = await session.findOne({
@@ -288,7 +288,7 @@ const login = async function (req, res) {
 const finalizeBdLogin = async (req, res) => {
   try {
     const { email, latitude, longitude, fullAddress } = req.body;
-    const { device_id, ip } = await getSystemIdentifier();
+    const { device_id, ip } = await getSystemIdentifier(req, res);
 
     const user = await userModells.findOne({ email });
     if (!user) {
