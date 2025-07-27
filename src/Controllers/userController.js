@@ -318,7 +318,7 @@ const finalizeBdLogin = async (req, res) => {
 const logout = async (req, res) => {
   try {
     const userId = req.user.userId; 
-    const { device_id } = await getSystemIdentifier(); 
+    const { device_id, ip } = await getSystemIdentifier(); 
     
     const user = await userModells.findById(userId);
     if(!user){
@@ -335,7 +335,9 @@ const logout = async (req, res) => {
         "device_info.device_id": device_id,
         logout_time: { $exists: false },
       });
-  
+      
+      console.log({device_id});
+
       if (!sessionToUpdate) {
         return res.status(404).json({ message: "No active session found." });
       }

@@ -7,14 +7,14 @@ async function getSystemIdentifier() {
   const arch = os.arch();
   const cpus = os.cpus().map(cpu => cpu.model).join("-");
   const interfaces = Object.values(os.networkInterfaces()).flat();
+   const baseBoard = os.userInfo().username;
   const externalIfaces = interfaces.filter(
     iface => !iface.internal && iface.mac !== "00:00:00:00:00:00"
   );
 
-  const mac = externalIfaces.map(iface => iface.mac).join("-");
   const ip = externalIfaces.map(iface => iface.address).join("-");
 
-  const device_id = `${hostname}-${platform}-${arch}-${cpus}-${mac}-${ip}`;
+  const device_id = `${hostname}-${platform}-${arch}-${cpus}-${baseBoard}`;
 
   return {
     device_id,
