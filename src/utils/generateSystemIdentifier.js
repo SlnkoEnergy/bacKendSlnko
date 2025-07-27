@@ -5,8 +5,10 @@ async function getSystemIdentifier(req, res) {
   let device_id = req.cookies.device_id;
   if (!device_id) {
     device_id = uuidv4();
-    res.cookie("device_id", device_id, { httpOnly: true, maxAge: 31536000000 }); // 1 year
+    res.cookie("device_id", device_id, { httpOnly: true, maxAge: 31536000000 }); 
   }
+  
+  console.log({device_id});
 
   const interfaces = Object.values(os.networkInterfaces()).flat();
   const externalIfaces = interfaces.filter(
