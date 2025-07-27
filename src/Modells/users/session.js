@@ -12,8 +12,11 @@ const sessionSchema = new mongoose.Schema(
     logout_time: {
       type: Date,
     },
-    device_id: {
-      type: String,
+    device_info: {
+      device_id: { type: String },
+      ip: { type: String },
+      latitude: { type: String },
+      longitude: { type: String },
     },
   },
   { timestamps: true }

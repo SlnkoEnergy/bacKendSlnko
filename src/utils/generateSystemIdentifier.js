@@ -1,22 +1,25 @@
 const os = require("os");
-const crypto = require("crypto");
+const axios = require("axios");
 
-function getSystemIdentifier() {
+async function getSystemIdentifier() {
   const hostname = os.hostname();
   const platform = os.platform();
   const arch = os.arch();
-  const cpus = os
-    .cpus()
-    .map((cpu) => cpu.model)
-    .join("-");
-  const mac = Object.values(os.networkInterfaces())
-    .flat()
-    .filter((iface) => !iface.internal && iface.mac !== "00:00:00:00:00:00")
-    .map((iface) => iface.mac)
-    .join("-");
+  const cpus = os.cpus().map(cpu => cpu.model).join("-");
+  const interfaces = Object.values(os.networkInterfaces()).flat();
+  const externalIfaces = interfaces.filter(
+    iface => !iface.internal && iface.mac !== "00:00:00:00:00:00"
+  );
 
-  const raw = `${hostname}-${platform}-${arch}-${cpus}-${mac}`;
-  return crypto.createHash("sha256").update(raw).digest("hex");
+  const mac = externalIfaces.map(iface => iface.mac).join("-");
+  const ip = externalIfaces.map(iface => iface.address).join("-");
+
+  const device_id = `${hostname}-${platform}-${arch}-${cpus}-${mac}-${ip}`;
+
+  return {
+    device_id,
+    ip
+  };
 }
 
-module.exports = getSystemIdentifier ;
+module.exports = getSystemIdentifier;
