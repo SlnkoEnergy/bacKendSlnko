@@ -85,6 +85,53 @@ const projectBalance = async (req, res) => {
       },
       {
         $addFields: {
+          total_po_basic: {
+            $sum: {
+              $map: {
+                input: "$pos",
+                as: "po",
+                in: {
+                  $cond: {
+                    if: {
+                      $or: [
+                        { $eq: ["$$po.po_basic", null] },
+                        { $eq: ["$$po.po_basic", ""] },
+                        { $eq: ["$$po.po_basic", undefined] },
+                      ],
+                    },
+                    then: 0,
+                    else: {
+                      $convert: {
+                        input: "$$po.po_basic",
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          gst_as_po_basic: {
+            $multiply: ["$total_po_basic", 0.17],
+          },
+        },
+      },
+      {
+        $addFields: {
+          total_po_with_gst: {
+            $add: ["$total_po_basic", "$gst_as_po_basic"],
+          },
+        },
+      },
+
+      {
+        $addFields: {
           totalCredit: {
             $round: [
               {
@@ -439,15 +486,7 @@ const projectBalance = async (req, res) => {
                 $subtract: [
                   {
                     $subtract: [
-                      {
-                        $sum: {
-                          $map: {
-                            input: "$pos",
-                            as: "po",
-                            in: { $toDouble: "$$po.po_value" },
-                          },
-                        },
-                      },
+                      "$total_po_with_gst",
                       {
                         $sum: {
                           $map: {
@@ -513,174 +552,15 @@ const projectBalance = async (req, res) => {
             $round: [
               {
                 $subtract: [
-                  {
-                    $subtract: [
-                      {
-                        $sum: [
-                          {
-                            $subtract: [
-                              {
-                                $subtract: [
-                                  {
-                                    $sum: {
-                                      $map: {
-                                        input: "$credits",
-                                        as: "c",
-                                        in: { $toDouble: "$$c.cr_amount" },
-                                      },
-                                    },
-                                  },
-                                  {
-                                    $sum: {
-                                      $map: {
-                                        input: {
-                                          $filter: {
-                                            input: "$debits",
-                                            as: "d",
-                                            cond: {
-                                              $eq: [
-                                                "$$d.paid_for",
-                                                "Customer Adjustment",
-                                              ],
-                                            },
-                                          },
-                                        },
-                                        as: "d",
-                                        in: { $toDouble: "$$d.amount_paid" },
-                                      },
-                                    },
-                                  },
-                                ],
-                              },
-                              {
-                                $sum: {
-                                  $map: {
-                                    input: "$pays",
-                                    as: "pay",
-                                    in: { $toDouble: "$$pay.amount_paid" },
-                                  },
-                                },
-                              },
-                            ],
-                          },
-                          {
-                            $subtract: [
-                              {
-                                $sum: {
-                                  $map: {
-                                    input: {
-                                      $filter: {
-                                        input: "$adjustments",
-                                        as: "adj",
-                                        cond: {
-                                          $eq: ["$$adj.adj_type", "Add"],
-                                        },
-                                      },
-                                    },
-                                    as: "a",
-                                    in: {
-                                      $abs: { $toDouble: "$$a.adj_amount" },
-                                    },
-                                  },
-                                },
-                              },
-                              {
-                                $sum: {
-                                  $map: {
-                                    input: {
-                                      $filter: {
-                                        input: "$adjustments",
-                                        as: "adj",
-                                        cond: {
-                                          $eq: ["$$adj.adj_type", "Subtract"],
-                                        },
-                                      },
-                                    },
-                                    as: "a",
-                                    in: {
-                                      $abs: { $toDouble: "$$a.adj_amount" },
-                                    },
-                                  },
-                                },
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                      {
-                        $subtract: [
-                          {
-                            $subtract: [
-                              {
-                                $sum: {
-                                  $map: {
-                                    input: "$pos",
-                                    as: "po",
-                                    in: { $toDouble: "$$po.po_value" },
-                                  },
-                                },
-                              },
-                              {
-                                $sum: {
-                                  $map: {
-                                    input: "$bills",
-                                    as: "bill",
-                                    in: { $toDouble: "$$bill.bill_value" },
-                                  },
-                                },
-                              },
-                            ],
-                          },
-                          {
-                            $subtract: [
-                              {
-                                $sum: {
-                                  $map: {
-                                    input: "$pays",
-                                    as: "pay",
-                                    in: { $toDouble: "$$pay.amount_paid" },
-                                  },
-                                },
-                              },
-                              {
-                                $sum: {
-                                  $map: {
-                                    input: "$bills",
-                                    as: "bill",
-                                    in: { $toDouble: "$$bill.bill_value" },
-                                  },
-                                },
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                  {
-                    $cond: {
-                      if: { $gt: ["$netBalance", 5000000] },
-                      then: {
-                        $round: [
-                          {
-                            $multiply: [
-                              { $subtract: ["$netBalance", 5000000] },
-                              0.001,
-                            ],
-                          },
-                          0,
-                        ],
-                      },
-                      else: 0,
-                    },
-                  },
+                  { $subtract: ["$balanceSlnko", "$balancePayable"] },
+                  "$tcs",
                 ],
               },
-              2, // round final result to 2 decimal places
             ],
           },
         },
       },
+
       {
         $addFields: {
           latestCreditCreatedAt: {
@@ -725,8 +605,6 @@ const projectBalance = async (req, res) => {
           },
         },
       },
-      
-      
 
       {
         $project: {
@@ -744,9 +622,12 @@ const projectBalance = async (req, res) => {
           netBalance: 1,
           totalAmountPaid: 1,
           balanceSlnko: 1,
-
+          netAdvance: 1,
+          tcs: 1,
           balancePayable: 1,
-
+          total_po_basic: 1,
+          total_po_with_gst: 1,
+          gst_as_po_basic: 1,
           balanceRequired: 1,
         },
       },
@@ -809,7 +690,6 @@ const projectBalance = async (req, res) => {
             totalBalanceSlnko: { $round: ["$totalBalanceSlnko", 2] },
             totalBalancePayable: { $round: ["$totalBalancePayable", 2] },
             totalBalanceRequired: { $round: ["$totalBalanceRequired", 2] },
-            
           },
         },
       ]),
