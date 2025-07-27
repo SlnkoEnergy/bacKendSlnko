@@ -10,6 +10,7 @@ const taskRoutes = require("../src/Routes/tasks/tasks");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
 const cors = require("cors");
 const { config } = require("dotenv");
+const cookieParser = require('cookie-parser');
 
 config({
   path: "./.env",
@@ -18,7 +19,7 @@ config({
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
+app.use(cookieParser());
 
 const PORT = process.env.PORT;
 const db = process.env.DB_URL;
