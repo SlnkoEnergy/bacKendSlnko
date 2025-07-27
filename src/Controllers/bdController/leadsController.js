@@ -1,4 +1,4 @@
-const userModells = require("../../Modells/userModells");
+const userModells = require("../../Modells/users/userModells");
 const mongoose = require("mongoose");
 const { Parser } = require("json2csv");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");

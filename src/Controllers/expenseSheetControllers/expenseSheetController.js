@@ -1,5 +1,5 @@
 const ExpenseSheet = require("../../Modells/ExpenseSheet/expenseSheetModel");
-const User = require("../../Modells/userModells");
+const User = require("../../Modells/users/userModells");
 const { Parser } = require("json2csv");
 const { default: mongoose } = require("mongoose");
 const generateExpenseCode = require("../../utils/generateExpenseCode");
