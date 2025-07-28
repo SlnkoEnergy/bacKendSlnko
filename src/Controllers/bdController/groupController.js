@@ -1,6 +1,6 @@
 const { default: mongoose } = require("mongoose");
 const group = require("../../Modells/bdleads/group");
-const userModells = require("../../Modells/userModells");
+const userModells = require("../../Modells/users/userModells");
 const {Parser } = require("json2csv")
 
 const createGroup = async (req, res) => {

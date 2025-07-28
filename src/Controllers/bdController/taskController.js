@@ -1,5 +1,5 @@
 const BDtask = require("../../Modells/bdleads/task");
-const userModells = require("../../Modells/userModells");
+const userModells = require("../../Modells/users/userModells");
 const transformAndSaveOldLead = require("../../utils/bdLeadTransform");
 const deadleadModells = require("../../Modells/deadleadModells");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");

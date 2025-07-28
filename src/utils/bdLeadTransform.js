@@ -1,5 +1,5 @@
 async function transformAndSaveOldLead(oldLead) {
-  const User = require("../Modells/userModells");
+  const User = require("../Modells/users/userModells");
   const NewBDLead = require("../Modells/bdleads/bdleadsModells");
 
   const submittedUser = await User.findOne({ name: oldLead.submitted_by });

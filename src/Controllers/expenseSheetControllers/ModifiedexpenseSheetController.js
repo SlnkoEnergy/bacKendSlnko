@@ -1,5 +1,5 @@
 const ModifiedExpenseSheet = require("../../Modells/Modified_Expense/modified_expense_sheet_Model");
-const User = require("../../Modells/userModells");
+const User = require("../../Modells/users/userModells");
 const generateExpenseCode = require("../../utils/generateExpenseCode");
 const axios = require("axios");
 const FormData = require("form-data");
