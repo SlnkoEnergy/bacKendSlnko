@@ -225,9 +225,9 @@ const login = async function (req, res) {
       return res.status(401).json({ msg: "Invalid credentials" });
     }
 
-    const { device_id, ip } = await getSystemIdentifier();
+    const { device_id, ip } = await getSystemIdentifier(req, res);
 
-    if (user.department === "BD") {
+    if (user.department === "BD" || req.cookies.device_id) {
       const registeredDevice = await session.findOne({
         user_id: user._id,
         "device_info.device_id": device_id,
@@ -288,7 +288,7 @@ const login = async function (req, res) {
 const finalizeBdLogin = async (req, res) => {
   try {
     const { email, latitude, longitude, fullAddress } = req.body;
-    const { device_id, ip } = await getSystemIdentifier();
+    const { device_id, ip } = await getSystemIdentifier(req, res);
 
     const user = await userModells.findOne({ email });
     if (!user) {
@@ -318,7 +318,7 @@ const finalizeBdLogin = async (req, res) => {
 const logout = async (req, res) => {
   try {
     const userId = req.user.userId; 
-    const { device_id } = await getSystemIdentifier(); 
+    const { device_id, ip } = await getSystemIdentifier(); 
     
     const user = await userModells.findById(userId);
     if(!user){
@@ -335,7 +335,8 @@ const logout = async (req, res) => {
         "device_info.device_id": device_id,
         logout_time: { $exists: false },
       });
-  
+    
+
       if (!sessionToUpdate) {
         return res.status(404).json({ message: "No active session found." });
       }

@@ -1,20 +1,20 @@
 const os = require("os");
-const axios = require("axios");
+const { v4: uuidv4 } = require("uuid");
 
-async function getSystemIdentifier() {
-  const hostname = os.hostname();
-  const platform = os.platform();
-  const arch = os.arch();
-  const cpus = os.cpus().map(cpu => cpu.model).join("-");
+async function getSystemIdentifier(req, res) {
+  let device_id = req.cookies.device_id;
+  if (!device_id) {
+    device_id = uuidv4();
+    res.cookie("device_id", device_id, { httpOnly: true, maxAge: 31536000000 }); 
+  }
+  
+
   const interfaces = Object.values(os.networkInterfaces()).flat();
   const externalIfaces = interfaces.filter(
     iface => !iface.internal && iface.mac !== "00:00:00:00:00:00"
   );
 
-  const mac = externalIfaces.map(iface => iface.mac).join("-");
   const ip = externalIfaces.map(iface => iface.address).join("-");
-
-  const device_id = `${hostname}-${platform}-${arch}-${cpus}-${mac}-${ip}`;
 
   return {
     device_id,

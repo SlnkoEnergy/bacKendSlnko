@@ -357,30 +357,56 @@ const account_matched = async function (req, res) {
 const accApproved = async function (req, res) {
   const { pay_id, status } = req.body;
   if (!pay_id || !status || !["Approved", "Rejected"].includes(status)) {
-    return res.status(400).json({ message: "Invalid p_id or status" });
+    return res.status(400).json({ message: "Invalid pay_id or status" });
   }
 
   try {
-    // Find the payment request with the given p_id and an 'approved' status of 'Pending'
     const payment = await payRequestModells.findOne({
       pay_id,
       approved: "Pending",
     });
 
-    // If no matching payment request is found, return a 404 error
     if (!payment) {
       return res.status(404).json({
         message: "No matching record found or record already approved",
       });
     }
 
-    // Update the 'approved' field to the status (matched/rejected)
-    payment.approved = status;
+    if (status === "Approved") {
+      const poNumber = payment.po_number;
 
-    // Save the updated payment request
+      const purchaseOrder = await purchaseOrderModells.findOne({
+        po_number: poNumber,
+      });
+
+      if (!purchaseOrder) {
+        return res.status(404).json({ message: "Purchase order not found" });
+      }
+
+      const approvedPayments = await payRequestModells.find({
+        po_number: poNumber,
+        approved: "Approved",
+      });
+
+      const totalPaid = approvedPayments.reduce(
+        (sum, p) => sum + (parseFloat(p.amount_paid) || 0),
+        0
+      );
+
+      const newTotalPaid = totalPaid + (parseFloat(payment.amount_paid) || 0);
+
+      const poValue = parseFloat(purchaseOrder.po_value) || 0;
+
+      if (newTotalPaid > poValue) {
+        return res.status(400).json({
+          message: `Approval Denied: The total amount exceeds the PO limit of (₹${poValue.toLocaleString("en-IN")}). Please review and update the PO value before proceeding`,
+        });
+      }
+    }
+
+    payment.approved = status;
     await payment.save();
 
-    // Return a success response
     return res
       .status(200)
       .json({ message: "Approval status updated", data: payment });
@@ -774,6 +800,7 @@ const getPay = async (req, res) => {
                   { vendor: { $regex: searchRegex } },
                   { approved: { $regex: searchRegex } },
                   { utr: { $regex: searchRegex } },
+                  { po_number: { $regex: searchRegex } },
                   { "project.customer": { $regex: searchRegex } },
                 ],
               },
