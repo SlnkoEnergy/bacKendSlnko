@@ -3,24 +3,46 @@ const mongoose = require("mongoose");
 const app = express();
 const routes = require("../src/Routes/routes");
 const engineeringRoutes = require("../src/Routes/engineering/engineeringRoutes");
-const bdleadsRoutes = require("../src/Routes/bdleadDashboard/bdleadDashboardRoutes");
+const bdleadsRoutes = require("../src/Routes/bdleads/bdleadDashboardRoutes");
 const dprRoutes = require("../src/Routes/dpr/dprRoutes");
 const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRoutes");
 const taskRoutes = require("../src/Routes/tasks/tasks");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
 const cors = require("cors");
 const { config } = require("dotenv");
+const cookieParser = require('cookie-parser');
 
 config({
   path: "./.env",
 });
 
-app.use(cors({ origin: "*" }));
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://sales.slnkoprotrac.com",
+  "https://slnkoprotrac.com",
+  "https://dev.slnkoprotrac.com",
+  "https://staging.slnkoprotrac.com"
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true
+}));
+
+
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_URL;
 
 const startServer = async () => {
   try {

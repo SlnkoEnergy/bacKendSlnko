@@ -1,4 +1,4 @@
-function updateCurrentStatus(
+function taskCurrentStatus(
   doc,
   statusHistoryKey = "status_history",
   currentStatusKey = "current_status"
@@ -8,8 +8,7 @@ function updateCurrentStatus(
   if (history && history.length > 0) {
     doc[currentStatusKey] = history[history.length - 1].status;
   } else {
-    doc[currentStatusKey] = "draft";
+     doc[currentStatusKey] = "pending";
   }
 }
-
-module.exports = updateCurrentStatus;
+module.exports = taskCurrentStatus;

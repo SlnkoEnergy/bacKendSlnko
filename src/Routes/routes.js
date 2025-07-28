@@ -23,16 +23,15 @@ const {
   login,
   getalluser,
   forgettpass,
-
-  verifyandSendPass,
+  logout,
   deleteUser,
   getSingleUser,
-  forgetpassword,
   verifyandResetPassword,
   verifyOtp,
   getAllUserByDepartment,
   editUser,
   getAllDepartment,
+  finalizeBdLogin,
 } = require("../Controllers/userController");
 
 const {
@@ -210,6 +209,7 @@ const {
   getbyid,
   search,
   getByIdOrLeadId,
+  getexportToCsv,
   migrateProjectToHandover,
 } = require("../Controllers/handoversheetController");
 const {
@@ -249,13 +249,14 @@ const {
   delete_lead,
   updateLeadStatus,
 } = require("../Controllers/bdleadController");
-const { create } = require("../Modells/bdleadsModells");
 
 const upload = require("../middlewares/multer.js");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
+router.put('/logout', jwtMW.authentication, jwtMW.authorization,logout)
+router.post('/session-verify', finalizeBdLogin);
 router.get(
   "/get-all-useR-IT",
   jwtMW.authentication,
@@ -1123,6 +1124,12 @@ router.post(
   jwtMW.authorization,
   createhandoversheet
 );
+router.post(
+  "/handover-export",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getexportToCsv,
+)
 router.get(
   "/get-all-handover-sheet",
   jwtMW.authentication,

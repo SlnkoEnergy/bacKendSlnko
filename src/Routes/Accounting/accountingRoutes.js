@@ -17,7 +17,7 @@ const {
 const {
   paymentHistory,
   exportDebitHistoryCsv,
-} = require("../../Controllers/Accounting/paymentHistrory");
+} = require("../../Controllers/Accounting/paymentHistory");
 const {
   projectBalance,
   exportProjectBalance,

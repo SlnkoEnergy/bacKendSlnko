@@ -1,4 +1,4 @@
-const lead= require("../Modells/bdleadsModells");
+const lead= require("../Modells/bdleads/bdleadsModells");
 
 const createlead = async function (req, res) {
   try {
@@ -81,13 +81,6 @@ const delete_lead = async function (req,res) {
     
 }}
 
-
-
-
-
-
-
-
 module.exports = {
   createlead,
   all_bd_lead,
@@ -95,6 +88,4 @@ module.exports = {
   update_lead,
   delete_lead,
   updateLeadStatus
- 
- 
 };
