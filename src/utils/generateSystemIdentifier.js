@@ -8,7 +8,6 @@ async function getSystemIdentifier(req, res) {
     res.cookie("device_id", device_id, { httpOnly: true, maxAge: 31536000000 }); 
   }
   
-
   const interfaces = Object.values(os.networkInterfaces()).flat();
   const externalIfaces = interfaces.filter(
     iface => !iface.internal && iface.mac !== "00:00:00:00:00:00"
