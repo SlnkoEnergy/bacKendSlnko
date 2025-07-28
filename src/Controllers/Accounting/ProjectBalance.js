@@ -86,31 +86,26 @@ const projectBalance = async (req, res) => {
       {
         $addFields: {
           total_po_basic: {
-            $sum: {
-              $map: {
-                input: "$pos",
-                as: "po",
-                in: {
-                  $cond: {
-                    if: {
-                      $or: [
-                        { $eq: ["$$po.po_basic", null] },
-                        { $eq: ["$$po.po_basic", ""] },
-                        { $eq: ["$$po.po_basic", undefined] },
-                      ],
-                    },
-                    then: 0,
-                    else: {
-                      $convert: {
-                        input: "$$po.po_basic",
-                        to: "double",
-                        onError: 0,
-                        onNull: 0,
+            $toString: {
+              $round: [
+                {
+                  $sum: {
+                    $map: {
+                      input: "$pos",
+                      as: "po",
+                      in: {
+                        $convert: {
+                          input: "$$po.po_basic",
+                          to: "double",
+                          onError: 0,
+                          onNull: 0,
+                        },
                       },
                     },
                   },
                 },
-              },
+                2,
+              ],
             },
           },
         },
@@ -118,14 +113,17 @@ const projectBalance = async (req, res) => {
       {
         $addFields: {
           gst_as_po_basic: {
-            $multiply: ["$total_po_basic", 0.17],
+            $round: [{ $multiply: ["$total_po_basic", 0.17] }, 2],
           },
         },
       },
       {
         $addFields: {
           total_po_with_gst: {
-            $add: ["$total_po_basic", "$gst_as_po_basic"],
+            $round: [
+              { $add: ["$total_po_basic", "$gst_as_po_basic"] },
+              2, // <-- round to 2 decimal places
+            ],
           },
         },
       },

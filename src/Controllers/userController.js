@@ -226,7 +226,7 @@ const login = async function (req, res) {
     }
 
     
-    if (user.department === "BD" || req.cookies.device_id) {
+    if (user.department === "BD") {
       const { device_id, ip } = await getSystemIdentifier(req, res);
       const registeredDevice = await session.findOne({
         user_id: user._id,
