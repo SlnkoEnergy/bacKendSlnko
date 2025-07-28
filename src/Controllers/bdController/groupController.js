@@ -544,7 +544,7 @@ const getexportToCSVGroup = async (req, res) => {
           from: "bdleads",
           localField: "_id",
           foreignField: "group_id",
-          as: "relatedLeads",
+          as: "leads",
         },
       },
       {
@@ -552,10 +552,10 @@ const getexportToCSVGroup = async (req, res) => {
           total_lead_capacity: {
             $sum: {
               $map: {
-                input: "$relatedLeads",
+                input: "$leads",
                 as: "lead",
                 in: {
-                  $toDouble: "$$lead.project_details.capacityf",
+                  $toDouble: "$$lead.project_details.capacity",
                 },
               },
             },
