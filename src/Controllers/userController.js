@@ -225,9 +225,9 @@ const login = async function (req, res) {
       return res.status(401).json({ msg: "Invalid credentials" });
     }
 
-    const { device_id, ip } = await getSystemIdentifier(req, res);
-
+    
     if (user.department === "BD" || req.cookies.device_id) {
+      const { device_id, ip } = await getSystemIdentifier(req, res);
       const registeredDevice = await session.findOne({
         user_id: user._id,
         "device_info.device_id": device_id,
@@ -318,7 +318,6 @@ const finalizeBdLogin = async (req, res) => {
 const logout = async (req, res) => {
   try {
     const userId = req.user.userId; 
-    const { device_id, ip } = await getSystemIdentifier(); 
     
     const user = await userModells.findById(userId);
     if(!user){
@@ -328,8 +327,9 @@ const logout = async (req, res) => {
     }
     
     const isBD = user.department === "BD"
-   
+    
     if(isBD){
+      const { device_id, ip } = await getSystemIdentifier(req, res); 
       const sessionToUpdate = await session.findOne({
         user_id: userId,
         "device_info.device_id": device_id,
