@@ -8,7 +8,6 @@ async function getSystemIdentifier(req, res) {
     res.cookie("device_id", device_id, { httpOnly: true, maxAge: 31536000000 }); 
   }
   
-  console.log({device_id});
 
   const interfaces = Object.values(os.networkInterfaces()).flat();
   const externalIfaces = interfaces.filter(

@@ -227,7 +227,7 @@ const login = async function (req, res) {
 
     const { device_id, ip } = await getSystemIdentifier(req, res);
 
-    if (user.department === "BD") {
+    if (user.department === "BD" || req.cookies.device_id) {
       const registeredDevice = await session.findOne({
         user_id: user._id,
         "device_info.device_id": device_id,
@@ -335,8 +335,7 @@ const logout = async (req, res) => {
         "device_info.device_id": device_id,
         logout_time: { $exists: false },
       });
-      
-      console.log({device_id});
+    
 
       if (!sessionToUpdate) {
         return res.status(404).json({ message: "No active session found." });
