@@ -163,8 +163,9 @@ const gethandoversheetdata = async function (req, res) {
     const userName = userDoc?.name;
     const matchConditions = { $and: [] };
 
-    const allowedNames = ["admin", "IT Team", "Deepak Manodi"];
-    if (!allowedNames.includes(userName)) {
+    const isBD = userDoc?.role === "BD";
+
+    if (isBD) {
       matchConditions.$and.push({
         $or: [
           { "other_details.submitted_by_BD": userName },

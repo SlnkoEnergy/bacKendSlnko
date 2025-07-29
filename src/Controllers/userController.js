@@ -225,9 +225,9 @@ const login = async function (req, res) {
       return res.status(401).json({ msg: "Invalid credentials" });
     }
 
-    const { device_id, ip } = await getSystemIdentifier(req, res);
-
-    if (user.department === "BD" || req.cookies.device_id) {
+    
+    if (user.department === "BD") {
+      const { device_id, ip } = await getSystemIdentifier(req, res);
       const registeredDevice = await session.findOne({
         user_id: user._id,
         "device_info.device_id": device_id,
@@ -255,7 +255,7 @@ const login = async function (req, res) {
 
         await transport.sendMail({
           from: `"SLnko Energy Alert" <${process.env.EMAIL_USER}>`,
-          to: "it@slnkoenergy.com",
+          to: `${process.env.EMAIL_ADMIN}`,
           subject: `Unauthorized Device Login Attempt for ${user.name}`,
           html: getSessionVerfication(otp, user.emp_id,user.name,device_id, ip, latitude, longitude, fullAddress),
         });
@@ -318,7 +318,6 @@ const finalizeBdLogin = async (req, res) => {
 const logout = async (req, res) => {
   try {
     const userId = req.user.userId; 
-    const { device_id, ip } = await getSystemIdentifier(); 
     
     const user = await userModells.findById(userId);
     if(!user){
@@ -328,8 +327,9 @@ const logout = async (req, res) => {
     }
     
     const isBD = user.department === "BD"
-   
+    
     if(isBD){
+      const { device_id, ip } = await getSystemIdentifier(req, res); 
       const sessionToUpdate = await session.findOne({
         user_id: userId,
         "device_info.device_id": device_id,
@@ -348,7 +348,7 @@ const logout = async (req, res) => {
     return res.status(200).json({ message: "Logged out successfully." });
   } catch (err) {
     console.error("Logout error:", err);
-    return res.status(500).json({ message: "Internal server error." });
+    return res.status(500).json({ message: "Internal server error.", error: err.message });
   }
 };
 

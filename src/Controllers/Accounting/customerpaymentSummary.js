@@ -26,7 +26,7 @@ const getCustomerPaymentSummary = async (req, res) => {
         $project: {
           _id: 0,
           name: 1,
-        //  customer_name: 1,
+          //  customer_name: 1,
           p_group: 1,
           project_kwp: 1,
           name: 1,
@@ -493,20 +493,31 @@ const getCustomerPaymentSummary = async (req, res) => {
       {
         $addFields: {
           tcs_as_applicable: {
-            $round: [
-              {
-                $multiply: [
-                  {
-                    $subtract: [
-                      { $subtract: ["$totalCredit", "$total_return"] },
-                      5000000,
-                    ],
-                  },
-                  0.001,
+            $cond: {
+              if: {
+                $gt: [
+                  { $subtract: ["$totalCredit", "$total_return"] },
+                  5000000,
                 ],
               },
-              2,
-            ],
+              then: {
+                $round: [
+                  {
+                    $multiply: [
+                      {
+                        $subtract: [
+                          { $subtract: ["$totalCredit", "$total_return"] },
+                          5000000,
+                        ],
+                      },
+                      0.001,
+                    ],
+                  },
+                  2,
+                ],
+              },
+              else: 0,
+            },
           },
         },
       },
@@ -649,7 +660,6 @@ const getCustomerPaymentSummary = async (req, res) => {
       },
     ]);
 
- 
     const clientHistoryResult = await ProjectModel.aggregate([
       { $match: { p_id: projectId } },
       { $project: { code: 1, _id: 0 } },
@@ -885,7 +895,6 @@ const getCustomerPaymentSummary = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
 
 // Client History
 const clientHistory = async (req, res) => {
@@ -1404,20 +1413,31 @@ const totalBalanceSummary = async (req, res) => {
       {
         $addFields: {
           tcs_as_applicable: {
-            $round: [
-              {
-                $multiply: [
-                  {
-                    $subtract: [
-                      { $subtract: ["$totalCredit", "$total_return"] },
-                      5000000,
-                    ],
-                  },
-                  0.001,
+            $cond: {
+              if: {
+                $gt: [
+                  { $subtract: ["$totalCredit", "$total_return"] },
+                  5000000,
                 ],
               },
-              2,
-            ],
+              then: {
+                $round: [
+                  {
+                    $multiply: [
+                      {
+                        $subtract: [
+                          { $subtract: ["$totalCredit", "$total_return"] },
+                          5000000,
+                        ],
+                      },
+                      0.001,
+                    ],
+                  },
+                  2,
+                ],
+              },
+              else: 0,
+            },
           },
         },
       },
@@ -1819,5 +1839,3 @@ module.exports = {
   getDebitSummary,
   getAdjustmentHistory,
 };
-
-
