@@ -372,8 +372,8 @@ const accApproved = async function (req, res) {
       });
     }
 
-    if (status === "Approved") {
-      const poNumber = payment.po_number;
+    if (status === "Approved" && payment.paid_for !== "Customer Adjustment") {
+      const poNumber = payment.po_number; 
 
       const purchaseOrder = await purchaseOrderModells.findOne({
         po_number: poNumber,

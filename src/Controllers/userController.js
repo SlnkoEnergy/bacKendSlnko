@@ -225,9 +225,9 @@ const login = async function (req, res) {
       return res.status(401).json({ msg: "Invalid credentials" });
     }
 
-    const { device_id, ip } = await getSystemIdentifier(req, res);
-
+    
     if (user.department === "BD") {
+      const { device_id, ip } = await getSystemIdentifier(req, res);
       const registeredDevice = await session.findOne({
         user_id: user._id,
         "device_info.device_id": device_id,
