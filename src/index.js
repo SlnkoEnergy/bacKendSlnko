@@ -10,31 +10,33 @@ const taskRoutes = require("../src/Routes/tasks/tasks");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
 const cors = require("cors");
 const { config } = require("dotenv");
-const cookieParser = require('cookie-parser');
+const cookieParser = require("cookie-parser");
 
 config({
   path: "./.env",
 });
 
 const allowedOrigins = [
+  "http://localhost:3001",
   "http://localhost:5173",
   "https://sales.slnkoprotrac.com",
   "https://slnkoprotrac.com",
   "https://dev.slnkoprotrac.com",
-  "https://staging.slnkoprotrac.com"
+  "https://staging.slnkoprotrac.com",
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true
-}));
-
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 
 app.use(cookieParser());
 app.use(express.json());
