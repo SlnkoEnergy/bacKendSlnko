@@ -86,27 +86,24 @@ const projectBalance = async (req, res) => {
       {
         $addFields: {
           total_po_basic: {
-            $toString: {
-              $round: [
-                {
-                  $sum: {
-                    $map: {
-                      input: "$pos",
-                      as: "po",
-                      in: {
-                        $convert: {
-                          input: "$$po.po_basic",
-                          to: "double",
-                          onError: 0,
-                          onNull: 0,
-                        },
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$pos",
+                    as: "po",
+                    in: {
+                      $convert: {
+                        input: "$$po.po_basic",
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
                       },
                     },
                   },
                 },
-                2,
-              ],
-            },
+              },
+            ],
           },
         },
       },
@@ -127,7 +124,6 @@ const projectBalance = async (req, res) => {
           },
         },
       },
-
       {
         $addFields: {
           totalCredit: {
@@ -525,7 +521,6 @@ const projectBalance = async (req, res) => {
           },
         },
       },
-
       {
         $addFields: {
           tcs: {
@@ -558,7 +553,6 @@ const projectBalance = async (req, res) => {
           },
         },
       },
-
       {
         $addFields: {
           latestCreditCreatedAt: {
@@ -603,7 +597,6 @@ const projectBalance = async (req, res) => {
           },
         },
       },
-
       {
         $project: {
           p_id: 1,
@@ -615,6 +608,7 @@ const projectBalance = async (req, res) => {
           totalCredit: 1,
           totalDebit: 1,
           totalAdjustment: 1,
+          total_po_basic: 1,
           customerAdjustmentTotal: 1,
           availableAmount: 1,
           netBalance: 1,
@@ -623,7 +617,7 @@ const projectBalance = async (req, res) => {
           netAdvance: 1,
           tcs: 1,
           balancePayable: 1,
-          total_po_basic: 1,
+
           total_po_with_gst: 1,
           gst_as_po_basic: 1,
           balanceRequired: 1,
@@ -695,9 +689,15 @@ const projectBalance = async (req, res) => {
 
     const total = countResult[0]?.total || 0;
 
+
+    const io = req.app.get("io");
+    io.emit("projectBalanceUpdated", {
+      data,
+      totals: projectTotals[0] || {},
+    });
+
     res.json({
       success: true,
-
       meta: {
         total,
         page,

@@ -10,10 +10,37 @@ const taskRoutes = require("../src/Routes/tasks/tasks");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
 const cors = require("cors");
 const { config } = require("dotenv");
-const cookieParser = require('cookie-parser');
+const cookieParser = require("cookie-parser");
+const http = require("http");
+const socketIo = require("socket.io");
 
 config({
   path: "./.env",
+});
+
+const server = http.createServer(app);
+
+const io = socketIo(server, {
+  cors: {
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "https://sales.slnkoprotrac.com",
+      "https://slnkoprotrac.com",
+      "https://dev.slnkoprotrac.com",
+      "https://staging.slnkoprotrac.com",
+    ],
+    credentials: true,
+  },
+});
+global.io = io;
+
+io.on("connection", (socket) => {
+  console.log("Socket connected:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("Socket disconnected:", socket.id);
+  });
 });
 
 const allowedOrigins = [
@@ -22,19 +49,24 @@ const allowedOrigins = [
   "https://sales.slnkoprotrac.com",
   "https://slnkoprotrac.com",
   "https://dev.slnkoprotrac.com",
-  "https://staging.slnkoprotrac.com"
+  "https://staging.slnkoprotrac.com",
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
+
+app.set("io", io);
 
 
 app.use(cookieParser());
@@ -42,7 +74,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_URL;
+
+// io.on("connection", (socket) => {
+//   console.log("Socket connected:", socket.id);
+
+//   socket.on("disconnect", () => {
+//     console.log("Socket disconnected:", socket.id);
+//   });
+// });
 
 const startServer = async () => {
   try {
@@ -58,7 +98,7 @@ const startServer = async () => {
     app.use("/v1/accounting", accountingRoutes);
 
     // Start the server
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);
     });
 
