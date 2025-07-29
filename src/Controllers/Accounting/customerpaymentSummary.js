@@ -1591,6 +1591,171 @@ const totalBalanceSummary = async (req, res) => {
   }
 };
 
+// const totalBalanceSummary = async (req, res) => {
+//   try {
+//     const { p_id } = req.query;
+
+//     if (!p_id) {
+//       return res.status(400).json({ error: "Project ID (p_id) is required." });
+//     }
+
+//     const cleanPId = isNaN(p_id) ? p_id : Number(p_id);
+
+//     const result = await ProjectModel.aggregate([
+//       {
+//         $match: { p_id: cleanPId }
+//       },
+//       // CREDIT DATA
+//       {
+//         $lookup: {
+//           from: "addmoneys",
+//           let: { projectId: "$p_id" },
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $eq: [{ $toString: "$p_id" }, { $toString: "$$projectId" }]
+//                 }
+//               }
+//             },
+//             {
+//               $group: {
+//                 _id: null,
+//                 totalCredit: { $sum: { $toDouble: "$cr_amount" } }
+//               }
+//             }
+//           ],
+//           as: "creditData"
+//         }
+//       },
+//       // RETURN DATA
+//       {
+//         $lookup: {
+//           from: "subtract moneys",
+//           let: { projectId: "$p_id" },
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $and: [
+//                     {
+//                       $eq: [
+//                         { $toString: "$p_id" },
+//                         { $toString: "$$projectId" }
+//                       ]
+//                     },
+//                     { $eq: ["$paid_for", "Customer Adjustment"] }
+//                   ]
+//                 }
+//               }
+//             },
+//             {
+//               $group: {
+//                 _id: null,
+//                 total_return: { $sum: { $toDouble: "$amount_paid" } }
+//               }
+//             }
+//           ],
+//           as: "returnData"
+//         }
+//       },
+//       // ADVANCE PAYMENTS
+//       {
+//         $lookup: {
+//           from: "payrequests",
+//           let: { projectId: "$p_id" },
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $and: [
+//                     {
+//                       $eq: [
+//                         { $toString: "$p_id" },
+//                         { $toString: "$$projectId" }
+//                       ]
+//                     },
+//                     { $eq: ["$acc_match", "matched"] },
+//                     { $eq: ["$approved", "Approved"] },
+//                     { $ne: ["$utr", ""] }
+//                   ]
+//                 }
+//               }
+//             },
+//             {
+//               $group: {
+//                 _id: null,
+//                 totalAdvancePaidToVendors: {
+//                   $sum: { $toDouble: "$amount_paid" }
+//                 }
+//               }
+//             }
+//           ],
+//           as: "advancePaymentData"
+//         }
+//       },
+//       // PURCHASE ORDERS
+//       {
+//         $lookup: {
+//           from: "purchaseorders",
+//           let: { projectCode: "$code" }, // projectModel.code (string)
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $eq: [{ $toString: "$p_id" }, "$$projectCode"]
+//                 }
+//               }
+//             },
+//             {
+//               $project: {
+//                 _id: 0,
+//                 po_basic: 1
+//               }
+//             }
+//           ],
+//           as: "purchase_orders"
+//         }
+//       },
+
+//       {
+//         $addFields: {
+//           po_basic_values: {
+//             $map: {
+//               input: "$purchase_orders",
+//               as: "po",
+//               in: {
+//                 $convert: {
+//                   input: "$$po.po_basic",
+//                   to: "double",
+//                   onError: 0,
+//                   onNull: 0
+//                 }
+//               }
+//             }
+//           }
+//         }
+//       },
+//       {
+//         $addFields: {
+//           total_po_basic: { $sum: "$po_basic_values" }
+//         }
+//       },
+//       // OPTIONAL: CLEAN UP
+//       {
+//         $project: {
+//           purchase_orders: 0 // remove full PO docs if not needed
+//         }
+//       }
+//     ]);
+
+//     return res.json(result);
+//   } catch (err) {
+//     console.error("Error in balance-summary:", err);
+//     return res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
+
 const getCreditSummary = async (req, res) => {
   try {
     const { p_id, start_date, end_date } = req.query;
