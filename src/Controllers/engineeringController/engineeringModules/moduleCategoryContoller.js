@@ -315,10 +315,9 @@ const updateModuleCategory = async (req, res) => {
         itemIndex !== -1 ? moduleData.items[itemIndex] : null;
       const revisionIndex = existingItem?.attachment_urls?.length || 0;
       const revisionNumber = `R${revisionIndex}`;
-      const folderName = `engineering/${projectCode}/${moduleTemplateName}/${revisionNumber}`;
+     const folderName = `engineering/${projectCode}/${moduleTemplateName}/${revisionNumber}`.replace(/ /g, "_");
 
       const uploadedUrls = [];
-
       for (
         let count = 0;
         count < maxFiles && fileIndex < files.length;
