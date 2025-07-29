@@ -371,9 +371,16 @@ const accApproved = async function (req, res) {
         message: "No matching record found or record already approved",
       });
     }
+    const paidFor = payment.paid_for?.trim();
+    const poNumber = payment.po_number?.trim();
 
-    if (status === "Approved" && payment.paid_for !== "Customer Adjustment") {
-      const poNumber = payment.po_number; 
+    const validatePO =
+      status === "Approved" &&
+      ((paidFor !== "Customer Adjustment" && paidFor !== "Project Expense") ||
+        (paidFor === "Project Expense" && poNumber && poNumber !== "N/A"));
+
+    if (validatePO) {
+      const poNumber = payment.po_number;
 
       const purchaseOrder = await purchaseOrderModells.findOne({
         po_number: poNumber,
