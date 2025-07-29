@@ -255,7 +255,7 @@ const login = async function (req, res) {
 
         await transport.sendMail({
           from: `"SLnko Energy Alert" <${process.env.EMAIL_USER}>`,
-          to: "it@slnkoenergy.com",
+          to: `${process.env.EMAIL_ADMIN}`,
           subject: `Unauthorized Device Login Attempt for ${user.name}`,
           html: getSessionVerfication(otp, user.emp_id,user.name,device_id, ip, latitude, longitude, fullAddress),
         });
@@ -348,7 +348,7 @@ const logout = async (req, res) => {
     return res.status(200).json({ message: "Logged out successfully." });
   } catch (err) {
     console.error("Logout error:", err);
-    return res.status(500).json({ message: "Internal server error." });
+    return res.status(500).json({ message: "Internal server error.", error: err.message });
   }
 };
 

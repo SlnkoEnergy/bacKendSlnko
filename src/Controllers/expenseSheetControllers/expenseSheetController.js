@@ -204,7 +204,7 @@ const createExpense = async (req, res) => {
     }
 
     const folderType = user.role === "site" ? "onsite" : "offsite";
-    const folderPath = `expense_sheet/${folderType}/${user.emp_id}`;
+    const folderPath = `expense_sheet/${folderType}/${user.emp_id}`.replace(/ /g, "_");
     const uploadedFileMap = {};
 
     for (const file of req.files || []) {
