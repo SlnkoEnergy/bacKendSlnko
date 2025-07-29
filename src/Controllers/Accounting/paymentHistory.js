@@ -9,14 +9,28 @@ const paymentHistory = async (req, res) => {
       return res.status(400).json({ error: "PO number is required." });
     }
 
-    const [debitData] = await DebitModel.aggregate([
+    const [result] = await DebitModel.aggregate([
+      {
+        $match: { po_number },
+      },
       {
         $addFields: {
           dbt_date: { $toDate: "$dbt_date" },
         },
       },
       {
-        $match: { po_number },
+        $lookup: {
+          from: "purchaseorders", // Replace with your actual PO collection name
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "po_info",
+        },
+      },
+      {
+        $unwind: {
+          path: "$po_info",
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $facet: {
@@ -31,9 +45,10 @@ const paymentHistory = async (req, res) => {
                 paid_for: 1,
                 po_number: 1,
                 utr: 1,
-                updatedAt: 1,
                 createdAt: 1,
+                updatedAt: 1,
                 paid_to: "$vendor",
+                po_value: "$po_info.po_value",
                 debit_date: {
                   $dateToString: {
                     format: "%d-%m-%Y",
@@ -52,8 +67,9 @@ const paymentHistory = async (req, res) => {
           summary: [
             {
               $group: {
-                _id: null,
+                _id: "$po_number",
                 totalDebited: { $sum: "$amount_paid" },
+                po_value: { $first: "$po_info.po_value" },
               },
             },
           ],
@@ -61,12 +77,16 @@ const paymentHistory = async (req, res) => {
       },
     ]);
 
+    const history = result?.history || [];
+    const summary = result?.summary?.[0] || {};
+
     res.status(200).json({
-      history: debitData?.history || [],
-      total: debitData?.summary?.[0]?.totalDebited || 0,
+      history,
+      total_debited: summary.totalDebited || 0,
+      po_value: summary.po_value || 0,
     });
   } catch (error) {
-    console.error("Debit summary error:", error);
+    console.error("paymentHistory error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };

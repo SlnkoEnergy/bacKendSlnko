@@ -17,7 +17,7 @@ config({
 });
 
 const allowedOrigins = [
-  "http://localhost:3001",
+  "http://localhost:3000",
   "http://localhost:5173",
   "https://sales.slnkoprotrac.com",
   "https://slnkoprotrac.com",
@@ -43,7 +43,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
-const db = process.env.DB_URL;
+const db = process.env.DB_DEVELOPMENT_URL;
 
 const startServer = async () => {
   try {
