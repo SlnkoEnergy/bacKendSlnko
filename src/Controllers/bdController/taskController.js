@@ -5,10 +5,6 @@ const deadleadModells = require("../../Modells/deadleadModells");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
 const { default: mongoose } = require("mongoose");
 const { Parser } = require("json2csv");
-const initialBdLeadModells = require("../../Modells/initialBdLeadModells");
-const followupbdModells = require("../../Modells/followupbdModells");
-const warmbdLeadModells = require("../../Modells/warmbdLeadModells");
-const wonleadModells = require("../../Modells/wonleadModells");
 
 const createTask = async (req, res) => {
   try {
