@@ -10,8 +10,6 @@ const createGroup = async (req, res) => {
     const requiredFields = [
       "group_name",
       "contact_details.mobile",
-      "address.village",
-      "address.district",
       "address.state",
       "project_details.capacity",
       "source.from",
