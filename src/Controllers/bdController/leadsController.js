@@ -1543,6 +1543,17 @@ const updateAssignedToFromSubmittedBy = async (req, res) => {
   }
 };
 
+const getUniqueState = async (req, res) => {
+  try {
+    const states = await bdleadsModells.distinct("address.state");
+    res.status(200).json({ success: true, data: states });
+  } catch (error) {
+    console.error("Error fetching unique states:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+
 module.exports = {
   getAllLeads,
   getAllLeadDropdown,
@@ -1556,4 +1567,5 @@ module.exports = {
   exportLeadsCSV,
   updateLeadStatus,
   getLeadByLeadIdorId,
+  getUniqueState
 };
