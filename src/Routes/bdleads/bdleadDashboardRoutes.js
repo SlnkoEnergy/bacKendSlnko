@@ -9,7 +9,7 @@ const {
   leadFunnel,
 } = require("../../Controllers/bdController/bdleadsController");
 const { createGroup, getAllGroup, getGroupById, updateGroup, deleteGroup, updateGroupStatus, groupDropdown, getAllGroupDropdown, getexportToCSVGroup } = require("../../Controllers/bdController/groupController.js");
-const { deleteLead, updateAssignedTo, exportLeadsCSV, updateLeadStatus, uploadDocuments, updateExpectedClosing, getLeadByLeadIdorId, getAllLeads, getAllLeadDropdown, editLead, createBDlead, updateAssignedToFromSubmittedBy } = require("../../Controllers/bdController/leadsController.js");
+const { deleteLead, updateAssignedTo, exportLeadsCSV, updateLeadStatus, uploadDocuments, updateExpectedClosing, getLeadByLeadIdorId, getAllLeads, getAllLeadDropdown, editLead, createBDlead, updateAssignedToFromSubmittedBy, attachToGroup } = require("../../Controllers/bdController/leadsController.js");
 const {
   getNotesById,
   createNotes,
@@ -101,11 +101,12 @@ router.delete(
   deleteLead
 );
 router.put(
-  "/assign-to/:_id",
+  "/assign-to",
   jwtMW.authentication,
   jwtMW.authorization,
   updateAssignedTo
 );
+router.put('/attach-group', jwtMW.authentication, jwtMW.authorization, attachToGroup);
 router.post(
   "/export-lead",
   jwtMW.authentication,
