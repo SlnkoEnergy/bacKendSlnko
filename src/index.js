@@ -11,6 +11,7 @@ const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
+const documentRoutes = require("../src/Routes/Permify/document");
 
 config({
   path: "./.env",
@@ -57,6 +58,8 @@ const startServer = async () => {
     app.use("/v1/purchaseRequest", purchaseRoutes);
     app.use("/v1/tasks", taskRoutes);
     app.use("/v1/accounting", accountingRoutes);
+    app.use("/v1/documents", documentRoutes);
+
 
     // Start the server
     app.listen(PORT, () => {
