@@ -32,6 +32,7 @@ const {
   editLead,
   createBDlead,
   updateAssignedToFromSubmittedBy,
+  attachToGroup,
   getUniqueState,
 } = require("../../Controllers/bdController/leadsController.js");
 const {
@@ -124,10 +125,16 @@ router.delete(
   deleteLead
 );
 router.put(
-  "/assign-to/:_id",
+  "/assign-to",
   jwtMW.authentication,
   jwtMW.authorization,
   updateAssignedTo
+);
+router.put(
+  "/attach-group",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  attachToGroup
 );
 router.post(
   "/export-lead",

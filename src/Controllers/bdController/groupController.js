@@ -10,8 +10,6 @@ const createGroup = async (req, res) => {
     const requiredFields = [
       "group_name",
       "contact_details.mobile",
-      "address.village",
-      "address.district",
       "address.state",
       "project_details.capacity",
       "source.from",
@@ -76,7 +74,6 @@ const getAllGroup = async (req, res) => {
     const user = await userModells.findById(user_id);
     const name = user?.name;
 
-    // Common search match
     const searchMatch = {
       $or: [
         { group_name: { $regex: search, $options: "i" } },
@@ -204,7 +201,6 @@ const getAllGroup = async (req, res) => {
 const getAllGroupDropdown = async (req, res) => {
   try {
     const groups = await group.aggregate([
-      // Lookup leads to sum their capacity per group
       {
         $lookup: {
           from: "bdleads",
@@ -228,8 +224,6 @@ const getAllGroupDropdown = async (req, res) => {
           },
         },
       },
-
-      // Join createdBy user
       {
         $lookup: {
           from: "users",
@@ -306,8 +300,6 @@ const getAllGroupDropdown = async (req, res) => {
     res.status(500).json({ error: error.message || "Internal Server Error" });
   }
 };
-
-
 
 const getGroupById = async (req, res) => {
   try {

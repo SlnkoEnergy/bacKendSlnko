@@ -30,8 +30,8 @@ const groupSchema = new mongoose.Schema(
       mobile: { type: Array, required: true },
     },
     address: {
-      village: { type: String, required: true },
-      district: { type: String, required: true },
+      village: { type: String, required: false },
+      district: { type: String, required: false },
       state: { type: String, required: true },
       postalCode: String,
       country: String,
