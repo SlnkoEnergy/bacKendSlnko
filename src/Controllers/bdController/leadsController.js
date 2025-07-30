@@ -180,8 +180,13 @@ const getAllLeads = async (req, res) => {
 
     if (req.query.stateFilter) {
       const raw = decodeURIComponent(req.query.stateFilter);
-      const stateList = raw.split(",").map((s) => s.trim());
-      and.push({ "address.state": { $in: stateList } });
+      const stateList = raw.split(",").map((s) => s.trim().toLowerCase());
+
+      and.push({
+        $expr: {
+          $in: [{ $toLower: "$address.state" }, stateList],
+        },
+      });
     }
 
     if (!isPrivilegedUser) {
@@ -601,7 +606,6 @@ const getAllLeads = async (req, res) => {
           },
         },
       },
-      
     ];
 
     const stageNames = ["initial", "follow up", "warm", "won", "dead"];
@@ -1618,13 +1622,15 @@ const updateAssignedToFromSubmittedBy = async (req, res) => {
 const getUniqueState = async (req, res) => {
   try {
     const states = await bdleadsModells.distinct("address.state");
-    res.status(200).json({ success: true, data: states });
+    const lowercasedStates = Array.from(
+      new Set(states.filter(Boolean).map((state) => state.trim().toLowerCase()))
+    );
+    res.status(200).json({ success: true, data: lowercasedStates });
   } catch (error) {
     console.error("Error fetching unique states:", error);
     res.status(500).json({ success: false, message: "Server Error" });
   }
 };
-
 
 module.exports = {
   getAllLeads,
@@ -1640,5 +1646,5 @@ module.exports = {
   updateLeadStatus,
   getLeadByLeadIdorId,
   getUniqueState,
-  attachToGroup
+  attachToGroup,
 };
