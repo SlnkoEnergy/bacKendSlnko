@@ -94,7 +94,7 @@ const projectBalance = async (req, res) => {
                     as: "po",
                     in: {
                       $convert: {
-                        input: "$$po.po_basic",
+                        input: { $trim: { input: "$$po.po_basic" } },
                         to: "double",
                         onError: 0,
                         onNull: 0,
@@ -103,6 +103,7 @@ const projectBalance = async (req, res) => {
                   },
                 },
               },
+              2,
             ],
           },
         },
@@ -110,17 +111,33 @@ const projectBalance = async (req, res) => {
       {
         $addFields: {
           gst_as_po_basic: {
-            $round: [{ $multiply: ["$total_po_basic", 0.17] }, 2],
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$pos",
+                    as: "d",
+                    in: {
+                      $convert: {
+                        input: { $trim: { input: "$$d.gst" } },
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                  },
+                },
+              },
+              2,
+            ],
           },
         },
       },
+
       {
         $addFields: {
           total_po_with_gst: {
-            $round: [
-              { $add: ["$total_po_basic", "$gst_as_po_basic"] },
-              2, // <-- round to 2 decimal places
-            ],
+            $round: [{ $add: ["$total_po_basic", "$gst_as_po_basic"] }, 2],
           },
         },
       },
@@ -221,41 +238,7 @@ const projectBalance = async (req, res) => {
               2,
             ],
           },
-          netBalance: {
-            $round: [
-              {
-                $subtract: [
-                  {
-                    $sum: {
-                      $map: {
-                        input: "$credits",
-                        as: "c",
-                        in: { $toDouble: "$$c.cr_amount" },
-                      },
-                    },
-                  },
-                  {
-                    $sum: {
-                      $map: {
-                        input: {
-                          $filter: {
-                            input: "$debits",
-                            as: "d",
-                            cond: {
-                              $eq: ["$$d.paid_for", "Customer Adjustment"],
-                            },
-                          },
-                        },
-                        as: "d",
-                        in: { $toDouble: "$$d.amount_paid" },
-                      },
-                    },
-                  },
-                ],
-              },
-              2,
-            ],
-          },
+
           debitAdjustment: {
             $round: [
               {
@@ -330,95 +313,6 @@ const projectBalance = async (req, res) => {
             ],
           },
 
-          balanceSlnko: {
-            $round: [
-              {
-                $sum: [
-                  {
-                    $subtract: [
-                      {
-                        $subtract: [
-                          {
-                            $sum: {
-                              $map: {
-                                input: "$credits",
-                                as: "c",
-                                in: { $toDouble: "$$c.cr_amount" },
-                              },
-                            },
-                          },
-                          {
-                            $sum: {
-                              $map: {
-                                input: {
-                                  $filter: {
-                                    input: "$debits",
-                                    as: "d",
-                                    cond: {
-                                      $eq: [
-                                        "$$d.paid_for",
-                                        "Customer Adjustment",
-                                      ],
-                                    },
-                                  },
-                                },
-                                as: "d",
-                                in: { $toDouble: "$$d.amount_paid" },
-                              },
-                            },
-                          },
-                        ],
-                      },
-                      {
-                        $sum: {
-                          $map: {
-                            input: "$pays",
-                            as: "pay",
-                            in: { $toDouble: "$$pay.amount_paid" },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    $subtract: [
-                      {
-                        $sum: {
-                          $map: {
-                            input: {
-                              $filter: {
-                                input: "$adjustments",
-                                as: "adj",
-                                cond: { $eq: ["$$adj.adj_type", "Add"] },
-                              },
-                            },
-                            as: "a",
-                            in: { $abs: { $toDouble: "$$a.adj_amount" } },
-                          },
-                        },
-                      },
-                      {
-                        $sum: {
-                          $map: {
-                            input: {
-                              $filter: {
-                                input: "$adjustments",
-                                as: "adj",
-                                cond: { $eq: ["$$adj.adj_type", "Subtract"] },
-                              },
-                            },
-                            as: "a",
-                            in: { $abs: { $toDouble: "$$a.adj_amount" } },
-                          },
-                        },
-                      },
-                    ],
-                  },
-                ],
-              },
-              2,
-            ],
-          },
           totalPoValue: {
             $round: [
               {
@@ -474,13 +368,79 @@ const projectBalance = async (req, res) => {
               2,
             ],
           },
+        },
+      },
+
+      {
+        $addFields: {
+          netBalance: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$credits",
+                        as: "c",
+                        in: { $toDouble: "$$c.cr_amount" },
+                      },
+                    },
+                  },
+                  {
+                    $sum: {
+                      $map: {
+                        input: {
+                          $filter: {
+                            input: "$debits",
+                            as: "d",
+                            cond: {
+                              $eq: ["$$d.paid_for", "Customer Adjustment"],
+                            },
+                          },
+                        },
+                        as: "d",
+                        in: { $toDouble: "$$d.amount_paid" },
+                      },
+                    },
+                  },
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+      {
+        $addFields: {
+          balanceSlnko: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $subtract: [
+                      { $ifNull: ["$netBalance", 0] },
+                      { $ifNull: ["$totalAmountPaid", 0] },
+                    ],
+                  },
+                  { $ifNull: ["$totalAdjustment", 0] },
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+      {
+        $addFields: {
           balancePayable: {
             $round: [
               {
                 $subtract: [
                   {
                     $subtract: [
-                      "$total_po_with_gst",
+                      { $ifNull: ["$total_po_with_gst", 0] },
                       {
                         $sum: {
                           $map: {
@@ -688,7 +648,6 @@ const projectBalance = async (req, res) => {
     ]);
 
     const total = countResult[0]?.total || 0;
-
 
     const io = req.app.get("io");
     io.emit("projectBalanceUpdated", {
