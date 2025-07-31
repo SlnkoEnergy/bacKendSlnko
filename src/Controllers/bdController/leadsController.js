@@ -8,6 +8,9 @@ const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
 const group = require("../../Modells/bdleads/group");
 const task = require("../../Modells/bdleads/task");
 const groupModells = require("../../Modells/bdleads/group");
+const {Novu} = require('@novu/api')
+
+const novu = new Novu(process.env.NOVU_SECRET_KEY);
 
 const createBDlead = async function (req, res) {
   try {
@@ -128,9 +131,25 @@ const createBDlead = async function (req, res) {
         },
       ],
     };
-
+    const data = payload;
+    console.log(data);
     const bdLead = new bdleadsModells(payload);
     await bdLead.save();
+
+    // Notification functionality 
+
+    // await novu.subscribers.identify("admin-id", {
+    //   firstName: "Admin"
+    // })
+
+    // await novu.trigger('admin-notification', {
+    //   to: {
+    //     subscriberId : "admin-id"
+    //   },
+    //   payload: {
+        
+    //   }
+    // })
 
     res.status(200).json({
       message: "BD Lead created successfully",
@@ -431,12 +450,12 @@ const getAllLeads = async (req, res) => {
           }),
           ...(inactiveFilter &&
             !isNaN(Number(inactiveFilter)) && {
-              inactiveDays: { $lte: Number(inactiveFilter) },
-            }),
+            inactiveDays: { $lte: Number(inactiveFilter) },
+          }),
           ...(leadAgingFilter &&
             !isNaN(Number(leadAgingFilter)) && {
-              leadAging: { $lte: Number(leadAgingFilter) },
-            }),
+            leadAging: { $lte: Number(leadAgingFilter) },
+          }),
         },
       },
       // Assigned user population
@@ -506,15 +525,15 @@ const getAllLeads = async (req, res) => {
       },
       ...(name
         ? [
-            {
-              $match: {
-                "current_assigned.user_id.name": {
-                  $regex: name,
-                  $options: "i",
-                },
+          {
+            $match: {
+              "current_assigned.user_id.name": {
+                $regex: name,
+                $options: "i",
               },
             },
-          ]
+          },
+        ]
         : []),
       { $project: { current_assigned_user: 0 } },
 
@@ -538,19 +557,19 @@ const getAllLeads = async (req, res) => {
         $lookup: {
           from: "users",
           let: {
-  ids: {
-    $ifNull: [
-      {
-        $map: {
-          input: "$status_history",
-          as: "s",
-          in: "$$s.user_id",
-        },
-      },
-      [],
-    ],
-  },
-},
+            ids: {
+              $ifNull: [
+                {
+                  $map: {
+                    input: "$status_history",
+                    as: "s",
+                    in: "$$s.user_id",
+                  },
+                },
+                [],
+              ],
+            },
+          },
 
           pipeline: [
             { $match: { $expr: { $in: ["$_id", "$$ids"] } } },
@@ -616,7 +635,7 @@ const getAllLeads = async (req, res) => {
           },
         },
       },
-      { $project: { task_meta: 0, handover_info: 0 } }, 
+      { $project: { task_meta: 0, handover_info: 0 } },
       { $sort: { createdAt: -1 } },
       { $skip: (parseInt(page) - 1) * parseInt(limit) },
       { $limit: parseInt(limit) },
@@ -854,12 +873,12 @@ const getAllLeads = async (req, res) => {
           }),
           ...(inactiveFilter &&
             !isNaN(Number(inactiveFilter)) && {
-              inactiveDays: { $lte: Number(inactiveFilter) },
-            }),
+            inactiveDays: { $lte: Number(inactiveFilter) },
+          }),
           ...(leadAgingFilter &&
             !isNaN(Number(leadAgingFilter)) && {
-              leadAging: { $lte: Number(leadAgingFilter) },
-            }),
+            leadAging: { $lte: Number(leadAgingFilter) },
+          }),
         },
       },
       {
@@ -881,15 +900,15 @@ const getAllLeads = async (req, res) => {
       },
       ...(name
         ? [
-            {
-              $match: {
-                "current_assigned.user_id.name": {
-                  $regex: name,
-                  $options: "i",
-                },
+          {
+            $match: {
+              "current_assigned.user_id.name": {
+                $regex: name,
+                $options: "i",
               },
             },
-          ]
+          },
+        ]
         : []),
 
       { $count: "count" },
@@ -1515,9 +1534,9 @@ const uploadDocuments = async (req, res) => {
         Array.isArray(respData) && respData.length > 0
           ? respData[0]
           : respData.url ||
-            respData.fileUrl ||
-            (respData.data && respData.data.url) ||
-            null;
+          respData.fileUrl ||
+          (respData.data && respData.data.url) ||
+          null;
 
       if (url) {
         uploadedFileMap[index] = url;
