@@ -67,7 +67,7 @@ const createBDlead = async function (req, res) {
         m.trim()
       );
 
-       const existingLead = await bdleadsModells.aggregate([
+      const existingLead = await bdleadsModells.aggregate([
         {
           $match: {
             $expr: {
@@ -183,8 +183,12 @@ const getAllLeads = async (req, res) => {
 
     if (stateFilter) {
       const raw = decodeURIComponent(stateFilter);
-      const stateList = raw.split(",").map((s) => s.trim());
-      and.push({ "address.state": { $in: stateList } });
+      const stateList = raw.split(",").map((s) => s.trim().toLowerCase());
+      and.push({
+        $expr: {
+          $in: [{ $toLower: "$address.state" }, stateList],
+        },
+      });
     }
 
     if (!isPrivilegedUser) {
