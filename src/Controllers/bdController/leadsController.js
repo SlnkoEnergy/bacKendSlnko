@@ -537,7 +537,21 @@ const getAllLeads = async (req, res) => {
       {
         $lookup: {
           from: "users",
-          let: { ids: "$status_history.user_id" },
+          let: {
+  ids: {
+    $ifNull: [
+      {
+        $map: {
+          input: "$status_history",
+          as: "s",
+          in: "$$s.user_id",
+        },
+      },
+      [],
+    ],
+  },
+},
+
           pipeline: [
             { $match: { $expr: { $in: ["$_id", "$$ids"] } } },
             { $project: { _id: 1, name: 1 } },
@@ -602,7 +616,7 @@ const getAllLeads = async (req, res) => {
           },
         },
       },
-      { $project: { task_meta: 0, handover_info: 0 } },
+      { $project: { task_meta: 0, handover_info: 0 } }, 
       { $sort: { createdAt: -1 } },
       { $skip: (parseInt(page) - 1) * parseInt(limit) },
       { $limit: parseInt(limit) },
