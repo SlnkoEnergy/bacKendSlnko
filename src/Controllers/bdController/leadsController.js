@@ -78,7 +78,7 @@ const createBDlead = async function (req, res) {
                       mobiles,
                       {
                         $map: {
-                          input: "$contact_details.mobile",
+                          input: { $ifNull: ["$contact_details.mobile", []] },
                           as: "m",
                           in: { $trim: { input: "$$m" } },
                         },
@@ -180,13 +180,8 @@ const getAllLeads = async (req, res) => {
 
     if (req.query.stateFilter) {
       const raw = decodeURIComponent(req.query.stateFilter);
-      const stateList = raw.split(",").map((s) => s.trim().toLowerCase());
-
-      and.push({
-        $expr: {
-          $in: [{ $toLower: "$address.state" }, stateList],
-        },
-      });
+      const stateList = raw.split(",").map((s) => s.trim());
+      and.push({ "address.state": { $in: stateList } });
     }
 
     if (!isPrivilegedUser) {
@@ -232,6 +227,7 @@ const getAllLeads = async (req, res) => {
 
     const pipeline = [
       { $match: match },
+
       {
         $lookup: {
           from: "handoversheets",
