@@ -7,6 +7,7 @@ const FormData = require("form-data");
 const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
 const group = require("../../Modells/bdleads/group");
 const task = require("../../Modells/bdleads/task");
+const groupModells = require("../../Modells/bdleads/group");
 
 const createBDlead = async function (req, res) {
   try {
@@ -179,8 +180,13 @@ const getAllLeads = async (req, res) => {
 
     if (req.query.stateFilter) {
       const raw = decodeURIComponent(req.query.stateFilter);
-      const stateList = raw.split(",").map((s) => s.trim());
-      and.push({ "address.state": { $in: stateList } });
+      const stateList = raw.split(",").map((s) => s.trim().toLowerCase());
+
+      and.push({
+        $expr: {
+          $in: [{ $toLower: "$address.state" }, stateList],
+        },
+      });
     }
 
     if (!isPrivilegedUser) {
@@ -226,7 +232,6 @@ const getAllLeads = async (req, res) => {
 
     const pipeline = [
       { $match: match },
-
       {
         $lookup: {
           from: "handoversheets",
@@ -532,7 +537,21 @@ const getAllLeads = async (req, res) => {
       {
         $lookup: {
           from: "users",
-          let: { ids: "$status_history.user_id" },
+          let: {
+  ids: {
+    $ifNull: [
+      {
+        $map: {
+          input: "$status_history",
+          as: "s",
+          in: "$$s.user_id",
+        },
+      },
+      [],
+    ],
+  },
+},
+
           pipeline: [
             { $match: { $expr: { $in: ["$_id", "$$ids"] } } },
             { $project: { _id: 1, name: 1 } },
@@ -972,44 +991,115 @@ const deleteLead = async (req, res) => {
 
 const updateAssignedTo = async (req, res) => {
   try {
-    const { _id } = req.params;
-    const { assigned_to } = req.body;
+    const { leadIds, assigned } = req.body;
 
-    if (!_id || !assigned_to) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing required fields" });
+    if (!Array.isArray(leadIds) || leadIds.length === 0 || !assigned) {
+      return res.status(400).json({
+        success: false,
+        message: "leadIds must be a non-empty array and assigned is required",
+      });
     }
 
-    const user = await userModells.findById(assigned_to);
+    const user = await userModells.findById(assigned);
     if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Assigned user not found",
+      });
     }
 
-    const lead = await bdleadsModells.findById(_id);
-    if (!lead) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Lead not found" });
+    const updatedLeads = [];
+
+    for (const leadId of leadIds) {
+      const lead = await bdleadsModells.findById(leadId);
+      if (!lead) continue;
+      const status = lead.current_status?.name || "";
+      lead.assigned_to.push({
+        user_id: user._id,
+        status,
+      });
+
+      await lead.save();
+      updatedLeads.push(lead);
     }
 
-    const status = lead.current_status?.name || "";
+    return res.status(200).json({
+      success: true,
+      message: "User assigned to leads successfully",
+      data: updatedLeads,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
 
-    lead.assigned_to.push({
-      user_id: user._id,
-      status,
+const attachToGroup = async (req, res) => {
+  try {
+    const { leadIds, groupId } = req.body;
+
+    if (!Array.isArray(leadIds) || leadIds.length === 0 || !groupId) {
+      return res.status(400).json({
+        success: false,
+        message: "leadIds must be a non-empty array and group is required",
+      });
+    }
+
+    const group = await groupModells.findById(groupId);
+
+    const alreadyAttachedLeads = await bdleadsModells.find({
+      group_id: groupId,
     });
 
-    // Save the document
-    await lead.save();
+    const existingCapacity = alreadyAttachedLeads.reduce((sum, lead) => {
+      return sum + (Number(lead.project_details.capacity) || 0);
+    }, 0);
 
-    res.status(200).json({ success: true, data: lead });
+    const newLeads = await bdleadsModells.find({ _id: { $in: leadIds } });
+
+    const alreadyGroupedLead = newLeads.find((lead) => lead.group_id);
+    if (alreadyGroupedLead) {
+      return res.status(400).json({
+        success: false,
+        message: `Lead with ID ${alreadyGroupedLead.id} is already attached to a group`,
+      });
+    }
+
+    const newCapacity = newLeads.reduce((sum, lead) => {
+      return sum + (Number(lead.project_details.capacity) || 0);
+    }, 0);
+
+    const totalCapacity = existingCapacity + newCapacity;
+
+    if (totalCapacity > group.project_details.capacity) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot attach leads. Total capacity (${totalCapacity}) exceeds group capacity (${group.project_details.capacity})`,
+      });
+    }
+
+    const updatedLeads = [];
+
+    for (const lead of newLeads) {
+      lead.group_id = groupId;
+      await lead.save();
+      updatedLeads.push(lead);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Leads successfully attached to the group",
+      data: updatedLeads,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, message: "Server Error", error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
   }
 };
 
@@ -1543,6 +1633,19 @@ const updateAssignedToFromSubmittedBy = async (req, res) => {
   }
 };
 
+const getUniqueState = async (req, res) => {
+  try {
+    const states = await bdleadsModells.distinct("address.state");
+    const lowercasedStates = Array.from(
+      new Set(states.filter(Boolean).map((state) => state.trim().toLowerCase()))
+    );
+    res.status(200).json({ success: true, data: lowercasedStates });
+  } catch (error) {
+    console.error("Error fetching unique states:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
 module.exports = {
   getAllLeads,
   getAllLeadDropdown,
@@ -1556,4 +1659,6 @@ module.exports = {
   exportLeadsCSV,
   updateLeadStatus,
   getLeadByLeadIdorId,
+  getUniqueState,
+  attachToGroup,
 };

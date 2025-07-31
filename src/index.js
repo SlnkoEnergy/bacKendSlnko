@@ -16,15 +16,7 @@ const documentRoutes = require("../src/Routes/Permify/document");
 config({
   path: "./.env",
 });
-
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:5173",
-  "https://sales.slnkoprotrac.com",
-  "https://slnkoprotrac.com",
-  "https://dev.slnkoprotrac.com",
-  "https://staging.slnkoprotrac.com",
-];
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [];
 
 app.use(
   cors({
@@ -44,7 +36,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_URL;
 
 const startServer = async () => {
   try {
