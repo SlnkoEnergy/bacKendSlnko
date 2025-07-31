@@ -67,7 +67,7 @@ const createBDlead = async function (req, res) {
         m.trim()
       );
 
-      const existingLead = await bdleadsModells.aggregate([
+       const existingLead = await bdleadsModells.aggregate([
         {
           $match: {
             $expr: {
@@ -78,7 +78,7 @@ const createBDlead = async function (req, res) {
                       mobiles,
                       {
                         $map: {
-                          input: "$contact_details.mobile",
+                          input: { $ifNull: ["$contact_details.mobile", []] },
                           as: "m",
                           in: { $trim: { input: "$$m" } },
                         },
