@@ -8,12 +8,11 @@ const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
 const group = require("../../Modells/bdleads/group");
 const task = require("../../Modells/bdleads/task");
 const groupModells = require("../../Modells/bdleads/group");
-const {Novu} = require('@novu/api')
-
-const novu = new Novu(process.env.NOVU_SECRET_KEY);
+const { Novu } = require('@novu/node')
 
 const createBDlead = async function (req, res) {
   try {
+    const novu = new Novu(process.env.NOVU_SECRET_KEY);
     const body = req.body;
     const requiredFields = [
       "name",
@@ -70,7 +69,7 @@ const createBDlead = async function (req, res) {
         m.trim()
       );
 
-       const existingLead = await bdleadsModells.aggregate([
+      const existingLead = await bdleadsModells.aggregate([
         {
           $match: {
             $expr: {
@@ -131,25 +130,63 @@ const createBDlead = async function (req, res) {
         },
       ],
     };
-    const data = payload;
-    console.log(data);
+
     const bdLead = new bdleadsModells(payload);
-    await bdLead.save();
 
-    // Notification functionality 
 
-    // await novu.subscribers.identify("admin-id", {
-    //   firstName: "Admin"
-    // })
+    // Notification functionality For Admin
 
-    // await novu.trigger('admin-notification', {
+    await novu.subscribers.identify("683af1b28af4928366f0f2a9", {
+      firstName: "Admin"
+    });
+
+    await novu.subscribers.identify("683af1b28af4928366f0f2a9", {
+      firstName: "Admin",
+    });
+    await novu.trigger('admin-notification', {
+      to: {
+        subscriberId: "683af1b28af4928366f0f2a9"
+      },
+      payload: {
+        UserId : user_id,
+        name: body.name,
+        capacity: body.project_details.capacity,
+      }
+    });
+
+    // Notification Functionality For Manager
+
+    // await novu.subscribers.identify("managerid", {
+    //   firstName: "Manager",
+    // });
+
+    // await novu.trigger('manager-notification',{
     //   to: {
-    //     subscriberId : "admin-id"
+    //     subscriberId: "ManagerId"
     //   },
     //   payload: {
-        
+    //     name: body.name,
+    //     capacity: body.project_details.capacity,
     //   }
     // })
+
+    // Notification Functionality For Creater
+
+    await novu.subscribers.identify(user_id, {
+      firstName: "User",
+    });
+
+    await novu.trigger('all-notification', {
+      to:{
+        subscriberId: user_id,
+      },
+      payload:{
+        name: body.name,
+        capacity: body.project_details.capacity,
+      }
+    })
+
+    await bdLead.save();
 
     res.status(200).json({
       message: "BD Lead created successfully",
