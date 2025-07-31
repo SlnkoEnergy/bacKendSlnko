@@ -616,7 +616,7 @@ const getAllLeads = async (req, res) => {
           },
         },
       },
-      { $project: { task_meta: 0, handover_info: 0 } },
+      { $project: { task_meta: 0, handover_info: 0 } }, 
       { $sort: { createdAt: -1 } },
       { $skip: (parseInt(page) - 1) * parseInt(limit) },
       { $limit: parseInt(limit) },
