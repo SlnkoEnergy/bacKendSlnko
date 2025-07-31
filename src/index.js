@@ -15,7 +15,6 @@ const cookieParser = require("cookie-parser");
 config({
   path: "./.env",
 });
-
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [];
 
 app.use(

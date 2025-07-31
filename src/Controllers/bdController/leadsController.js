@@ -537,7 +537,21 @@ const getAllLeads = async (req, res) => {
       {
         $lookup: {
           from: "users",
-          let: { ids: "$status_history.user_id" },
+          let: {
+  ids: {
+    $ifNull: [
+      {
+        $map: {
+          input: "$status_history",
+          as: "s",
+          in: "$$s.user_id",
+        },
+      },
+      [],
+    ],
+  },
+},
+
           pipeline: [
             { $match: { $expr: { $in: ["$_id", "$$ids"] } } },
             { $project: { _id: 1, name: 1 } },
