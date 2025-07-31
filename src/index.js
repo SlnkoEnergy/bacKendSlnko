@@ -35,13 +35,6 @@ const io = socketIo(server, {
 });
 global.io = io;
 
-io.on("connection", (socket) => {
-  console.log("Socket connected:", socket.id);
-
-  socket.on("disconnect", () => {
-    console.log("Socket disconnected:", socket.id);
-  });
-});
 
 const allowedOrigins = [
   "http://localhost:3000",
@@ -74,15 +67,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
-const db = process.env.DB_URL;
-
-// io.on("connection", (socket) => {
-//   console.log("Socket connected:", socket.id);
-
-//   socket.on("disconnect", () => {
-//     console.log("Socket disconnected:", socket.id);
-//   });
-// });
+const db = process.env.DB_DEVELOPMENT_URL;
 
 const startServer = async () => {
   try {

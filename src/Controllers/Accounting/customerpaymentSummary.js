@@ -26,16 +26,49 @@ const getCustomerPaymentSummary = async (req, res) => {
         $project: {
           _id: 0,
           name: 1,
-          //  customer_name: 1,
           p_group: 1,
           project_kwp: 1,
-          name: 1,
+          customer: 1,
           code: 1,
           billing_type: 1,
+          billing_address: 1,
+          site_address: 1,
         },
       },
       { $limit: 1 },
     ]);
+    const formatAddress = (address) => {
+      if (typeof address === "object" && address !== null) {
+        const village = (address.village_name || "")
+          .replace(/(^"|"$)/g, "")
+          .trim();
+        const district = (address.district_name || "")
+          .replace(/(^"|"$)/g, "")
+          .trim();
+
+        if (
+          (!village || village.toUpperCase() === "NA") &&
+          (!district || district.toUpperCase() === "NA")
+        ) {
+          return "-";
+        }
+
+        return `${village}, ${district}`;
+      }
+
+      if (typeof address === "string") {
+        const cleaned = address.trim().replace(/(^"|"$)/g, "");
+        return cleaned || "-";
+      }
+
+      return "-";
+    };
+    if (project) {
+      project.billing_address_formatted = formatAddress(
+        project.billing_address
+      );
+      project.site_address_formatted = formatAddress(project.site_address);
+    }
 
     if (!project) {
       return res.status(404).json({ error: "Project not found." });
@@ -129,25 +162,88 @@ const getCustomerPaymentSummary = async (req, res) => {
                 updatedAt: 1,
                 createdAt: 1,
                 paid_for: 1,
+                description: "$comment",
+
+                // Convert and store numeric value
+                adj_amount_numeric: {
+                  $cond: [
+                    { $eq: [{ $type: "$adj_amount" }, "string"] },
+                    { $abs: { $toDouble: "$adj_amount" } },
+                    { $abs: "$adj_amount" },
+                  ],
+                },
+
+                // Use numeric conversion in these fields
                 debit_adjustment: {
                   $cond: [
                     { $eq: ["$adj_type", "Subtract"] },
-                    "$adj_amount",
-                    null,
+                    {
+                      $cond: [
+                        { $eq: [{ $type: "$adj_amount" }, "string"] },
+                        { $abs: { $toDouble: "$adj_amount" } },
+                        { $abs: "$adj_amount" },
+                      ],
+                    },
+                    0,
                   ],
                 },
                 credit_adjustment: {
-                  $cond: [{ $eq: ["$adj_type", "Add"] }, "$adj_amount", null],
+                  $cond: [
+                    { $eq: ["$adj_type", "Add"] },
+                    {
+                      $cond: [
+                        { $eq: [{ $type: "$adj_amount" }, "string"] },
+                        { $abs: { $toDouble: "$adj_amount" } },
+                        { $abs: "$adj_amount" },
+                      ],
+                    },
+                    0,
+                  ],
                 },
-                description: "$comment",
               },
             },
           ],
           summary: [
             {
+              $project: {
+                adj_type: 1,
+                adj_amount_numeric: {
+                  $cond: [
+                    { $eq: [{ $type: "$adj_amount" }, "string"] },
+                    { $abs: { $toDouble: "$adj_amount" } },
+                    { $abs: "$adj_amount" },
+                  ],
+                },
+              },
+            },
+            {
               $group: {
                 _id: null,
-                totalAdjusted: { $sum: "$adj_amount" },
+                totalCreditAdjustment: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ["$adj_type", "Add"] },
+                      "$adj_amount_numeric",
+                      0,
+                    ],
+                  },
+                },
+                totalDebitAdjustment: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ["$adj_type", "Subtract"] },
+                      "$adj_amount_numeric",
+                      0,
+                    ],
+                  },
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                totalCreditAdjustment: 1,
+                totalDebitAdjustment: 1,
               },
             },
           ],
@@ -155,10 +251,14 @@ const getCustomerPaymentSummary = async (req, res) => {
       },
     ]);
 
+    // Use results
     const adjustmentHistory = adjustmentData?.history || [];
+    const totalCreditAdjustment =
+      adjustmentData?.summary?.[0]?.totalCreditAdjustment || 0;
+    const totalDebitAdjustment =
+      adjustmentData?.summary?.[0]?.totalDebitAdjustment || 0;
 
     // 5️⃣ Balance Summary Aggregation
-
     const clientHistoryResult = await ProjectModel.aggregate([
       { $match: { p_id: projectId } },
       { $project: { code: 1, _id: 0 } },
@@ -799,12 +899,14 @@ const getCustomerPaymentSummary = async (req, res) => {
     ]);
     const responseData = {
       projectDetails: {
-        customer_name: project.name,
-        p_group: project.p_group,
+        customer_name: project.customer,
+        p_group: project.p_group || "N/A",
         project_kwp: project.project_kwp,
         name: project.name,
         code: project.code,
         billing_type: project.billing_type,
+        billing_address: project.billing_address_formatted,
+        site_address: project.site_address_formatted,
       },
       credit: {
         history: creditHistory,
@@ -820,6 +922,8 @@ const getCustomerPaymentSummary = async (req, res) => {
       },
       adjustment: {
         history: adjustmentHistory,
+        totalCredit: totalCreditAdjustment,
+        totalDebit: totalDebitAdjustment,
       },
       summary: {
         totalCredited,
@@ -895,7 +999,6 @@ const getCustomerPaymentSummary = async (req, res) => {
       return res.send(csvContent);
     }
 
-    // 🔁 Else, return JSON
     return res.status(200).json(responseData);
   } catch (error) {
     console.error("Error fetching payment summary:", error);
@@ -1418,8 +1521,6 @@ const totalBalanceSummary = async (req, res) => {
             ],
           },
 
-          
-
           tcs_as_applicable: {
             $cond: {
               if: {
@@ -1482,15 +1583,15 @@ const totalBalanceSummary = async (req, res) => {
         },
       },
       {
-  $addFields: {
-    net_advanced_paid: {
-      $subtract: [
-        { $ifNull: ["$total_advance_paid", 0] },
-        { $ifNull: ["$total_billed_value", 0] }
-      ]
-    }
-  }
-},
+        $addFields: {
+          net_advanced_paid: {
+            $subtract: [
+              { $ifNull: ["$total_advance_paid", 0] },
+              { $ifNull: ["$total_billed_value", 0] },
+            ],
+          },
+        },
+      },
 
       {
         $addFields: {
