@@ -18,7 +18,7 @@ config({
 
 const allowedOrigins = [
   "http://localhost:3000",
-  "http://localhost:5173",
+  "http://localhost:5174",
   "https://sales.slnkoprotrac.com",
   "https://slnkoprotrac.com",
   "https://dev.slnkoprotrac.com",
