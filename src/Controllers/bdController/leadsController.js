@@ -8,7 +8,8 @@ const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
 const group = require("../../Modells/bdleads/group");
 const task = require("../../Modells/bdleads/task");
 const groupModells = require("../../Modells/bdleads/group");
-const { Novu } = require('@novu/node')
+const { Novu } = require('@novu/node');
+const { getNotification, getnovuNotification } = require("../../utils/nouvnotificationutils");
 
 const createBDlead = async function (req, res) {
   try {
@@ -133,58 +134,6 @@ const createBDlead = async function (req, res) {
 
     const bdLead = new bdleadsModells(payload);
 
-
-    // Notification functionality For Admin
-
-    await novu.subscribers.identify("683af1b28af4928366f0f2a9", {
-      firstName: "Admin"
-    });
-
-    await novu.subscribers.identify("683af1b28af4928366f0f2a9", {
-      firstName: "Admin",
-    });
-    await novu.trigger('admin-notification', {
-      to: {
-        subscriberId: "683af1b28af4928366f0f2a9"
-      },
-      payload: {
-        UserId : user_id,
-        name: body.name,
-        capacity: body.project_details.capacity,
-      }
-    });
-
-    // Notification Functionality For Manager
-
-    // await novu.subscribers.identify("managerid", {
-    //   firstName: "Manager",
-    // });
-
-    // await novu.trigger('manager-notification',{
-    //   to: {
-    //     subscriberId: "ManagerId"
-    //   },
-    //   payload: {
-    //     name: body.name,
-    //     capacity: body.project_details.capacity,
-    //   }
-    // })
-
-    // Notification Functionality For Creater
-
-    await novu.subscribers.identify(user_id, {
-      firstName: "User",
-    });
-
-    await novu.trigger('all-notification', {
-      to:{
-        subscriberId: user_id,
-      },
-      payload:{
-        name: body.name,
-        capacity: body.project_details.capacity,
-      }
-    })
 
     await bdLead.save();
 
@@ -622,6 +571,19 @@ const deleteLead = async (req, res) => {
       return res.status(404).json({ message: "Lead not found" });
     }
 
+    // Notification fuctionality on Delete Lead
+
+    try {
+      const workflow = 'delete-notification';
+      const senders = ['683af1b28af4928366f0f2a9', '683fe1416f62d8dc77a1e1b1'];
+      const data = {
+        message : `Lead ${lead.id} deleted by Manager`
+      }
+      await getnovuNotification(workflow, senders, data);
+    } catch (error) {
+      console.log(error);
+    }
+
     res
       .status(200)
       .json({ message: "Lead deleted successfully", data: deletedLead });
@@ -665,6 +627,30 @@ const updateAssignedTo = async (req, res) => {
       await lead.save();
       updatedLeads.push(lead);
     }
+
+    // Notification Functionality for Transfer Lead 
+
+    const Ids = leadIds.map(id => new mongoose.Types.ObjectId(id));
+
+    const leads = await bdleadsModells.find( { _id : { $in : Ids}}).select('id')
+
+    const assign = await userModells.findById(assigned).select('name');
+
+    for(const lead of leads){
+      try {
+        const workflow = 'all-notification';
+        const senders = [assigned, "683af1b28af4928366f0f2a9", "683fe1416f62d8dc77a1e1b1"];
+        const data = {
+          message: `Lead ${lead.id} transer to ${assign.name} `
+        }
+
+        await getnovuNotification(workflow, senders, data);
+      } catch (error) {
+        console.log(error);
+      }
+    }
+
+    
 
     return res.status(200).json({
       success: true,

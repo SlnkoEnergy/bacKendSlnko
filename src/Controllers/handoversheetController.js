@@ -5,6 +5,7 @@ const projectmodells = require("../Modells/projectModells");
 const { Parser } = require("json2csv");
 const handoversheetModells = require("../Modells/handoversheetModells");
 const userModells = require("../Modells/users/userModells");
+const { getNotification, getnovuNotification } = require("../utils/nouvnotificationutils");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -137,8 +138,24 @@ const createhandoversheet = async function (req, res) {
 
       await moduleCategoryData.save();
     }
-
     await handoversheet.save();
+
+
+    // Notification for Creating Handover
+
+    try {
+      const workflow = 'handover-submit';
+      const Ids = await userModells.find({ department: 'internal' }).select('_id').lean().then(users => users.map(u => u._id));
+      const data = {
+        message: `Handover submited by user`,
+      }
+
+      await getnovuNotification(workflow, Ids, data);
+    } catch (error) {
+      console.log(error);
+    }
+
+
 
     res.status(200).json({
       message: "Data saved successfully",

@@ -5,6 +5,7 @@ const deadleadModells = require("../../Modells/deadleadModells");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
 const { default: mongoose } = require("mongoose");
 const { Parser } = require("json2csv");
+const { getNotification, getnovuNotification } = require("../../utils/nouvnotificationutils");
 
 const createTask = async (req, res) => {
   try {
@@ -41,6 +42,21 @@ const createTask = async (req, res) => {
 
     await newTask.save();
 
+    // Notification functionality for Creating Task
+    // console.log(assigned_to);
+    // try {
+    //   const workflow = 'create-task';
+    //   const senders = assigned_to;
+    //   const data  = {
+    //     message : ` New Task is created`
+    //   }
+
+    //   await getnovuNotification(workflow, senders, data);
+
+    // } catch (error) {
+    //   console.log(error);
+    // }
+
     res.status(201).json({
       message: "Task created successfully",
       task: newTask,
@@ -74,6 +90,24 @@ const updateStatus = async (req, res) => {
     });
 
     await task.save();
+
+    // Notification on Task status change
+
+    const lead = await bdleadsModells.findById(task.lead_id);
+    console.log("lead data " , lead);
+    console.log("task data", task.user_id);
+    
+
+    try {
+      const workflow = 'task-status';
+      const senders = [task?.user_id];
+      const data = {
+        message : `Update Status : ${status} of Lead Id ${lead?.id} and Task Name ${task.title}`
+      }
+      await getnovuNotification(workflow, senders, data);
+    } catch (error) {
+      console.log(error);
+    }
 
     res.status(200).json({
       message: "Task status updated successfully",

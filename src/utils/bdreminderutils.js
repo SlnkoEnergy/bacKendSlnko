@@ -1,6 +1,8 @@
 const cron = require('node-cron')
 const {Novu} = require('@novu/node');
 const bdleadsModells = require('../Modells/bdleads/bdleadsModells');
+const { getNotification, getnovuNotification } = require('./nouvnotificationutils');
+
 
 const novu = new Novu(process.env.NOVU_SECRET_KEY);
 
@@ -84,15 +86,15 @@ cron.schedule('0 11 * * *', async() =>{
 
         for(let lead = await cursor.next(); lead != null; lead = await cursor.next()) {
 
-            await novu.trigger(('all-notification'),{
-                to:{
-                    subscriberId : "assigned to id, admin , manager"
-                },
-                payload:{
-                    leadname : lead.name,
-                    message: `Lead ${lead.name} has been in acitive from ${lead.inactiveDays}`,
-                }
-            });
+            const workflow = 'reminder'
+            const senders = ['assigned to id', 'admin', 'manager'];
+
+            const payload = {
+                leadname : lead.name,
+                message: `Lead ${lead.name} has been in acitive from ${lead.inactiveDays}`,
+            }
+
+            await getnovuNotification(workflow, senders, payload);
         }
         
     } catch (error) {
