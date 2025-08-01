@@ -4,6 +4,7 @@ const AdjustmentModel = require("../../Modells/adjustmentRequestModells");
 const ClientModel = require("../../Modells/purchaseOrderModells");
 const ProjectModel = require("../../Modells/projectModells");
 const { Parser } = require("json2csv");
+const readCSV = require("../../helpers/readCSV");
 
 const getCustomerPaymentSummary = async (req, res) => {
   try {
@@ -131,7 +132,11 @@ const getCustomerPaymentSummary = async (req, res) => {
 
     if (searchDebit) {
       const regex = new RegExp(searchDebit, "i");
-      debitMatch.$or = [{ paid_for: regex }, { vendor: regex }, { po_number: regex } ];
+      debitMatch.$or = [
+        { paid_for: regex },
+        { vendor: regex },
+        { po_number: regex },
+      ];
     }
 
     if (startDate || endDate) {
@@ -302,7 +307,7 @@ const getCustomerPaymentSummary = async (req, res) => {
 
     const clientHistoryResult = await ProjectModel.aggregate([
       { $match: { p_id: projectId } },
-      { $project: { code: 1, _id: 1 } },
+      { $project: { code: 1, _id: 0 } },
 
       {
         $lookup: {
@@ -420,7 +425,7 @@ const getCustomerPaymentSummary = async (req, res) => {
         : []),
       {
         $project: {
-          _id: 1,
+          _id: "$purchase_orders._id",
           project_code: "$code",
           po_number: "$purchase_orders.po_number",
           vendor: "$purchase_orders.vendor",
@@ -434,6 +439,35 @@ const getCustomerPaymentSummary = async (req, res) => {
         },
       },
     ]);
+
+    const fallbackCache = {};
+
+    for (const item of clientHistoryResult) {
+      const poNumber = item.po_number?.toString()?.trim().toUpperCase();
+      if (!poNumber) continue;
+
+      const missingPOBasic = !item.po_basic || isNaN(item.po_basic);
+      const missingGST = !item.gst || isNaN(item.gst);
+      const missingPOValue = !item.po_value || isNaN(item.po_value);
+
+      if (missingPOBasic || missingGST || missingPOValue) {
+        if (!fallbackCache[poNumber]) {
+          fallbackCache[poNumber] = await readCSV(poNumber);
+        }
+
+        const fallback = fallbackCache[poNumber];
+
+        if (fallback) {
+          if (missingPOBasic) item.po_basic = fallback.po_basic || 0;
+          if (missingGST) item.gst = fallback.gst || 0;
+          if (missingPOValue) item.po_value = fallback.po_value || 0;
+        } else {
+          if (missingPOBasic) item.po_basic = 0;
+          if (missingGST) item.gst = 0;
+          if (missingPOValue) item.po_value = 0;
+        }
+      }
+    }
 
     const clientMeta = clientHistoryResult.reduce(
       (acc, curr) => {
@@ -954,9 +988,53 @@ const getCustomerPaymentSummary = async (req, res) => {
           gst_with_type_percentage: 1,
           gst_difference: 1,
           balance_required: 1,
+          purchase_orders: 1,
         },
       },
     ]);
+
+    const csvCache = {};
+    let correctedTotalPoBasic = 0;
+    let correctedGstAsPoBasic = 0;
+
+    if (
+      balanceSummary.purchase_orders &&
+      Array.isArray(balanceSummary.purchase_orders)
+    ) {
+      for (const po of balanceSummary.purchase_orders) {
+        const poNumber = po.po_number?.toString()?.trim();
+        let poBasic = parseFloat(po.po_basic) || 0;
+        let gst = parseFloat(po.gst) || 0;
+
+        const missingPOBasic = isNaN(poBasic) || poBasic === 0;
+        const missingGST = isNaN(gst) || gst === 0;
+
+        if ((missingPOBasic || missingGST) && poNumber) {
+          if (!csvCache[poNumber]) {
+            csvCache[poNumber] = await readCSV(poNumber);
+          }
+          const fallback = csvCache[poNumber];
+          if (fallback) {
+            if (missingPOBasic) poBasic = fallback.po_basic || 0;
+            if (missingGST) gst = fallback.gst || 0;
+          }
+        }
+
+        correctedTotalPoBasic += poBasic;
+        correctedGstAsPoBasic += gst;
+      }
+
+      if (correctedTotalPoBasic > balanceSummary.total_po_basic) {
+        balanceSummary.total_po_basic = correctedTotalPoBasic;
+      }
+      if (correctedGstAsPoBasic > balanceSummary.gst_as_po_basic) {
+        balanceSummary.gst_as_po_basic = correctedGstAsPoBasic;
+      }
+
+      balanceSummary.total_po_with_gst =
+        balanceSummary.total_po_basic + balanceSummary.gst_as_po_basic;
+    }
+
     const responseData = {
       projectDetails: {
         customer_name: project.customer,

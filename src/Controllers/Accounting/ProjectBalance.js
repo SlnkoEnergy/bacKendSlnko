@@ -1,5 +1,8 @@
+const readCSV = require("../../helpers/readCSV");
+const pohistoryModells = require("../../Modells/pohistoryModells");
 const projectModells = require("../../Modells/projectModells");
 const { Parser } = require("json2csv");
+const purchaseOrderModells = require("../../Modells/purchaseOrderModells");
 
 const projectBalance = async (req, res) => {
   try {
@@ -559,7 +562,7 @@ const projectBalance = async (req, res) => {
       },
       {
         $project: {
-          _id:1,
+          _id: 1,
           p_id: 1,
           code: 1,
           name: 1,
@@ -655,6 +658,49 @@ const projectBalance = async (req, res) => {
       data,
       totals: projectTotals[0] || {},
     });
+
+    const csvCache = {};
+
+    for (const balanceSummary of data) {
+      let correctedTotalPoBasic = 0;
+      let correctedGstAsPoBasic = 0;
+
+      if (balanceSummary.pos && Array.isArray(balanceSummary.pos)) {
+        for (const po of balanceSummary.pos) {
+          const poNumber = po.po_number?.toString()?.trim();
+          let poBasic = parseFloat(po.po_basic) || 0;
+          let gst = parseFloat(po.gst) || 0;
+
+          const missingPOBasic = isNaN(poBasic) || poBasic === 0;
+          const missingGST = isNaN(gst) || gst === 0;
+
+          if ((missingPOBasic || missingGST) && poNumber) {
+            if (!csvCache[poNumber]) {
+              csvCache[poNumber] = await readCSV(poNumber);
+            }
+            const fallback = csvCache[poNumber];
+            if (fallback) {
+              if (missingPOBasic) poBasic = fallback.po_basic || 0;
+              if (missingGST) gst = fallback.gst || 0;
+            }
+          }
+
+          correctedTotalPoBasic += poBasic;
+          correctedGstAsPoBasic += gst;
+        }
+
+        // Correct if needed
+        if (correctedTotalPoBasic > balanceSummary.total_po_basic) {
+          balanceSummary.total_po_basic = correctedTotalPoBasic;
+        }
+        if (correctedGstAsPoBasic > balanceSummary.gst_as_po_basic) {
+          balanceSummary.gst_as_po_basic = correctedGstAsPoBasic;
+        }
+
+        balanceSummary.total_po_with_gst =
+          balanceSummary.total_po_basic + balanceSummary.gst_as_po_basic;
+      }
+    }
 
     res.json({
       success: true,
@@ -965,6 +1011,46 @@ const exportProjectBalance = async (req, res) => {
     ];
 
     const result = await projectModells.aggregate(aggregationPipeline);
+
+    const csvCache = {};
+
+    for (const project of result) {
+      let correctedTotalPoBasic = 0;
+      let correctedGstAsPoBasic = 0;
+
+      const purchaseOrders = await purchaseOrderModells.find({
+        p_id: project.projectId,
+      });
+
+      for (const po of purchaseOrders) {
+        const poNumber = po.po_number?.toString()?.trim();
+        let poBasic = parseFloat(po.po_basic) || 0;
+        let gst = parseFloat(po.gst) || 0;
+
+        const missingPOBasic = isNaN(poBasic) || poBasic === 0;
+        const missingGST = isNaN(gst) || gst === 0;
+
+        if ((missingPOBasic || missingGST) && poNumber) {
+          if (!csvCache[poNumber]) {
+            csvCache[poNumber] = await readCSV(poNumber);
+          }
+          const fallback = csvCache[poNumber];
+          if (fallback) {
+            if (missingPOBasic) poBasic = fallback.po_basic || 0;
+            if (missingGST) gst = fallback.gst || 0;
+          }
+        }
+
+        correctedTotalPoBasic += poBasic;
+        correctedGstAsPoBasic += gst;
+      }
+
+      project.total_po_basic = correctedTotalPoBasic.toFixed(2);
+      project.gst_as_po_basic = correctedGstAsPoBasic.toFixed(2);
+      project.total_po_with_gst = (
+        correctedTotalPoBasic + correctedGstAsPoBasic
+      ).toFixed(2);
+    }
 
     const formattedResult = result.map((item) => ({
       ...item,

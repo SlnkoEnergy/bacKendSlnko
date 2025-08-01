@@ -8,6 +8,7 @@ const dprRoutes = require("../src/Routes/dpr/dprRoutes");
 const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRoutes");
 const taskRoutes = require("../src/Routes/tasks/tasks");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
+const poRoutes = require("../src/Routes/OldPO/PoRoutes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
@@ -35,7 +36,6 @@ const io = socketIo(server, {
 });
 global.io = io;
 
-
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
@@ -58,9 +58,7 @@ app.use(
   })
 );
 
-
 app.set("io", io);
-
 
 app.use(cookieParser());
 app.use(express.json());
@@ -80,6 +78,7 @@ const startServer = async () => {
     app.use("/v1/dpr", dprRoutes);
     app.use("/v1/purchaseRequest", purchaseRoutes);
     app.use("/v1/tasks", taskRoutes);
+    app.use("/v1/oldpo", poRoutes);
     app.use("/v1/accounting", accountingRoutes);
 
     // Start the server
