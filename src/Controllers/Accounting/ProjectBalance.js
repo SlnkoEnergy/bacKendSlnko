@@ -559,6 +559,7 @@ const projectBalance = async (req, res) => {
       },
       {
         $project: {
+          _id:1,
           p_id: 1,
           code: 1,
           name: 1,
@@ -633,7 +634,7 @@ const projectBalance = async (req, res) => {
         },
         {
           $project: {
-            _id: 0,
+            _id: 1,
             totalProjectKwp: { $round: ["$totalProjectKwp", 2] },
             totalCreditSum: { $round: ["$totalCreditSum", 2] },
             totalDebitSum: { $round: ["$totalDebitSum", 2] },
@@ -676,7 +677,28 @@ const projectBalance = async (req, res) => {
 
 const exportProjectBalance = async (req, res) => {
   try {
+    const { search = "", selectedIds = [] } = req.body;
+
+    const matchConditions = [];
+
+    if (search) {
+      const regex = new RegExp(search, "i");
+      matchConditions.push({
+        $or: [{ name: regex }, { code: regex }, { customer: regex }],
+      });
+    }
+
+    if (selectedIds.length > 0) {
+      matchConditions.push({ code: { $in: selectedIds } });
+    }
+
+    const matchStage =
+      matchConditions.length > 0
+        ? { $match: { $and: matchConditions } }
+        : { $match: {} };
+
     const aggregationPipeline = [
+      matchStage,
       {
         $lookup: {
           from: "addmoneys",
@@ -867,6 +889,30 @@ const exportProjectBalance = async (req, res) => {
       },
       {
         $addFields: {
+          netBalance: {
+            $subtract: [
+              "$totalCredit",
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$debits",
+                        as: "d",
+                        cond: { $eq: ["$$d.paid_for", "Customer Adjustment"] },
+                      },
+                    },
+                    as: "d",
+                    in: { $toDouble: "$$d.amount_paid" },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
           balanceRequired: {
             $subtract: [
               {
@@ -901,11 +947,11 @@ const exportProjectBalance = async (req, res) => {
       },
       {
         $project: {
-          _id: 0,
+          _id: 1,
           projectId: "$code",
           projectName: "$name",
           clientName: "$customer",
-          groupName: "$group",
+          groupName: "$p_group",
           plantCapacity: "$project_kwp",
           totalCredit: 1,
           totalDebit: 1,
@@ -920,6 +966,17 @@ const exportProjectBalance = async (req, res) => {
 
     const result = await projectModells.aggregate(aggregationPipeline);
 
+    const formattedResult = result.map((item) => ({
+      ...item,
+      totalCredit: item.totalCredit?.toFixed(2),
+      totalDebit: item.totalDebit?.toFixed(2),
+      totalAdjustment: item.totalAdjustment?.toFixed(2),
+      amountOld: item.amountOld?.toFixed(2),
+      balanceWithSlnko: item.balanceWithSlnko?.toFixed(2),
+      balancePayableToVendors: item.balancePayableToVendors?.toFixed(2),
+      balanceRequired: item.balanceRequired?.toFixed(2),
+    }));
+
     const fields = [
       { label: "Project Id", value: "projectId" },
       { label: "Project Name", value: "projectName" },
@@ -929,14 +986,14 @@ const exportProjectBalance = async (req, res) => {
       { label: "Total Credit", value: "totalCredit" },
       { label: "Total Debit", value: "totalDebit" },
       { label: "Total Adjustment", value: "totalAdjustment" },
-      { label: "Amount Amount(Old)", value: "amountOld" },
-      { label: "Balance with SLnko", value: "balanceWithSlnko" },
+      { label: "Amount (Old)", value: "amountOld" },
+      { label: "Balance with Slnko", value: "balanceWithSlnko" },
       { label: "Balance Payable to Vendors", value: "balancePayableToVendors" },
       { label: "Balance Required", value: "balanceRequired" },
     ];
 
     const json2csvParser = new Parser({ fields });
-    const csv = json2csvParser.parse(result);
+    const csv = json2csvParser.parse(formattedResult);
 
     res.header("Content-Type", "text/csv");
     res.attachment("project-balance-export.csv");

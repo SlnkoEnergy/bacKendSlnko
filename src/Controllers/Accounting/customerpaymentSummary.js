@@ -7,7 +7,20 @@ const { Parser } = require("json2csv");
 
 const getCustomerPaymentSummary = async (req, res) => {
   try {
-    const { p_id, export: exportToCSV } = req.query;
+    const {
+      p_id,
+      export: exportToCSV,
+      start,
+      end,
+      search,
+      searchClient,
+      searchDebit,
+      searchAdjustment,
+    } = req.query;
+
+    const startDate = start ? new Date(start) : null;
+    const endDate = end ? new Date(end) : null;
+    if (endDate) endDate.setHours(23, 59, 59, 999);
 
     if (!p_id) {
       return res.status(400).json({ error: "Project ID (p_id) is required." });
@@ -15,9 +28,13 @@ const getCustomerPaymentSummary = async (req, res) => {
 
     const projectId = isNaN(p_id) ? p_id : Number(p_id);
 
-    const creditMatch = { p_id: projectId };
-    const debitMatch = { p_id: projectId };
-    const adjustmentMatch = { p_id: projectId };
+    const buildDateFilter = (field) => {
+      if (!start && !end) return {};
+      const dateRange = {};
+      if (start) dateRange.$gte = new Date(start);
+      if (end) dateRange.$lte = new Date(end);
+      return { [field]: dateRange };
+    };
 
     // 1️⃣ Project Details
     const [project] = await ProjectModel.aggregate([
@@ -74,7 +91,11 @@ const getCustomerPaymentSummary = async (req, res) => {
       return res.status(404).json({ error: "Project not found." });
     }
 
-    // 2️⃣ Credit Aggregation
+    const creditMatch = {
+      p_id: projectId,
+      ...buildDateFilter("cr_date"),
+    };
+
     const [creditData] = await CreditModel.aggregate([
       { $match: creditMatch },
       {
@@ -83,7 +104,7 @@ const getCustomerPaymentSummary = async (req, res) => {
             { $sort: { createdAt: -1 } },
             {
               $project: {
-                _id: 0,
+                _id: 1,
                 cr_date: 1,
                 cr_mode: 1,
                 cr_amount: 1,
@@ -106,7 +127,19 @@ const getCustomerPaymentSummary = async (req, res) => {
     const creditHistory = creditData?.history || [];
     const totalCredited = creditData?.summary[0]?.totalCredited || 0;
 
-    // 3️⃣ Debit Aggregation
+    const debitMatch = { p_id: projectId };
+
+    if (searchDebit) {
+      const regex = new RegExp(searchDebit, "i");
+      debitMatch.$or = [{ paid_for: regex }, { vendor: regex }, { po_number: regex } ];
+    }
+
+    if (startDate || endDate) {
+      debitMatch.dbt_date = {};
+      if (startDate) debitMatch.dbt_date.$gte = new Date(startDate);
+      if (endDate) debitMatch.dbt_date.$lte = new Date(endDate);
+    }
+
     const [debitData] = await DebitModel.aggregate([
       { $match: debitMatch },
       {
@@ -115,17 +148,15 @@ const getCustomerPaymentSummary = async (req, res) => {
             { $sort: { createdAt: -1 } },
             {
               $project: {
-                _id: 0,
-                db_date: 1,
-                db_mode: 1,
+                _id: 1,
                 amount_paid: 1,
                 paid_for: 1,
                 po_number: 1,
                 utr: 1,
                 updatedAt: 1,
                 createdAt: 1,
-                paid_to: "$vendor",
-                debit_date: "$dbt_date",
+                vendor: 1,
+                dbt_date: 1,
               },
             },
           ],
@@ -142,9 +173,20 @@ const getCustomerPaymentSummary = async (req, res) => {
     ]);
 
     const debitHistory = debitData?.history || [];
-    const totalDebited = debitData?.summary[0]?.totalDebited || 0;
+    const totalDebited = debitData?.summary?.[0]?.totalDebited || 0;
 
     // 4️⃣ Adjustment Aggregation
+    const adjustmentMatch = { p_id: projectId };
+    if (searchAdjustment) {
+      const regex = new RegExp(searchAdjustment, "i");
+      adjustmentMatch.remark = regex;
+    }
+    if (startDate || endDate) {
+      adjustmentMatch.createdAt = {};
+      if (startDate) adjustmentMatch.createdAt.$gte = startDate;
+      if (endDate) adjustmentMatch.createdAt.$lte = endDate;
+    }
+
     const [adjustmentData] = await AdjustmentModel.aggregate([
       { $match: adjustmentMatch },
       {
@@ -153,18 +195,17 @@ const getCustomerPaymentSummary = async (req, res) => {
             { $sort: { createdAt: -1 } },
             {
               $project: {
-                _id: 0,
+                _id: 1,
                 adj_type: 1,
                 adj_amount: 1,
                 adj_date: 1,
                 comment: 1,
+                pay_type: 1,
                 po_number: 1,
                 updatedAt: 1,
                 createdAt: 1,
                 paid_for: 1,
                 description: "$comment",
-
-                // Convert and store numeric value
                 adj_amount_numeric: {
                   $cond: [
                     { $eq: [{ $type: "$adj_amount" }, "string"] },
@@ -172,8 +213,6 @@ const getCustomerPaymentSummary = async (req, res) => {
                     { $abs: "$adj_amount" },
                   ],
                 },
-
-                // Use numeric conversion in these fields
                 debit_adjustment: {
                   $cond: [
                     { $eq: ["$adj_type", "Subtract"] },
@@ -251,17 +290,19 @@ const getCustomerPaymentSummary = async (req, res) => {
       },
     ]);
 
-    // Use results
     const adjustmentHistory = adjustmentData?.history || [];
     const totalCreditAdjustment =
       adjustmentData?.summary?.[0]?.totalCreditAdjustment || 0;
     const totalDebitAdjustment =
       adjustmentData?.summary?.[0]?.totalDebitAdjustment || 0;
 
-    // 5️⃣ Balance Summary Aggregation
+    /******Client History Section**********/
+
+    const searchRegex = searchClient ? new RegExp(searchClient, "i") : null;
+
     const clientHistoryResult = await ProjectModel.aggregate([
       { $match: { p_id: projectId } },
-      { $project: { code: 1, _id: 0 } },
+      { $project: { code: 1, _id: 1 } },
 
       {
         $lookup: {
@@ -275,6 +316,11 @@ const getCustomerPaymentSummary = async (req, res) => {
         $unwind: {
           path: "$purchase_orders",
           preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $sort: {
+          "purchase_orders.createdAt": -1,
         },
       },
       {
@@ -358,9 +404,23 @@ const getCustomerPaymentSummary = async (req, res) => {
           },
         },
       },
+      ...(searchRegex
+        ? [
+            {
+              $match: {
+                $or: [
+                  { "purchase_orders.vendor": searchRegex },
+                  { "purchase_orders.item": searchRegex },
+                  { "purchase_orders.po_number": searchRegex },
+                  { code: searchRegex },
+                ],
+              },
+            },
+          ]
+        : []),
       {
         $project: {
-          _id: 0,
+          _id: 1,
           project_code: "$code",
           po_number: "$purchase_orders.po_number",
           vendor: "$purchase_orders.vendor",
@@ -1862,6 +1922,7 @@ const getAdjustmentHistory = async (req, res) => {
           adj_date: 1,
           comment: 1,
           po_number: 1,
+          pay_type: 1,
           updatedAt: 1,
           createdAt: 1,
           paid_for: 1,

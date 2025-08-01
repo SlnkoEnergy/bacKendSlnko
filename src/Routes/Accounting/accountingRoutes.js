@@ -43,12 +43,13 @@ router.get(
   jwtMW.authorization,
   projectBalance
 );
-router.get(
+router.post(
   "/export-project-balance",
   jwtMW.authentication,
   jwtMW.authorization,
   exportProjectBalance
 );
+
 router.get(
   "/payment-approval",
   jwtMW.authentication,
