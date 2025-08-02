@@ -7,6 +7,7 @@ const FormData = require("form-data");
 const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
 const group = require("../../Modells/bdleads/group");
 const task = require("../../Modells/bdleads/task");
+const groupModells = require("../../Modells/bdleads/group");
 
 const createBDlead = async function (req, res) {
   try {
@@ -77,7 +78,7 @@ const createBDlead = async function (req, res) {
                       mobiles,
                       {
                         $map: {
-                          input: "$contact_details.mobile",
+                          input: { $ifNull: ["$contact_details.mobile", []] },
                           as: "m",
                           in: { $trim: { input: "$$m" } },
                         },
@@ -152,6 +153,10 @@ const getAllLeads = async (req, res) => {
       lead_without_task,
       handover_statusFilter,
       name,
+      stateFilter,
+      group_id,
+      inactiveFilter,
+      leadAgingFilter,
     } = req.query;
 
     const userId = req.user.userId;
@@ -162,7 +167,6 @@ const getAllLeads = async (req, res) => {
       ["admin", "superadmin"].includes(user.department) ||
       (user.department === "BD" && user.role === "manager");
 
-    const match = {};
     const and = [];
 
     if (search) {
@@ -177,10 +181,14 @@ const getAllLeads = async (req, res) => {
       });
     }
 
-    if (req.query.stateFilter) {
-      const raw = decodeURIComponent(req.query.stateFilter);
-      const stateList = raw.split(",").map((s) => s.trim());
-      and.push({ "address.state": { $in: stateList } });
+    if (stateFilter) {
+      const raw = decodeURIComponent(stateFilter);
+      const stateList = raw.split(",").map((s) => s.trim().toLowerCase());
+      and.push({
+        $expr: {
+          $in: [{ $toLower: "$address.state" }, stateList],
+        },
+      });
     }
 
     if (!isPrivilegedUser) {
@@ -191,8 +199,8 @@ const getAllLeads = async (req, res) => {
       and.push({ "current_status.name": stage });
     }
 
-    if (req.query.group_id) {
-      and.push({ group_id: new mongoose.Types.ObjectId(req.query.group_id) });
+    if (group_id) {
+      and.push({ group_id: new mongoose.Types.ObjectId(group_id) });
     }
 
     if (fromDate && toDate) {
@@ -202,18 +210,13 @@ const getAllLeads = async (req, res) => {
       and.push({ createdAt: { $gte: start, $lte: end } });
     }
 
-    const inactiveFilter = Number(req.query.inactiveFilter);
-    const leadAgingFilter = req.query.leadAgingFilter?.trim();
-
+    // Handle "lead_without_task"
     if (lead_without_task === "true") {
-      const leadsWithPendingOrInProgressTasks = await task.aggregate([
+      const leadsWithTasks = await task.aggregate([
         { $match: { current_status: { $ne: "completed" } } },
         { $group: { _id: "$lead_id" } },
       ]);
-      const leadsToExclude = leadsWithPendingOrInProgressTasks.map(
-        (doc) => doc._id
-      );
-
+      const leadsToExclude = leadsWithTasks.map((doc) => doc._id);
       and.push({
         $and: [
           { _id: { $nin: leadsToExclude } },
@@ -222,11 +225,12 @@ const getAllLeads = async (req, res) => {
       });
     }
 
-    if (and.length) match.$and = and;
+    const matchStage = and.length ? { $match: { $and: and } } : null;
 
-    const pipeline = [
-      { $match: match },
+    const basePipeline = [
+      ...(matchStage ? [matchStage] : []),
 
+      // Handover info
       {
         $lookup: {
           from: "handoversheets",
@@ -249,18 +253,6 @@ const getAllLeads = async (req, res) => {
       },
       {
         $addFields: {
-          handover: {
-            $cond: [
-              {
-                $and: [
-                  { $eq: ["$current_status.name", "won"] },
-                  { $gt: [{ $size: "$handover_info" }, 0] },
-                ],
-              },
-              true,
-              false,
-            ],
-          },
           handover_status: {
             $cond: [
               { $gt: [{ $size: "$handover_info" }, 0] },
@@ -272,17 +264,10 @@ const getAllLeads = async (req, res) => {
                         $eq: [
                           {
                             $toLower: {
-                              $ifNull: [
-                                {
-                                  $getField: {
-                                    field: "status_of_handoversheet",
-                                    input: {
-                                      $arrayElemAt: ["$handover_info", 0],
-                                    },
-                                  },
-                                },
-                                "",
-                              ],
+                              $getField: {
+                                field: "status_of_handoversheet",
+                                input: { $arrayElemAt: ["$handover_info", 0] },
+                              },
                             },
                           },
                           "draft",
@@ -295,46 +280,32 @@ const getAllLeads = async (req, res) => {
                         $eq: [
                           {
                             $toLower: {
-                              $ifNull: [
-                                {
-                                  $getField: {
-                                    field: "status_of_handoversheet",
-                                    input: {
-                                      $arrayElemAt: ["$handover_info", 0],
-                                    },
-                                  },
-                                },
-                                "",
-                              ],
-                            },
-                          },
-                          "Rejected",
-                        ],
-                      },
-                      then: "rejected",
-                    },
-                    {
-                      case: {
-                        $eq: [
-                          {
-                            $toLower: {
-                              $ifNull: [
-                                {
-                                  $getField: {
-                                    field: "status_of_handoversheet",
-                                    input: {
-                                      $arrayElemAt: ["$handover_info", 0],
-                                    },
-                                  },
-                                },
-                                "",
-                              ],
+                              $getField: {
+                                field: "status_of_handoversheet",
+                                input: { $arrayElemAt: ["$handover_info", 0] },
+                              },
                             },
                           },
                           "submitted",
                         ],
                       },
                       then: "completed",
+                    },
+                    {
+                      case: {
+                        $eq: [
+                          {
+                            $toLower: {
+                              $getField: {
+                                field: "status_of_handoversheet",
+                                input: { $arrayElemAt: ["$handover_info", 0] },
+                              },
+                            },
+                          },
+                          "Rejected",
+                        ],
+                      },
+                      then: "rejected",
                     },
                   ],
                   default: "unknown",
@@ -345,6 +316,8 @@ const getAllLeads = async (req, res) => {
           },
         },
       },
+
+      // Task meta
       {
         $lookup: {
           from: "bdtasks",
@@ -370,20 +343,6 @@ const getAllLeads = async (req, res) => {
               "$createdAt",
             ],
           },
-        },
-      },
-      {
-        $addFields: {
-          inactiveDays: {
-            $divide: [
-              { $subtract: ["$$NOW", "$lastModifiedTask"] },
-              1000 * 60 * 60 * 24,
-            ],
-          },
-        },
-      },
-      {
-        $addFields: {
           wonStatusDate: {
             $let: {
               vars: {
@@ -404,6 +363,12 @@ const getAllLeads = async (req, res) => {
       },
       {
         $addFields: {
+          inactiveDays: {
+            $divide: [
+              { $subtract: ["$$NOW", "$lastModifiedTask"] },
+              1000 * 60 * 60 * 24,
+            ],
+          },
           leadAging: {
             $ceil: {
               $divide: [
@@ -419,69 +384,22 @@ const getAllLeads = async (req, res) => {
           },
         },
       },
+
       {
         $match: {
           ...(handover_statusFilter && {
             handover_status: handover_statusFilter,
           }),
-          ...(inactiveFilter &&
-            !isNaN(Number(inactiveFilter)) && {
-              inactiveDays: { $lte: Number(inactiveFilter) },
-            }),
-          ...(leadAgingFilter &&
-            !isNaN(Number(leadAgingFilter)) && {
-              leadAging: { $lte: Number(leadAgingFilter) },
-            }),
+          ...(inactiveFilter && {
+            inactiveDays: { $lte: Number(inactiveFilter) },
+          }),
+          ...(leadAgingFilter && {
+            leadAging: { $lte: Number(leadAgingFilter) },
+          }),
         },
       },
-      // Assigned user population
-      {
-        $lookup: {
-          from: "users",
-          localField: "assigned_to.user_id",
-          foreignField: "_id",
-          pipeline: [{ $project: { _id: 1, name: 1 } }],
-          as: "assigned_user_objs",
-        },
-      },
-      {
-        $addFields: {
-          assigned_to: {
-            $map: {
-              input: "$assigned_to",
-              as: "a",
-              in: {
-                _id: "$$a._id",
-                status: "$$a.status",
-                user_id: {
-                  $let: {
-                    vars: {
-                      matched: {
-                        $arrayElemAt: [
-                          {
-                            $filter: {
-                              input: "$assigned_user_objs",
-                              as: "u",
-                              cond: { $eq: ["$$u._id", "$$a.user_id"] },
-                            },
-                          },
-                          0,
-                        ],
-                      },
-                    },
-                    in: {
-                      _id: "$$matched._id",
-                      name: "$$matched.name",
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      { $project: { assigned_user_objs: 0 } },
 
+      // Lookup for current_assigned user
       {
         $lookup: {
           from: "users",
@@ -511,98 +429,27 @@ const getAllLeads = async (req, res) => {
             },
           ]
         : []),
-      { $project: { current_assigned_user: 0 } },
-
-      {
-        $lookup: {
-          from: "users",
-          localField: "submitted_by",
-          foreignField: "_id",
-          pipeline: [{ $project: { _id: 1, name: 1 } }],
-          as: "submitted_by_user",
-        },
-      },
-      {
-        $addFields: {
-          submitted_by: { $arrayElemAt: ["$submitted_by_user", 0] },
-        },
-      },
-      { $project: { submitted_by_user: 0 } },
-
-      {
-        $lookup: {
-          from: "users",
-          let: { ids: "$status_history.user_id" },
-          pipeline: [
-            { $match: { $expr: { $in: ["$_id", "$$ids"] } } },
-            { $project: { _id: 1, name: 1 } },
-          ],
-          as: "status_users",
-        },
-      },
-      {
-        $addFields: {
-          status_history: {
-            $map: {
-              input: "$status_history",
-              as: "s",
-              in: {
-                $mergeObjects: [
-                  "$$s",
-                  {
-                    user_id: {
-                      $arrayElemAt: [
-                        {
-                          $filter: {
-                            input: "$status_users",
-                            as: "u",
-                            cond: { $eq: ["$$u._id", "$$s.user_id"] },
-                          },
-                        },
-                        0,
-                      ],
-                    },
-                  },
-                ],
-              },
-            },
-          },
-        },
-      },
-      { $project: { status_users: 0 } },
-      {
-        $lookup: {
-          from: "groups",
-          localField: "group_id",
-          foreignField: "_id",
-          pipeline: [{ $project: { _id: 1, group_code: 1, group_name: 1 } }],
-          as: "group_info",
-        },
-      },
-      {
-        $addFields: {
-          group_code: {
-            $cond: {
-              if: { $gt: [{ $size: "$group_info" }, 0] },
-              then: { $arrayElemAt: ["$group_info.group_code", 0] },
-              else: null,
-            },
-          },
-          group_name: {
-            $cond: {
-              if: { $gt: [{ $size: "$group_info" }, 0] },
-              then: { $arrayElemAt: ["$group_info.group_name", 0] },
-              else: null,
-            },
-          },
-        },
-      },
-      { $project: { task_meta: 0, handover_info: 0 } },
-      { $sort: { createdAt: -1 } },
-      { $skip: (parseInt(page) - 1) * parseInt(limit) },
-      { $limit: parseInt(limit) },
     ];
 
+    const finalPipeline = [
+      ...basePipeline,
+      {
+        $facet: {
+          leads: [
+            { $sort: { createdAt: -1 } },
+            { $skip: (parseInt(page) - 1) * parseInt(limit) },
+            { $limit: parseInt(limit) },
+          ],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const result = await bdleadsModells.aggregate(finalPipeline);
+    const leads = result[0]?.leads || [];
+    const total = result[0]?.totalCount?.[0]?.count || 0;
+
+    // Stage counts
     const stageNames = ["initial", "follow up", "warm", "won", "dead"];
     const stageMatch = !isPrivilegedUser
       ? { "assigned_to.user_id": new mongoose.Types.ObjectId(userId) }
@@ -612,10 +459,12 @@ const getAllLeads = async (req, res) => {
       { $match: stageMatch },
       { $group: { _id: "$current_status.name", count: { $sum: 1 } } },
     ]);
+
     const stageCounts = stageNames.reduce((acc, s) => {
       acc[s] = stageCountsAgg.find((x) => x._id === s)?.count || 0;
       return acc;
     }, {});
+
     const totalAgg = await bdleadsModells.aggregate([
       { $match: stageMatch },
       { $count: "count" },
@@ -641,245 +490,6 @@ const getAllLeads = async (req, res) => {
       { $count: "count" },
     ]);
     stageCounts.lead_without_task = leadWithoutTaskAgg[0]?.count || 0;
-
-    const totalMatchPipeline = [
-      { $match: match },
-      {
-        $lookup: {
-          from: "handoversheets",
-          let: { leadId: "$id" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $eq: [
-                    { $trim: { input: { $toString: "$id" } } },
-                    { $trim: { input: { $toString: "$$leadId" } } },
-                  ],
-                },
-              },
-            },
-            { $project: { _id: 1, status_of_handoversheet: 1 } },
-          ],
-          as: "handover_info",
-        },
-      },
-      {
-        $addFields: {
-          handover: {
-            $cond: [
-              {
-                $and: [
-                  { $eq: ["$current_status.name", "won"] },
-                  { $gt: [{ $size: "$handover_info" }, 0] },
-                ],
-              },
-              true,
-              false,
-            ],
-          },
-          handover_status: {
-            $cond: [
-              { $gt: [{ $size: "$handover_info" }, 0] },
-              {
-                $switch: {
-                  branches: [
-                    {
-                      case: {
-                        $eq: [
-                          {
-                            $toLower: {
-                              $ifNull: [
-                                {
-                                  $getField: {
-                                    field: "status_of_handoversheet",
-                                    input: {
-                                      $arrayElemAt: ["$handover_info", 0],
-                                    },
-                                  },
-                                },
-                                "",
-                              ],
-                            },
-                          },
-                          "draft",
-                        ],
-                      },
-                      then: "in process",
-                    },
-                    {
-                      case: {
-                        $eq: [
-                          {
-                            $toLower: {
-                              $ifNull: [
-                                {
-                                  $getField: {
-                                    field: "status_of_handoversheet",
-                                    input: {
-                                      $arrayElemAt: ["$handover_info", 0],
-                                    },
-                                  },
-                                },
-                                "",
-                              ],
-                            },
-                          },
-                          "rejected",
-                        ],
-                      },
-                      then: "rejected",
-                    },
-                    {
-                      case: {
-                        $eq: [
-                          {
-                            $toLower: {
-                              $ifNull: [
-                                {
-                                  $getField: {
-                                    field: "status_of_handoversheet",
-                                    input: {
-                                      $arrayElemAt: ["$handover_info", 0],
-                                    },
-                                  },
-                                },
-                                "",
-                              ],
-                            },
-                          },
-                          "submitted",
-                        ],
-                      },
-                      then: "completed",
-                    },
-                  ],
-                  default: "unknown",
-                },
-              },
-              "pending",
-            ],
-          },
-        },
-      },
-      {
-        $lookup: {
-          from: "bdtasks",
-          let: { leadId: "$_id" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$lead_id", "$$leadId"] } } },
-            {
-              $group: {
-                _id: null,
-                lastModifiedTask: { $max: "$updatedAt" },
-              },
-            },
-            { $project: { _id: 0, lastModifiedTask: 1 } },
-          ],
-          as: "task_meta",
-        },
-      },
-      {
-        $addFields: {
-          lastModifiedTask: {
-            $ifNull: [
-              { $arrayElemAt: ["$task_meta.lastModifiedTask", 0] },
-              "$createdAt",
-            ],
-          },
-          wonStatusDate: {
-            $let: {
-              vars: {
-                wonEntry: {
-                  $first: {
-                    $filter: {
-                      input: "$status_history",
-                      as: "s",
-                      cond: { $eq: ["$$s.name", "won"] },
-                    },
-                  },
-                },
-              },
-              in: "$$wonEntry.updatedAt",
-            },
-          },
-        },
-      },
-      {
-        $addFields: {
-          inactiveDays: {
-            $divide: [
-              { $subtract: ["$$NOW", "$lastModifiedTask"] },
-              1000 * 60 * 60 * 24,
-            ],
-          },
-          leadAging: {
-            $ceil: {
-              $divide: [
-                {
-                  $subtract: [
-                    { $ifNull: ["$wonStatusDate", "$$NOW"] },
-                    "$createdAt",
-                  ],
-                },
-                1000 * 60 * 60 * 24,
-              ],
-            },
-          },
-        },
-      },
-      {
-        $match: {
-          ...(handover_statusFilter && {
-            handover_status: handover_statusFilter,
-          }),
-          ...(inactiveFilter &&
-            !isNaN(Number(inactiveFilter)) && {
-              inactiveDays: { $lte: Number(inactiveFilter) },
-            }),
-          ...(leadAgingFilter &&
-            !isNaN(Number(leadAgingFilter)) && {
-              leadAging: { $lte: Number(leadAgingFilter) },
-            }),
-        },
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "current_assigned.user_id",
-          foreignField: "_id",
-          pipeline: [{ $project: { _id: 1, name: 1 } }],
-          as: "current_assigned_user",
-        },
-      },
-      {
-        $addFields: {
-          current_assigned: {
-            status: "$current_assigned.status",
-            user_id: { $arrayElemAt: ["$current_assigned_user", 0] },
-          },
-        },
-      },
-      ...(name
-        ? [
-            {
-              $match: {
-                "current_assigned.user_id.name": {
-                  $regex: name,
-                  $options: "i",
-                },
-              },
-            },
-          ]
-        : []),
-
-      { $count: "count" },
-    ];
-
-    const totalCountAgg = await bdleadsModells.aggregate(totalMatchPipeline);
-
-    const total = totalCountAgg[0]?.count || 0;
-    const leads = await bdleadsModells.aggregate(pipeline);
 
     return res.status(200).json({
       message: "BD Leads fetched successfully",
@@ -972,44 +582,115 @@ const deleteLead = async (req, res) => {
 
 const updateAssignedTo = async (req, res) => {
   try {
-    const { _id } = req.params;
-    const { assigned_to } = req.body;
+    const { leadIds, assigned } = req.body;
 
-    if (!_id || !assigned_to) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing required fields" });
+    if (!Array.isArray(leadIds) || leadIds.length === 0 || !assigned) {
+      return res.status(400).json({
+        success: false,
+        message: "leadIds must be a non-empty array and assigned is required",
+      });
     }
 
-    const user = await userModells.findById(assigned_to);
+    const user = await userModells.findById(assigned);
     if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Assigned user not found",
+      });
     }
 
-    const lead = await bdleadsModells.findById(_id);
-    if (!lead) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Lead not found" });
+    const updatedLeads = [];
+
+    for (const leadId of leadIds) {
+      const lead = await bdleadsModells.findById(leadId);
+      if (!lead) continue;
+      const status = lead.current_status?.name || "";
+      lead.assigned_to.push({
+        user_id: user._id,
+        status,
+      });
+
+      await lead.save();
+      updatedLeads.push(lead);
     }
 
-    const status = lead.current_status?.name || "";
+    return res.status(200).json({
+      success: true,
+      message: "User assigned to leads successfully",
+      data: updatedLeads,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
 
-    lead.assigned_to.push({
-      user_id: user._id,
-      status,
+const attachToGroup = async (req, res) => {
+  try {
+    const { leadIds, groupId } = req.body;
+
+    if (!Array.isArray(leadIds) || leadIds.length === 0 || !groupId) {
+      return res.status(400).json({
+        success: false,
+        message: "leadIds must be a non-empty array and group is required",
+      });
+    }
+
+    const group = await groupModells.findById(groupId);
+
+    const alreadyAttachedLeads = await bdleadsModells.find({
+      group_id: groupId,
     });
 
-    // Save the document
-    await lead.save();
+    const existingCapacity = alreadyAttachedLeads.reduce((sum, lead) => {
+      return sum + (Number(lead.project_details.capacity) || 0);
+    }, 0);
 
-    res.status(200).json({ success: true, data: lead });
+    const newLeads = await bdleadsModells.find({ _id: { $in: leadIds } });
+
+    const alreadyGroupedLead = newLeads.find((lead) => lead.group_id);
+    if (alreadyGroupedLead) {
+      return res.status(400).json({
+        success: false,
+        message: `Lead with ID ${alreadyGroupedLead.id} is already attached to a group`,
+      });
+    }
+
+    const newCapacity = newLeads.reduce((sum, lead) => {
+      return sum + (Number(lead.project_details.capacity) || 0);
+    }, 0);
+
+    const totalCapacity = existingCapacity + newCapacity;
+
+    if (totalCapacity > group.project_details.capacity) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot attach leads. Total capacity (${totalCapacity}) exceeds group capacity (${group.project_details.capacity})`,
+      });
+    }
+
+    const updatedLeads = [];
+
+    for (const lead of newLeads) {
+      lead.group_id = groupId;
+      await lead.save();
+      updatedLeads.push(lead);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Leads successfully attached to the group",
+      data: updatedLeads,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, message: "Server Error", error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
   }
 };
 
@@ -1543,6 +1224,19 @@ const updateAssignedToFromSubmittedBy = async (req, res) => {
   }
 };
 
+const getUniqueState = async (req, res) => {
+  try {
+    const states = await bdleadsModells.distinct("address.state");
+    const lowercasedStates = Array.from(
+      new Set(states.filter(Boolean).map((state) => state.trim().toLowerCase()))
+    );
+    res.status(200).json({ success: true, data: lowercasedStates });
+  } catch (error) {
+    console.error("Error fetching unique states:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
 module.exports = {
   getAllLeads,
   getAllLeadDropdown,
@@ -1556,4 +1250,6 @@ module.exports = {
   exportLeadsCSV,
   updateLeadStatus,
   getLeadByLeadIdorId,
+  getUniqueState,
+  attachToGroup,
 };

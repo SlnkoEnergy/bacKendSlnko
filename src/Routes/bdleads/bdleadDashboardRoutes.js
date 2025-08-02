@@ -8,8 +8,33 @@ const {
   leadWonAndLost,
   leadFunnel,
 } = require("../../Controllers/bdController/bdleadsController");
-const { createGroup, getAllGroup, getGroupById, updateGroup, deleteGroup, updateGroupStatus, groupDropdown, getAllGroupDropdown, getexportToCSVGroup } = require("../../Controllers/bdController/groupController.js");
-const { deleteLead, updateAssignedTo, exportLeadsCSV, updateLeadStatus, uploadDocuments, updateExpectedClosing, getLeadByLeadIdorId, getAllLeads, getAllLeadDropdown, editLead, createBDlead, updateAssignedToFromSubmittedBy } = require("../../Controllers/bdController/leadsController.js");
+const {
+  createGroup,
+  getAllGroup,
+  getGroupById,
+  updateGroup,
+  deleteGroup,
+  updateGroupStatus,
+  groupDropdown,
+  getAllGroupDropdown,
+  getexportToCSVGroup,
+} = require("../../Controllers/bdController/groupController.js");
+const {
+  deleteLead,
+  updateAssignedTo,
+  exportLeadsCSV,
+  updateLeadStatus,
+  uploadDocuments,
+  updateExpectedClosing,
+  getLeadByLeadIdorId,
+  getAllLeads,
+  getAllLeadDropdown,
+  editLead,
+  createBDlead,
+  updateAssignedToFromSubmittedBy,
+  attachToGroup,
+  getUniqueState,
+} = require("../../Controllers/bdController/leadsController.js");
 const {
   getNotesById,
   createNotes,
@@ -33,7 +58,6 @@ const {
 } = require("../../Controllers/bdController/taskController");
 const jwtMW = require("../../middlewares/auth");
 const upload = require("../../middlewares/multer.js");
-
 
 // Bd lead Dashboard Routes
 router.get(
@@ -101,10 +125,16 @@ router.delete(
   deleteLead
 );
 router.put(
-  "/assign-to/:_id",
+  "/assign-to",
   jwtMW.authentication,
   jwtMW.authorization,
   updateAssignedTo
+);
+router.put(
+  "/attach-group",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  attachToGroup
 );
 router.post(
   "/export-lead",
@@ -130,6 +160,12 @@ router.put(
   jwtMW.authentication,
   jwtMW.authorization,
   updateExpectedClosing
+);
+router.get(
+  "/states",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getUniqueState
 );
 
 // Task Routes
@@ -231,15 +267,44 @@ router.put(
   updateAssignedToFromSubmittedBy
 );
 
-
 //Group
-router.post('/group', jwtMW.authentication, jwtMW.authorization, createGroup);
-router.get('/group', jwtMW.authentication, jwtMW.authorization, getAllGroup);
-router.get('/group/:id', jwtMW.authentication, jwtMW.authorization, getGroupById);
-router.put('/group/:id', jwtMW.authentication, jwtMW.authorization, updateGroup);
-router.put('/:id/updateGroupStatus', jwtMW.authentication, jwtMW.authorization, updateGroupStatus);
-router.delete('/group/:id', jwtMW.authentication, jwtMW.authorization, deleteGroup);
-router.get('/group-drop', jwtMW.authentication, jwtMW.authentication, getAllGroupDropdown);
-router.post('/group-export', jwtMW.authentication, jwtMW.authentication, getexportToCSVGroup);
+router.post("/group", jwtMW.authentication, jwtMW.authorization, createGroup);
+router.get("/group", jwtMW.authentication, jwtMW.authorization, getAllGroup);
+router.get(
+  "/group/:id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getGroupById
+);
+router.put(
+  "/group/:id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateGroup
+);
+router.put(
+  "/:id/updateGroupStatus",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateGroupStatus
+);
+router.delete(
+  "/group/:id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  deleteGroup
+);
+router.get(
+  "/group-drop",
+  jwtMW.authentication,
+  jwtMW.authentication,
+  getAllGroupDropdown
+);
+router.post(
+  "/group-export",
+  jwtMW.authentication,
+  jwtMW.authentication,
+  getexportToCSVGroup
+);
 
 module.exports = router;

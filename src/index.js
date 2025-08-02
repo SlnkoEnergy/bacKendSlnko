@@ -8,13 +8,33 @@ const dprRoutes = require("../src/Routes/dpr/dprRoutes");
 const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRoutes");
 const taskRoutes = require("../src/Routes/tasks/tasks");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
+const poRoutes = require("../src/Routes/OldPO/PoRoutes");
 const cors = require("cors");
 const { config } = require("dotenv");
-const cookieParser = require('cookie-parser');
+const cookieParser = require("cookie-parser");
+const http = require("http");
+const socketIo = require("socket.io");
 
 config({
   path: "./.env",
 });
+
+const server = http.createServer(app);
+
+const io = socketIo(server, {
+  cors: {
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "https://sales.slnkoprotrac.com",
+      "https://slnkoprotrac.com",
+      "https://dev.slnkoprotrac.com",
+      "https://staging.slnkoprotrac.com",
+    ],
+    credentials: true,
+  },
+});
+global.io = io;
 
 const allowedOrigins = [
   "http://localhost:3000",
@@ -22,27 +42,30 @@ const allowedOrigins = [
   "https://sales.slnkoprotrac.com",
   "https://slnkoprotrac.com",
   "https://dev.slnkoprotrac.com",
-  "https://staging.slnkoprotrac.com"
+  "https://staging.slnkoprotrac.com",
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 
+app.set("io", io);
 
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_URL;
 
 const startServer = async () => {
   try {
@@ -55,10 +78,11 @@ const startServer = async () => {
     app.use("/v1/dpr", dprRoutes);
     app.use("/v1/purchaseRequest", purchaseRoutes);
     app.use("/v1/tasks", taskRoutes);
+    app.use("/v1/oldpo", poRoutes);
     app.use("/v1/accounting", accountingRoutes);
 
     // Start the server
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);
     });
 

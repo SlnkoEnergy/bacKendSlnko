@@ -10,8 +10,6 @@ const createGroup = async (req, res) => {
     const requiredFields = [
       "group_name",
       "contact_details.mobile",
-      "address.village",
-      "address.district",
       "address.state",
       "project_details.capacity",
       "source.from",
@@ -76,7 +74,6 @@ const getAllGroup = async (req, res) => {
     const user = await userModells.findById(user_id);
     const name = user?.name;
 
-    // Common search match
     const searchMatch = {
       $or: [
         { group_name: { $regex: search, $options: "i" } },
@@ -204,7 +201,6 @@ const getAllGroup = async (req, res) => {
 const getAllGroupDropdown = async (req, res) => {
   try {
     const groups = await group.aggregate([
-      // Lookup leads to sum their capacity per group
       {
         $lookup: {
           from: "bdleads",
@@ -228,8 +224,6 @@ const getAllGroupDropdown = async (req, res) => {
           },
         },
       },
-
-      // Join createdBy user
       {
         $lookup: {
           from: "users",
@@ -306,8 +300,6 @@ const getAllGroupDropdown = async (req, res) => {
     res.status(500).json({ error: error.message || "Internal Server Error" });
   }
 };
-
-
 
 const getGroupById = async (req, res) => {
   try {
@@ -544,7 +536,7 @@ const getexportToCSVGroup = async (req, res) => {
           from: "bdleads",
           localField: "_id",
           foreignField: "group_id",
-          as: "relatedLeads",
+          as: "leads",
         },
       },
       {
@@ -552,10 +544,10 @@ const getexportToCSVGroup = async (req, res) => {
           total_lead_capacity: {
             $sum: {
               $map: {
-                input: "$relatedLeads",
+                input: "$leads",
                 as: "lead",
                 in: {
-                  $toDouble: "$$lead.project_details.capacityf",
+                  $toDouble: "$$lead.project_details.capacity",
                 },
               },
             },
@@ -565,28 +557,27 @@ const getexportToCSVGroup = async (req, res) => {
         },
       },
       {
+        $addFields: {
+          left_capacity: {
+            $subtract: [
+              { $toDouble: "$project_details.capacity"}, "$total_lead_capacity",
+            ],
+          },
+        },
+      },
+      {
         $project: {
           group_code: 1,
           group_name: 1,
-          "project_details.scheme": 1,
-          capacity: "$project_details.capacity",
-          company_name: 1,
-          "address.state": 1,
-          "contact_details.email": 1,
-          total_lead_capacity: 1,
-          createdAt: 1,
-          createdByName: 1,
-          statusUserName: 1,
-          "current_status.status": 1,
+          State : 1,
         },
       },
     ]);
-
-    // Flatten records for CSV
     const flattenedData = groupData.map((item) => ({
       "Group Code": item.group_code,
       "Group Name": item.group_name,
       "Total Capacity": item.capacity,
+      "Left Capacity" : item.left_capacity,
       "State": item.address?.state || "",
       "Scheme": item.project_details?.scheme || "",
       "Created At": new Date(item.createdAt).toLocaleString("en-IN"),
@@ -598,6 +589,7 @@ const getexportToCSVGroup = async (req, res) => {
       "Group Code",
       "Group Name",
       "Total Capacity",
+      "Left Capacity",
       "State",
       "Scheme",
       "Created At",

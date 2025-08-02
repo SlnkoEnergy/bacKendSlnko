@@ -1,27 +1,22 @@
-const projectModells = require("../../Modells/projectModells");
-const purchaseOrderModells = require("../../Modells/purchaseOrderModells");
 const payrequestModells = require("../../Modells/payRequestModells");
 
 const paymentApproved = async (req, res) => {
-   try {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.max(1, parseInt(req.query.limit) || 10);
-    const skip = (page - 1) * limit;
-
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    const skip = (page - 1) * pageSize;
     const search = req.query.search?.trim() || "";
 
-    // Base match filter
     const matchFilter = {
       approved: "Approved",
-      $or: [{ acc_match: { $in: [null, ""] } }],
+      $or: [{ acc_match: null }, { acc_match: "" }],
     };
 
-    // Pipeline starts
     const pipeline = [
       { $match: matchFilter },
       { $sort: { createdAt: -1 } },
       { $skip: skip },
-      { $limit: limit },
+      { $limit: pageSize },
       {
         $lookup: {
           from: "projectdetails",
@@ -34,7 +29,7 @@ const paymentApproved = async (req, res) => {
       {
         $project: {
           _id: 0,
-          paymentId: "$pay_id",
+          pay_id: "$pay_id",
           projectId: "$project.code",
           projectName: "$project.name",
           requestedFor: "$paid_for",
@@ -46,14 +41,15 @@ const paymentApproved = async (req, res) => {
       },
     ];
 
-    // Add search filter after projection
     if (search) {
       pipeline.push({
         $match: {
           $or: [
-            { paymentId: { $regex: search, $options: "i" } },
+            { pay_id: { $regex: search, $options: "i" } },
             { projectId: { $regex: search, $options: "i" } },
             { projectName: { $regex: search, $options: "i" } },
+            { requestedFor: { $regex: search, $options: "i" } },
+            { vendor: { $regex: search, $options: "i" } },
           ],
         },
       });
@@ -61,7 +57,6 @@ const paymentApproved = async (req, res) => {
 
     const data = await payrequestModells.aggregate(pipeline);
 
-    // Recalculate total count with search applied
     const countPipeline = [
       { $match: matchFilter },
       {
@@ -75,9 +70,11 @@ const paymentApproved = async (req, res) => {
       { $unwind: "$project" },
       {
         $project: {
-          paymentId: "$pay_id",
+          pay_id: "$pay_id",
           projectId: "$project.code",
           projectName: "$project.name",
+          requestedFor: "$paid_for",
+          vendor: "$vendor",
         },
       },
     ];
@@ -86,9 +83,11 @@ const paymentApproved = async (req, res) => {
       countPipeline.push({
         $match: {
           $or: [
-            { paymentId: { $regex: search, $options: "i" } },
+            { pay_id: { $regex: search, $options: "i" } },
             { projectId: { $regex: search, $options: "i" } },
             { projectName: { $regex: search, $options: "i" } },
+            { requestedFor: { $regex: search, $options: "i" } },
+            { vendor: { $regex: search, $options: "i" } },
           ],
         },
       });
@@ -97,31 +96,31 @@ const paymentApproved = async (req, res) => {
     countPipeline.push({ $count: "total" });
 
     const countAgg = await payrequestModells.aggregate(countPipeline);
-    const totalRecords = countAgg[0]?.total || 0;
+    const total = countAgg[0]?.total || 0;
 
     res.json({
-      page,
-      limit,
-      totalRecords,
-      totalPages: Math.ceil(totalRecords / limit),
+      success: true,
+      meta: {
+        total,
+        page,
+        pageSize,
+        count: data.length,
+      },
       data,
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Internal server error: " + error.message });
+    res.status(500).json({
+      success: false,
+      message: "Internal server error: " + error.message,
+    });
   }
 };
 
-
-
-
-//UTR Submission
 const utrSubmission = async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.max(1, parseInt(req.query.limit) || 10);
-    const skip = (page - 1) * limit;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    const skip = (page - 1) * pageSize;
     const search = req.query.search?.trim() || "";
 
     const matchFilter = {
@@ -134,7 +133,7 @@ const utrSubmission = async (req, res) => {
       { $match: matchFilter },
       { $sort: { createdAt: -1 } },
       { $skip: skip },
-      { $limit: limit },
+      { $limit: pageSize },
       {
         $lookup: {
           from: "projectdetails",
@@ -147,10 +146,10 @@ const utrSubmission = async (req, res) => {
       {
         $project: {
           _id: 0,
-          paymentId: "$pay_id",
+          pay_id: "$pay_id",
           projectId: "$project.code",
           projectName: "$project.name",
-          RequestedFor: "$paid_for",
+          requestedFor: "$paid_for",
           vendor: "$vendor",
           paymentDesc: "$comment",
           requestedAmount: "$amt_for_customer",
@@ -160,14 +159,15 @@ const utrSubmission = async (req, res) => {
       },
     ];
 
-    // Add search filtering after projection
     if (search) {
       pipeline.push({
         $match: {
           $or: [
-            { paymentId: { $regex: search, $options: "i" } },
+            { pay_id: { $regex: search, $options: "i" } },
             { projectId: { $regex: search, $options: "i" } },
             { projectName: { $regex: search, $options: "i" } },
+            { requestedFor: { $regex: search, $options: "i" } },
+            { vendor: { $regex: search, $options: "i" } },
           ],
         },
       });
@@ -175,7 +175,6 @@ const utrSubmission = async (req, res) => {
 
     const data = await payrequestModells.aggregate(pipeline);
 
-    // Count total records (with search applied)
     const countPipeline = [
       { $match: matchFilter },
       {
@@ -189,9 +188,11 @@ const utrSubmission = async (req, res) => {
       { $unwind: "$project" },
       {
         $project: {
-          paymentId: "$pay_id",
+          pay_id: "$pay_id",
           projectId: "$project.code",
           projectName: "$project.name",
+          requestedFor: "$paid_for",
+          vendor: "$vendor",
         },
       },
     ];
@@ -200,9 +201,11 @@ const utrSubmission = async (req, res) => {
       countPipeline.push({
         $match: {
           $or: [
-            { paymentId: { $regex: search, $options: "i" } },
+            { pay_id: { $regex: search, $options: "i" } },
             { projectId: { $regex: search, $options: "i" } },
             { projectName: { $regex: search, $options: "i" } },
+            { requestedFor: { $regex: search, $options: "i" } },
+            { vendor: { $regex: search, $options: "i" } },
           ],
         },
       });
@@ -211,13 +214,16 @@ const utrSubmission = async (req, res) => {
     countPipeline.push({ $count: "total" });
 
     const countAgg = await payrequestModells.aggregate(countPipeline);
-    const totalRecords = countAgg[0]?.total || 0;
+    const total = countAgg[0]?.total || 0;
 
     res.json({
-      page,
-      limit,
-      totalRecords,
-      totalPages: Math.ceil(totalRecords / limit),
+      psuccess: true,
+      meta: {
+        total,
+        page,
+        pageSize,
+        count: data.length,
+      },
       data,
     });
   } catch (error) {
