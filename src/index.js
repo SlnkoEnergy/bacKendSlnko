@@ -36,6 +36,15 @@ const io = socketIo(server, {
 });
 global.io = io;
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://sales.slnkoprotrac.com",
+  "https://slnkoprotrac.com",
+  "https://dev.slnkoprotrac.com",
+  "https://staging.slnkoprotrac.com",
+];
+
 app.use(
   cors({
     origin: function (origin, callback) {
