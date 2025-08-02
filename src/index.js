@@ -13,6 +13,17 @@ const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
 const http = require("http");
+const Sentry = require("@sentry/node");
+const Tracing = require("@sentry/tracing");
+
+Sentry.init({
+  dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",
+  integrations: [
+    new Sentry.Integrations.Http({ tracing: true }),
+    new Tracing.Integrations.Express({ app }),
+  ],
+  tracesSampleRate: 1.0,
+});
 
 config({ path: "./.env" });
 
@@ -37,11 +48,11 @@ app.use(
     credentials: true,
   })
 );
-
+app.use(Sentry.Handlers.requestHandler());
+app.use(Sentry.Handlers.tracingHandler());
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 const PORT = process.env.PORT;
 const db = process.env.DB_DEVELOPMENT_URL;
 
@@ -63,6 +74,7 @@ const startServer = async () => {
       console.log(`Slnko app is running on port ${PORT}`);
     });
 
+    app.use(Sentry.Handlers.errorHandler());
     process.on("SIGINT", () => {
       console.log("Gracefully shutting down...");
       mongoose.connection.close(() => {
