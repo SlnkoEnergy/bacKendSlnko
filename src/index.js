@@ -18,7 +18,23 @@ const socketIo = require("socket.io");
 config({
   path: "./.env",
 });
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [];
+
+const server = http.createServer(app);
+
+const io = socketIo(server, {
+  cors: {
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "https://sales.slnkoprotrac.com",
+      "https://slnkoprotrac.com",
+      "https://dev.slnkoprotrac.com",
+      "https://staging.slnkoprotrac.com",
+    ],
+    credentials: true,
+  },
+});
+global.io = io;
 
 app.use(
   cors({
@@ -32,6 +48,8 @@ app.use(
     credentials: true,
   })
 );
+
+app.set("io", io);
 
 app.use(cookieParser());
 app.use(express.json());
@@ -53,8 +71,6 @@ const startServer = async () => {
     app.use("/v1/tasks", taskRoutes);
     app.use("/v1/oldpo", poRoutes);
     app.use("/v1/accounting", accountingRoutes);
-    app.use("/v1/documents", documentRoutes);
-
 
     // Start the server
     server.listen(PORT, () => {
