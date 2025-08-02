@@ -35,6 +35,19 @@ const io = socketIo(server, {
   },
 });
 
+io.on("connection", (socket) => {
+  console.log("✅ WebSocket connected:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("❌ WebSocket disconnected:", socket.id);
+  });
+
+  // Example socket event
+  socket.on("ping", () => {
+    socket.emit("pong");
+  });
+});
+
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
