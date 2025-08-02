@@ -34,7 +34,6 @@ const io = socketIo(server, {
     credentials: true,
   },
 });
-global.io = io;
 
 const allowedOrigins = [
   "http://localhost:3000",
