@@ -653,11 +653,11 @@ const projectBalance = async (req, res) => {
 
     const total = countResult[0]?.total || 0;
 
-    const io = req.app.get("io");
-    io.emit("projectBalanceUpdated", {
-      data,
-      totals: projectTotals[0] || {},
-    });
+    // const io = req.app.get("io");
+    // io.emit("projectBalanceUpdated", {
+    //   data,
+    //   totals: projectTotals[0] || {},
+    // });
 
     const csvCache = {};
 
