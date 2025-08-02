@@ -13,28 +13,8 @@ const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
 const http = require("http");
-const socketIo = require("socket.io");
 
-config({
-  path: "./.env",
-});
-
-const server = http.createServer(app);
-
-const io = socketIo(server, {
-  cors: {
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "https://sales.slnkoprotrac.com",
-      "https://slnkoprotrac.com",
-      "https://dev.slnkoprotrac.com",
-      "https://staging.slnkoprotrac.com",
-    ],
-    credentials: true,
-  },
-});
-global.io = io;
+config({ path: "./.env" });
 
 const allowedOrigins = [
   "http://localhost:3000",
@@ -58,8 +38,6 @@ app.use(
   })
 );
 
-app.set("io", io);
-
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -81,8 +59,7 @@ const startServer = async () => {
     app.use("/v1/oldpo", poRoutes);
     app.use("/v1/accounting", accountingRoutes);
 
-    // Start the server
-    server.listen(PORT, () => {
+    app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);
     });
 
@@ -99,5 +76,4 @@ const startServer = async () => {
   }
 };
 
-// Start the server
 startServer();
