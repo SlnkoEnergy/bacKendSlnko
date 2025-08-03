@@ -28,15 +28,11 @@ Sentry.init({
 
 config({ path: "./.env" });
 
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:5173",
-  "https://sales.slnkoprotrac.com",
-  "https://slnkoprotrac.com",
-  "https://dev.slnkoprotrac.com",
-  "https://staging.slnkoprotrac.com",
-];
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",")
+  : [];
+  
 app.use(
   cors({
     origin: function (origin, callback) {
