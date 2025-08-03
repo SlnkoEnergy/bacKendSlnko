@@ -10,6 +10,8 @@ const recoverypayrequest = require("../Modells/recoveryPayrequestModells");
 const subtractMoneyModells = require("../Modells/debitMoneyModells");
 
 // Request payment
+
+const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
 const payRrequest = async (req, res) => {
   try {
     const {
@@ -25,6 +27,11 @@ const payRrequest = async (req, res) => {
       po_number,
       po_value,
       po_balance,
+      credit,
+      approval_status,
+      timers,
+      status_history,
+      credit_history,
       pay_mode,
       paid_to,
       ifsc,
@@ -39,57 +46,39 @@ const payRrequest = async (req, res) => {
       utr,
       total_advance_paid,
       other,
-      code,
       comment,
+      code,
     } = req.body;
 
-    // Check if pay_id exists
-    // const existingPayment = await payRequestModells.findOne({ pay_id: pay_id });
-    // if (existingPayment) {
-    //   return res.status(400).json({ msg: "Payment ID already used!" });
-    // }
+    const existingPayment = await payRequestModells.findOne({ pay_id });
+    if (existingPayment) {
+      return res.status(400).json({
+        msg: "Payment ID already used! Please refresh and try again.",
+      });
+    }
 
-    // Get project details by project ID
     const project = await projectModells.findOne({
-      $or: [{ p_id: p_id }, { code: code }],
+      $or: [{ p_id }, { code }],
     });
-    if (!project) {
-      return res.status(400).json({ msg: "Project ID is invalid!" });
+    if (!project || !project.code) {
+      return res.status(400).json({
+        msg: "Invalid or missing project code!",
+      });
     }
 
-    if (!project.code) {
-      return res.status(400).json({ msg: "Project code not found!" });
-    }
-
-    // console.log("Project code:", project.code); // Debugging log
-
-    // Validation: Amount paid should not exceed PO value
-    // if (amount_paid > po_balance) {
-    //   return res
-    //     .status(400)
-    //     .json({ msg: "Requested Amount is greater than PO Balance!" });
-    // }
-    const projectCode = project.code; // Assuming `code` is a field in projectModells
-
-    // Generate random three-digit code
-    const randomCode = Math.floor(100 + Math.random() * 900); // Random 3-digit number
-
-    // Append the random code to the project code to form modified p_id
-    const modifiedPId = `${projectCode}/${randomCode}`;
-
+    const projectCode = project.code;
+    let modifiedPId = `${projectCode}/${generateRandomCode()}`;
     let existingPayRequest = await payRequestModells.findOne({
       pay_id: modifiedPId,
     });
 
     while (existingPayRequest) {
-      // If the modifiedPId exists, generate a new one and check again
       modifiedPId = `${projectCode}/${generateRandomCode()}`;
       existingPayRequest = await payRequestModells.findOne({
         pay_id: modifiedPId,
       });
     }
 
-    // Insert new payment request
     const newPayment = new payRequestModells({
       id,
       p_id,
@@ -118,12 +107,32 @@ const payRrequest = async (req, res) => {
       total_advance_paid,
       other,
       comment,
+      credit: credit || {},
+      approval_status: approval_status || {
+        stage: credit?.credit_deadline ? "Credit Pending" : "Draft",
+        user_id: null,
+        remarks: "",
+      },
+      timers: timers || {
+        draft_started_at: new Date(),
+        trash_started_at: null,
+      },
+      status_history: status_history || [
+        {
+          stage: credit?.credit_deadline ? "Credit Pending" : "Draft",
+          remarks: "",
+          user_id: null,
+        },
+      ],
+      credit_history: credit_history || [],
     });
+
     await newPayment.save();
 
-    return res
-      .status(200)
-      .json({ msg: "Payment requested successfully", newPayment });
+    return res.status(200).json({
+      msg: "Payment requested successfully",
+      newPayment,
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
