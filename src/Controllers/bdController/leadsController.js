@@ -177,6 +177,8 @@ const getAllLeads = async (req, res) => {
           { "project_details.scheme": { $regex: search, $options: "i" } },
           { id: { $regex: search, $options: "i" } },
           { "current_status.name": { $regex: search, $options: "i" } },
+          { group_name: { $regex: search, $options: "i" } },
+          { group_code: { $regex: search, $options: "i" } },
         ],
       });
     }
@@ -433,6 +435,20 @@ const getAllLeads = async (req, res) => {
 
     const finalPipeline = [
       ...basePipeline,
+      {
+        $lookup: {
+          from: "groups",
+          localField: "group_id",
+          foreignField: "_id",
+          as: "group_info",
+        },
+      },
+      {
+        $addFields: {
+          group_code: { $arrayElemAt: ["$group_info.group_code", 0] },
+          group_name: { $arrayElemAt: ["$group_info.group_name", 0] },
+        },
+      },
       {
         $facet: {
           leads: [
