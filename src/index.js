@@ -9,6 +9,7 @@ const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRou
 const taskRoutes = require("../src/Routes/tasks/tasks");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
 const poRoutes = require("../src/Routes/OldPO/PoRoutes");
+const scopeRoutes = require("../src/Routes/scope.routes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
@@ -69,6 +70,7 @@ const startServer = async () => {
     app.use("/v1/tasks", taskRoutes);
     app.use("/v1/oldpo", poRoutes);
     app.use("/v1/accounting", accountingRoutes);
+    app.use("/v1/scope", scopeRoutes);
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);
