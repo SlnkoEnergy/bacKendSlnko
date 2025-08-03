@@ -169,37 +169,49 @@ const getpohistory = async function (req, res) {
 };
 
 // get-purchase-order-by p_id
-const getPOByProjectId = async function (req, res) {
+const getPOByPONumber = async (req, res) => {
   try {
-    const { p_id } = req.body;
+    const { po_number } = req.query;
 
-    const data = await purchaseOrderModells.find({ p_id }).lean();
+    if (!po_number) {
+      return res.status(400).json({ msg: "po_number is required" });
+    }
+
+    const data = await purchaseOrderModells.find({ po_number }).lean();
+
+    if (data.length === 0) {
+      return res.status(404).json({ msg: "No purchase orders found" });
+    }
 
     const updatedData = await Promise.all(
       data.map(async (po) => {
-        let itemName = po.item;
-
         if (mongoose.Types.ObjectId.isValid(po.item)) {
           const material = await materialCategoryModells
             .findById(po.item)
             .select("name")
             .lean();
 
-          itemName = material?.name || null;
+          return {
+            ...po,
+            item: material?.name || null,
+          };
+        } else {
+          return {
+            ...po,
+            item: po.item,
+          };
         }
-
-        return {
-          ...po,
-          item: itemName,
-        };
       })
     );
 
-    res.status(200).json({ msg: "All Purchase Orders", data: updatedData });
+    res
+      .status(200)
+      .json({ msg: "Purchase Orders fetched successfully", data: updatedData });
   } catch (error) {
+    console.error("Error in getPOByPONumber:", error);
     res
       .status(500)
-      .json({ message: "Error retrieving POs", error: error.message });
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
@@ -1189,7 +1201,7 @@ module.exports = {
   getExportPo,
   exportCSV,
   moverecovery,
-  getPOByProjectId,
+  getPOByPONumber,
   getPOById,
   deletePO,
   getpohistory,
