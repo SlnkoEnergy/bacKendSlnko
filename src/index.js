@@ -22,6 +22,7 @@ Sentry.init({
     new Sentry.Integrations.Http({ tracing: true }),
     new Tracing.Integrations.Express({ app }),
   ],
+  send_default_pii: true,
   tracesSampleRate: 1.0,
 });
 
