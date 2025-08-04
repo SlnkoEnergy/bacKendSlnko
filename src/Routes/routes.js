@@ -56,6 +56,7 @@ const {
   getVendor,
   updateVendor,
   deleteVendor,
+  getVendorDropwdown,
 } = require("../Controllers/addVenderController");
 const { additem, getItem } = require("../Controllers/itemController");
 const {
@@ -480,6 +481,13 @@ router.delete(
   jwtMW.authorization,
   deleteVendor
 ); //delete vendor
+
+router.get(
+  "/vendor-dropdown",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getVendorDropwdown
+);
 
 //item
 router.post("/add-iteM-IT", jwtMW.authentication, jwtMW.authorization, additem);
