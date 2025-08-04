@@ -43,7 +43,7 @@ const {
   getExportPo,
   exportCSV,
   moverecovery,
-  getPOByProjectId,
+  getPOByPONumber,
   getPOById,
   deletePO,
   getpohistory,
@@ -255,8 +255,8 @@ const upload = require("../middlewares/multer.js");
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
-router.put('/logout', jwtMW.authentication, jwtMW.authorization,logout)
-router.post('/session-verify', finalizeBdLogin);
+router.put("/logout", jwtMW.authentication, jwtMW.authorization, logout);
+router.post("/session-verify", finalizeBdLogin);
 router.get(
   "/get-all-useR-IT",
   jwtMW.authentication,
@@ -412,10 +412,10 @@ router.put(
   moverecovery
 );
 router.get(
-  "/get-po-by-p_id",
+  "/get-po-by-po_number",
   jwtMW.authentication,
   jwtMW.authorization,
-  getPOByProjectId
+  getPOByPONumber
 );
 router.get(
   "/get-po-by-id",
@@ -1128,8 +1128,8 @@ router.post(
   "/handover-export",
   jwtMW.authentication,
   jwtMW.authorization,
-  getexportToCsv,
-)
+  getexportToCsv
+);
 router.get(
   "/get-all-handover-sheet",
   jwtMW.authentication,
