@@ -11,7 +11,6 @@ const {
   getLowerPriorityStatus,
 } = require("../utils/updatePurchaseRequestStatus");
 const purchaseRequest = require("../Modells/PurchaseRequest/purchaseRequest");
-const readCSV = require("../helpers/readCSV");
 
 //Add-Purchase-Order
 const addPo = async function (req, res) {
@@ -170,59 +169,49 @@ const getpohistory = async function (req, res) {
 };
 
 // get-purchase-order-by p_id
-const getPOByProjectId = async function (req, res) {
+const getPOByPONumber = async (req, res) => {
   try {
-    const { p_id } = req.body;
+    const { po_number } = req.query;
 
-    const data = await purchaseOrderModells.find({ p_id }).lean();
+    if (!po_number) {
+      return res.status(400).json({ msg: "po_number is required" });
+    }
 
-    const csvCache = {};
+    const data = await purchaseOrderModells.find({ po_number }).lean();
+
+    if (data.length === 0) {
+      return res.status(404).json({ msg: "No purchase orders found" });
+    }
 
     const updatedData = await Promise.all(
       data.map(async (po) => {
-        const poNumber = po.po_number?.toString()?.trim();
-        let poBasic = parseFloat(po.po_basic) || 0;
-        let gst = parseFloat(po.gst) || 0;
-
-        const missingPOBasic = isNaN(poBasic) || poBasic === 0;
-        const missingGST = isNaN(gst) || gst === 0;
-
-        if ((missingPOBasic || missingGST) && poNumber) {
-          if (!csvCache[poNumber]) {
-            csvCache[poNumber] = await readCSV(poNumber);
-          }
-          const fallback = csvCache[poNumber];
-          if (fallback) {
-            if (missingPOBasic) poBasic = fallback.po_basic || 0;
-            if (missingGST) gst = fallback.gst || 0;
-          }
-        }
-
-        const isObjectId = mongoose.Types.ObjectId.isValid(po.item);
-        let itemName = po.item;
-
-        if (isObjectId) {
+        if (mongoose.Types.ObjectId.isValid(po.item)) {
           const material = await materialCategoryModells
             .findById(po.item)
-            .select("name");
-          itemName = material?.name || null;
-        }
+            .select("name")
+            .lean();
 
-        return {
-          ...po,
-          item: itemName,
-          po_basic: poBasic,
-          gst: gst,
-          po_value: poBasic + gst,
-        };
+          return {
+            ...po,
+            item: material?.name || null,
+          };
+        } else {
+          return {
+            ...po,
+            item: po.item,
+          };
+        }
       })
     );
 
-    res.status(200).json({ msg: "All Purchase Orders", data: updatedData });
+    res
+      .status(200)
+      .json({ msg: "Purchase Orders fetched successfully", data: updatedData });
   } catch (error) {
+    console.error("Error in getPOByPONumber:", error);
     res
       .status(500)
-      .json({ message: "Error retrieving POs", error: error.message });
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
@@ -259,25 +248,6 @@ const getPOById = async (req, res) => {
     if (!data) {
       return res.status(404).json({ msg: "Purchase Order not found" });
     }
-
-    const poNumber = data.po_number?.toString()?.trim();
-    let poBasic = parseFloat(data.po_basic) || 0;
-    let gst = parseFloat(data.gst) || 0;
-
-    const missingPOBasic = isNaN(poBasic) || poBasic === 0;
-    const missingGST = isNaN(gst) || gst === 0;
-
-    if ((missingPOBasic || missingGST) && poNumber) {
-      const fallback = await readCSV(poNumber);
-      if (fallback) {
-        if (missingPOBasic) poBasic = fallback.po_basic || 0;
-        if (missingGST) gst = fallback.gst || 0;
-      }
-    }
-
-    data.po_basic = poBasic;
-    data.gst = gst;
-    data.po_value = poBasic + gst;
 
     res.status(200).json({ msg: "Purchase Order found", data });
   } catch (error) {
@@ -319,25 +289,6 @@ const getPOHistoryById = async (req, res) => {
       return res.status(404).json({ msg: "Purchase Order not found" });
     }
 
-    const poNumber = data.po_number?.toString()?.trim();
-    let poBasic = parseFloat(data.po_basic) || 0;
-    let gst = parseFloat(data.gst) || 0;
-
-    const missingPOBasic = isNaN(poBasic) || poBasic === 0;
-    const missingGST = isNaN(gst) || gst === 0;
-
-    if ((missingPOBasic || missingGST) && poNumber) {
-      const fallback = await readCSV(poNumber);
-      if (fallback) {
-        if (missingPOBasic) poBasic = fallback.po_basic || 0;
-        if (missingGST) gst = fallback.gst || 0;
-      }
-    }
-
-    data.po_basic = poBasic;
-    data.gst = gst;
-    data.po_value = poBasic + gst;
-
     res.status(200).json({ msg: "Purchase Order found", data });
   } catch (error) {
     res.status(500).json({ msg: "Error retrieving PO", error: error.message });
@@ -349,44 +300,23 @@ const getallpo = async function (req, res) {
   try {
     let data = await purchaseOrderModells.find().lean();
 
-    const csvCache = {};
-
     const updatedData = await Promise.all(
       data.map(async (po) => {
-        const poNumber = po.po_number?.toString()?.trim();
-        let poBasic = parseFloat(po.po_basic) || 0;
-        let gst = parseFloat(po.gst) || 0;
-
-        const missingPOBasic = isNaN(poBasic) || poBasic === 0;
-        const missingGST = isNaN(gst) || gst === 0;
-
-        if ((missingPOBasic || missingGST) && poNumber) {
-          if (!csvCache[poNumber]) {
-            csvCache[poNumber] = await readCSV(poNumber);
-          }
-          const fallback = csvCache[poNumber];
-          if (fallback) {
-            if (missingPOBasic) poBasic = fallback.po_basic || 0;
-            if (missingGST) gst = fallback.gst || 0;
-          }
-        }
+        let itemName = po.item;
 
         const isObjectId = mongoose.Types.ObjectId.isValid(po.item);
-        let itemName = po.item;
 
         if (isObjectId) {
           const material = await materialCategoryModells
             .findById(po.item)
-            .select("name");
+            .select("name")
+            .lean();
           itemName = material?.name || null;
         }
 
         return {
           ...po,
           item: itemName,
-          po_basic: poBasic,
-          gst: gst,
-          po_value: poBasic + gst,
         };
       })
     );
@@ -775,30 +705,6 @@ const getPaginatedPo = async (req, res) => {
       purchaseOrderModells.aggregate(countPipeline),
     ]);
 
-    const csvCache = {};
-
-    for (const po of result) {
-      const poNumber = po.po_number?.toString()?.trim();
-      let poBasic = parseFloat(po.po_basic) || 0;
-      let gst = parseFloat(po.gst) || 0;
-
-      const missingPOBasic = isNaN(poBasic) || poBasic === 0;
-      const missingGST = isNaN(gst) || gst === 0;
-
-      if ((missingPOBasic || missingGST) && poNumber) {
-        if (!csvCache[poNumber]) {
-          csvCache[poNumber] = await readCSV(poNumber);
-        }
-        const fallback = csvCache[poNumber];
-        if (fallback) {
-          if (missingPOBasic) poBasic = fallback.po_basic || 0;
-          if (missingGST) gst = fallback.gst || 0;
-        }
-      }
-
-      po.po_value = poBasic + gst;
-    }
-
     const total = countResult[0]?.total || 0;
 
     const formatDate = (date) =>
@@ -864,36 +770,6 @@ const getExportPo = async (req, res) => {
     }
 
     const rawData = await purchaseOrderModells.find(matchStage).lean();
-    const csvCache = {};
-
-    const correctedData = await Promise.all(
-      rawData.map(async (po) => {
-        const poNumber = po.po_number?.toString()?.trim();
-        let poBasic = parseFloat(po.po_basic) || 0;
-        let gst = parseFloat(po.gst) || 0;
-
-        const missingPOBasic = isNaN(poBasic) || poBasic === 0;
-        const missingGST = isNaN(gst) || gst === 0;
-
-        if ((missingPOBasic || missingGST) && poNumber) {
-          if (!csvCache[poNumber]) {
-            csvCache[poNumber] = await readCSV(poNumber);
-          }
-          const fallback = csvCache[poNumber];
-          if (fallback) {
-            if (missingPOBasic) poBasic = fallback.po_basic || 0;
-            if (missingGST) gst = fallback.gst || 0;
-          }
-        }
-
-        return {
-          ...po,
-          po_basic: poBasic,
-          gst,
-          po_value: poBasic + gst,
-        };
-      })
-    );
 
     const pipeline = [
       { $match: matchStage },
@@ -1127,37 +1003,7 @@ const exportCSV = async function (req, res) {
       return res.status(404).send("No data found to export.");
     }
 
-    const csvCache = {};
-
-    // Fix po_value using po_basic + gst, fallback to CSV if missing
-    users = await Promise.all(
-      users.map(async (po) => {
-        const poNumber = po.po_number?.toString()?.trim();
-        let poBasic = parseFloat(po.po_basic) || 0;
-        let gst = parseFloat(po.gst) || 0;
-
-        const missingPOBasic = isNaN(poBasic) || poBasic === 0;
-        const missingGST = isNaN(gst) || gst === 0;
-
-        if ((missingPOBasic || missingGST) && poNumber) {
-          if (!csvCache[poNumber]) {
-            csvCache[poNumber] = await readCSV(poNumber);
-          }
-          const fallback = csvCache[poNumber];
-          if (fallback) {
-            if (missingPOBasic) poBasic = fallback.po_basic || 0;
-            if (missingGST) gst = fallback.gst || 0;
-          }
-        }
-
-        return {
-          ...po,
-          " po_value": poBasic + gst, // note: the field name has a space, you might want to fix it to `po_value`
-        };
-      })
-    );
-
-    const fields = ["p_id", "date", "item", "other", "po_number", " po_value"]; // Consider renaming " po_value" to "po_value"
+    const fields = ["p_id", "date", "item", "other", "po_number", " po_value"];
     const json2csvParser = new Parser({ fields });
     const csv = json2csvParser.parse(users);
 
@@ -1355,7 +1201,7 @@ module.exports = {
   getExportPo,
   exportCSV,
   moverecovery,
-  getPOByProjectId,
+  getPOByPONumber,
   getPOById,
   deletePO,
   getpohistory,
