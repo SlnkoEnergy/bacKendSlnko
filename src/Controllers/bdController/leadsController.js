@@ -171,10 +171,6 @@ const getAllLeads = async (req, res) => {
 
     const query = {};
 
-    if (!isPrivilegedUser) {
-      query["assigned_to.user_id"] = userId;
-    }
-
     const regionalAccessMap = {
       "Shambhavi Gupta": "rajasthan",
       "Navin Kumar Gautam": "rajasthan",
@@ -182,8 +178,11 @@ const getAllLeads = async (req, res) => {
       "Gaurav Kumar Upadhyay": "madhya pradesh",
       "Vibhav Upadhyay": "uttar pradesh",
     };
+    if (!isPrivilegedUser && !regionalAccessMap) {
+      query["assigned_to.user_id"] = userId;
+    }
 
-    if (regionalAccessMap[user.name]) {
+    if (regionalAccessMap[user.name] && !isPrivilegedUser) {
       const region = regionalAccessMap[user.name];
       query.$or = [
         { "assigned_to.user_id": userId },
@@ -208,7 +207,9 @@ const getAllLeads = async (req, res) => {
       const states = decodeURIComponent(stateFilter)
         .split(",")
         .map((s) => s.trim().toLowerCase());
-      query["address.state"] = { $in: states.map((s) => new RegExp(`^${s}$`, "i")) };
+      query["address.state"] = {
+        $in: states.map((s) => new RegExp(`^${s}$`, "i")),
+      };
     }
 
     if (group_id) {
@@ -226,12 +227,25 @@ const getAllLeads = async (req, res) => {
       query["current_status.name"] = stage;
     }
 
-    if (handover_statusFilter) {
-      query.status_of_handoversheet = handover_statusFilter;
+    if (handover_statusFilter === "pending") {
+      query["status_of_handoversheet"] = { $in: [null, false, ""] };
+      query["current_status.name"] = "won";
+    }
+
+    if (handover_statusFilter === "inprocess") {
+      query["status_of_handoversheet"] = { $in: ["draft", "Rejected"] };
+      query["current_status.name"] = "won";
+    }
+
+    if (handover_statusFilter === "completed") {
+      query["status_of_handoversheet"] = { $in: ["submitted", "Approved"] };
+      query["current_status.name"] = "won";
     }
 
     if (inactiveFilter) {
-      const cutoffDate = new Date(Date.now() - Number(inactiveFilter) * 24 * 60 * 60 * 1000);
+      const cutoffDate = new Date(
+        Date.now() - Number(inactiveFilter) * 24 * 60 * 60 * 1000
+      );
       query.inactivedate = { $gte: cutoffDate };
     }
 
@@ -240,7 +254,8 @@ const getAllLeads = async (req, res) => {
     }
 
     if (name) {
-      query["current_assigned.user_name"] = { $regex: name, $options: "i" };
+      const userObjectId = new mongoose.Types.ObjectId(name);
+      query["current_assigned.user_id"] = userObjectId;
     }
 
     if (lead_without_task === "true") {
@@ -285,7 +300,6 @@ const getLeadCounts = async (req, res) => {
       search = "",
       fromDate,
       toDate,
-      lead_without_task,
       handover_statusFilter,
       name,
       stateFilter,
@@ -296,18 +310,15 @@ const getLeadCounts = async (req, res) => {
 
     const userId = req.user.userId;
     const user = await userModells.findById(userId).lean();
+    console.log(user.name);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const baseQuery = {};
+    const andConditions = [];
 
     const isPrivilegedUser =
       ["admin", "superadmin"].includes(user.department) ||
       ["Prachi Singh"].includes(user.name) ||
       (user.department === "BD" && user.role === "manager");
-
-    if (!isPrivilegedUser) {
-      baseQuery["assigned_to.user_id"] = userId;
-    }
 
     const regionalAccessMap = {
       "Shambhavi Gupta": "rajasthan",
@@ -317,67 +328,98 @@ const getLeadCounts = async (req, res) => {
       "Vibhav Upadhyay": "uttar pradesh",
     };
 
-    if (regionalAccessMap[user.name]) {
+    if (!isPrivilegedUser && regionalAccessMap[user.name]) {
       const region = regionalAccessMap[user.name];
-      baseQuery.$or = [
-        { "assigned_to.user_id": userId },
-        { "address.state": new RegExp(`^${region}$`, "i") },
-      ];
+      andConditions.push({
+        $or: [
+          { "address.state": new RegExp(`^${region.trim()}$`, "i") },
+          { "assigned_to.user_id": new mongoose.Types.ObjectId(userId) },
+        ],
+      });
     }
 
     if (search) {
       const regex = new RegExp(search, "i");
-      baseQuery.$or = [
-        { name: regex },
-        { "contact_details.mobile": regex },
-        { "project_details.scheme": regex },
-        { id: regex },
-        { "current_status.name": regex },
-        { group_name: regex },
-        { group_code: regex },
-      ];
+      andConditions.push({
+        $or: [
+          { name: regex },
+          { "contact_details.mobile": regex },
+          { "project_details.scheme": regex },
+          { id: regex },
+          { "current_status.name": regex },
+          { group_name: regex },
+          { group_code: regex },
+        ],
+      });
     }
 
     if (stateFilter) {
       const states = decodeURIComponent(stateFilter)
         .split(",")
         .map((s) => s.trim().toLowerCase());
-      baseQuery["address.state"] = {
-        $in: states.map((s) => new RegExp(`^${s}$`, "i")),
-      };
+      andConditions.push({
+        "address.state": { $in: states.map((s) => new RegExp(`^${s}$`, "i")) },
+      });
     }
 
-    if (group_id) baseQuery.group_id = group_id;
+    if (group_id) andConditions.push({ group_id });
 
     if (fromDate && toDate) {
       const start = new Date(fromDate);
       const end = new Date(toDate);
       end.setHours(23, 59, 59, 999);
-      baseQuery.createdAt = { $gte: start, $lte: end };
+      andConditions.push({ createdAt: { $gte: start, $lte: end } });
     }
 
-    if (handover_statusFilter) {
-      baseQuery.status_of_handoversheet = handover_statusFilter;
+    if (handover_statusFilter === "pending") {
+      andConditions.push({
+        $or: [
+          { status_of_handoversheet: { $in: [null, false, ""] } },
+          { status_of_handoversheet: { $exists: false } },
+        ],
+      });
+      andConditions.push({ "current_status.name": "won" });
+    }
+
+    if (handover_statusFilter === "inprocess") {
+      andConditions.push({
+        status_of_handoversheet: { $in: ["draft", "Rejected"] },
+      });
+      andConditions.push({ "current_status.name": "won" });
+    }
+
+    if (handover_statusFilter === "completed") {
+      andConditions.push({
+        status_of_handoversheet: { $in: ["submitted", "Approved"] },
+      });
+      andConditions.push({ "current_status.name": "won" });
     }
 
     if (inactiveFilter) {
-      const cutoffDate = new Date(Date.now() - Number(inactiveFilter) * 24 * 60 * 60 * 1000);
-      baseQuery.inactivedate = { $gte: cutoffDate };
+      const cutoffDate = new Date(
+        Date.now() - Number(inactiveFilter) * 24 * 60 * 60 * 1000
+      );
+      andConditions.push({ inactivedate: { $gte: cutoffDate } });
     }
 
     if (leadAgingFilter) {
-      baseQuery.leadAging = { $lte: Number(leadAgingFilter) };
+      andConditions.push({ leadAging: { $lte: Number(leadAgingFilter) } });
     }
 
     if (name) {
-      baseQuery["current_assigned.user_name"] = { $regex: name, $options: "i" };
+      const userObjectId = new mongoose.Types.ObjectId(name);
+      andConditions.push({
+        "current_assigned.user_id": userObjectId,
+      });
     }
+
+    const baseQuery = andConditions.length > 0 ? { $and: andConditions } : {};
 
     const stageCountsAgg = await bdleadsModells.aggregate([
       { $match: baseQuery },
       {
         $group: {
-          _id: "$current_status.name",
+          _id: { $toLower: "$current_status.name" },
           count: { $sum: 1 },
         },
       },
@@ -385,49 +427,14 @@ const getLeadCounts = async (req, res) => {
 
     const stageNames = ["initial", "follow up", "warm", "won", "dead"];
     const stageCounts = stageNames.reduce((acc, s) => {
-      const found = stageCountsAgg.find((x) => x._id === s);
+      const found = stageCountsAgg.find(
+        (x) => x._id && x._id.toLowerCase() === s.toLowerCase()
+      );
       acc[s] = found?.count || 0;
       return acc;
     }, {});
 
-    const total = stageCountsAgg.reduce((sum, doc) => sum + doc.count, 0);
-    stageCounts.all = total;
-
-    let leadWithoutTaskCount = 0;
-    if (lead_without_task === "true") {
-      const leadsWithTasks = await task.distinct("lead_id", {
-        current_status: { $ne: "completed" },
-      });
-
-      const leadWithoutTaskQuery = {
-        ...baseQuery,
-        _id: { $nin: leadsWithTasks },
-        "current_status.name": { $ne: "won" },
-      };
-
-      const leadWithoutTaskAgg = await bdleadsModells.aggregate([
-        { $match: leadWithoutTaskQuery },
-        {
-          $lookup: {
-            from: "bdtasks",
-            localField: "_id",
-            foreignField: "lead_id",
-            as: "related_tasks",
-          },
-        },
-        {
-          $match: {
-            related_tasks: { $size: 0 },
-            "current_status.name": { $ne: "won" },
-          },
-        },
-        { $count: "count" },
-      ]);
-
-      leadWithoutTaskCount = leadWithoutTaskAgg[0]?.count || 0;
-    }
-
-    stageCounts.lead_without_task = leadWithoutTaskCount;
+    stageCounts.all = await bdleadsModells.countDocuments(baseQuery);
 
     return res.status(200).json({
       message: "Stage counts fetched successfully",
@@ -440,8 +447,6 @@ const getLeadCounts = async (req, res) => {
     });
   }
 };
-
-
 
 const editLead = async (req, res) => {
   try {
@@ -1235,5 +1240,5 @@ module.exports = {
   getUniqueState,
   attachToGroup,
   fixBdLeadsFields,
-  getLeadCounts
+  getLeadCounts,
 };
