@@ -14,6 +14,7 @@ const cookieParser = require("cookie-parser");
 const http = require("http");
 const Sentry = require("@sentry/node");
 const Tracing = require("@sentry/tracing");
+const cron = require("../src/utils/cron/inactivelead.cron.utils");
 
 Sentry.init({
   dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",
@@ -50,7 +51,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT;
-const db = process.env.DB_URL;
+const db = process.env.DB_DEVELOPMENT_URL;
 
 const startServer = async () => {
   try {
