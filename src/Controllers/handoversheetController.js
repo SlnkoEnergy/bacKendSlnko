@@ -333,7 +333,8 @@ const edithandoversheetdata = async function (req, res) {
      if (typeof data.is_locked !== "undefined") {
       await bdleadsModells.findOneAndUpdate(
         { id: edithandoversheet.id },
-        { handover_lock: data.is_locked }
+        { handover_lock: data.is_locked },
+        {status_of_handoversheet: data.status_of_handoversheet}
       );
     }
 
@@ -363,9 +364,9 @@ const updatestatus = async function (req, res) {
     }
     
     const lead = await bdleadsModells.findOne({ id: updatedHandoversheet.id });
-    lead.status_of_handoversheet = status_of_handoversheet || "draft";
-    lead.handover_lock = updatedHandoversheet.is_locked || "locked";
-
+    lead.status_of_handoversheet = status_of_handoversheet;
+    lead.handover_lock = updatedHandoversheet.is_locked;
+    await lead.save();
     if (
       updatedHandoversheet.status_of_handoversheet === "Approved" &&
       updatedHandoversheet.is_locked === "locked"
