@@ -97,9 +97,28 @@ const deleteVendor = async function (req, res) {
   }
 };
 
+const getVendorDropwdown = async (req, res) => {
+  try {
+    const vendors = await vendorModells.find(
+      {},
+      { name: 1, Beneficiary_Name: 1 }
+    );
+    res.status(200).json({
+      message: "Vendors fetched successfully",
+      data: vendors,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   addVendor,
   getVendor,
   updateVendor,
   deleteVendor,
+  getVendorDropwdown,
 };

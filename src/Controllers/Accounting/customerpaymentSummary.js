@@ -4,7 +4,6 @@ const AdjustmentModel = require("../../Modells/adjustmentRequestModells");
 const ClientModel = require("../../Modells/purchaseOrderModells");
 const ProjectModel = require("../../Modells/projectModells");
 const { Parser } = require("json2csv");
-const readCSV = require("../../helpers/readCSV");
 
 const getCustomerPaymentSummary = async (req, res) => {
   try {
@@ -361,7 +360,13 @@ const getCustomerPaymentSummary = async (req, res) => {
             $cond: [
               {
                 $and: [
-                  { $eq: [{ $strLenCP: "$purchase_orders.item" }, 24] },
+                  {
+                    $and: [
+                      { $ne: ["$purchase_orders.item", null] },
+                      { $eq: [{ $type: "$purchase_orders.item" }, "string"] },
+                      { $eq: [{ $strLenCP: "$purchase_orders.item" }, 24] },
+                    ],
+                  },
                   {
                     $regexMatch: {
                       input: "$purchase_orders.item",
@@ -376,6 +381,7 @@ const getCustomerPaymentSummary = async (req, res) => {
           },
         },
       },
+
       {
         $lookup: {
           from: "materialcategories",
@@ -502,35 +508,6 @@ const getCustomerPaymentSummary = async (req, res) => {
         },
       },
     ]);
-
-    const fallbackCache = {};
-
-    for (const item of clientHistoryResult) {
-      const poNumber = item.po_number?.toString()?.trim().toUpperCase();
-      if (!poNumber) continue;
-
-      const missingPOBasic = !item.po_basic || isNaN(item.po_basic);
-      const missingGST = !item.gst || isNaN(item.gst);
-      const missingPOValue = !item.po_value || isNaN(item.po_value);
-
-      if (missingPOBasic || missingGST || missingPOValue) {
-        if (!fallbackCache[poNumber]) {
-          fallbackCache[poNumber] = await readCSV(poNumber);
-        }
-
-        const fallback = fallbackCache[poNumber];
-
-        if (fallback) {
-          if (missingPOBasic) item.po_basic = fallback.po_basic || 0;
-          if (missingGST) item.gst = fallback.gst || 0;
-          if (missingPOValue) item.po_value = fallback.po_value || 0;
-        } else {
-          if (missingPOBasic) item.po_basic = 0;
-          if (missingGST) item.gst = 0;
-          if (missingPOValue) item.po_value = 0;
-        }
-      }
-    }
 
     const clientMeta = clientHistoryResult.reduce(
       (acc, curr) => {
@@ -1018,7 +995,7 @@ const getCustomerPaymentSummary = async (req, res) => {
                   },
                 ],
               },
-              2, // number of decimal places
+              2,
             ],
           },
         },
@@ -1055,60 +1032,6 @@ const getCustomerPaymentSummary = async (req, res) => {
         },
       },
     ]);
-
-    const csvCache = {};
-    let correctedTotalPoBasic = 0;
-    let correctedGstAsPoBasic = 0;
-
-    if (Array.isArray(balanceSummary?.purchase_orders)) {
-      for (const po of balanceSummary.purchase_orders) {
-        const poNumber = po?.po_number?.toString().trim();
-        let poBasic = Number(po?.po_basic) || 0;
-        let gst = Number(po?.gst) || 0;
-
-        const missingPOBasic = !poBasic || isNaN(poBasic);
-        const missingGST = !gst || isNaN(gst);
-
-        if ((missingPOBasic || missingGST) && poNumber) {
-          if (!csvCache[poNumber]) {
-            try {
-              csvCache[poNumber] = await readCSV(poNumber);
-            } catch (err) {
-              console.error(
-                `Error reading CSV for PO ${poNumber}:`,
-                err.message
-              );
-              csvCache[poNumber] = null;
-            }
-          }
-
-          const fallback = csvCache[poNumber];
-          if (fallback && typeof fallback === "object") {
-            if (missingPOBasic) poBasic = Number(fallback.po_basic) || 0;
-            if (missingGST) gst = Number(fallback.gst) || 0;
-          }
-        }
-
-        correctedTotalPoBasic += poBasic;
-        correctedGstAsPoBasic += gst;
-      }
-
-      if (
-        correctedTotalPoBasic > (Number(balanceSummary.total_po_basic) || 0)
-      ) {
-        balanceSummary.total_po_basic = correctedTotalPoBasic;
-      }
-
-      if (
-        correctedGstAsPoBasic > (Number(balanceSummary.gst_as_po_basic) || 0)
-      ) {
-        balanceSummary.gst_as_po_basic = correctedGstAsPoBasic;
-      }
-
-      balanceSummary.total_po_with_gst =
-        (Number(balanceSummary.total_po_basic) || 0) +
-        (Number(balanceSummary.gst_as_po_basic) || 0);
-    }
 
     const responseData = {
       projectDetails: {
