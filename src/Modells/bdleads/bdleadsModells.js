@@ -5,14 +5,14 @@ const updateAssignedTo = require("../../middlewares/bdLeadMiddlewares/updateAssi
 const bdleadsSchema = new mongoose.Schema(
   {
     id: String,
-    group_id:{
-      type:mongoose.Schema.Types.ObjectId,
-      ref:"group"
+    group_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "group",
     },
     name: { type: String, required: true },
     company_name: String,
     contact_details: {
-      email: {type : String},
+      email: { type: String },
       mobile: { type: Array, required: true },
     },
     group: {
@@ -39,8 +39,8 @@ const bdleadsSchema = new mongoose.Schema(
       land_type: { type: String },
       scheme: { type: String },
     },
-    expected_closing_date:{
-      type:Date
+    expected_closing_date: {
+      type: Date,
     },
     source: {
       from: { type: String, required: true },
@@ -55,7 +55,15 @@ const bdleadsSchema = new mongoose.Schema(
         },
         stage: {
           type: String,
-          enum: ["", "loi", "loa", "ppa", "token money", "others", "as per choice"],
+          enum: [
+            "",
+            "loi",
+            "loa",
+            "ppa",
+            "token money",
+            "others",
+            "as per choice",
+          ],
         },
         remarks: String,
         updatedAt: { type: Date, default: Date.now },
@@ -68,12 +76,20 @@ const bdleadsSchema = new mongoose.Schema(
     current_status: {
       name: {
         type: String,
-        enum: ["","initial", "follow up", "warm", "won", "dead"],
+        enum: ["", "initial", "follow up", "warm", "won", "dead"],
         default: "initial",
       },
       stage: {
         type: String,
-        enum: ["","loi", "loa", "ppa", "token money", "others", "as per choice"],
+        enum: [
+          "",
+          "loi",
+          "loa",
+          "ppa",
+          "token money",
+          "others",
+          "as per choice",
+        ],
       },
       remarks: String,
       user_id: {
@@ -89,12 +105,12 @@ const bdleadsSchema = new mongoose.Schema(
         },
         status: {
           type: String,
-          enum: ["","initial", "follow up", "warm", "won", "dead"],
+          enum: ["", "initial", "follow up", "warm", "won", "dead"],
         },
-        updatedAt:{
-          type:Date,
-          default: Date.now()
-        }
+        updatedAt: {
+          type: Date,
+          default: Date.now(),
+        },
       },
     ],
     current_assigned: {
@@ -104,46 +120,58 @@ const bdleadsSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ["","initial", "follow up", "warm", "won", "dead"],
+        enum: ["", "initial", "follow up", "warm", "won", "dead"],
       },
     },
     submitted_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
-    documents:[
+    status_of_handoversheet: {
+      type: String,
+      default: "false",
+    },
+    handover_lock:{
+      type: String,
+      default: "unlock"
+    },
+    leadAging: {
+      type: Number,
+      default: 0,
+    },
+    inactivedate: {
+      type: Date,
+    },
+    documents: [
       {
-        name:{
-          type:String,
-          enum:["loi", "ppa", "loa", "aadhaar", "other"]
+        name: {
+          type: String,
+          enum: ["loi", "ppa", "loa", "aadhaar", "other"],
         },
-        attachment_url:{
-          type:String
+        attachment_url: {
+          type: String,
         },
-        user_id:{
-          type:mongoose.Schema.Types.ObjectId,
-          ref:"User"
+        user_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
         },
-        remarks:{
-          type: String
+        remarks: {
+          type: String,
         },
-         updatedAt: { type: Date, default: Date.now },
-      }
-    ]
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );
 
 bdleadsSchema.pre("save", function (next) {
+  if (!this.inactivedate) {
+    this.inactivedate = this.createdAt || new Date();
+  }
   updateLeadStatus(this);
+  updateAssignedTo(this);
   next();
 });
 
-bdleadsSchema.pre("save", function(next){
-  updateAssignedTo(this);
-  next();
-})
-
 module.exports = mongoose.model("bdleads", bdleadsSchema);
-
-
