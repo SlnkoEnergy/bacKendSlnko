@@ -5,6 +5,8 @@ const projectmodells = require("../Modells/projectModells");
 const { Parser } = require("json2csv");
 const handoversheetModells = require("../Modells/handoversheetModells");
 const userModells = require("../Modells/users/userModells");
+const materialCategoryModells = require("../Modells/EngineeringModells/materials/materialCategoryModells");
+const scopeModel = require("../Modells/scope.model");
 const bdleadsModells = require("../Modells/bdleads/bdleadsModells");
 
 const migrateProjectToHandover = async (req, res) => {
@@ -465,6 +467,21 @@ const updatestatus = async function (req, res) {
         });
 
         await moduleCategoryData.save();
+
+        const allMaterialCategories = await materialCategoryModells.find();
+
+        const scopeData = new scopeModel({
+          project_id: projectData._id,
+          items: allMaterialCategories.map((mc) => ({
+            item_id: mc._id,
+            name: mc.name,
+            type: mc.type,
+            category: mc.category,
+          })),
+          createdBy: req.user.userId,
+        });
+
+        await scopeData.save();
 
         return res.status(200).json({
           message:
