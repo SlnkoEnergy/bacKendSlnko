@@ -177,15 +177,17 @@ const getAllLeads = async (req, res) => {
       "Ketan Kumar Jha": "madhya pradesh",
       "Gaurav Kumar Upadhyay": "madhya pradesh",
       "Vibhav Upadhyay": "uttar pradesh",
+      "Om Utkarsh": "rajasthan"
     };
-    if (!isPrivilegedUser && !regionalAccessMap) {
-      query["assigned_to.user_id"] = userId;
+
+    if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
+       query["current_assigned.user_id"]= new mongoose.Types.ObjectId(userId) 
     }
 
     if (regionalAccessMap[user.name] && !isPrivilegedUser) {
       const region = regionalAccessMap[user.name];
       query.$or = [
-        { "assigned_to.user_id": userId },
+        { "current_assigned.user_id": userId },
         { "address.state": new RegExp(`^${region}$`, "i") },
       ];
     }
@@ -326,14 +328,22 @@ const getLeadCounts = async (req, res) => {
       "Ketan Kumar Jha": "madhya pradesh",
       "Gaurav Kumar Upadhyay": "madhya pradesh",
       "Vibhav Upadhyay": "uttar pradesh",
+      "Om Utkarsh": "rajasthan"
     };
+    
+     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
+      const userObjectId = new mongoose.Types.ObjectId(userId);
+      andConditions.push({
+        "current_assigned.user_id": userObjectId,
+      }); 
+    }
 
     if (!isPrivilegedUser && regionalAccessMap[user.name]) {
       const region = regionalAccessMap[user.name];
       andConditions.push({
         $or: [
           { "address.state": new RegExp(`^${region.trim()}$`, "i") },
-          { "assigned_to.user_id": new mongoose.Types.ObjectId(userId) },
+          { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
         ],
       });
     }
