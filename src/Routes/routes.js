@@ -556,7 +556,7 @@ router.put(
   editPayRequestById
 ); //update pay request
 router.get(
-  "/get-pay-request-id/:_id",
+  "/get-pay-request",
   jwtMW.authentication,
   jwtMW.authorization,
   getPayRequestById

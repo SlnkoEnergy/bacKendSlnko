@@ -27,14 +27,13 @@ const payRrequest = async (req, res) => {
       vendor,
       po_number,
       po_value,
-      po_balance,
+
       credit,
       approval_status,
       timers,
       status_history,
       credit_history,
-      pay_mode,
-      paid_to,
+
       ifsc,
       benificiary,
       acc_number,
@@ -42,10 +41,10 @@ const payRrequest = async (req, res) => {
       created_on,
       submitted_by,
       approved,
-      disable,
+
       acc_match,
       utr,
-      total_advance_paid,
+
       other,
       comment,
       code,
@@ -92,9 +91,7 @@ const payRrequest = async (req, res) => {
       vendor,
       po_number,
       po_value,
-      po_balance,
-      pay_mode,
-      paid_to,
+
       ifsc,
       benificiary,
       acc_number,
@@ -102,13 +99,18 @@ const payRrequest = async (req, res) => {
       created_on,
       submitted_by,
       approved,
-      disable,
+
       acc_match,
       utr,
-      total_advance_paid,
+
       other,
       comment,
-      credit: credit || {},
+      credit: {
+        credit_deadline: credit?.credit_deadline || null,
+        credit_status: credit?.credit_status || false,
+        credit_remarks: credit?.credit_remarks || "",
+        user_id: credit?.user_id || null,
+      },
       approval_status: approval_status || {
         stage: credit?.credit_deadline ? "Credit Pending" : "Draft",
         user_id: null,
@@ -640,8 +642,17 @@ const editPayRequestById = async function (req, res) {
 // Get payment request by ID
 const getPayRequestById = async function (req, res) {
   try {
-    const { _id } = req.params;
-    const data = await payRequestModells.findById(_id);
+    const { _id, po_number } = req.query;
+
+    let data;
+
+    if (_id) {
+      data = await payRequestModells.findById(_id);
+    } else if (po_number) {
+      data = await payRequestModells.findOne({ po_number });
+    } else {
+      return res.status(400).json({ message: "Invalid Id or Po Number" });
+    }
 
     if (!data) {
       return res.status(404).json({ message: "Item not found" });

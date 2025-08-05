@@ -213,7 +213,7 @@ const getProjectDropwdown = async (req, res) => {
   try {
     const projects = await projectModells.find(
       {},
-      { p_id: 1, name: 1, code: 1 , p_group: 1}
+      { p_id: 1, name: 1, code: 1 , p_group: 1, customer: 1}
     );
     res.status(200).json({
       message: "Projects fetched successfully",

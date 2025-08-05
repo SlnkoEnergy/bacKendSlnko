@@ -3,7 +3,6 @@ const updateCurrentStatus = require("../utils/payRequestUpdate/updateCurrentStat
 
 const payRequestschema = new mongoose.Schema(
   {
-    id: { type: String },
     p_id: { type: Number },
     pay_id: { type: String },
     pay_type: { type: String },
@@ -14,9 +13,6 @@ const payRequestschema = new mongoose.Schema(
     vendor: { type: String },
     po_number: { type: String },
     po_value: { type: String },
-    po_balance: { type: String },
-    pay_mode: { type: String },
-    paid_to: { type: String },
     ifsc: { type: String },
     benificiary: { type: String },
     acc_number: { type: mongoose.Schema.Types.Mixed },
@@ -106,10 +102,8 @@ const payRequestschema = new mongoose.Schema(
       },
     ],
 
-    disable: { type: String },
     acc_match: { type: String },
     utr: { type: String },
-    total_advance_paid: { type: String },
     other: { type: String },
     comment: { type: String },
   },
