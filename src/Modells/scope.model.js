@@ -20,13 +20,19 @@ const scopeSchema = new mongoose.Schema(
           type: String,
           enum: ["supply", "execution"],
         },
+        category:{
+          type: String
+        },
         scope:{
           type: String,
-          enum: ["Slnko", "Client"],
+          enum: ["slnko", "client"],
         },
         quantity: {
           type: String,
         },
+        uom:{
+          type: String
+        }
       },
     ],
     status_history: [
