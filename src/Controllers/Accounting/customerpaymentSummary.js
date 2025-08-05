@@ -360,7 +360,13 @@ const getCustomerPaymentSummary = async (req, res) => {
             $cond: [
               {
                 $and: [
-                  { $eq: [{ $strLenCP: "$purchase_orders.item" }, 24] },
+                  {
+                    $and: [
+                      { $ne: ["$purchase_orders.item", null] },
+                      { $eq: [{ $type: "$purchase_orders.item" }, "string"] },
+                      { $eq: [{ $strLenCP: "$purchase_orders.item" }, 24] },
+                    ],
+                  },
                   {
                     $regexMatch: {
                       input: "$purchase_orders.item",
@@ -375,6 +381,7 @@ const getCustomerPaymentSummary = async (req, res) => {
           },
         },
       },
+
       {
         $lookup: {
           from: "materialcategories",

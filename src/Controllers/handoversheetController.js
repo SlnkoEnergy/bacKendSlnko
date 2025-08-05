@@ -5,6 +5,7 @@ const projectmodells = require("../Modells/projectModells");
 const { Parser } = require("json2csv");
 const handoversheetModells = require("../Modells/handoversheetModells");
 const userModells = require("../Modells/users/userModells");
+const bdleadsModells = require("../Modells/bdleads/bdleadsModells");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -137,7 +138,11 @@ const createhandoversheet = async function (req, res) {
 
       await moduleCategoryData.save();
     }
-
+    
+    const lead = await bdleadsModells.findOne({id: id});
+    lead.status_of_handoversheet = req.body.status_of_handoversheet || "draft";
+    lead.handover_lock = req.body.handover_lock || "locked";
+    await lead.save();
     await handoversheet.save();
 
     res.status(200).json({
@@ -324,6 +329,14 @@ const edithandoversheetdata = async function (req, res) {
       data,
       { new: true }
     );
+    
+     if (typeof data.is_locked !== "undefined") {
+      await bdleadsModells.findOneAndUpdate(
+        { id: edithandoversheet.id },
+        { handover_lock: data.is_locked },
+        {status_of_handoversheet: data.status_of_handoversheet}
+      );
+    }
 
     res.status(200).json({
       message: "Status updated successfully",
@@ -349,7 +362,11 @@ const updatestatus = async function (req, res) {
     if (!updatedHandoversheet) {
       return res.status(404).json({ message: "Handoversheet not found" });
     }
-
+    
+    const lead = await bdleadsModells.findOne({ id: updatedHandoversheet.id });
+    lead.status_of_handoversheet = status_of_handoversheet;
+    lead.handover_lock = updatedHandoversheet.is_locked;
+    await lead.save();
     if (
       updatedHandoversheet.status_of_handoversheet === "Approved" &&
       updatedHandoversheet.is_locked === "locked"

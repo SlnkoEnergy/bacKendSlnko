@@ -34,6 +34,8 @@ const {
   updateAssignedToFromSubmittedBy,
   attachToGroup,
   getUniqueState,
+  fixBdLeadsFields,
+  getLeadCounts,
 } = require("../../Controllers/bdController/leadsController.js");
 const {
   getNotesById,
@@ -166,6 +168,18 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getUniqueState
+);
+router.put(
+  "/updatehandoverstatus",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  fixBdLeadsFields
+);
+router.get(
+  "/lead-count",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getLeadCounts
 );
 
 // Task Routes
