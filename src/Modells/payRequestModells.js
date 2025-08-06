@@ -46,6 +46,7 @@ const payRequestschema = new mongoose.Schema(
           "SCM",
           "CAM",
           "Account",
+          "Final",
           "Trash Pending",
           "Rejected",
         ],
@@ -73,6 +74,7 @@ const payRequestschema = new mongoose.Schema(
             "SCM",
             "CAM",
             "Account",
+            "Final",
             "Trash Pending",
             "Rejected",
           ],
@@ -92,12 +94,12 @@ const payRequestschema = new mongoose.Schema(
     credit_history: [
       {
         credit_deadline: { type: Date },
-        credit_status: { type: Boolean, default: false },
         credit_remarks: { type: String, default: "" },
         user_id: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
         },
+        status: { type: String, enum: ["Created", "Updated"] },
         timestamp: { type: Date, default: Date.now },
       },
     ],

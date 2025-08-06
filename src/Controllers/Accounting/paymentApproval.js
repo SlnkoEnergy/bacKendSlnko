@@ -9,19 +9,6 @@ const paymentApproval = async function (req, res) {
 
     const currentUser = await User.findById(req.user.userId);
 
-    const isSCMManager =
-      currentUser.department === "SCM" && currentUser.role === "manager";
-
-    if (!isSCMManager) {
-      return res.status(200).json({
-        totalCount: 0,
-        totalPages: 0,
-        currentPage: 1,
-        data: [],
-        message: "You are not authorized to view approvals.",
-      });
-    }
-
     const matchStage = {
       ...(search && {
         $or: [
@@ -33,15 +20,49 @@ const paymentApproval = async function (req, res) {
       }),
     };
 
-    const scmManagerFilter = {
-      $match: {
-        approved: "Pending",
-        $or: [
-          { "approval_status.stage": "Credit Pending" },
-          { "approval_status.stage": "Draft" },
-        ],
-      },
+    let accessFilter = {
+      $match: { approved: "Pending", $expr: { $literal: false } },
     };
+
+    if (currentUser.department === "SCM" && currentUser.role === "manager") {
+      accessFilter = {
+        $match: {
+          approved: "Pending",
+          $or: [
+            { "approval_status.stage": "Credit Pending" },
+            { "approval_status.stage": "Draft" },
+          ],
+        },
+      };
+    } else if (
+      currentUser.department === "Internal" &&
+      currentUser.role === "manager"
+    ) {
+      accessFilter = {
+        $match: {
+          approved: "Pending",
+          "approval_status.stage": "CAM",
+        },
+      };
+    } else if (
+      currentUser.department === "Accounts" &&
+      currentUser.role === "manager"
+    ) {
+      accessFilter = {
+        $match: {
+          approved: "Pending",
+          "approval_status.stage": "Account",
+        },
+      };
+    } else {
+      return res.status(200).json({
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        data: [],
+        message: "You are not authorized to view approvals.",
+      });
+    }
 
     const pipeline = [
       { $match: { approved: "Pending" } },
@@ -57,7 +78,7 @@ const paymentApproval = async function (req, res) {
       { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
 
       ...(Object.keys(matchStage).length ? [{ $match: matchStage }] : []),
-      scmManagerFilter,
+      accessFilter,
 
       {
         $lookup: {
