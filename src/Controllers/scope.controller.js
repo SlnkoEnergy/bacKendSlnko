@@ -225,11 +225,11 @@ const getScopePdf = async (req, res) => {
       project: project, 
       totalItems: scope.items?.length || 0,
       items: (scope.items || []).map((item) => ({
-        category: item.category,
         type: item.type,
         scope: item.scope,
         quantity: item.quantity,
         uom: item.uom,
+        name: item.name
       })),
     }));
 
