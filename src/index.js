@@ -57,6 +57,8 @@ const startServer = async () => {
     await mongoose.connect(db, {});
     console.log("SlnkoEnergy database is connected");
 
+    require("../src/utils/cron/movetotrash.cron.utils");
+
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);

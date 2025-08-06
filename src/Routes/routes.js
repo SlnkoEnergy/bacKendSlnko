@@ -67,6 +67,7 @@ const {
   account_matched,
   utrUpdate,
   accApproved,
+  restoreTrashToDraft,
   newAppovAccount,
   deletePayRequestById,
   editPayRequestById,
@@ -536,6 +537,12 @@ router.put(
   jwtMW.authentication,
   jwtMW.authorization,
   accApproved
+);
+router.put(
+  "/restore-pay-request/:id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  restoreTrashToDraft
 );
 router.put(
   "/approval",

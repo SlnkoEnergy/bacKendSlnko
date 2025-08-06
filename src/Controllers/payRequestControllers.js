@@ -603,6 +603,76 @@ const accApproved = async function (req, res) {
   }
 };
 
+const restoreTrashToDraft = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, remarks } = req.body;
+    const user_id = req.user.userId;
+
+    
+    if (!remarks || typeof remarks !== "string" || remarks.trim() === "") {
+      return res.status(400).json({ message: "Remarks are required for this action" });
+    }
+
+
+    if (!["restore", "reject"].includes(action)) {
+      return res.status(400).json({ message: "Invalid action. Must be 'restore' or 'reject'" });
+    }
+
+    const request = await payRequestModells.findById(id);
+    if (!request) return res.status(404).json({ message: "Request not found" });
+
+
+    if (request.approval_status.stage !== "Trash Pending") {
+      return res.status(400).json({ message: "Request is not in Trash Pending stage" });
+    }
+
+
+    if (action === "restore") {
+      request.approval_status = {
+        stage: "SCM",
+        user_id,
+        remarks,
+      };
+
+      request.status_history.push({
+        stage: "SCM",
+        user_id,
+        remarks,
+      });
+
+      request.timers.trash_started_at = null;
+      request.timers.draft_started_at = new Date();
+    } else if (action === "reject") {
+      request.approval_status = {
+        stage: "Rejected",
+        user_id,
+        remarks,
+      };
+
+      request.status_history.push({
+        stage: "Rejected",
+        user_id,
+        remarks,
+      });
+
+      request.timers.trash_started_at = null;
+    }
+
+    await request.save();
+
+    return res.status(200).json({
+      message: `Request successfully moved to ${request.approval_status.stage}`,
+      data: request,
+    });
+  } catch (error) {
+    console.error("Error in restoring from trash:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+
+
 //Update UTR number
 const utrUpdate = async function (req, res) {
   const { pay_id, utr, utr_submitted_by } = req.body;
@@ -1161,6 +1231,7 @@ module.exports = {
   account_matched,
   utrUpdate,
   accApproved,
+  restoreTrashToDraft,
   // getVendorById,
   newAppovAccount,
   deletePayRequestById,
