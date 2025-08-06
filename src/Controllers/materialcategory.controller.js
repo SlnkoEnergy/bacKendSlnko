@@ -1,5 +1,5 @@
-const materialCategory = require("../../../Modells/EngineeringModells/materials/materialCategoryModells");
-const scopeModel = require("../../../Modells/scope.model");
+const materialCategory = require("../Modells/materialcategory.model");
+const scopeModel = require("../Modells/scope.model");
 
 const addMaterialCategory = async (req, res) => {
   try {

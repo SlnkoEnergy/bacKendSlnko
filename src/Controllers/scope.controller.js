@@ -1,5 +1,5 @@
 const scopeModel = require("../Modells/scope.model");
-const MaterialCategory = require("../Modells/EngineeringModells/materials/materialCategoryModells");
+const MaterialCategory = require("../Modells/materialcategory.model");
 const projectModells = require("../Modells/projectModells");
 const { default: axios } = require("axios");
 

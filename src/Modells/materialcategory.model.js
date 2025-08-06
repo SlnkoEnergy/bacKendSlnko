@@ -5,6 +5,7 @@ const materCatergorySchema = new mongoose.Schema(
     description: { type: String, required: true },
     type: { type: String, enum: ["supply", "execution"], required: true },
     category:{type: String},
+    order:{type: Number},
     fields: [
       {
         _id: false,
