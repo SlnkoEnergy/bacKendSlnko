@@ -8,7 +8,7 @@ const { get } = require("mongoose");
 const exccelDataModells = require("../Modells/excelDataModells");
 const recoverypayrequest = require("../Modells/recoveryPayrequestModells");
 const subtractMoneyModells = require("../Modells/debitMoneyModells");
-const materialCategoryModells = require("../Modells/EngineeringModells/materials/materialCategoryModells");
+const materialCategoryModells = require("../Modells/materialcategory.model");
 
 // Request payment
 const payRrequest = async (req, res) => {

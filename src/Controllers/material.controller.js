@@ -1,5 +1,5 @@
-const materialCategoryModells = require("../../../Modells/EngineeringModells/materials/materialCategoryModells");
-const materialModells = require("../../../Modells/EngineeringModells/materials/materialModells");
+const materialCategoryModells = require("../Modells/materialcategory.model");
+const materialModells = require("../Modells/material.model");
 
 const createMaterial = async function (req, res) {
   try {

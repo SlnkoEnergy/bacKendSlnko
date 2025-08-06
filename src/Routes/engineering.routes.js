@@ -5,7 +5,7 @@ const {
   getBoqCategoryById,
   createBoqCategory,
   getBoqCategoryByIdAndKey,
-} = require("../../Controllers/engineeringController/boq/boqCategoryControllers");
+} = require("../Controllers/boqcategory.controllers");
 const {
   deleteBoqProject,
   updateBoqProject,
@@ -13,13 +13,13 @@ const {
   getAllBoqProject,
   createBoqProject,
   getBoqProjectByProject,
-} = require("../../Controllers/engineeringController/boq/boqProjectControllers");
+} = require("../Controllers/boqproject.controllers");
 const {
   updateBoqTemplate,
   getBoqTemplate,
   createBoqTemplate,
   getBoqTemplateByTemplateId,
-} = require("../../Controllers/engineeringController/boq/boqTemplateControllers");
+} = require("../Controllers/boqtemplate.controllers");
 const {
   updateAttachmentUrl,
   updateModuleCategoryStatus,
@@ -30,7 +30,7 @@ const {
   addRemarkToModuleCategory,
   updateModuleCategoryDB,
   getStatusHistoryForModuleCategory,
-} = require("../../Controllers/engineeringController/engineeringModules/moduleCategoryContoller");
+} = require("../Controllers/modulecategory.contoller");
 const {
   updateModuleTemplateCategoryId,
   deleteModule,
@@ -38,7 +38,7 @@ const {
   getAllModule,
   getModuleById,
   createModule,
-} = require("../../Controllers/engineeringController/engineeringModules/moduleTemplateController");
+} = require("../Controllers/moduletemplate.controller");
 const {
   addMaterialCategory,
   getAllMaterialCategories,
@@ -46,16 +46,16 @@ const {
   deleteMaterialCategory,
   getMaterialCategoryById,
   getAllMaterialCategoriesDropdown,
-} = require("../../Controllers/engineeringController/materials/materialCategoryController");
+} = require("../Controllers/materialcategory.controller");
 const {
   createMaterial,
   getAllMaterials,
   updateMaterial,
   deleteMaterial,
-} = require("../../Controllers/engineeringController/materials/materialController");
-const { getMaterialScope } = require("../../Controllers/purchaseRequestController/purchaseRequestController");
-const jwtMW = require("../../middlewares/auth");
-const upload = require("../../middlewares/multer");
+} = require("../Controllers/material.controller");
+const { getMaterialScope } = require("../Controllers/purchaseRequestController/purchaseRequestController");
+const jwtMW = require("../middlewares/auth");
+const upload = require("../middlewares/multer");
 
 //Engineering Modules Templates
 router.post(

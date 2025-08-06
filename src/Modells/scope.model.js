@@ -13,25 +13,28 @@ const scopeSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "MaterialCategory",
         },
-        name:{
+        name: {
           type: String,
         },
-        type:{
+        type: {
           type: String,
           enum: ["supply", "execution"],
         },
-        category:{
-          type: String
+        category: {
+          type: String,
         },
-        scope:{
+        scope: {
           type: String,
           enum: ["slnko", "client"],
         },
         quantity: {
           type: String,
         },
-        uom:{
-          type: String
+        uom: {
+          type: String,
+        },
+        order: {
+          type: Number,
         }
       },
     ],
