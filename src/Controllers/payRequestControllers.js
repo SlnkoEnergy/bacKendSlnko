@@ -9,6 +9,7 @@ const exccelDataModells = require("../Modells/excelDataModells");
 const recoverypayrequest = require("../Modells/recoveryPayrequestModells");
 const subtractMoneyModells = require("../Modells/debitMoneyModells");
 const materialCategoryModells = require("../Modells/EngineeringModells/materials/materialCategoryModells");
+const userModells = require("../Modells/users/userModells");
 
 // Request payment
 
@@ -109,11 +110,11 @@ const payRrequest = async (req, res) => {
         credit_deadline: credit?.credit_deadline || null,
         credit_status: credit?.credit_status || false,
         credit_remarks: credit?.credit_remarks || "",
-        user_id: credit?.user_id || null,
+        user_id: req.user.userId || null,
       },
       approval_status: approval_status || {
         stage: credit?.credit_deadline ? "Credit Pending" : "Draft",
-        user_id: null,
+        user_id: req.user.userId,
         remarks: "",
       },
       timers: timers || {
@@ -124,7 +125,7 @@ const payRrequest = async (req, res) => {
         {
           stage: credit?.credit_deadline ? "Credit Pending" : "Draft",
           remarks: "",
-          user_id: null,
+          user_id: req.user.userId,
         },
       ],
       credit_history: credit_history || [],
@@ -444,6 +445,138 @@ const accApproved = async function (req, res) {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+// const accApproved = async function (req, res) {
+//   const { pay_id, status, remarks } = req.body;
+
+//   if (!pay_id || !status || !["Approved", "Rejected"].includes(status)) {
+//     return res.status(400).json({ message: "Invalid pay_id or status" });
+//   }
+
+//   if (status === "Rejected" && !remarks?.trim()) {
+//     return res.status(400).json({
+//       message: "Remarks are required when status is Rejected or Deleted",
+//     });
+//   }
+
+//   try {
+//     const payment = await payRequestModells.findOne({ pay_id });
+
+//     if (!payment) {
+//       return res.status(404).json({ message: "Payment not found" });
+//     }
+
+//     if (payment.approved === "Approved") {
+//       return res.status(400).json({ message: "Already approved" });
+//     }
+
+//     const currentUser = await userModells.findById(req.user.userId);
+//     const { department, role } = currentUser;
+
+//     if (role !== "manager") {
+//       return res.status(403).json({ message: "Only managers can approve" });
+//     }
+
+//     const currentStage = payment.approval_status?.stage || "Draft";
+//     let nextStage = currentStage;
+//     let approvedValue = payment.approved || "Pending";
+
+//     if (status === "Approved") {
+//       if (currentStage === "Draft" && department === "SCM") {
+//         nextStage = "CAM";
+//         approvedValue = "Pending";
+//       } else if (currentStage === "CAM" && department === "CAM") {
+//         nextStage = "Account";
+//         approvedValue = "Pending";
+//       } else if (currentStage === "Account" && department === "Account") {
+//         nextStage = "Final";
+//         approvedValue = "Approved";
+//       } else {
+//         return res.status(400).json({
+//           message: "Invalid approval stage or department for this action.",
+//         });
+//       }
+//     } else {
+//       approvedValue = status;
+//     }
+
+//     const paidFor = payment.paid_for?.trim();
+//     const poNumber = payment.po_number?.trim();
+
+//     const isMaterialCategory = await materialCategoryModells.exists({
+//       name: paidFor,
+//     });
+
+//     if (status === "Approved" && department === "SCM" && isMaterialCategory) {
+//       if (!poNumber || poNumber === "N/A") {
+//         return res.status(400).json({
+//           message:
+//             "PO number is required for Material Category based payments.",
+//         });
+//       }
+
+//       const purchaseOrder = await purchaseOrderModells.findOne({
+//         po_number: poNumber,
+//       });
+
+//       if (!purchaseOrder) {
+//         return res.status(404).json({ message: "Purchase order not found" });
+//       }
+
+//       const approvedPayments = await payRequestModells.find({
+//         po_number: poNumber,
+//         approved: "Pending",
+//       });
+
+//       const totalPaid = approvedPayments.reduce(
+//         (sum, p) => sum + (parseFloat(p.amount_paid) || 0),
+//         0
+//       );
+
+//       const newTotalPaid = totalPaid + (parseFloat(payment.amount_paid) || 0);
+//       const poValue = parseFloat(purchaseOrder.po_value) || 0;
+
+//       if (newTotalPaid > poValue) {
+//         return res.status(400).json({
+//           message: `Approval Denied: Total payments exceed PO limit of ₹${poValue.toLocaleString("en-IN")}`,
+//         });
+//       }
+//     }
+
+//     // Update payment approval status
+//     payment.approved = approvedValue;
+//     payment.approval_status = {
+//       stage: nextStage,
+//       user_id: currentUser._id,
+//       remarks: remarks || "",
+//     };
+
+//     // Maintain approval history
+//     if (!Array.isArray(payment.status_history)) {
+//       payment.status_history = [];
+//     }
+
+//     payment.status_history.push({
+//       stage: nextStage,
+//       user_id: currentUser._id,
+//       department,
+//       role,
+//       remarks: remarks || "",
+//       status: approvedValue,
+//       timestamp: new Date(),
+//     });
+
+//     await payment.save();
+
+//     return res.status(200).json({
+//       message: "Approval status updated successfully",
+//       data: payment,
+//     });
+//   } catch (error) {
+//     console.error("Error in accApproved:", error);
+//     return res.status(500).json({ message: "Server error" });
+//   }
+// };
 
 //Update UTR number
 const utrUpdate = async function (req, res) {

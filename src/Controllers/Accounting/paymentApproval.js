@@ -1,10 +1,26 @@
 const payRequestModells = require("../../Modells/payRequestModells");
+const User = require("../../Modells/users/userModells");
 
 const paymentApproval = async function (req, res) {
   try {
     const search = req.query.search || "";
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 10;
+
+    const currentUser = await User.findById(req.user.userId);
+
+    const isSCMManager =
+      currentUser.department === "SCM" && currentUser.role === "manager";
+
+    if (!isSCMManager) {
+      return res.status(200).json({
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        data: [],
+        message: "You are not authorized to view approvals.",
+      });
+    }
 
     const matchStage = {
       ...(search && {
@@ -15,6 +31,16 @@ const paymentApproval = async function (req, res) {
           { p_group: { $regex: search, $options: "i" } },
         ],
       }),
+    };
+
+    const scmManagerFilter = {
+      $match: {
+        approved: "Pending",
+        $or: [
+          { "approval_status.stage": "Credit Pending" },
+          { "approval_status.stage": "Draft" },
+        ],
+      },
     };
 
     const pipeline = [
@@ -31,8 +57,8 @@ const paymentApproval = async function (req, res) {
       { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
 
       ...(Object.keys(matchStage).length ? [{ $match: matchStage }] : []),
+      scmManagerFilter,
 
-      // Calculate individual project balance
       {
         $lookup: {
           from: "addmoneys",
