@@ -299,78 +299,84 @@ const paymentApproval = async function (req, res) {
 
 
 
-const getPoApprovalPdf = async function(req, res) {
+const getPoApprovalPdf = async function (req, res) {
   try {
-    const {poIds} = req.body
+    const { poIds } = req.body;
 
-  if(!Array.isArray(poIds) || poIds.length === 0) {
-    return res.status(400).json({message: "No PO Provided."});
-  }
-
-  pipeline  = [
-    {
-      $match : {_id : {$in: poIds.map(id => new mongoose.Types.ObjectId(id))}},
-    },
-    
-
-    {
-      $lookup : {
-        from: "projectdetails",
-        localField: "p_id",
-        foreignField:  "p_id",
-        as : "project_info",
-      },
-    },
-    {
-      $unwind: {
-        path: "$project_info", preserveNullAndEmptyArrays: true
-      },
-    },
-
-    {
-      $project : {
-        _id: 0,
-        project_code : "$project_info.code",
-        project_name : "$project_info.name",
-        group_name : "$project_info.p_group",
-        pay_id: 1,
-        paid_for: 1,
-        vendor: 1,
-        dbt_date: 1,
-        comment: 1,
-        amount_paid: 1,
-      }
+    if (!Array.isArray(poIds) || poIds.length === 0) {
+      return res.status(400).json({ message: "No PO Provided." });
     }
-  ];
 
-  const result = await payRequestModells.aggregate(pipeline);
+    const validPoIds = poIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    if (validPoIds.length === 0) {
+      return res.status(400).json({ message: "Invalid PO IDs provided." });
+    }
 
-  const apiUrl = `${process.env.PDF_PORT}/po-approve/po-pdf`;
+    const pipeline = [
+      {
+        $match: {
+          _id: { $in: validPoIds.map((id) => new mongoose.Types.ObjectId(id)) },
+        },
+      },
+      {
+        $lookup: {
+          from: "projectdetails",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "project_info",
+        },
+      },
+      {
+        $unwind: {
+          path: "$project_info",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          project_code: "$project_info.code",
+          project_name: "$project_info.name",
+          group_name: "$project_info.p_group",
+          pay_id: 1,
+          paid_for: 1,
+          vendor: 1,
+          dbt_date: 1,
+          comment: 1,
+          amount_paid: 1,
+        },
+      },
+    ];
 
-  const axiosResponse = await axios({
-    method: "post",
-    url: apiUrl,
-    data:{
-      Pos : result,
-    },
-    responseType: "stream",
-    maxContentLength: Infinity,
-    maxBodyLength: Infinity,
-  });
+    const result = await payRequestModells.aggregate(pipeline);
 
-  res.set({
-    "Content-Type": axiosResponse.headers["content-type"],
-    "Content-Desposition": 
-      axiosResponse.headers["content-disposition"] || 
-      `attachement; filename = "Po-Approval.pdf`,
-  });
+    const apiUrl = `${process.env.PDF_PORT}/po-approve/po-pdf`;
 
-  axiosResponse.data.pipe(res);
+    const axiosResponse = await axios({
+      method: "post",
+      url: apiUrl,
+      data: {
+        Pos: result,
+      },
+      responseType: "stream",
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+
+    res.set({
+      "Content-Type": axiosResponse.headers["content-type"],
+      "Content-Disposition":
+        axiosResponse.headers["content-disposition"] ||
+        `attachment; filename="Po-Approval.pdf"`,
+    });
+
+    axiosResponse.data.pipe(res);
   } catch (error) {
-    res.status(500).json({message: "Error Fetching PDF", error: error.message});
+    console.error("Error generating PO approval PDF:", error);
+    res.status(500).json({ message: "Error Fetching PDF", error: error.message });
   }
-
 };
+
 
 module.exports = {
   paymentApproval,

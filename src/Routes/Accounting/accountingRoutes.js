@@ -55,7 +55,6 @@ router.get(
 router.post(
   "/po-approve-pdf",
   jwtMW.authentication,
-  jwtMW.authentication,
   getPoApprovalPdf
 );
 router.get(
