@@ -8,6 +8,7 @@ const {
 } = require("../../Controllers/Accounting/customerpaymentSummary");
 const {
   paymentApproval,
+  getPoApprovalPdf,
 } = require("../../Controllers/Accounting/paymentApproval");
 const {
   paymentHistory,
@@ -51,6 +52,12 @@ router.get(
   jwtMW.authorization,
   paymentApproval
 );
+router.post(
+  "/po-approve-pdf",
+  jwtMW.authentication,
+  jwtMW.authentication,
+  getPoApprovalPdf
+);
 router.get(
   "/standby-record",
   jwtMW.authentication,
@@ -75,4 +82,5 @@ router.get(
   jwtMW.authorization,
   exportDebitHistoryCsv
 );
+
 module.exports = router;
