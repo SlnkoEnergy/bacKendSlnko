@@ -250,7 +250,7 @@ const paymentApproval = async function (req, res) {
 
       {
         $project: {
-          _id: 0,
+          _id: 1,
           payment_id: "$pay_id",
           request_date: "$dbt_date",
           request_for: "$paid_for",
