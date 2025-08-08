@@ -15,7 +15,7 @@ const cookieParser = require("cookie-parser");
 const http = require("http");
 const Sentry = require("@sentry/node");
 const Tracing = require("@sentry/tracing");
-const cron = require("../src/utils/cron/inactivelead.cron.utils");
+require("../src/utils/cron/inactivelead.cron.utils");
 
 Sentry.init({
   dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",
@@ -58,7 +58,6 @@ const startServer = async () => {
   try {
     await mongoose.connect(db, {});
     console.log("SlnkoEnergy database is connected");
-
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);

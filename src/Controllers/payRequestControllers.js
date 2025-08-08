@@ -392,7 +392,7 @@ const accApproved = async function (req, res) {
       }
 
       const purchaseOrder = await purchaseOrderModells.findOne({
-        po_number: poNumber,
+        po_number: { $regex: `^\\s*${poNumber}\\s*$`, $options: "i" },
       });
 
       if (!purchaseOrder) {
