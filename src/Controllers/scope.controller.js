@@ -38,13 +38,27 @@ const getScopeById = async (req, res) => {
       return res.status(404).json({ message: "Scope not found" });
     }
 
+    // Step 1: Find categories where any item has pr_status = true
+    const categoriesWithPr = new Set();
+    for (const item of scope.items) {
+      if (item.pr_status) {
+        categoriesWithPr.add(item.category);
+      }
+    }
+
+    // Step 2: Update pr_status for all items in those categories
+    const updatedItems = scope.items.map(item => {
+      if (categoriesWithPr.has(item.category)) {
+        return { ...item.toObject(), pr_status: true };
+      }
+      return item.toObject();
+    });
+
+    // Step 3: Get unique items by category
     const uniqueItems = [];
     const categorySet = new Set();
-
-    for (const item of scope.items) {
-      if (!item.category || item.category.trim() === "") {
-        continue;
-      }
+    for (const item of updatedItems) {
+      if (!item.category || item.category.trim() === "") continue;
       if (!categorySet.has(item.category)) {
         categorySet.add(item.category);
         uniqueItems.push(item);
@@ -65,8 +79,6 @@ const getScopeById = async (req, res) => {
     });
   }
 };
-
-
 
 const getAllScopes = async (req, res) => {
   try {
