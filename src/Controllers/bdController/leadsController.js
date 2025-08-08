@@ -9,7 +9,7 @@ const group = require("../../Modells/bdleads/group");
 const task = require("../../Modells/bdleads/task");
 const groupModells = require("../../Modells/bdleads/group");
 const { Novu } = require('@novu/node');
-const { getNotification, getnovuNotification } = require("../../utils/nouvnotificationutils");
+const { getnovuNotification } = require("../../utils/nouvnotificationutils");
 
 const createBDlead = async function (req, res) {
   try {
@@ -575,9 +575,17 @@ const deleteLead = async (req, res) => {
 
     try {
       const workflow = 'delete-notification';
-      const senders = ['683af1b28af4928366f0f2a9', '683fe1416f62d8dc77a1e1b1'];
+      
+      const senders = await userModells.find({
+        $or :[
+          {department: 'admin'},
+          {department: 'BD', role: 'manager'},
+        ]
+      }).select('_id')
+      .lean()
+      .then(users => users.map(u => u._id));
       const data = {
-        message : `Lead ${lead.id} deleted by Manager`
+        message : `Lead ${deletedLead.name} deleted by Manager`
       }
       await getnovuNotification(workflow, senders, data);
     } catch (error) {
@@ -639,9 +647,18 @@ const updateAssignedTo = async (req, res) => {
     for(const lead of leads){
       try {
         const workflow = 'all-notification';
-        const senders = [assigned, "683af1b28af4928366f0f2a9", "683fe1416f62d8dc77a1e1b1"];
+        const alluser = await userModells.find({
+          $or :[
+            {department: 'admin'},
+            {department: 'BD', role: 'manager'}
+          ]
+        }).select('_id')
+        .lean()
+        .then(users => users.map(u => u._id));
+
+        const senders = [...new Set([...alluser, assigned])];
         const data = {
-          message: `Lead ${lead.id} transer to ${assign.name} `
+          message: `Lead ${lead.id} transfer to ${assign.name} `
         }
 
         await getnovuNotification(workflow, senders, data);

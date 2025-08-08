@@ -13,13 +13,13 @@ const getnovuNotification = async (workflow, senders, payload) => {
       }
 
       try {
-        await novu.subscribers.identify(sender, {
+        const subscriberId = sender.toString().trim();
+        await novu.subscribers.identify(subscriberId, {
           firstName: sender,
         });
-
         await novu.trigger(workflow, {
           to: {
-            subscriberId: sender,
+            subscriberId
           },
           payload: payload,
         });

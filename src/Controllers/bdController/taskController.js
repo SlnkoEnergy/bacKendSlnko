@@ -43,19 +43,18 @@ const createTask = async (req, res) => {
     await newTask.save();
 
     // Notification functionality for Creating Task
-    // console.log(assigned_to);
-    // try {
-    //   const workflow = 'create-task';
-    //   const senders = assigned_to;
-    //   const data  = {
-    //     message : ` New Task is created`
-    //   }
+    console.log(assigned_to);
+    try {
+      const workflow = 'task-create';
+      const senders = assigned_to;
+      const data  = {
+        message : ` New Task is created`
+      }
+      await getnovuNotification(workflow, senders, data);
 
-    //   await getnovuNotification(workflow, senders, data);
-
-    // } catch (error) {
-    //   console.log(error);
-    // }
+    } catch (error) {
+      console.log(error);
+    }
 
     res.status(201).json({
       message: "Task created successfully",
@@ -93,10 +92,7 @@ const updateStatus = async (req, res) => {
 
     // Notification on Task status change
 
-    const lead = await bdleadsModells.findById(task.lead_id);
-    console.log("lead data " , lead);
-    console.log("task data", task.user_id);
-    
+    const lead = await bdleadsModells.findById(task.lead_id);    
 
     try {
       const workflow = 'task-status';
