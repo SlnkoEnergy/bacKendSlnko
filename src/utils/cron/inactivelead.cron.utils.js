@@ -8,9 +8,10 @@ cron.schedule("0 0 * * *", async () => {
         "current_status.name": { $ne: "won" }
       },
       {
-        $inc: { inactivedays: 1 }
+        $inc: { leadAging: 1 }
       }
     );
+
     console.log(`✅ inactivedays updated for ${result.modifiedCount} leads`);
   } catch (error) {
     console.error("❌ Error updating inactivedays:", error);
