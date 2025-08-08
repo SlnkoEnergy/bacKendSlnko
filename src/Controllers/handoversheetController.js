@@ -196,28 +196,34 @@ const gethandoversheetdata = async function (req, res) {
     }
 
     const statuses = statusFilter
-      ?.split(",")
-      .map((s) => s.trim())
-      .filter(Boolean) || [];
+  ?.split(",")
+  .map((s) => s.trim())
+  .filter(Boolean) || [];
 
-    const hasHandoverPending = statuses.includes("handoverpending");
-    const hasScopePending = statuses.includes("scopepending");
+const hasHandoverPending = statuses.includes("handoverpending");
+const hasScopePending = statuses.includes("scopepending");
+const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
 
-    const actualStatuses = statuses.filter(
-      (s) => s !== "handoverpending" && s !== "scopepending"
-    );
+const actualStatuses = statuses.filter(
+  (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen" 
+);
 
-    if (actualStatuses.length === 1) {
-      matchConditions.$and.push({ status_of_handoversheet: actualStatuses[0] });
-    } else if (actualStatuses.length > 1) {
-      matchConditions.$and.push({
-        status_of_handoversheet: { $in: actualStatuses },
-      });
-    }
+if (actualStatuses.length === 1) {
+  matchConditions.$and.push({ status_of_handoversheet: actualStatuses[0] });
+} else if (actualStatuses.length > 1) {
+  matchConditions.$and.push({
+    status_of_handoversheet: { $in: actualStatuses },
+  });
+}
 
-    if (hasHandoverPending) {
-      matchConditions.$and.push({ status_of_handoversheet: "submitted" });
-    }
+if (hasHandoverPending) {
+  matchConditions.$and.push({ status_of_handoversheet: "submitted" });
+}
+
+if (hasScopeOpen) {
+  matchConditions.$and.push({ scope_status: "open" });
+}
+
 
     const finalMatch = matchConditions.$and.length > 0 ? matchConditions : {};
 
@@ -268,6 +274,25 @@ const gethandoversheetdata = async function (req, res) {
           path: "$projectInfo",
           preserveNullAndEmptyArrays: true,
         },
+      },
+      {
+        $lookup: {
+          from: "scopes", 
+          localField: "projectInfo._id",
+          foreignField: "project_id",
+          as: "scopeInfo"
+        }
+      },
+      {
+        $unwind: {
+          path: "$scopeInfo",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $addFields: {
+          scope_status: "$scopeInfo.current_status.status"
+        }
       },
       {
         $match: finalMatch,
@@ -333,6 +358,7 @@ const gethandoversheetdata = async function (req, res) {
                 comment: 1,
                 p_id: 1,
                 project_id: "$projectInfo._id",
+                scope_status: 1 
               },
             },
           ],
@@ -358,6 +384,7 @@ const gethandoversheetdata = async function (req, res) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 
 //edit handover sheet data
