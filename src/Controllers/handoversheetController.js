@@ -351,7 +351,7 @@ if (hasScopeOpen) {
                 project_kwp: "$project_detail.project_kwp",
                 total_gst: "$other_details.total_gst",
                 service: "$other_details.service",
-                submitted_by: "$submittedUser.name",
+                submitted_by: 1,
                 leadDetails: 1,
                 status_of_handoversheet: 1,
                 is_locked: 1,
