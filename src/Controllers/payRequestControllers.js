@@ -474,7 +474,7 @@ const account_matched = async function (req, res) {
 const accApproved = async function (req, res) {
   const { _id, status, remarks } = req.body;
 
-  if (!_id || !status || !["Approved", "Rejected"].includes(status)) {
+  if (!_id || !status || !["Approved", "Rejected","Pending"].includes(status)) {
     return res.status(400).json({ message: "Invalid _id or status" });
   }
 
@@ -516,32 +516,27 @@ const accApproved = async function (req, res) {
       let nextStage = currentStage;
       let approvedValue = payment.approved || "Pending";
 
-      if (status === "Approved") {
-        if (
-          (currentStage === "Draft" || currentStage === "Credit Pending") &&
-          department === "SCM"
-        ) {
-          nextStage = "CAM";
-          approvedValue = "Pending";
-        } else if (currentStage === "CAM" && department === "Internal") {
-          nextStage = "Account";
-          approvedValue = "Pending";
-        } else if (currentStage === "Account" && department === "Accounts") {
-          nextStage = "Final";
-          approvedValue = "Approved";
-        } else {
-          results.push({
-            _id: id,
-            status: "error",
-            message: "Invalid approval stage or department for this action.",
-          });
-          continue;
-        }
-      } else {
-        // Rejected
-        approvedValue = status;
-        nextStage = "Final";
-      }
+      if (
+  (currentStage === "Draft" || currentStage === "Credit Pending") &&
+  department === "SCM"
+) {
+  nextStage = "CAM";
+  approvedValue = "Pending";
+} else if (currentStage === "CAM" && department === "Internal") {
+  nextStage = "Account";
+  approvedValue = "Pending";
+} else if (currentStage === "Account" && department === "Accounts") {
+  nextStage = "Final";
+  approvedValue = "Approved";
+} else {
+  results.push({
+    _id: id,
+    status: "error",
+    message: "Invalid approval stage or department for this action.",
+  });
+  continue;
+}
+
 
       const paidFor = payment.paid_for?.trim();
       const poNumber = payment.po_number?.trim();
