@@ -63,7 +63,6 @@ const {
   payRrequest,
   holdpay,
   getPaySummary,
-  hold,
   account_matched,
   utrUpdate,
   accApproved,
@@ -82,6 +81,7 @@ const {
   updateExceData,
   getExcelDataById,
   getpy,
+  getTrashPayment,
 } = require("../Controllers/payRequestControllers");
 
 const {
@@ -523,7 +523,7 @@ router.get(
   "/hold-pay-summary-IT",
   jwtMW.authentication,
   jwtMW.authorization,
-  hold
+  getTrashPayment
 );
 router.put(
   "/acc-matched",
