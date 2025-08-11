@@ -1,103 +1,124 @@
-const cron = require('node-cron')
-const {Novu} = require('@novu/node');
+const cron = require('node-cron');
 const bdleadsModells = require('../Modells/bdleads/bdleadsModells');
-const { getNotification, getnovuNotification } = require('./nouvnotificationutils');
+const { getnovuNotification } = require('./nouvnotificationutils');
+const userModells = require('../Modells/users/userModells');
 
+cron.schedule("* 11 * * *", async () => {
+    console.log(`[${new Date().toISOString()}] Cron job started`);
 
-const novu = new Novu(process.env.NOVU_SECRET_KEY);
+    const milestoneDays = [7, 14, 30, 90, 180];
 
-cron.schedule('0 11 * * *', async() =>{
-    try {
-
-        const milestoneDays = [7, 14, 30, 90, 180];
-        const cursor = bdleadsModells.aggregate([
-            {
-                $lookup: {
-                    from: "bdtasks",
-                    let: {leadId: "$_id"},
-                    pipeline : [
-                        {$match : {$expr : { $eq : ["$lead_id", "$$leadId"]}}},
-                        {
-                            $group : {
-                                _id : null,
-                                lastModifiedTask: {$max: "$updatedAt"},
-                            },
+    const basePipeline = [
+        {
+            $lookup : {
+                from : "bdtasks",
+                let: {leadId : "$_id"},
+                pipeline: [
+                    {$match: {$expr: { $eq: ["$lead_id", "$$leadId"] } } },
+                    {
+                        $group: {
+                            _id: null,
+                            lastModifiedTask: { $max: "$updatedAt"},
                         },
-                        {$project : {_id: 0, lastModifiedTask: 1}},
-                    ],
-                    as: "task_meta",
-                },
-            },
-            {
-                $addFields: {
-                    lastModifiedTask:{
-                        $ifNull: [
-                            {$arrayElemAt: ["$task_meta.lastModifiedTask", 0]},
-                            "$createdAt",
-                        ],
                     },
-                    wonStatusDate: {
-                        $let: {
-                            vars: {
-                                wonEntry: {
-                                    $first: {
-                                        $filter: {
-                                            input: "$status_history",
-                                            as: "s",
-                                            cond: {$eq : ["$$s.name", "won"]},
-                                        },
+                    { $project: {_id: 0, lastModifiedTask: 1} },
+                ],
+                as: "task_meta",
+            },
+        },
+        {
+            $addFields: {
+                lastModifiedTask: {
+                    $ifNull: [
+                        { $arrayElemAt: ["$task_meta.lastModifiedTask", 0] },
+                        "$createdAt",
+                    ],
+                },
+                wonStatusDate: {
+                    $let: {
+                        vars: {
+                            wonEntry: {
+                                $first: {
+                                    $filter: {
+                                        input: "$status_history",
+                                        as: "s",
+                                        cond: { $eq : ["$$s.name", "won"] },
                                     },
                                 },
                             },
-                            in: "$$wonEntry.updatedAt",
                         },
+                        in: "$$wonEntry.updatedAt",
                     },
                 },
             },
-            {
-                $addFields:{
-                    inactiveDays: {
+        },
+        {
+            $addFields: {
+                inactiveDays: {
+                    $divide: [
+                        {$subtract: ["$$NOW", "$lastModifiedTask"] },
+                        1000 * 60 * 60 * 24,
+                    ],
+                },
+                leadAging: {
+                    $cell: {
                         $divide: [
-                            {$subtract : ["$$NOW", "$lastModifiedTask"]},
-                            1000 * 60 * 60 * 24,
+                            {
+                                $subtract: [
+                                    { $ifNull: ["$wonStatusDate", "$$NOW"] },
+                                    "$createdAt",
+                                ],
+                            },
                         ],
                     },
-                    leadAging: {
-                        $ceil: {
-                            $divide: [
-                                {
-                                    $subtract: [
-                                        { $ifNull : ["$wonStatusDate", "$$NOW"]},
-                                        "$createdAt",
-                                    ],
-                                },
-                                1000 * 60 * 60 * 24,
-                            ],
-                        },
-                    },
                 },
             },
-            {
-                $match: {
-                    inactiveDays: { $in : milestoneDays},
-                },
-            },
-        ]).cursor({ batchSize : 100}).exec();
+        },
+        {
+            $project:{
+                inactiveDays: "$inacitvedays "
+            }
+        }
+    ];
 
-        for(let lead = await cursor.next(); lead != null; lead = await cursor.next()) {
+    const results = await cursor.toArray();
+    console.log("Documents found:", results.length);
+    try {
+        let foundAny = false;
 
-            const workflow = 'reminder'
-            const senders = ['assigned to id', 'admin', 'manager'];
+        for (let lead = await cursor.next(); lead != null; lead = await cursor.next()) {
+            foundAny = true;
+            console.log(`Processing lead: ${lead.name} (${lead.inactiveDays} days inactive)`);
+
+            const workflow = 'reminder';
+            const sendersList = await userModells.find({
+                $or: [
+                    { department: 'admin' },
+                    { department: 'manager', role: 'BD' }
+                ]
+            });
+
+            const submittedByUser = await userModells
+                .findById(lead.submited_by)
+                .select('_id')
+                .lean();
+
+            const finalSenders = [...sendersList, submittedByUser];
 
             const payload = {
-                leadname : lead.name,
-                message: `Lead ${lead.name} has been in acitive from ${lead.inactiveDays}`,
-            }
+                leadname: lead.name,
+                message: `Lead ${lead.name} has been inactive for ${lead.inactiveDays} days`
+            };
 
-            await getnovuNotification(workflow, senders, payload);
+            await getnovuNotification(workflow, finalSenders, payload);
         }
-        
+
+        if (!foundAny) {
+            console.log("No leads matched milestone days this run.");
+        }
     } catch (error) {
-        console.error( "Cron job error", error);
+        console.error("Cron job error", error);
+    } finally {
+        await cursor.close();
     }
-})
+});
