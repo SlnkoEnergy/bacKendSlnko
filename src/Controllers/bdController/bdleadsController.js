@@ -1,9 +1,3 @@
-const initiallead = require("../../Modells/initialBdLeadModells");
-const followUpBdleadModells = require("../../Modells/followupbdModells");
-const warmbdLeadModells = require("../../Modells/warmbdLeadModells");
-const wonleadModells = require("../../Modells/wonleadModells");
-const deadleadModells = require("../../Modells/deadleadModells");
-const createbdleads = require("../../Modells/createBDleadModells");
 const handoversheet = require("../../Modells/handoversheetModells");
 const task = require("../../Modells/bdleads/task");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
@@ -1121,11 +1115,41 @@ const leadWonAndLost = async (req, res) => {
     processAggregate(aggDead, "total");
     processAggregate(aggInitial, "total");
 
-    const monthlyData = Object.values(monthlyDataMap).map(item => {
-      const wonPct = item.total > 0 ? ((item.won / item.total) * 100).toFixed(2) : "0.00";
-      const lostPct = item.total > 0 ? ((item.lost / item.total) * 100).toFixed(2) : "0.00";
-      return { month: item.month, won_percentage: +wonPct, lost_percentage: +lostPct };
-    }).sort((a, b) => monthNames.indexOf(a.month) - monthNames.indexOf(b.month));
+    // Build full month range
+    const monthDiff = (start, end) =>
+      (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+
+    const totalMonths = monthDiff(fromDate, toDate);
+    const fullMonthList = [];
+
+    let tempDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+    for (let i = 0; i < totalMonths; i++) {
+      const monthName = monthNames[tempDate.getMonth()];
+      const year = tempDate.getFullYear();
+      const key = `${tempDate.getMonth() + 1}-${year}`;
+      fullMonthList.push({
+        key,
+        month: monthName,
+        won_percentage: 0,
+        lost_percentage: 0
+      });
+      tempDate.setMonth(tempDate.getMonth() + 1);
+    }
+
+    const aggregatedMap = Object.values(monthlyDataMap).reduce((acc, item) => {
+      const key = `${monthNames.indexOf(item.month) + 1}-${item.year}`;
+      acc[key] = {
+        won_percentage: item.total > 0 ? ((item.won / item.total) * 100).toFixed(2) : "0.00",
+        lost_percentage: item.total > 0 ? ((item.lost / item.total) * 100).toFixed(2) : "0.00"
+      };
+      return acc;
+    }, {});
+
+    const monthlyData = fullMonthList.map(m => ({
+      month: m.month,
+      won_percentage: +((aggregatedMap[m.key]?.won_percentage) || 0),
+      lost_percentage: +((aggregatedMap[m.key]?.lost_percentage) || 0)
+    }));
 
     res.json({
       total_leads: totalLeads,
