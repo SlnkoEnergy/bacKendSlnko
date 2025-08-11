@@ -47,14 +47,17 @@ cron.schedule("0 * * * *", async () => {
     });
 
     if (deleteResult.deletedCount > 0) {
-      console.log(`Deleted ${deleteResult.deletedCount} entries from trash after 15 days`);
+      console.log(
+        `Deleted ${deleteResult.deletedCount} entries from trash after 15 days`
+      );
     }
 
     // Step 3: Move expired Credit Pending to Draft
+    // Step 3: Move expired Credit Pending to Draft
     const creditResult = await PayRequest.updateMany(
       {
-        approved: "Credit Pending",
-        credit_deadline: { $lte: now }, // deadline passed
+        "approval_status.stage": "Credit Pending",
+        "credit.credit_deadline": { $lte: now }, // deadline passed
       },
       [
         {
@@ -76,9 +79,10 @@ cron.schedule("0 * * * *", async () => {
     );
 
     if (creditResult.modifiedCount > 0) {
-      console.log(`Moved ${creditResult.modifiedCount} Credit Pending to Draft`);
+      console.log(
+        `Moved ${creditResult.modifiedCount} Credit Pending to Draft`
+      );
     }
-
   } catch (err) {
     console.error("Error in cron job:", err);
   }
