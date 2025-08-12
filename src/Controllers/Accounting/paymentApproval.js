@@ -6,27 +6,30 @@ const { default: axios } = require("axios");
 const paymentApproval = async function (req, res) {
   try {
     const search = req.query.search || "";
-    const tab = req.query.tab || ""; // get tab from query param
+    const tab = req.query.tab || "";
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 10;
 
     const currentUser = await User.findById(req.user.userId);
+    if (!currentUser) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-    // Build search filter
+    // Search filter
     const searchFilter = search
       ? {
           $or: [
             { code: { $regex: search, $options: "i" } },
             { pay_id: { $regex: search, $options: "i" } },
+            { cr_id: { $regex: search, $options: "i" } },
             { name: { $regex: search, $options: "i" } },
             { p_group: { $regex: search, $options: "i" } },
           ],
         }
       : {};
 
-    // Build accessFilter based on user department & role
+    // Department-based access filter
     let accessFilter = {};
-
     if (currentUser.department === "SCM" && currentUser.role === "manager") {
       accessFilter = {
         approved: "Pending",
@@ -49,7 +52,11 @@ const paymentApproval = async function (req, res) {
     ) {
       accessFilter = {
         approved: "Pending",
-        "approval_status.stage": "Account",
+        // "approval_status.stage": "Account",
+        $or: [
+          { "approval_status.stage": "Credit Pending" },
+          { "approval_status.stage": "Account" },
+        ],
       };
     } else {
       return res.status(200).json({
@@ -62,44 +69,51 @@ const paymentApproval = async function (req, res) {
     }
 
     const now = new Date();
-
-    // Build tabFilter based on tab param
     let tabFilter = {};
 
-    if (tab === "credit") {
-      tabFilter = { "approval_status.stage": "Account" };
-    } else if (tab === "toBeApproved") {
-      tabFilter = {
-        "credit.credit_deadline": {
-          $exists: true,
-          $ne: null,
-          $gte: now,
-          $lte: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
-        },
-      };
-    } else if (tab === "overdue") {
-      tabFilter = {
-        "credit.credit_deadline": {
-          $exists: true,
-          $ne: null,
-          $lt: now,
-        },
-      };
-    } else {
-      tabFilter = {};
+    // Only Accounts department uses tab filters
+    if (currentUser.department === "Accounts") {
+      switch (tab) {
+        case "credit":
+          tabFilter = {
+            cr_id: { $exists: true, $ne: null },
+            "approval_status.stage": "Credit Pending",
+          };
+          break;
+        case "instant":
+          tabFilter = {
+            cr_id: { $in: [null, ""] },
+            pay_id: { $exists: true, $ne: null },
+            "approval_status.stage": "Account",
+          };
+          break;
+        case "toBeApproved":
+          tabFilter = {
+            "credit.credit_deadline": {
+              $exists: true,
+              $ne: null,
+              $gte: now,
+              $lte: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
+            },
+          };
+          break;
+        case "overdue":
+          tabFilter = {
+            "credit.credit_deadline": {
+              $exists: true,
+              $ne: null,
+              $lt: now,
+            },
+          };
+          break;
+      }
     }
 
-    // Combine accessFilter and tabFilter
-    const combinedMatch = {
-      ...accessFilter,
-      ...tabFilter,
-    };
+    const combinedMatch = { ...accessFilter, ...tabFilter };
 
-    // Build aggregate pipeline
+    // Common aggregation pipeline
     const pipeline = [
       { $match: combinedMatch },
-
-      // Apply search filter if present
       ...(Object.keys(searchFilter).length ? [{ $match: searchFilter }] : []),
 
       {
@@ -112,7 +126,7 @@ const paymentApproval = async function (req, res) {
       },
       { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
 
-      // Credit and Debit lookups for Available_Amount
+      // Available amount (Credit - Debit)
       {
         $lookup: {
           from: "addmoneys",
@@ -131,7 +145,7 @@ const paymentApproval = async function (req, res) {
       },
       {
         $lookup: {
-          from: "subtract moneys", // Removed space from collection name
+          from: "subtract moneys", // fixed collection name
           let: { pid: "$p_id" },
           pipeline: [
             { $match: { $expr: { $eq: ["$p_id", "$$pid"] } } },
@@ -145,15 +159,24 @@ const paymentApproval = async function (req, res) {
           as: "debitData",
         },
       },
-
       {
         $addFields: {
           Available_Amount: {
             $round: [
               {
                 $subtract: [
-                  { $ifNull: [{ $arrayElemAt: ["$creditData.totalCredit", 0] }, 0] },
-                  { $ifNull: [{ $arrayElemAt: ["$debitData.totalDebit", 0] }, 0] },
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$creditData.totalCredit", 0] },
+                      0,
+                    ],
+                  },
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$debitData.totalDebit", 0] },
+                      0,
+                    ],
+                  },
                 ],
               },
               2,
@@ -163,6 +186,7 @@ const paymentApproval = async function (req, res) {
         },
       },
 
+      // Group-level balance
       {
         $addFields: {
           hasValidGroup: {
@@ -179,7 +203,6 @@ const paymentApproval = async function (req, res) {
           },
         },
       },
-
       {
         $lookup: {
           from: "projectdetails",
@@ -202,8 +225,6 @@ const paymentApproval = async function (req, res) {
           },
         },
       },
-
-      // Group Credit and Debit lookups
       {
         $lookup: {
           from: "addmoneys",
@@ -222,7 +243,7 @@ const paymentApproval = async function (req, res) {
       },
       {
         $lookup: {
-          from: "subtract moneys", // Removed space here too
+          from: "subtract moneys",
           let: { gids: "$groupProjectIds" },
           pipeline: [
             { $match: { $expr: { $in: ["$p_id", "$$gids"] } } },
@@ -236,7 +257,6 @@ const paymentApproval = async function (req, res) {
           as: "groupDebitData",
         },
       },
-
       {
         $addFields: {
           groupBalance: {
@@ -246,7 +266,9 @@ const paymentApproval = async function (req, res) {
                 $subtract: [
                   {
                     $ifNull: [
-                      { $arrayElemAt: ["$groupCreditData.totalGroupCredit", 0] },
+                      {
+                        $arrayElemAt: ["$groupCreditData.totalGroupCredit", 0],
+                      },
                       0,
                     ],
                   },
@@ -264,31 +286,34 @@ const paymentApproval = async function (req, res) {
         },
       },
 
-      // Calculate remainingDays safely
       {
-  $addFields: {
-    remainingDays: {
-      $cond: [
-        { $and: [{ $ne: ["$credit.credit_deadline", null] }, { $ne: ["$dbt_date", null] }] },
-        {
-          $dateDiff: {
-            startDate: { $toDate: "$dbt_date" },
-            endDate: { $toDate: "$credit.credit_deadline" },
-            unit: "day",
+        $addFields: {
+          remainingDays: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ["$credit.credit_deadline", null] },
+                  { $ne: ["$dbt_date", null] },
+                ],
+              },
+              {
+                $dateDiff: {
+                  startDate: { $toDate: "$dbt_date" },
+                  endDate: { $toDate: "$credit.credit_deadline" },
+                  unit: "day",
+                },
+              },
+              null,
+            ],
           },
         },
-        null,
-      ],
-    },
-  },
-},
-
+      },
 
       {
         $project: {
           _id: 1,
-          payment_id: "$pay_id",
-          credit_id: "$cr_id",
+          pay_id: "$pay_id",
+          cr_id: "$cr_id",
           request_date: "$dbt_date",
           request_for: "$paid_for",
           payment_description: "$comment",
@@ -304,42 +329,91 @@ const paymentApproval = async function (req, res) {
       },
     ];
 
-    // Count pipelines for toBeApproved and overdue tabs
-    const toBeApprovedCountPipeline = [
-      {
-        $match: {
-          ...accessFilter,
-          "credit.credit_deadline": {
-            $gte: now,
-            $lte: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
-          },
-        },
-      },
-      { $count: "toBeApprovedCount" },
-    ];
-
-    const overdueCountPipeline = [
-      { $match: { ...accessFilter, "credit.credit_deadline": { $lt: now } } },
-      { $count: "overdueCount" },
-    ];
-
-    // Count total documents for current tab & filters
     const countPipeline = [...pipeline, { $count: "total" }];
 
-    // Pagination stages
-    const paginatedPipeline = [...pipeline, { $skip: (page - 1) * pageSize }, { $limit: pageSize }];
+    const paginatedPipeline = [
+      ...pipeline,
+      { $skip: (page - 1) * pageSize },
+      { $limit: pageSize },
+    ];
 
-    // Make sure your model is named correctly here (no double 'l')
-    const [data, countResult, toBeApprovedResult, overdueResult] = await Promise.all([
+    const [data, countResult] = await Promise.all([
       payRequestModells.aggregate(paginatedPipeline),
       payRequestModells.aggregate(countPipeline),
-      payRequestModells.aggregate(toBeApprovedCountPipeline),
-      payRequestModells.aggregate(overdueCountPipeline),
     ]);
 
     const total = countResult[0]?.total || 0;
-    const toBeApprovedCount = toBeApprovedResult[0]?.toBeApprovedCount || 0;
-    const overdueCount = overdueResult[0]?.overdueCount || 0;
+
+    let toBeApprovedCount = 0;
+    let overdueCount = 0;
+    let instantCount = 0;
+    let creditCount = 0;
+
+    if (currentUser.department === "Accounts") {
+      const now = new Date();
+
+      // Prepare a helper to merge filters
+      const matchWithSearch = (extraFilter) => ({
+        ...accessFilter,
+        ...extraFilter,
+        ...(Object.keys(searchFilter).length ? searchFilter : {}),
+      });
+
+      // Build all tab counts with search included
+      const [toBeApprovedResult, overdueResult, creditResult, instantResult] =
+        await Promise.all([
+          // To Be Approved
+          payRequestModells.aggregate([
+            {
+              $match: matchWithSearch({
+                "credit.credit_deadline": {
+                  $gte: now,
+                  $lte: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
+                },
+              }),
+            },
+            { $count: "count" },
+          ]),
+
+          // Overdue
+          payRequestModells.aggregate([
+            {
+              $match: matchWithSearch({
+                "credit.credit_deadline": { $lt: now },
+              }),
+            },
+            { $count: "count" },
+          ]),
+
+          // Credit
+          payRequestModells.aggregate([
+            {
+              $match: matchWithSearch({
+                cr_id: { $exists: true, $ne: null },
+                "approval_status.stage": "Credit Pending",
+              }),
+            },
+            { $count: "count" },
+          ]),
+
+          // Instant
+          payRequestModells.aggregate([
+            {
+              $match: matchWithSearch({
+                cr_id: { $in: [null, ""] },
+                pay_id: { $exists: true, $ne: null },
+                "approval_status.stage": "Account",
+              }),
+            },
+            { $count: "count" },
+          ]),
+        ]);
+
+      toBeApprovedCount = toBeApprovedResult[0]?.count || 0;
+      overdueCount = overdueResult[0]?.count || 0;
+      creditCount = creditResult[0]?.count || 0;
+      instantCount = instantResult[0]?.count || 0;
+    }
 
     res.json({
       success: true,
@@ -348,19 +422,23 @@ const paymentApproval = async function (req, res) {
         page,
         pageSize,
         count: data.length,
-        toBeApprovedCount,
-        overdueCount,
-        tab,
+        ...(currentUser.department === "Accounts" && {
+          toBeApprovedCount,
+          overdueCount,
+          creditCount,
+          instantCount,
+          tab,
+        }),
       },
       data,
     });
   } catch (error) {
     console.error("paymentApproval error:", error);
-    res.status(500).json({ message: "An error occurred while processing the request." });
+    res
+      .status(500)
+      .json({ message: "An error occurred while processing the request." });
   }
 };
-
-
 
 const getPoApprovalPdf = async function (req, res) {
   try {
@@ -370,7 +448,9 @@ const getPoApprovalPdf = async function (req, res) {
       return res.status(400).json({ message: "No PO Provided." });
     }
 
-    const validPoIds = poIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    const validPoIds = poIds.filter((id) =>
+      mongoose.Types.ObjectId.isValid(id)
+    );
     if (validPoIds.length === 0) {
       return res.status(400).json({ message: "Invalid PO IDs provided." });
     }
@@ -436,10 +516,11 @@ const getPoApprovalPdf = async function (req, res) {
     axiosResponse.data.pipe(res);
   } catch (error) {
     console.error("Error generating PO approval PDF:", error);
-    res.status(500).json({ message: "Error Fetching PDF", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error Fetching PDF", error: error.message });
   }
 };
-
 
 module.exports = {
   paymentApproval,
