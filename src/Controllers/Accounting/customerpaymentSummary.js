@@ -36,7 +36,7 @@ const getCustomerPaymentSummary = async (req, res) => {
       return { [field]: dateRange };
     };
 
-    // 1️⃣ Project Details
+
     const [project] = await ProjectModel.aggregate([
       { $match: { p_id: projectId } },
       {
