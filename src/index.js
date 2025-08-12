@@ -9,10 +9,10 @@ const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRou
 const taskRoutes = require("./Routes/tasks.routes");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
 const scopeRoutes = require("../src/Routes/scope.routes");
+const productRoutes = require("../src/Routes/products.routes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
-const http = require("http");
 const Sentry = require("@sentry/node");
 const Tracing = require("@sentry/tracing");
 require("../src/utils/cron/inactivelead.cron.utils");
@@ -60,6 +60,7 @@ const startServer = async () => {
     console.log("SlnkoEnergy database is connected");
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
+    app.use("/v1/products", productRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);
     app.use("/v1/dpr", dprRoutes);
     app.use("/v1/purchaseRequest", purchaseRoutes);

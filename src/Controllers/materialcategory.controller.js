@@ -1,33 +1,48 @@
 const materialCategory = require("../Modells/materialcategory.model");
 const scopeModel = require("../Modells/scope.model");
+const Counter = require("../Modells/materialcategorycounter.model")
 
 const addMaterialCategory = async (req, res) => {
   try {
-    const { name, description, fields } = req.body;
-    const userId = req.user?._id;
+    const { name, description, fields, type } = req.body;
+    const userId = req.user?.userId;
+    
+    if(!name || !description || !type){
+      return res.status(404).json({
+        message:"Please fill all the required fields"
+      })
+    }
+
+    // Atomic increment for category counter
+    const counter = await Counter.findOneAndUpdate(
+      { name: "material_category_code" },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+
+    const categoryCode = `CAT${String(counter.seq).padStart(4, "0")}`;
 
     const newMaterialCategory = new materialCategory({
       name,
       description,
+      type,
+      category_code: categoryCode,
       fields,
       createdBy: userId,
       updatedBy: userId,
     });
 
     await newMaterialCategory.save();
-    res
-      .status(201)
-      .json({
-        message: "Material Category added successfully",
-        data: newMaterialCategory,
-      });
+
+    res.status(201).json({
+      message: "Material Category added successfully",
+      data: newMaterialCategory,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Error adding Material Category",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error adding Material Category",
+      error: error.message,
+    });
   }
 };
 

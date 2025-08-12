@@ -385,8 +385,6 @@ if (hasScopeOpen) {
   }
 };
 
-
-
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
   try {
@@ -617,7 +615,6 @@ const getByIdOrLeadId = async function (req, res) {
 };
 
 //sercher api
-
 const search = async function (req, res) {
   const letter = req.params.letter;
   try {

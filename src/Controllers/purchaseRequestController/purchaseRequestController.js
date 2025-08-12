@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const PurchaseRequest = require("../../Modells/purchaserequest.model");
-const PurchaseRequestCounter = require("../../Modells/Globals/purchaseRequestCounter");
+const PurchaseRequestCounter = require("../../Modells/purchaserequestcounter.model");
 const Project = require("../../Modells/projectModells");
 const purchaseOrderModells = require("../../Modells/purchaseOrderModells");
 const materialCategoryModells = require("../../Modells/materialcategory.model");
