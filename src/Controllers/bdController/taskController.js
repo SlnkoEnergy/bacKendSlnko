@@ -99,8 +99,6 @@ const updateStatus = async (req, res) => {
 
     // Notification on Task status change
 
-    const lead = await bdleadsModells.findById(task.lead_id);    
-
     try {
       const workflow = 'task-status';
       const senders = [task?.user_id];
