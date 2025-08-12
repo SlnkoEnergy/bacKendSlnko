@@ -146,26 +146,29 @@ const getallproject = async function (req, res) {
 
     const updatedProjects = await Promise.all(
       projects.map(async (project) => {
-        const isHandoverPresent = await handoversheetModells.exists({ p_id: project.p_id });
+        const isHandoverPresent = await handoversheetModells.exists({
+          p_id: project.p_id,
+        });
         return {
           ...project.toObject(),
-          handover: !!isHandoverPresent
+          handover: !!isHandoverPresent,
         };
       })
     );
 
     res.status(200).json({ msg: "All Project", data: updatedProjects });
   } catch (error) {
-    res.status(500).json({ msg: "Internal Server Error", error: error.message });
+    res
+      .status(500)
+      .json({ msg: "Internal Server Error", error: error.message });
   }
 };
-
 
 //Get Project by ID
 
 const getProjectById = async function (req, res) {
   try {
-    const id = req.params._id; 
+    const id = req.params._id;
     const project = await projectModells.findById(id);
 
     if (!project) {
@@ -180,46 +183,49 @@ const getProjectById = async function (req, res) {
   }
 };
 
-const getProjectbyPId = async(req, res) => {
+const getProjectbyPId = async (req, res) => {
   try {
-    const {p_id} = req.query;
-    if(!p_id){
+    const { p_id } = req.query;
+    if (!p_id) {
       return res.status(404).json({
-        message:"P_id not found"
-      })
+        message: "P_id not found",
+      });
     }
     let query = {};
-    if(p_id){
+    if (p_id) {
       query.p_id = p_id;
     }
 
     const project = await projectModells.find(query);
     res.status(200).json({
-      message:"Project Data fetched successfully",
-      data:project
-    })
-  } catch (error) {
-    res.status(500).json({
-      message:"Internal Server Error",
-      error: error.message
-    })
-  }
-}
-
-const getProjectDropwdown = async(req, res) => {
-  try {
-    const projects = await projectModells.find({}, { name: 1, code: 1 });
-    res.status(200).json({
-      message: "Projects fetched successfully",
-      data: projects
+      message: "Project Data fetched successfully",
+      data: project,
     });
   } catch (error) {
     res.status(500).json({
       message: "Internal Server Error",
-      error: error.message
+      error: error.message,
     });
   }
-}
+};
+
+const getProjectDropwdown = async (req, res) => {
+  try {
+    const projects = await projectModells.find(
+      {},
+      { p_id: 1, name: 1, code: 1 , p_group: 1, customer: 1}
+    );
+    res.status(200).json({
+      message: "Projects fetched successfully",
+      data: projects,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   createProject,
@@ -228,5 +234,5 @@ module.exports = {
   deleteProjectById,
   getProjectById,
   getProjectbyPId,
-  getProjectDropwdown
+  getProjectDropwdown,
 };

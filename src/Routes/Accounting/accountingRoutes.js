@@ -5,14 +5,10 @@ const {
 } = require("../../Controllers/Accounting/approvedPayment");
 const {
   getCustomerPaymentSummary,
-  clientHistory,
-  totalBalanceSummary,
-  getCreditSummary,
-  getDebitSummary,
-  getAdjustmentHistory,
 } = require("../../Controllers/Accounting/customerpaymentSummary");
 const {
   paymentApproval,
+  getPoApprovalPdf,
 } = require("../../Controllers/Accounting/paymentApproval");
 const {
   paymentHistory,
@@ -43,17 +39,23 @@ router.get(
   jwtMW.authorization,
   projectBalance
 );
-router.get(
+router.post(
   "/export-project-balance",
   jwtMW.authentication,
   jwtMW.authorization,
   exportProjectBalance
 );
+
 router.get(
   "/payment-approval",
   jwtMW.authentication,
   jwtMW.authorization,
   paymentApproval
+);
+router.post(
+  "/po-approve-pdf",
+  jwtMW.authentication,
+  getPoApprovalPdf
 );
 router.get(
   "/standby-record",
@@ -68,37 +70,6 @@ router.get(
   getCustomerPaymentSummary
 );
 router.get(
-  "/client-history",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  clientHistory
-);
-router.get(
-  "/balance-summary",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  totalBalanceSummary
-);
-router.get(
-  "/credit-summary",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getCreditSummary
-);
-router.get(
-  "/debit-summary",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getDebitSummary
-);
-
-router.get(
-  "/adjustment-history",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getAdjustmentHistory
-);
-router.get(
   "/payment-history",
   jwtMW.authentication,
   jwtMW.authorization,
@@ -110,4 +81,5 @@ router.get(
   jwtMW.authorization,
   exportDebitHistoryCsv
 );
+
 module.exports = router;

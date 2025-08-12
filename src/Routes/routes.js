@@ -43,7 +43,7 @@ const {
   getExportPo,
   exportCSV,
   moverecovery,
-  getPOByProjectId,
+  getPOByPONumber,
   getPOById,
   deletePO,
   getpohistory,
@@ -56,16 +56,17 @@ const {
   getVendor,
   updateVendor,
   deleteVendor,
+  getVendorDropwdown,
 } = require("../Controllers/addVenderController");
 const { additem, getItem } = require("../Controllers/itemController");
 const {
   payRrequest,
   holdpay,
   getPaySummary,
-  hold,
   account_matched,
   utrUpdate,
   accApproved,
+  restoreTrashToDraft,
   newAppovAccount,
   deletePayRequestById,
   editPayRequestById,
@@ -80,6 +81,7 @@ const {
   updateExceData,
   getExcelDataById,
   getpy,
+  getTrashPayment,
 } = require("../Controllers/payRequestControllers");
 
 const {
@@ -255,8 +257,8 @@ const upload = require("../middlewares/multer.js");
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
-router.put('/logout', jwtMW.authentication, jwtMW.authorization,logout)
-router.post('/session-verify', finalizeBdLogin);
+router.put("/logout", jwtMW.authentication, jwtMW.authorization, logout);
+router.post("/session-verify", finalizeBdLogin);
 router.get(
   "/get-all-useR-IT",
   jwtMW.authentication,
@@ -412,10 +414,10 @@ router.put(
   moverecovery
 );
 router.get(
-  "/get-po-by-p_id",
+  "/get-po-by-po_number",
   jwtMW.authentication,
   jwtMW.authorization,
-  getPOByProjectId
+  getPOByPONumber
 );
 router.get(
   "/get-po-by-id",
@@ -481,6 +483,13 @@ router.delete(
   deleteVendor
 ); //delete vendor
 
+router.get(
+  "/vendor-dropdown",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getVendorDropwdown
+);
+
 //item
 router.post("/add-iteM-IT", jwtMW.authentication, jwtMW.authorization, additem);
 router.get("/get-iteM-IT", jwtMW.authentication, jwtMW.authorization, getItem);
@@ -514,7 +523,7 @@ router.get(
   "/hold-pay-summary-IT",
   jwtMW.authentication,
   jwtMW.authorization,
-  hold
+  getTrashPayment
 );
 router.put(
   "/acc-matched",
@@ -528,6 +537,12 @@ router.put(
   jwtMW.authentication,
   jwtMW.authorization,
   accApproved
+);
+router.put(
+  "/restore-pay-request/:id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  restoreTrashToDraft
 );
 router.put(
   "/approval",
@@ -548,7 +563,7 @@ router.put(
   editPayRequestById
 ); //update pay request
 router.get(
-  "/get-pay-request-id/:_id",
+  "/get-pay-request",
   jwtMW.authentication,
   jwtMW.authorization,
   getPayRequestById
@@ -1128,8 +1143,8 @@ router.post(
   "/handover-export",
   jwtMW.authentication,
   jwtMW.authorization,
-  getexportToCsv,
-)
+  getexportToCsv
+);
 router.get(
   "/get-all-handover-sheet",
   jwtMW.authentication,

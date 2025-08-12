@@ -1,4 +1,5 @@
-const materialCategory = require("../../../Modells/EngineeringModells/materials/materialCategoryModells");
+const materialCategory = require("../Modells/materialcategory.model");
+const scopeModel = require("../Modells/scope.model");
 
 const addMaterialCategory = async (req, res) => {
   try {
@@ -55,23 +56,42 @@ const getAllMaterialCategories = async (req, res) => {
 
 const getAllMaterialCategoriesDropdown = async (req, res) => {
   try {
-        const materialCategories = await materialCategory.find({}, "_id name");
-   
-    res
-      .status(200)
-      .json({
-        message: "Material Categories retrieved successfully",
-        data: materialCategories,
-      });
+    const { project_id } = req.query;
+
+    if (!project_id) {
+      return res.status(400).json({ message: "Project ID is required" });
+    }
+
+    const materialCategories = await materialCategory.find({}, "_id name");
+
+    const scopeData = await scopeModel.findOne({ project_id });
+
+    if (!scopeData) {
+      return res.status(404).json({ message: "Scope not found for given project" });
+    }
+
+    const slnkoItemIds = new Set(
+      scopeData.items
+        .filter(item => item.scope?.toLowerCase() === "slnko")
+        .map(item => item.item_id?.toString())
+    );
+
+    const filteredCategories = materialCategories.filter(cat =>
+      slnkoItemIds.has(cat._id.toString())
+    );
+
+    res.status(200).json({
+      message: "Filtered Material Categories retrieved successfully",
+      data: filteredCategories,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Error retrieving Material Categories",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error retrieving Material Categories",
+      error: error.message,
+    });
   }
 };
+
 
 // Get Material Categories By Id
 const getMaterialCategoryById = async(req, res) => {

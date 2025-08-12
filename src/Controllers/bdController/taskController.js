@@ -27,7 +27,7 @@ const createTask = async (req, res) => {
     if (!lead) {
       return res.status(400).json({ error: "Invalid lead_id" });
     }
-
+    
     const newTask = new BDtask({
       title,
       lead_id,
@@ -39,6 +39,9 @@ const createTask = async (req, res) => {
       priority,
       description,
     });
+
+    lead.inactivedate = Date.now();
+    await lead.save();
 
     await newTask.save();
 
@@ -87,6 +90,10 @@ const updateStatus = async (req, res) => {
       user_id,
       remarks,
     });
+    
+    const lead = await bdleadsModells.findById(task.lead_id);
+    lead.inactivedate = Date.now();
+    await lead.save();
 
     await task.save();
 
@@ -345,6 +352,9 @@ const updateTask = async (req, res) => {
     const response = await BDtask.findByIdAndUpdate(req.params._id, req.body, {
       new: true,
     });
+    const lead = await bdleadsModells.findById(response.lead_id);
+    lead.inactivedate = Date.now();
+    await lead.save();
     res.status(201).json({
       message: "Task Updated Successfully",
       data: response,
