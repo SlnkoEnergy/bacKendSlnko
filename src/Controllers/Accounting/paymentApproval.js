@@ -71,7 +71,7 @@ const paymentApproval = async function (req, res) {
     const now = new Date();
     let tabFilter = {};
 
-    // Only Accounts department uses tab filters
+
     if (currentUser.department === "Accounts") {
       switch (tab) {
         case "credit":
