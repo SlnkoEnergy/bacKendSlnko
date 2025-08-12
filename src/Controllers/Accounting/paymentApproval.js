@@ -126,6 +126,21 @@ const paymentApproval = async function (req, res) {
       },
       { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
 
+      {
+        $lookup: {
+          from: "purchaseorders",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "purchase",
+        },
+      },
+
+      {
+  $addFields: {
+    po_value: { $arrayElemAt: ["$purchase.po_value", 0] }
+  }
+},
+
       // Available amount (Credit - Debit)
       {
         $lookup: {
@@ -309,6 +324,8 @@ const paymentApproval = async function (req, res) {
         },
       },
 
+     
+
       {
         $project: {
           _id: 1,
@@ -325,6 +342,8 @@ const paymentApproval = async function (req, res) {
           groupBalance: 1,
           remainingDays: 1,
           credit_deadline: "$credit.credit_deadline",
+          po_value: 1,
+          po_number:1
         },
       },
     ];
