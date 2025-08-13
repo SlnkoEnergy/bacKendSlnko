@@ -613,7 +613,8 @@ const updateAssignedTo = async (req, res) => {
 
         const senders = [...new Set([...alluser, assigned])];
         const data = {
-          message: `Lead ${lead.id} transfer to ${assign.name} `
+          message: `Lead ${lead.id} transfer to ${assign.name}`,
+          link: 'leads'
         }
 
         await getnovuNotification(workflow, senders, data);
