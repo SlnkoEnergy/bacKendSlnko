@@ -69,6 +69,9 @@ const purchaseOrderSchema = new mongoose.Schema(
     dispatch_date: {
       type: Date,
     },
+    material_ready_date: {
+      type: Date,
+    },
     status_history: [
       {
         status: {
@@ -78,6 +81,7 @@ const purchaseOrderSchema = new mongoose.Schema(
             "po_created",
             "out_for_delivery",
             "ready_to_dispatch",
+            "material_ready",
             "delivered",
           ],
         },
@@ -98,6 +102,7 @@ const purchaseOrderSchema = new mongoose.Schema(
           "po_created",
           "out_for_delivery",
           "ready_to_dispatch",
+          "material_ready",
           "delivered",
         ],
       },

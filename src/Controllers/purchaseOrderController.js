@@ -1133,6 +1133,9 @@ const updateStatusPO = async (req, res) => {
       remarks,
       user_id: req.user.userId,
     });
+    if (status === "material_ready") {
+      purchaseOrder.material_ready_date = new Date();
+    }
 
     if (status === "ready_to_dispatch") {
       purchaseOrder.dispatch_date = new Date();
