@@ -15,7 +15,6 @@ const paymentApproval = async function (req, res) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // Search filter
     const searchFilter = search
       ? {
           $or: [
@@ -28,7 +27,6 @@ const paymentApproval = async function (req, res) {
         }
       : {};
 
-    // Department-based access filter
     let accessFilter = {};
     if (currentUser.department === "SCM" && currentUser.role === "manager") {
       accessFilter = {
@@ -52,10 +50,9 @@ const paymentApproval = async function (req, res) {
     ) {
       accessFilter = {
         approved: "Pending",
-        // "approval_status.stage": "Account",
         $or: [
-          { "approval_status.stage": "Credit Pending" },
           { "approval_status.stage": "Account" },
+          { "approval_status.stage": "Credit Pending" },
         ],
       };
     } else {
@@ -71,13 +68,15 @@ const paymentApproval = async function (req, res) {
     const now = new Date();
     let tabFilter = {};
 
-
     if (currentUser.department === "Accounts") {
       switch (tab) {
         case "credit":
           tabFilter = {
             cr_id: { $exists: true, $ne: null },
-            "approval_status.stage": "Credit Pending",
+            $or: [
+              { "approval_status.stage": "Account" },
+              { "approval_status.stage": "Credit Pending" },
+            ],
           };
           break;
         case "instant":
@@ -111,7 +110,6 @@ const paymentApproval = async function (req, res) {
 
     const combinedMatch = { ...accessFilter, ...tabFilter };
 
-    // Common aggregation pipeline
     const pipeline = [
       { $match: combinedMatch },
       ...(Object.keys(searchFilter).length ? [{ $match: searchFilter }] : []),
@@ -136,12 +134,11 @@ const paymentApproval = async function (req, res) {
       },
 
       {
-  $addFields: {
-    po_value: { $arrayElemAt: ["$purchase.po_value", 0] }
-  }
-},
+        $addFields: {
+          po_value: { $arrayElemAt: ["$purchase.po_value", 0] },
+        },
+      },
 
-      // Available amount (Credit - Debit)
       {
         $lookup: {
           from: "addmoneys",
@@ -160,7 +157,7 @@ const paymentApproval = async function (req, res) {
       },
       {
         $lookup: {
-          from: "subtract moneys", // fixed collection name
+          from: "subtract moneys",
           let: { pid: "$p_id" },
           pipeline: [
             { $match: { $expr: { $eq: ["$p_id", "$$pid"] } } },
@@ -305,15 +302,10 @@ const paymentApproval = async function (req, res) {
         $addFields: {
           remainingDays: {
             $cond: [
-              {
-                $and: [
-                  { $ne: ["$credit.credit_deadline", null] },
-                  { $ne: ["$dbt_date", null] },
-                ],
-              },
+              { $ne: ["$credit.credit_deadline", null] },
               {
                 $dateDiff: {
-                  startDate: { $toDate: "$dbt_date" },
+                  startDate: "$$NOW",
                   endDate: { $toDate: "$credit.credit_deadline" },
                   unit: "day",
                 },
@@ -323,8 +315,6 @@ const paymentApproval = async function (req, res) {
           },
         },
       },
-
-     
 
       {
         $project: {
@@ -343,7 +333,8 @@ const paymentApproval = async function (req, res) {
           remainingDays: 1,
           credit_deadline: "$credit.credit_deadline",
           po_value: 1,
-          po_number:1
+          po_number: 1,
+          credit_extension:"$credit.credit_extension",
         },
       },
     ];
@@ -409,7 +400,10 @@ const paymentApproval = async function (req, res) {
             {
               $match: matchWithSearch({
                 cr_id: { $exists: true, $ne: null },
-                "approval_status.stage": "Credit Pending",
+                $or: [
+                  { "approval_status.stage": "Account" },
+                  { "approval_status.stage": "Credit Pending" },
+                ],
               }),
             },
             { $count: "count" },

@@ -96,6 +96,7 @@ const payRrequest = async (req, res) => {
       credit: {
         credit_deadline: credit?.credit_deadline || null,
         credit_status: !!credit?.credit_status,
+        credit_extension: credit?.credit_extension,
         credit_remarks: credit?.credit_remarks || "",
         user_id: userId,
       },
@@ -146,9 +147,11 @@ const payRrequest = async (req, res) => {
 const deadlineExtendRequest = async (req, res) => {
   const { _id } = req.params;
   const { credit_deadline, credit_remarks } = req.body;
-  if ( !credit_deadline || !credit_remarks) {
+
+  if (!credit_deadline || !credit_remarks) {
     return res.status(400).json({ msg: "All fields are required" });
   }
+
   try {
     const payment = await payRequestModells.findById(_id);
     if (!payment) {
@@ -171,6 +174,8 @@ const deadlineExtendRequest = async (req, res) => {
     payment.credit.credit_deadline = parsedDate;
     payment.credit.credit_remarks = credit_remarks;
 
+    payment.credit.credit_extension = false;
+
     payment.credit_history.push({
       status: "Updated",
       credit_deadline: parsedDate,
@@ -180,6 +185,7 @@ const deadlineExtendRequest = async (req, res) => {
     });
 
     await payment.save();
+
     return res
       .status(200)
       .json({ msg: "Credit deadline extended successfully", data: payment });
@@ -188,6 +194,27 @@ const deadlineExtendRequest = async (req, res) => {
     return res
       .status(500)
       .json({ msg: "Failed to extend credit deadline", error: error.message });
+  }
+};
+
+const requestCreditExtension = async (req, res) => {
+  const { _id } = req.params;
+
+  try {
+    const payment = await payRequestModells.findById(_id);
+    if (!payment) {
+      return res.status(404).json({ msg: "Payment request not found" });
+    }
+
+    payment.credit.credit_extension = true;
+    payment.credit.user_id = req.user.userId;
+
+    await payment.save();
+    res.status(200).json({ msg: "Credit extension requested", data: payment });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ msg: "Error requesting credit extension", error: error.message });
   }
 };
 
@@ -1151,15 +1178,23 @@ const getPay = async (req, res) => {
         $addFields: {
           customer_name: "$project.customer",
           type: {
-            $cond: {
-              if: {
-                $and: [
-                  { $eq: ["$credit.credit_status", true] },
-                  { $eq: ["$approval_status.stage", "Credit Pending"] },
-                ],
-              },
-              then: "credit",
-              else: "instant",
+            $switch: {
+              branches: [
+                {
+                  case: { $ifNull: ["$pay_id", false] },
+                  then: "instant",
+                },
+                {
+                  case: {
+                    $and: [
+                      { $eq: ["$credit.credit_status", true] },
+                      { $ifNull: ["$cr_id", false] },
+                    ],
+                  },
+                  then: "credit",
+                },
+              ],
+              default: "instant",
             },
           },
         },
@@ -1178,8 +1213,13 @@ const getPay = async (req, res) => {
                 remaining_days: {
                   $floor: {
                     $divide: [
-                      { $subtract: ["$credit.credit_deadline", new Date()] },
-                      1000 * 60 * 60 * 24, // ms to days
+                      {
+                        $subtract: [
+                          { $toDate: "$credit.credit_deadline" },
+                          "$$NOW",
+                        ],
+                      },
+                      1000 * 60 * 60 * 24,
                     ],
                   },
                 },
@@ -1505,6 +1545,7 @@ module.exports = {
   restorepayrequest,
   getPay,
   deadlineExtendRequest,
+  requestCreditExtension,
   getTrashPayment,
   approve_pending,
   hold_approve_pending,
