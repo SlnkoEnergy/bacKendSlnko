@@ -15,19 +15,15 @@ const addMaterialCategory = async (req, res) => {
     });
 
     await newMaterialCategory.save();
-    res
-      .status(201)
-      .json({
-        message: "Material Category added successfully",
-        data: newMaterialCategory,
-      });
+    res.status(201).json({
+      message: "Material Category added successfully",
+      data: newMaterialCategory,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Error adding Material Category",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error adding Material Category",
+      error: error.message,
+    });
   }
 };
 
@@ -38,51 +34,9 @@ const getAllMaterialCategories = async (req, res) => {
       .find()
       .populate("createdBy", "name email")
       .populate("updatedBy", "name email");
-    res
-      .status(200)
-      .json({
-        message: "Material Categories retrieved successfully",
-        data: materialCategories,
-      });
-  } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Error retrieving Material Categories",
-        error: error.message,
-      });
-  }
-};
-
-const getAllMaterialCategoriesDropdown = async (req, res) => {
-  try {
-    const { project_id } = req.query;
-
-    if (!project_id) {
-      return res.status(400).json({ message: "Project ID is required" });
-    }
-
-    const materialCategories = await materialCategory.find({}, "_id name");
-
-    const scopeData = await scopeModel.findOne({ project_id });
-
-    if (!scopeData) {
-      return res.status(404).json({ message: "Scope not found for given project" });
-    }
-
-    const slnkoItemIds = new Set(
-      scopeData.items
-        .filter(item => item.scope?.toLowerCase() === "slnko")
-        .map(item => item.item_id?.toString())
-    );
-
-    const filteredCategories = materialCategories.filter(cat =>
-      slnkoItemIds.has(cat._id.toString())
-    );
-
     res.status(200).json({
-      message: "Filtered Material Categories retrieved successfully",
-      data: filteredCategories,
+      message: "Material Categories retrieved successfully",
+      data: materialCategories,
     });
   } catch (error) {
     res.status(500).json({
@@ -92,32 +46,47 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
   }
 };
 
+const getAllMaterialCategoriesDropdown = async (req, res) => {
+  try {
+    const materialCategories = await materialCategory.find({}, "_id name");
+
+    res.status(200).json({
+      message: "Material Categories retrieved successfully",
+      data: materialCategories,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error retrieving Material Categories",
+      error: error.message,
+    });
+  }
+};
 
 // Get Material Categories By Id
-const getMaterialCategoryById = async(req, res) => {
+const getMaterialCategoryById = async (req, res) => {
   try {
-    const {id} = req.query;
-    if(!id){
-      return res.status(400).json({message: "id is required"});
+    const { id } = req.query;
+    if (!id) {
+      return res.status(400).json({ message: "id is required" });
     }
 
     let query = {};
-    if(id) query._id = id;
-    
+    if (id) query._id = id;
+
     const materialCategories = await materialCategory.findOne(query);
 
-    if(!materialCategories){
+    if (!materialCategories) {
       return res.status(404).json({ message: "Data not found" });
     }
 
     res.status(200).json({
-      message:"Data fetched Successfully",
-      data: materialCategories
-    })
+      message: "Data fetched Successfully",
+      data: materialCategories,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-}
+};
 
 // Update material category
 const updateMaterialCategory = async (req, res) => {
@@ -135,19 +104,15 @@ const updateMaterialCategory = async (req, res) => {
       return res.status(404).json({ message: "Material Category not found" });
     }
 
-    res
-      .status(200)
-      .json({
-        message: "Material Category updated successfully",
-        data: updatedMaterialCategory,
-      });
+    res.status(200).json({
+      message: "Material Category updated successfully",
+      data: updatedMaterialCategory,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Error updating Material Category",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error updating Material Category",
+      error: error.message,
+    });
   }
 };
 // Delete material category
@@ -159,22 +124,17 @@ const deleteMaterialCategory = async (req, res) => {
     if (!deletedMaterialCategory) {
       return res.status(404).json({ message: "Material Category not found" });
     }
-    res
-      .status(200)
-      .json({
-        message: "Material Category deleted successfully",
-        data: deletedMaterialCategory,
-      });
+    res.status(200).json({
+      message: "Material Category deleted successfully",
+      data: deletedMaterialCategory,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Error deleting Material Category",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error deleting Material Category",
+      error: error.message,
+    });
   }
 };
-
 
 module.exports = {
   addMaterialCategory,
