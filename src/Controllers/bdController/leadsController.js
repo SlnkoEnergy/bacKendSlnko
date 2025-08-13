@@ -724,6 +724,15 @@ const getLeadByLeadIdorId = async (req, res) => {
     const data = await bdleadsModells.aggregate([
       { $match: matchQuery },
 
+      // Normalize missing arrays to avoid errors
+      {
+        $addFields: {
+          status_history: { $ifNull: ["$status_history", []] },
+          assigned_to: { $ifNull: ["$assigned_to", []] },
+          documents: { $ifNull: ["$documents", []] },
+        },
+      },
+
       // submitted_by
       {
         $lookup: {
@@ -848,6 +857,7 @@ const getLeadByLeadIdorId = async (req, res) => {
       },
       { $project: { current_assigned_user: 0 } },
 
+      // group info
       {
         $lookup: {
           from: "groups",
@@ -866,10 +876,6 @@ const getLeadByLeadIdorId = async (req, res) => {
               else: null,
             },
           },
-        },
-      },
-      {
-        $addFields: {
           group_name: {
             $cond: {
               if: { $gt: [{ $size: "$group_info" }, 0] },
@@ -880,6 +886,8 @@ const getLeadByLeadIdorId = async (req, res) => {
         },
       },
       { $project: { group_info: 0 } },
+
+      // Backup docs
       {
         $addFields: {
           documentsBackup: "$documents",
@@ -916,7 +924,6 @@ const getLeadByLeadIdorId = async (req, res) => {
           },
         },
       },
-
       {
         $replaceRoot: {
           newRoot: {
@@ -961,6 +968,7 @@ const getLeadByLeadIdorId = async (req, res) => {
     });
   }
 };
+
 
 const updateLeadStatus = async function (req, res) {
   try {
