@@ -30,6 +30,7 @@ const payRequestschema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
       },
+      credit_extension: { type: Boolean, default: false },
     },
 
     approved: {
