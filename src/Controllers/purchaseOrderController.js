@@ -57,6 +57,7 @@ const addPo = async function (req, res) {
       etd: null,
       delivery_date: null,
       dispatch_date: null,
+      material_ready_date:null,
     });
 
     await newPO.save();
@@ -401,6 +402,11 @@ const getPaginatedPo = async (req, res) => {
           matchStage["current_status.status"] = "draft";
           matchStage["etd"] = { $ne: null };
           break;
+        case "Material Ready": // ✅ add this
+          matchStage["current_status.status"] = "material_ready";
+          // Optional: if you only want rows where MR date is set:
+          // matchStage["material_ready_date"] = { $ne: null };
+          break;
         case "Ready to Dispatch":
           matchStage["current_status.status"] = "ready_to_dispatch";
           matchStage["dispatch_date"] = { $ne: null };
@@ -642,6 +648,7 @@ const getPaginatedPo = async (req, res) => {
           etd: 1,
           delivery_date: 1,
           dispatch_date: 1,
+          material_ready_date:1,
           current_status: 1,
           status_history: 1,
           type: "$billingTypes",
