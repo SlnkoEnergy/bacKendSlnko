@@ -1155,6 +1155,7 @@ const getPay = async (req, res) => {
       matchConditions.push({
         $or: [
           { pay_id: { $regex: searchRegex } },
+          { cr_id: { $regex: searchRegex } },
           { paid_for: { $regex: searchRegex } },
           { po_number: { $regex: searchRegex } },
           { vendor: { $regex: searchRegex } },
