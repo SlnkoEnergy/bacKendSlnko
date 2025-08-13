@@ -2,12 +2,13 @@ const express = require("express");
 const mongoose = require("mongoose");
 const app = express();
 const routes = require("../src/Routes/routes");
-const engineeringRoutes = require("../src/Routes/engineering/engineeringRoutes");
+const engineeringRoutes = require("./Routes/engineering.routes");
 const bdleadsRoutes = require("../src/Routes/bdleads/bdleadDashboardRoutes");
 const dprRoutes = require("../src/Routes/dpr/dprRoutes");
 const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRoutes");
-const taskRoutes = require("../src/Routes/tasks/tasks");
+const taskRoutes = require("./Routes/tasks.routes");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
+const scopeRoutes = require("../src/Routes/scope.routes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
@@ -57,6 +58,9 @@ const startServer = async () => {
   try {
     await mongoose.connect(db, {});
     console.log("SlnkoEnergy database is connected");
+
+    require("../src/utils/cron/movetotrash.cron.utils");
+
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);
@@ -64,6 +68,7 @@ const startServer = async () => {
     app.use("/v1/purchaseRequest", purchaseRoutes);
     app.use("/v1/tasks", taskRoutes);
     app.use("/v1/accounting", accountingRoutes);
+    app.use("/v1/scope", scopeRoutes);
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);

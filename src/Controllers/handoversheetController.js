@@ -1,10 +1,12 @@
 const { default: mongoose } = require("mongoose");
-const moduleCategory = require("../Modells/EngineeringModells/engineeringModules/moduleCategory");
+const moduleCategory = require("../Modells/modulecategory.model");
 const hanoversheetmodells = require("../Modells/handoversheetModells");
 const projectmodells = require("../Modells/projectModells");
 const { Parser } = require("json2csv");
 const handoversheetModells = require("../Modells/handoversheetModells");
 const userModells = require("../Modells/users/userModells");
+const materialCategoryModells = require("../Modells/materialcategory.model");
+const scopeModel = require("../Modells/scope.model");
 const bdleadsModells = require("../Modells/bdleads/bdleadsModells");
 
 const migrateProjectToHandover = async (req, res) => {
@@ -154,7 +156,7 @@ const createhandoversheet = async function (req, res) {
   }
 };
 
-// get  bd handover sheet data
+
 const gethandoversheetdata = async function (req, res) {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -179,7 +181,6 @@ const gethandoversheetdata = async function (req, res) {
       });
     }
 
-    // Keyword search
     if (search) {
       matchConditions.$and.push({
         $or: [
@@ -194,21 +195,35 @@ const gethandoversheetdata = async function (req, res) {
       });
     }
 
-    // Status filter
-    if (statusFilter) {
-      const statuses = statusFilter
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
+    const statuses = statusFilter
+  ?.split(",")
+  .map((s) => s.trim())
+  .filter(Boolean) || [];
 
-      if (statuses.length === 1) {
-        matchConditions.$and.push({ status_of_handoversheet: statuses[0] });
-      } else if (statuses.length > 1) {
-        matchConditions.$and.push({
-          status_of_handoversheet: { $in: statuses },
-        });
-      }
-    }
+const hasHandoverPending = statuses.includes("handoverpending");
+const hasScopePending = statuses.includes("scopepending");
+const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
+
+const actualStatuses = statuses.filter(
+  (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen" 
+);
+
+if (actualStatuses.length === 1) {
+  matchConditions.$and.push({ status_of_handoversheet: actualStatuses[0] });
+} else if (actualStatuses.length > 1) {
+  matchConditions.$and.push({
+    status_of_handoversheet: { $in: actualStatuses },
+  });
+}
+
+if (hasHandoverPending) {
+  matchConditions.$and.push({ status_of_handoversheet: "submitted" });
+}
+
+if (hasScopeOpen) {
+  matchConditions.$and.push({ scope_status: "open" });
+}
+
 
     const finalMatch = matchConditions.$and.length > 0 ? matchConditions : {};
 
@@ -261,8 +276,62 @@ const gethandoversheetdata = async function (req, res) {
         },
       },
       {
+        $lookup: {
+          from: "scopes", 
+          localField: "projectInfo._id",
+          foreignField: "project_id",
+          as: "scopeInfo"
+        }
+      },
+      {
+        $unwind: {
+          path: "$scopeInfo",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $addFields: {
+          scope_status: "$scopeInfo.current_status.status"
+        }
+      },
+      {
         $match: finalMatch,
       },
+    ];
+
+    if (hasScopePending) {
+      const matchedDocs = await hanoversheetmodells.aggregate([
+        ...pipeline,
+        {
+          $project: {
+            project_id: "$projectInfo._id",
+            _id: 1,
+          },
+        },
+      ]);
+
+      const projectIds = matchedDocs.map((doc) => doc.project_id).filter(Boolean);
+
+      const scopes = await scopeModel.find({
+        project_id: { $in: projectIds },
+        $or: [
+          { status_history: { $exists: false } },
+          { status_history: { $size: 0 } },
+        ],
+      }).select("project_id");
+
+      const pendingScopeIds = scopes.map((s) => s.project_id.toString());
+
+      pipeline.push({
+        $match: {
+          "projectInfo._id": {
+            $in: pendingScopeIds.map(id => new mongoose.Types.ObjectId(id)),
+          },
+        },
+      });
+    }
+
+    pipeline.push(
       {
         $facet: {
           metadata: [{ $count: "total" }],
@@ -282,19 +351,20 @@ const gethandoversheetdata = async function (req, res) {
                 project_kwp: "$project_detail.project_kwp",
                 total_gst: "$other_details.total_gst",
                 service: "$other_details.service",
-                submitted_by: "$submittedUser.name",
+                submitted_by: 1,
                 leadDetails: 1,
                 status_of_handoversheet: 1,
                 is_locked: 1,
                 comment: 1,
                 p_id: 1,
                 project_id: "$projectInfo._id",
+                scope_status: 1 
               },
             },
           ],
         },
-      },
-    ];
+      }
+    );
 
     const result = await hanoversheetmodells.aggregate(pipeline);
     const total = result[0].metadata[0]?.total || 0;
@@ -314,6 +384,8 @@ const gethandoversheetdata = async function (req, res) {
     res.status(500).json({ message: error.message });
   }
 };
+
+
 
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
@@ -465,6 +537,22 @@ const updatestatus = async function (req, res) {
         });
 
         await moduleCategoryData.save();
+
+        const allMaterialCategories = await materialCategoryModells.find();
+
+        const scopeData = new scopeModel({
+          project_id: projectData._id,
+          items: allMaterialCategories.map((mc) => ({
+            item_id: mc._id,
+            name: mc.name,
+            type: mc.type,
+            category: mc.category,
+            order: mc.order
+          })),
+          createdBy: req.user.userId,
+        });
+
+        await scopeData.save();
 
         return res.status(200).json({
           message:

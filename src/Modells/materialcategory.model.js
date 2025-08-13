@@ -3,14 +3,17 @@ const materCatergorySchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     description: { type: String, required: true },
+    type: { type: String, enum: ["supply", "execution"], required: true },
+    category:{type: String},
+    order:{type: Number},
     fields: [
       {
-        _id: false, 
+        _id: false,
         name: { type: String, required: true },
         input_type: { type: String, required: true },
         required: { type: Boolean, default: false },
         placeholder: { type: String },
-        key: { type: String }, 
+        key: { type: String },
       },
     ],
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

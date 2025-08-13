@@ -116,6 +116,7 @@ const getAllTask = async (req, res) => {
     const isPrivilegedUser =
       user.department === "admin" ||
       user.department === "superadmin" ||
+      user?.name === "Prachi Singh" ||
       (user.department === "BD" && user.role === "manager");
 
     const matchQuery = {};
@@ -231,24 +232,43 @@ const getAllTaskByAssigned = async (req, res) => {
   try {
     const userId = req.user.userId;
 
+    const user = await userModells.findById(userId); 
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const isPrivilegedUser =
+      user.department === "admin" ||
+      user.department === "superadmin" ||
+      user?.name === "Prachi Singh" ||
+      (user.department === "BD" && user.role === "manager");
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
 
-    const tasks = await BDtask.find({
-      assigned_to: userId,
+    const query = {
       deadline: {
         $gte: today,
         $lt: tomorrow,
       },
-    }).populate("user_id", "_id name");
+    };
+
+    if (!isPrivilegedUser) {
+      query.assigned_to = userId;
+    }
+
+    const tasks = await BDtask.find(query)
+      .populate("user_id", "_id name")
+      .populate("assigned_to", "_id name");
 
     res.status(200).json({ success: true, data: tasks });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Server Error", error });
+    res.status(500).json({ message:"Internal Server Error", error: error.message });
   }
 };
+
 
 const getTaskById = async (req, res) => {
   try {
