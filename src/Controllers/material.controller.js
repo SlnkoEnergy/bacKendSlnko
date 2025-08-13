@@ -1,10 +1,11 @@
 const materialCategoryModells = require("../Modells/materialcategory.model");
 const materialModells = require("../Modells/material.model");
-const materialCounter = require("../Modells/materialcounter.model")
+const materialCounter = require("../Modells/materialcounter.model");
+const materialcategoryModel = require("../Modells/materialcategory.model");
 
 const createMaterial = async function (req, res) {
   try {
-    const { category, data, is_available } = req.body;
+    const { category, data, is_available, description } = req.body;
     const userId = req.user?.userId;
     
     const existingCategory = await materialCategoryModells.findById(category);
@@ -23,6 +24,7 @@ const createMaterial = async function (req, res) {
     const newMaterial = new materialModells({
       category,
       sku_code: nextSkuCode,
+      description:description,
       data,
       is_available,
       createdBy: userId,
@@ -47,13 +49,33 @@ const createMaterial = async function (req, res) {
 // Get all materials
 const getAllMaterials = async function (req, res) {
   try {
-    const { category, page = 1, limit = 10, offset } = req.query;
+    const { category, page = 1, limit = 10, offset, search } = req.query;
 
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
-    const skipNum = offset !== undefined ? parseInt(offset, 10) : (pageNum - 1) * limitNum;
+    const skipNum =
+      offset !== undefined ? parseInt(offset, 10) : (pageNum - 1) * limitNum;
 
-    const filter = category ? { category } : {};
+    let filter = {};
+
+    if (category) {
+      filter.category = category;
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(search, "i");
+
+      // Find matching categories first
+      const matchingCategories = await materialcategoryModel
+        .find({ name: searchRegex })
+        .select("_id");
+
+      filter.$or = [
+        { sku_code: searchRegex },
+        { "data.values.input_values": searchRegex },
+        { category: { $in: matchingCategories.map((cat) => cat._id) } }
+      ];
+    }
 
     const [materials, total] = await Promise.all([
       materialModells

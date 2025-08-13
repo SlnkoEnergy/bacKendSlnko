@@ -60,13 +60,13 @@ const startServer = async () => {
     console.log("SlnkoEnergy database is connected");
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
-    app.use("/v1/products", productRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);
     app.use("/v1/dpr", dprRoutes);
     app.use("/v1/purchaseRequest", purchaseRoutes);
     app.use("/v1/tasks", taskRoutes);
     app.use("/v1/accounting", accountingRoutes);
     app.use("/v1/scope", scopeRoutes);
+    app.use("/v1/products", productRoutes);
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);

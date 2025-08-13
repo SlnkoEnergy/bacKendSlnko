@@ -13,7 +13,6 @@ const addMaterialCategory = async (req, res) => {
       })
     }
 
-    // Atomic increment for category counter
     const counter = await Counter.findOneAndUpdate(
       { name: "material_category_code" },
       { $inc: { seq: 1 } },
@@ -66,6 +65,54 @@ const getAllMaterialCategories = async (req, res) => {
         message: "Error retrieving Material Categories",
         error: error.message,
       });
+  }
+};
+
+const namesearchOfMaterialCategories = async (req, res) => {
+  try {
+    const {
+      search = "",                
+      page = 1,             
+      limit = 7             
+    } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
+
+    const filter = search
+      ? { name: { $regex: search.trim().replace(/\s+/g, ".*"), $options: "i" } }
+      : {};
+
+    const projection = { _id: 1, name: 1, description:1 };
+    const sort = { name: 1, _id: 1 };
+    const skip = (pageNum - 1) * pageSize;
+
+    const [items, total] = await Promise.all([
+      materialCategory.find(filter, projection).sort(sort).skip(skip).limit(pageSize),
+      materialCategory.countDocuments(filter),
+    ]);
+
+    const totalPages = Math.ceil(total / pageSize) || 1;
+    const hasMore = pageNum < totalPages;
+
+    res.status(200).json({
+      message: "Material categories retrieved successfully",
+      data: items,         
+      pagination: {
+        search,
+        page: pageNum,
+        pageSize,
+        total,
+        totalPages,
+        hasMore,
+        nextPage: hasMore ? pageNum + 1 : null,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error searching material categories",
+      error: error.message,
+    });
   }
 };
 
@@ -198,4 +245,5 @@ module.exports = {
   updateMaterialCategory,
   deleteMaterialCategory,
   getAllMaterialCategoriesDropdown,
+  namesearchOfMaterialCategories
 };
