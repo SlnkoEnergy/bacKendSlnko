@@ -1,7 +1,7 @@
 const { default: mongoose } = require("mongoose");
 const moduleCategory = require("../Modells/modulecategory.model");
 const hanoversheetmodells = require("../Modells/handoversheetModells");
-const projectmodells = require("../Modells/projectModells");
+const projectmodells = require("../Modells/project.model");
 const { Parser } = require("json2csv");
 const handoversheetModells = require("../Modells/handoversheetModells");
 const userModells = require("../Modells/users/userModells");

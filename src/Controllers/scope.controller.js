@@ -1,6 +1,6 @@
 const scopeModel = require("../Modells/scope.model");
 const MaterialCategory = require("../Modells/materialcategory.model");
-const projectModells = require("../Modells/projectModells");
+const projectModells = require("../Modells/project.model");
 const { default: axios } = require("axios");
 
 const createScope = async (req, res) => {

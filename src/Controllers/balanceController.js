@@ -1,4 +1,4 @@
-const projetcModells = require("../Modells/projectModells");
+const projetcModells = require("../Modells/project.model");
 const purchaseorderModells = require("../Modells/purchaseOrderModells");
 const billModells = require("../Modells/billDetailModells");
 const debitmoneyModells = require("../Modells/debitMoneyModells");

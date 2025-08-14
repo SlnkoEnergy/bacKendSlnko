@@ -17,7 +17,8 @@ const {
   getProjectById,
   getProjectbyPId,
   getProjectDropwdown,
-} = require("../Controllers/ProjectController");
+  getProjectNameSearch,
+} = require("../Controllers/project.controller.js");
 const {
   userRegister,
   login,
@@ -330,7 +331,6 @@ router.delete(
   jwtMW.authorization,
   deleteProjectById
 );
-//delete project by id
 router.get(
   "/get-project-iD-IT/:_id",
   jwtMW.authentication,
@@ -349,6 +349,11 @@ router.get(
   jwtMW.authorization,
   getProjectDropwdown
 );
+router.get(
+  "/project-search",
+  jwtMW.authentication,
+  getProjectNameSearch
+)
 
 //addMoney APi
 router.post(

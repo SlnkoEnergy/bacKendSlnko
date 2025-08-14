@@ -1,5 +1,5 @@
 const addBillModells = require("../Modells/billDetailModells");
-const projectModells = require("../Modells/projectModells");
+const projectModells = require("../Modells/project.model");
 const purchaseOrderModeslls = require("../Modells/purchaseOrderModells");
 const moment = require("moment");
 const mongoose = require("mongoose");

@@ -1,5 +1,5 @@
 const payRequestModells = require("../Modells/payRequestModells");
-const projectModells = require("../Modells/projectModells");
+const projectModells = require("../Modells/project.model");
 const holdPayment = require("../Modells/holdPaymentModells");
 const holdPaymentModells = require("../Modells/holdPaymentModells");
 const vendorModells = require("../Modells/vendorModells");
