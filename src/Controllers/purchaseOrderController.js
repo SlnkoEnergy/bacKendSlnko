@@ -402,10 +402,9 @@ const getPaginatedPo = async (req, res) => {
           matchStage["current_status.status"] = "draft";
           matchStage["etd"] = { $ne: null };
           break;
-        case "Material Ready": // ✅ add this
+        case "Material Ready": 
           matchStage["current_status.status"] = "material_ready";
-          // Optional: if you only want rows where MR date is set:
-          // matchStage["material_ready_date"] = { $ne: null };
+          matchStage["material_ready_date"] = { $ne: null };
           break;
         case "Ready to Dispatch":
           matchStage["current_status.status"] = "ready_to_dispatch";
