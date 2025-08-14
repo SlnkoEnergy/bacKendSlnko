@@ -76,6 +76,8 @@ const {
   recoverypayrequest,
   restorepayrequest,
   getPay,
+  deadlineExtendRequest,
+  requestCreditExtension,
   approve_pending,
   hold_approve_pending,
   updateExceData,
@@ -537,6 +539,18 @@ router.put(
   jwtMW.authentication,
   jwtMW.authorization,
   accApproved
+);
+router.put(
+  "/credit-extension-by-id/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  deadlineExtendRequest
+);
+router.put(
+  "/request-extension-by-id/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  requestCreditExtension
 );
 router.put(
   "/restore-pay-request/:id",

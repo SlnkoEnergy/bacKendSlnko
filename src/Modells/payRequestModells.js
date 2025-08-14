@@ -5,6 +5,7 @@ const payRequestschema = new mongoose.Schema(
   {
     p_id: { type: Number },
     pay_id: { type: String },
+    cr_id: { type: String },
     pay_type: { type: String },
     amount_paid: { type: String },
     amt_for_customer: { type: String },
@@ -29,6 +30,7 @@ const payRequestschema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
       },
+      credit_extension: { type: Boolean, default: false },
     },
 
     approved: {
