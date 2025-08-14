@@ -212,6 +212,8 @@ const paymentApproval = async function (req, res) {
           group_name: "$project.p_group",
           ClientBalance: "$Available_Amount",
           groupBalance: 1,
+          vendor:1,
+          po_number:1
         },
       },
     ];
