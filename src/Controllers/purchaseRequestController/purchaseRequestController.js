@@ -1,10 +1,10 @@
 const mongoose = require("mongoose");
-const PurchaseRequest = require("../../Modells/PurchaseRequest/purchaseRequest");
+const PurchaseRequest = require("../../Modells/purchaserequest.model");
 const PurchaseRequestCounter = require("../../Modells/Globals/purchaseRequestCounter");
 const Project = require("../../Modells/projectModells");
 const purchaseOrderModells = require("../../Modells/purchaseOrderModells");
-const purchaseRequest = require("../../Modells/PurchaseRequest/purchaseRequest");
-const materialCategoryModells = require("../../Modells/EngineeringModells/materials/materialCategoryModells");
+const materialCategoryModells = require("../../Modells/materialcategory.model");
+const scopeModel = require("../../Modells/scope.model");
 
 const CreatePurchaseRequest = async (req, res) => {
   try {
@@ -38,6 +38,15 @@ const CreatePurchaseRequest = async (req, res) => {
     });
 
     await newPurchaseRequest.save();
+
+    const itemIds = purchaseRequestData.items.map((item) => item.item_id);
+
+    // 🔹 Update pr_status for all matching items in the Scope
+    await scopeModel.updateOne(
+      { project_id: purchaseRequestData.project_id },
+      { $set: { "items.$[elem].pr_status": true } },
+      { arrayFilters: [{ "elem.item_id": { $in: itemIds } }] }
+    );
 
     return res.status(201).json({
       message: "Purchase Request Created Successfully",
@@ -528,15 +537,26 @@ const deletePurchaseRequest = async (req, res) => {
       return res.status(400).json({ message: "Invalid Purchase Request ID" });
     }
 
-    const purchaseRequest = await PurchaseRequest.findByIdAndDelete(id);
+    const purchaseRequest = await PurchaseRequest.findById(id);
 
     if (!purchaseRequest) {
       return res.status(404).json({ message: "Purchase Request not found" });
     }
 
+    const itemIds = (purchaseRequest.items || []).map((item) => item.item_id);
+
+    if (itemIds.length > 0) {
+      await scopeModel.updateOne(
+        { project_id: purchaseRequest.project_id },
+        { $set: { "items.$[elem].pr_status": false } },
+        { arrayFilters: [{ "elem.item_id": { $in: itemIds } }] }
+      );
+    }
+
+    await PurchaseRequest.findByIdAndDelete(id);
+
     return res.status(200).json({
       message: "Purchase Request deleted successfully",
-      data: purchaseRequest,
     });
   } catch (error) {
     return res.status(500).json({

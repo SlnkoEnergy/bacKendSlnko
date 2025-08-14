@@ -1,3 +1,4 @@
+
 const { default: mongoose } = require("mongoose");
 
 const payRequestschema = new mongoose.Schema(
@@ -39,4 +40,3 @@ const payRequestschema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("payRequest", payRequestschema);
-

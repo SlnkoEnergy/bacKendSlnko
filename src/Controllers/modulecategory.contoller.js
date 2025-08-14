@@ -1,12 +1,12 @@
 const { default: axios } = require("axios");
-const moduleCategory = require("../../../Modells/EngineeringModells/engineeringModules/moduleCategory");
-const projectDetail = require("../../../Modells/projectModells");
+const moduleCategory = require("../Modells/modulecategory.model");
+const projectDetail = require("../Modells/projectModells");
 const FormData = require("form-data");
-const moduleTemplates = require("../../../Modells/EngineeringModells/engineeringModules/moduleTemplate");
+const moduleTemplates = require("../Modells/moduletemplate.model");
 const mongoose = require("mongoose");
-const handoversheetModells = require("../../../Modells/handoversheetModells");
-const projectModells = require("../../../Modells/projectModells");
-const userModells = require("../../../Modells/users/userModells");
+const handoversheetModells = require("../Modells/handoversheetModells");
+const projectModells = require("../Modells/projectModells");
+const userModells = require("../Modells/users/userModells");
 
 const createModuleCategory = async (req, res) => {
   try {
@@ -138,6 +138,7 @@ const createModuleCategory = async (req, res) => {
   }
 };
 
+
 const getModuleCategory = async (req, res) => {
   try {
     const data = await moduleCategory
@@ -254,9 +255,7 @@ const updateModuleCategory = async (req, res) => {
     if (!projectId && !id) {
       return res
         .status(400)
-        .json({
-          message: "Either 'projectId' or 'id' must be provided in query",
-        });
+        .json({ message: "Either 'projectId' or 'id' must be provided in query" });
     }
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -282,8 +281,10 @@ const updateModuleCategory = async (req, res) => {
       return res.status(404).json({ message: "Project Code not found" });
     }
 
-    const files = Array.isArray(req.files) ? req.files : req.files?.files || [];
-    if (!files || files.length === 0) {
+    // Updated: support flat files[] array from frontend
+    const allFilesArray = Array.isArray(req.files) ? req.files : Object.values(req.files || {}).flat();
+
+    if (!allFilesArray || allFilesArray.length === 0) {
       return res.status(400).json({ message: "No files provided" });
     }
 
@@ -293,38 +294,33 @@ const updateModuleCategory = async (req, res) => {
       const { template_id } = items[i];
       if (!template_id) continue;
 
-      let templateData = await moduleTemplates
+      const templateData = await moduleTemplates
         .findById(template_id)
         .select("name file_upload");
+
       if (!templateData) {
-        return res
-          .status(400)
-          .json({ message: "No Module with this template Id" });
+        return res.status(400).json({ message: "Invalid template_id" });
       }
 
-      const moduleTemplateName = (templateData.name || "template").replace(
-        /\s+/g,
-        "_"
-      );
-      const maxFiles = templateData.file_upload?.max_files || 0;
+      const moduleTemplateName = (templateData.name || "template").replace(/\s+/g, "_");
+      const maxFiles = templateData.file_upload?.max_files || 1;
+
+      const files = allFilesArray.slice(fileIndex, fileIndex + maxFiles);
+      fileIndex += maxFiles;
+
+      if (files.length === 0) continue;
 
       const itemIndex = moduleData.items.findIndex(
         (item) => item.template_id?.toString() === template_id.toString()
       );
-      const existingItem =
-        itemIndex !== -1 ? moduleData.items[itemIndex] : null;
+      const existingItem = itemIndex !== -1 ? moduleData.items[itemIndex] : null;
       const revisionIndex = existingItem?.attachment_urls?.length || 0;
       const revisionNumber = `R${revisionIndex}`;
-     const folderName = `engineering/${projectCode}/${moduleTemplateName}/${revisionNumber}`.replace(/ /g, "_");
 
+      const folderName = `engineering/${projectCode}/${moduleTemplateName}/${revisionNumber}`.replace(/ /g, "_");
       const uploadedUrls = [];
-      for (
-        let count = 0;
-        count < maxFiles && fileIndex < files.length;
-        count++, fileIndex++
-      ) {
-        const file = files[fileIndex];
 
+      for (let file of files) {
         try {
           const form = new FormData();
           form.append("file", file.buffer, {
@@ -353,16 +349,10 @@ const updateModuleCategory = async (req, res) => {
         const statusHistory = items[i]?.status_history || [];
 
         if (existingItem) {
-          if (!Array.isArray(existingItem.attachment_urls)) {
-            existingItem.attachment_urls = [];
-          }
+          existingItem.attachment_urls = existingItem.attachment_urls || [];
           existingItem.attachment_urls.push(uploadedUrls);
-
-          if (!Array.isArray(existingItem.status_history)) {
-            existingItem.status_history = [];
-          }
+          existingItem.status_history = existingItem.status_history || [];
           existingItem.status_history.push(...statusHistory);
-
           moduleData.items[itemIndex] = existingItem;
         } else {
           moduleData.items.push({
@@ -372,12 +362,6 @@ const updateModuleCategory = async (req, res) => {
           });
         }
       }
-    }
-
-    if (fileIndex === 0) {
-      return res
-        .status(400)
-        .json({ message: "No valid uploaded file URLs found" });
     }
 
     await moduleData.save();
@@ -394,6 +378,7 @@ const updateModuleCategory = async (req, res) => {
     });
   }
 };
+
 
 const updateModuleCategoryStatus = async (req, res) => {
   try {

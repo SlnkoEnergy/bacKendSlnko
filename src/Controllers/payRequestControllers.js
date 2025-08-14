@@ -8,9 +8,11 @@ const { get } = require("mongoose");
 const exccelDataModells = require("../Modells/excelDataModells");
 const recoverypayrequest = require("../Modells/recoveryPayrequestModells");
 const subtractMoneyModells = require("../Modells/debitMoneyModells");
-const materialCategoryModells = require("../Modells/EngineeringModells/materials/materialCategoryModells");
+const materialCategoryModells = require("../Modells/materialcategory.model");
+const userModells = require("../Modells/users/userModells");
 
 // Request payment
+
 const payRrequest = async (req, res) => {
   try {
     const {
@@ -131,6 +133,80 @@ const payRrequest = async (req, res) => {
       msg: "Failed to request payment. Please try again.",
       error: error.message,
     });
+  }
+};
+
+const deadlineExtendRequest = async (req, res) => {
+  const { _id } = req.params;
+  const { credit_deadline, credit_remarks } = req.body;
+
+  if (!credit_deadline || !credit_remarks) {
+    return res.status(400).json({ msg: "All fields are required" });
+  }
+
+  try {
+    const payment = await payRequestModells.findById(_id);
+    if (!payment) {
+      return res.status(404).json({ msg: "Payment request not found" });
+    }
+
+    if (!payment.cr_id) {
+      return res.status(400).json({ msg: "Payment Credit Id not found" });
+    }
+
+    const [day, month, year] = credit_deadline.split("/");
+    const parsedDate = new Date(`${year}-${month}-${day}`);
+
+    if (isNaN(parsedDate)) {
+      return res
+        .status(400)
+        .json({ msg: "Invalid date format for credit_deadline" });
+    }
+
+    payment.credit.credit_deadline = parsedDate;
+    payment.credit.credit_remarks = credit_remarks;
+
+    payment.credit.credit_extension = false;
+
+    payment.credit_history.push({
+      status: "Updated",
+      credit_deadline: parsedDate,
+      credit_remarks,
+      user_id: req.user.userId,
+      timestamp: new Date(),
+    });
+
+    await payment.save();
+
+    return res
+      .status(200)
+      .json({ msg: "Credit deadline extended successfully", data: payment });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ msg: "Failed to extend credit deadline", error: error.message });
+  }
+};
+
+const requestCreditExtension = async (req, res) => {
+  const { _id } = req.params;
+
+  try {
+    const payment = await payRequestModells.findById(_id);
+    if (!payment) {
+      return res.status(404).json({ msg: "Payment request not found" });
+    }
+
+    payment.credit.credit_extension = true;
+    payment.credit.user_id = req.user.userId;
+
+    await payment.save();
+    res.status(200).json({ msg: "Credit extension requested", data: payment });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ msg: "Error requesting credit extension", error: error.message });
   }
 };
 
@@ -355,6 +431,85 @@ const account_matched = async function (req, res) {
 };
 
 // account approved
+// const accApproved = async function (req, res) {
+//   const { pay_id, status } = req.body;
+
+//   if (!pay_id || !status || !["Approved", "Rejected"].includes(status)) {
+//     return res.status(400).json({ message: "Invalid pay_id or status" });
+//   }
+
+//   try {
+//     const payment = await payRequestModells.findOne({
+//       pay_id,
+//       approved: "Pending",
+//     });
+
+//     if (!payment) {
+//       return res.status(404).json({
+//         message: "No matching record found or record already approved",
+//       });
+//     }
+
+//     const paidFor = payment.paid_for?.trim();
+//     const poNumber = payment.po_number?.trim();
+
+//     // Step 1: Check if paid_for matches any Material Category name
+//     const isMaterialCategory = await materialCategoryModells.exists({
+//       name: paidFor,
+//     });
+
+//     // Step 2: If status is Approved and paid_for is a Material Category, PO validation is required
+//     if (status === "Approved" && isMaterialCategory) {
+//       if (!poNumber || poNumber === "N/A") {
+//         return res.status(400).json({
+//           message:
+//             "PO number is required for Material Category based payments.",
+//         });
+//       }
+
+//       const purchaseOrder = await purchaseOrderModells.findOne({
+//         po_number: poNumber,
+//       });
+
+//       if (!purchaseOrder) {
+//         return res.status(404).json({ message: "Purchase order not found" });
+//       }
+
+//       const approvedPayments = await payRequestModells.find({
+//         po_number: poNumber,
+//         approved: "Approved",
+//       });
+
+//       const totalPaid = approvedPayments.reduce(
+//         (sum, p) => sum + (parseFloat(p.amount_paid) || 0),
+//         0
+//       );
+
+//       const newTotalPaid = totalPaid + (parseFloat(payment.amount_paid) || 0);
+//       const poValue = parseFloat(purchaseOrder.po_value) || 0;
+
+//       if (newTotalPaid > poValue) {
+//         return res.status(400).json({
+//           message: `Approval Denied: Total payments exceed PO limit of ₹${poValue.toLocaleString(
+//             "en-IN"
+//           )}`,
+//         });
+//       }
+//     }
+
+//     // Step 3: Update approval status
+//     payment.approved = status;
+//     await payment.save();
+
+//     return res
+//       .status(200)
+//       .json({ message: "Approval status updated successfully", data: payment });
+//   } catch (error) {
+//     console.error("Error in accApproved:", error);
+//     return res.status(500).json({ message: "Server error" });
+//   }
+// };
+
 const accApproved = async function (req, res) {
   const { pay_id, status } = req.body;
 
@@ -431,6 +586,76 @@ const accApproved = async function (req, res) {
   } catch (error) {
     console.error("Error in accApproved:", error);
     return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const restoreTrashToDraft = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, remarks } = req.body;
+    const user_id = req.user.userId;
+
+    if (!remarks || typeof remarks !== "string" || remarks.trim() === "") {
+      return res
+        .status(400)
+        .json({ message: "Remarks are required for this action" });
+    }
+
+    if (!["restore", "reject"].includes(action)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid action. Must be 'restore' or 'reject'" });
+    }
+
+    const request = await payRequestModells.findById(id);
+    if (!request) return res.status(404).json({ message: "Request not found" });
+
+    if (request.approval_status.stage !== "Trash Pending") {
+      return res
+        .status(400)
+        .json({ message: "Request is not in Trash Pending stage" });
+    }
+
+    if (action === "restore") {
+      request.approval_status = {
+        stage: "SCM",
+        user_id,
+        remarks,
+      };
+
+      request.status_history.push({
+        stage: "SCM",
+        user_id,
+        remarks,
+      });
+
+      request.timers.trash_started_at = null;
+      request.timers.draft_started_at = new Date();
+    } else if (action === "reject") {
+      request.approval_status = {
+        stage: "Rejected",
+        user_id,
+        remarks,
+      };
+
+      request.status_history.push({
+        stage: "Rejected",
+        user_id,
+        remarks,
+      });
+
+      request.timers.trash_started_at = null;
+    }
+
+    await request.save();
+
+    return res.status(200).json({
+      message: `Request successfully moved to ${request.approval_status.stage}`,
+      data: request,
+    });
+  } catch (error) {
+    console.error("Error in restoring from trash:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -631,8 +856,17 @@ const editPayRequestById = async function (req, res) {
 // Get payment request by ID
 const getPayRequestById = async function (req, res) {
   try {
-    const { _id } = req.params;
-    const data = await payRequestModells.findById(_id);
+    const { _id, po_number } = req.query;
+
+    let data;
+
+    if (_id) {
+      data = await payRequestModells.findById(_id);
+    } else if (po_number) {
+      data = await payRequestModells.findOne({ po_number });
+    } else {
+      return res.status(400).json({ message: "Invalid Id or Po Number" });
+    }
 
     if (!data) {
       return res.status(404).json({ message: "Item not found" });
@@ -851,7 +1085,130 @@ const getPay = async (req, res) => {
   }
 };
 
-//Acount Approved is = pending data save to hold payment
+const getTrashPayment = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    const skip = (page - 1) * pageSize;
+    const search = req.query.search?.trim() || "";
+    const status = req.query.status?.trim();
+    const tab = req.query.tab?.trim();
+
+    const searchRegex = new RegExp(search, "i");
+    const statusRegex = new RegExp(`^${status}$`, "i");
+
+    const lookupStage = {
+      $lookup: {
+        from: "projectdetails",
+        localField: "p_id",
+        foreignField: "p_id",
+        as: "project",
+      },
+    };
+
+    const unwindStage = {
+      $unwind: {
+        path: "$project",
+        preserveNullAndEmptyArrays: true,
+      },
+    };
+
+    const matchConditions = [{ "approval_status.stage": "Trash Pending" }];
+
+    if (search) {
+      matchConditions.push({
+        $or: [
+          { pay_id: { $regex: searchRegex } },
+          { paid_for: { $regex: searchRegex } },
+          { po_number: { $regex: searchRegex } },
+          { vendor: { $regex: searchRegex } },
+          { utr: { $regex: searchRegex } },
+          { "project.customer": { $regex: searchRegex } },
+        ],
+      });
+    }
+
+    if (status) {
+      matchConditions.push({
+        approved: { $regex: statusRegex },
+      });
+    }
+
+    const baseMatch = { $and: matchConditions };
+
+    const basePipeline = [
+      lookupStage,
+      unwindStage,
+      { $match: baseMatch },
+      {
+        $addFields: {
+          customer_name: "$project.customer",
+          type: {
+            $cond: {
+              if: { $eq: ["$credit.credit_status", true] },
+              then: "credit",
+              else: "instant",
+            },
+          },
+        },
+      },
+    ];
+
+    const tabMatchStage = tab ? [{ $match: { type: tab } }] : [];
+
+    const [paginatedData, totalData] = await Promise.all([
+      payRequestModells.aggregate([
+        ...basePipeline,
+        ...tabMatchStage,
+        { $project: { project: 0 } },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: pageSize },
+      ]),
+      payRequestModells.aggregate([
+        ...basePipeline,
+        ...tabMatchStage,
+        { $count: "total" },
+      ]),
+    ]);
+
+    const tabWiseCounts = await payRequestModells.aggregate([
+      ...basePipeline,
+      {
+        $group: {
+          _id: "$type",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const counts = {
+      instant: 0,
+      credit: 0,
+    };
+    tabWiseCounts.forEach((item) => {
+      counts[item._id] = item.count;
+    });
+
+    res.status(200).json({
+      msg: "trash-payments",
+      meta: {
+        total: totalData[0]?.total || 0,
+        page,
+        count: paginatedData.length,
+        instantTotal: counts.instant || 0,
+        creditTotal: counts.credit || 0,
+      },
+      data: paginatedData,
+    });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ msg: "Error retrieving trash payments", error: err.message });
+  }
+};
+
 const approve_pending = async function (req, res) {
   try {
     const { pay_id, approved } = req.body;
@@ -983,6 +1340,7 @@ module.exports = {
   account_matched,
   utrUpdate,
   accApproved,
+  restoreTrashToDraft,
   // getVendorById,
   newAppovAccount,
   deletePayRequestById,
@@ -992,6 +1350,9 @@ module.exports = {
   updateExcelData,
   restorepayrequest,
   getPay,
+  deadlineExtendRequest,
+  requestCreditExtension,
+  getTrashPayment,
   approve_pending,
   hold_approve_pending,
   updateExceData,
