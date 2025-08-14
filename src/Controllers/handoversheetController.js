@@ -141,8 +141,8 @@ const createhandoversheet = async function (req, res) {
 
       await moduleCategoryData.save();
     }
-    
-    const lead = await bdleadsModells.findOne({id: id});
+
+    const lead = await bdleadsModells.findOne({ id: id });
     lead.status_of_handoversheet = req.body.status_of_handoversheet || "draft";
     lead.handover_lock = req.body.handover_lock || "locked";
     await lead.save();
@@ -157,7 +157,7 @@ const createhandoversheet = async function (req, res) {
       const data = {
         message: `Handover submited by user`,
       }
-    
+
       await getnovuNotification(workflow, Ids, data);
     } catch (error) {
       console.log(error);
@@ -214,33 +214,33 @@ const gethandoversheetdata = async function (req, res) {
     }
 
     const statuses = statusFilter
-  ?.split(",")
-  .map((s) => s.trim())
-  .filter(Boolean) || [];
+      ?.split(",")
+      .map((s) => s.trim())
+      .filter(Boolean) || [];
 
-const hasHandoverPending = statuses.includes("handoverpending");
-const hasScopePending = statuses.includes("scopepending");
-const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
+    const hasHandoverPending = statuses.includes("handoverpending");
+    const hasScopePending = statuses.includes("scopepending");
+    const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
 
-const actualStatuses = statuses.filter(
-  (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen" 
-);
+    const actualStatuses = statuses.filter(
+      (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
+    );
 
-if (actualStatuses.length === 1) {
-  matchConditions.$and.push({ status_of_handoversheet: actualStatuses[0] });
-} else if (actualStatuses.length > 1) {
-  matchConditions.$and.push({
-    status_of_handoversheet: { $in: actualStatuses },
-  });
-}
+    if (actualStatuses.length === 1) {
+      matchConditions.$and.push({ status_of_handoversheet: actualStatuses[0] });
+    } else if (actualStatuses.length > 1) {
+      matchConditions.$and.push({
+        status_of_handoversheet: { $in: actualStatuses },
+      });
+    }
 
-if (hasHandoverPending) {
-  matchConditions.$and.push({ status_of_handoversheet: "submitted" });
-}
+    if (hasHandoverPending) {
+      matchConditions.$and.push({ status_of_handoversheet: "submitted" });
+    }
 
-if (hasScopeOpen) {
-  matchConditions.$and.push({ scope_status: "open" });
-}
+    if (hasScopeOpen) {
+      matchConditions.$and.push({ scope_status: "open" });
+    }
 
 
     const finalMatch = matchConditions.$and.length > 0 ? matchConditions : {};
@@ -295,7 +295,7 @@ if (hasScopeOpen) {
       },
       {
         $lookup: {
-          from: "scopes", 
+          from: "scopes",
           localField: "projectInfo._id",
           foreignField: "project_id",
           as: "scopeInfo"
@@ -376,7 +376,7 @@ if (hasScopeOpen) {
                 comment: 1,
                 p_id: 1,
                 project_id: "$projectInfo._id",
-                scope_status: 1 
+                scope_status: 1
               },
             },
           ],
@@ -419,12 +419,12 @@ const edithandoversheetdata = async function (req, res) {
       data,
       { new: true }
     );
-    
-     if (typeof data.is_locked !== "undefined") {
+
+    if (typeof data.is_locked !== "undefined") {
       await bdleadsModells.findOneAndUpdate(
         { id: edithandoversheet.id },
         { handover_lock: data.is_locked },
-        {status_of_handoversheet: data.status_of_handoversheet}
+        { status_of_handoversheet: data.status_of_handoversheet }
       );
     }
 
@@ -452,7 +452,7 @@ const updatestatus = async function (req, res) {
     if (!updatedHandoversheet) {
       return res.status(404).json({ message: "Handoversheet not found" });
     }
-    
+
     const lead = await bdleadsModells.findOne({ id: updatedHandoversheet.id });
     lead.status_of_handoversheet = status_of_handoversheet;
     lead.handover_lock = updatedHandoversheet.is_locked;
@@ -581,6 +581,40 @@ const updatestatus = async function (req, res) {
         });
       }
     }
+
+    // Notification Functionality on Status Update 
+
+    try {
+      const owner = await userModells.find({ name: submitted_by })
+
+      senders = [owner._id];
+      workflow = 'handover-submit';
+      data = {
+        message: `Handover Sheet Status Updated Of Lead ${updatedHandoversheet.id}`
+      }
+
+      await getnovuNotification(workflow, senders, data);
+    } catch (error) {
+      console.log(error);
+    }
+
+    // Notification for Engineering and Accounts  After Approved handoversheet 
+
+    // if( updatedHandoversheet.status_of_handoversheet === "Approved" ){
+
+    //   try {
+    //     senders = "all person from Engineering and Accounts ";
+    //     workflow = 'handover-submit';
+    //     data ={
+    //       message: `Handover Sheet Status Updated Of Lead ${updatedHandoversheet.id}`
+    //     }
+    //   } catch (error) {
+        
+    //   }
+
+    // }
+
+
 
     return res.status(200).json({
       message: "Status updated",
