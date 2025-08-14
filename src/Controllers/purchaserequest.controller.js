@@ -1,10 +1,10 @@
 const mongoose = require("mongoose");
-const PurchaseRequest = require("../../Modells/purchaserequest.model");
-const PurchaseRequestCounter = require("../../Modells/purchaserequestcounter.model");
-const Project = require("../../Modells/projectModells");
-const purchaseOrderModells = require("../../Modells/purchaseOrderModells");
-const materialCategoryModells = require("../../Modells/materialcategory.model");
-const scopeModel = require("../../Modells/scope.model");
+const PurchaseRequest = require("../Modells/purchaserequest.model");
+const PurchaseRequestCounter = require("../Modells/purchaserequestcounter.model");
+const Project = require("../Modells/projectModells");
+const purchaseOrderModells = require("../Modells/purchaseOrderModells");
+const materialCategoryModells = require("../Modells/materialcategory.model");
+const scopeModel = require("../Modells/scope.model");
 
 const CreatePurchaseRequest = async (req, res) => {
   try {

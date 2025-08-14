@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 
-
 const purchaseRequestSchema = new mongoose.Schema(
   {
     project_id: {
@@ -13,14 +12,12 @@ const purchaseRequestSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "MaterialCategory",
         },
-        status:{
-          type:String
+        product_id:{
+          type: mongoose.Schema.Types.ObjectId,
+          ref:"Material"
         },
-        other_item_name:{
-          type:String
-        },
-        amount:{
-          type:String
+        status: {
+          type: String,
         }
       },
     ],
