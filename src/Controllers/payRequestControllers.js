@@ -13,67 +13,12 @@ const userModells = require("../Modells/users/userModells");
 
 // Request payment
 
-const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
-const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
-
 const payRrequest = async (req, res) => {
   try {
-    const userId = req.user?.userId || null;
     const {
-      p_id,
-      pay_type,
-      amount_paid,
-      amt_for_customer,
-      dbt_date,
-      paid_for,
-      vendor,
-      po_number,
-      po_value,
-      credit,
-      ifsc,
-      benificiary,
-      acc_number,
-      branch,
-      created_on,
-      submitted_by,
-      approved,
-      acc_match,
-      utr,
-      other,
-      comment,
-      code,
-    } = req.body;
-
-    const project = await projectModells.findOne({ $or: [{ p_id }, { code }] });
-    if (!project?.code) {
-      return res.status(400).json({ msg: "Invalid or missing project code!" });
-    }
-
-    let pay_id = null;
-    let cr_id = null;
-
-    if (credit?.credit_status === true) {
-      do {
-        cr_id = `${project.code}/${generateRandomCreditCode()}`;
-      } while (await payRequestModells.findOne({ cr_id }));
-      pay_id = null;
-    } else {
-      do {
-        pay_id = `${project.code}/${generateRandomCode()}`;
-      } while (await payRequestModells.findOne({ pay_id }));
-      cr_id = null;
-    }
-
-    const initialStage = credit?.credit_status ? "Credit Pending" : "Draft";
-
-    if (credit?.credit_status && !credit.credit_deadline) {
-      return res.status(400).json({ msg: "Credit deadline is required." });
-    }
-
-    const newPayment = new payRequestModells({
+      id,
       p_id,
       pay_id,
-      cr_id,
       pay_type,
       amount_paid,
       amt_for_customer,
@@ -82,6 +27,9 @@ const payRrequest = async (req, res) => {
       vendor,
       po_number,
       po_value,
+      po_balance,
+      pay_mode,
+      paid_to,
       ifsc,
       benificiary,
       acc_number,
@@ -89,48 +37,91 @@ const payRrequest = async (req, res) => {
       created_on,
       submitted_by,
       approved,
+      disable,
       acc_match,
       utr,
+      total_advance_paid,
       other,
+      code,
       comment,
-      credit: {
-        credit_deadline: credit?.credit_deadline || null,
-        credit_status: !!credit?.credit_status,
-        credit_extension: credit?.credit_extension,
-        credit_remarks: credit?.credit_remarks || "",
-        user_id: userId,
-      },
-      approval_status: {
-        stage: initialStage,
-        user_id: userId,
-        remarks: "",
-      },
-      timers: {
-        draft_started_at: new Date(),
-        draft_frozen_at: null,
-        trash_started_at: null,
-      },
-      status_history: [
-        {
-          stage: initialStage,
-          remarks: "",
-          user_id: userId,
-          timestamp: new Date(),
-        },
-      ],
-      credit_history: credit?.credit_status
-        ? [
-            {
-              status: "Created",
-              credit_deadline: credit.credit_deadline,
-              credit_remarks: credit.credit_remarks || "",
-              user_id: userId,
-              timestamp: new Date(),
-            },
-          ]
-        : [],
+    } = req.body;
+
+    // Check if pay_id exists
+    // const existingPayment = await payRequestModells.findOne({ pay_id: pay_id });
+    // if (existingPayment) {
+    //   return res.status(400).json({ msg: "Payment ID already used!" });
+    // }
+
+    // Get project details by project ID
+    const project = await projectModells.findOne({
+      $or: [{ p_id: p_id }, { code: code }],
+    });
+    if (!project) {
+      return res.status(400).json({ msg: "Project ID is invalid!" });
+    }
+
+    if (!project.code) {
+      return res.status(400).json({ msg: "Project code not found!" });
+    }
+
+    // console.log("Project code:", project.code); // Debugging log
+
+    // Validation: Amount paid should not exceed PO value
+    // if (amount_paid > po_balance) {
+    //   return res
+    //     .status(400)
+    //     .json({ msg: "Requested Amount is greater than PO Balance!" });
+    // }
+    const projectCode = project.code; // Assuming `code` is a field in projectModells
+
+    // Generate random three-digit code
+    const randomCode = Math.floor(100 + Math.random() * 900); // Random 3-digit number
+
+    // Append the random code to the project code to form modified p_id
+    const modifiedPId = `${projectCode}/${randomCode}`;
+
+    let existingPayRequest = await payRequestModells.findOne({
+      pay_id: modifiedPId,
     });
 
+    while (existingPayRequest) {
+      // If the modifiedPId exists, generate a new one and check again
+      modifiedPId = `${projectCode}/${generateRandomCode()}`;
+      existingPayRequest = await payRequestModells.findOne({
+        pay_id: modifiedPId,
+      });
+    }
+
+    // Insert new payment request
+    const newPayment = new payRequestModells({
+      id,
+      p_id,
+      pay_id: modifiedPId,
+      pay_type,
+      amount_paid,
+      amt_for_customer,
+      dbt_date,
+      paid_for,
+      vendor,
+      po_number,
+      po_value,
+      po_balance,
+      pay_mode,
+      paid_to,
+      ifsc,
+      benificiary,
+      acc_number,
+      branch,
+      created_on,
+      submitted_by,
+      approved,
+      disable,
+      acc_match,
+      utr,
+      total_advance_paid,
+      other,
+      comment,
+    });
     await newPayment.save();
 
     return res
@@ -138,9 +129,10 @@ const payRrequest = async (req, res) => {
       .json({ msg: "Payment requested successfully", newPayment });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ msg: "Failed to request payment", error: error.message });
+    return res.status(500).json({
+      msg: "Failed to request payment. Please try again.",
+      error: error.message,
+    });
   }
 };
 
@@ -519,204 +511,78 @@ const account_matched = async function (req, res) {
 // };
 
 const accApproved = async function (req, res) {
-  const { _id, status, remarks } = req.body;
+  const { pay_id, status } = req.body;
 
-  if (
-    !_id ||
-    !status ||
-    !["Approved", "Rejected", "Pending"].includes(status)
-  ) {
-    return res.status(400).json({ message: "Invalid _id or status" });
+  if (!pay_id || !status || !["Approved", "Rejected"].includes(status)) {
+    return res.status(400).json({ message: "Invalid pay_id or status" });
   }
-
-  if (status === "Rejected" && !remarks?.trim()) {
-    return res.status(400).json({
-      message: "Remarks are required when status is Rejected",
-    });
-  }
-
-  const ids = Array.isArray(_id) ? _id : [_id];
-  const results = [];
 
   try {
-    const currentUser = await userModells.findById(req.user.userId);
-    const { department, role } = currentUser;
+    const payment = await payRequestModells.findOne({
+      pay_id,
+      approved: "Pending",
+    });
 
-    if (role !== "manager") {
-      return res
-        .status(403)
-        .json({ message: "Only managers can approve or reject" });
-    }
-
-    for (const id of ids) {
-      const payment = await payRequestModells.findById(id);
-
-      if (!payment) {
-        results.push({
-          _id: id,
-          status: "error",
-          message: "Payment not found",
-        });
-        continue;
-      }
-
-      const currentStage = payment.approval_status?.stage || "Draft";
-
-      // 🔹 Handle Rejection Directly
-      if (status === "Rejected") {
-        payment.approved = "Rejected";
-        payment.approval_status = {
-          stage: currentStage,
-          user_id: req.user.userId,
-          remarks: remarks || "",
-        };
-
-        if (!Array.isArray(payment.status_history)) {
-          payment.status_history = [];
-        }
-
-        payment.status_history.push({
-          stage: currentStage,
-          user_id: req.user.userId,
-          department,
-          role,
-          remarks: remarks || "",
-          status: "Rejected",
-          timestamp: new Date(),
-        });
-
-        await payment.save();
-        results.push({
-          _id: id,
-          status: "success",
-          message: "Payment rejected successfully",
-        });
-        continue; // ⬅ Skip approval logic
-      }
-
-      // 🔹 Prevent double approval
-      if (payment.approved === "Approved") {
-        results.push({ _id: id, status: "error", message: "Already approved" });
-        continue;
-      }
-
-      // 🔹 Stage transition logic for Approvals
-      let nextStage = currentStage;
-      let approvedValue = payment.approved || "Pending";
-
-      if (
-        (currentStage === "Draft" || currentStage === "Credit Pending") &&
-        department === "SCM"
-      ) {
-        nextStage = "CAM";
-        approvedValue = "Pending";
-      } else if (currentStage === "CAM" && department === "Internal") {
-        nextStage = "Account";
-        approvedValue = "Pending";
-      } else if (currentStage === "Account" && department === "Accounts") {
-        nextStage = "Final";
-        approvedValue = "Approved";
-      } else {
-        results.push({
-          _id: id,
-          status: "error",
-          message: "Invalid approval stage or department for this action.",
-        });
-        continue;
-      }
-
-      // 🔹 Extra validations for SCM approvals with material category
-      const paidFor = payment.paid_for?.trim();
-      const poNumber = payment.po_number?.trim();
-      const isMaterialCategory = await materialCategoryModells.exists({
-        name: paidFor,
-      });
-
-      if (status === "Approved" && department === "SCM" && isMaterialCategory) {
-        if (!poNumber || poNumber === "N/A") {
-          results.push({
-            _id: id,
-            status: "error",
-            message:
-              "PO number is required for Material Category based payments.",
-          });
-          continue;
-        }
-
-        const purchaseOrder = await purchaseOrderModells.findOne({
-          po_number: poNumber,
-        });
-
-        if (!purchaseOrder) {
-          results.push({
-            _id: id,
-            status: "error",
-            message: "Purchase order not found",
-          });
-          continue;
-        }
-
-        const approvedPayments = await payRequestModells.find({
-          po_number: poNumber,
-          approved: "Pending",
-        });
-
-        const totalPaid = approvedPayments.reduce(
-          (sum, p) => sum + (parseFloat(p.amount_paid) || 0),
-          0
-        );
-
-        const newTotalPaid = totalPaid + (parseFloat(payment.amount_paid) || 0);
-        const poValue = parseFloat(purchaseOrder.po_value) || 0;
-
-        if (newTotalPaid > poValue) {
-          results.push({
-            _id: id,
-            status: "error",
-            message: `Approval Denied: Total payments exceed PO limit of ₹${poValue.toLocaleString("en-IN")}`,
-          });
-          continue;
-        }
-      }
-
-      // 🔹 Final approval timer
-      if (nextStage === "Final" && !payment.timers.draft_frozen_at) {
-        payment.timers.draft_frozen_at = new Date();
-      }
-
-      // 🔹 Save approval changes
-      payment.approved = approvedValue;
-      payment.approval_status = {
-        stage: nextStage,
-        user_id: req.user.userId,
-        remarks: remarks || "",
-      };
-
-      if (!Array.isArray(payment.status_history)) {
-        payment.status_history = [];
-      }
-
-      payment.status_history.push({
-        stage: nextStage,
-        user_id: req.user.userId,
-        department,
-        role,
-        remarks: remarks || "",
-        status: approvedValue,
-        timestamp: new Date(),
-      });
-
-      await payment.save();
-      results.push({
-        _id: id,
-        status: "success",
-        message: "Approval status updated successfully",
+    if (!payment) {
+      return res.status(404).json({
+        message: "No matching record found or record already approved",
       });
     }
+
+    const paidFor = payment.paid_for?.trim();
+    const poNumber = payment.po_number?.trim();
+
+    // Step 1: Check if paid_for matches any Material Category name
+    const isMaterialCategory = await materialCategoryModells.exists({
+      name: paidFor,
+    });
+
+    // Step 2: If status is Approved and paid_for is a Material Category, PO validation is required
+    if (status === "Approved" && isMaterialCategory) {
+      if (!poNumber || poNumber === "N/A") {
+        return res.status(400).json({
+          message:
+            "PO number is required for Material Category based payments.",
+        });
+      }
+
+      const purchaseOrder = await purchaseOrderModells.findOne({
+        po_number: { $regex: `^\\s*${poNumber}\\s*$`, $options: "i" },
+      });
+
+      if (!purchaseOrder) {
+        return res.status(404).json({ message: "Purchase order not found" });
+      }
+
+      const approvedPayments = await payRequestModells.find({
+        po_number: poNumber,
+        approved: "Approved",
+      });
+
+      const totalPaid = approvedPayments.reduce(
+        (sum, p) => sum + (parseFloat(p.amount_paid) || 0),
+        0
+      );
+
+      const newTotalPaid = totalPaid + (parseFloat(payment.amount_paid) || 0);
+      const poValue = parseFloat(purchaseOrder.po_value) || 0;
+
+      if (newTotalPaid > poValue) {
+        return res.status(400).json({
+          message: `Approval Denied: Total payments exceed PO limit of ₹${poValue.toLocaleString(
+            "en-IN"
+          )}`,
+        });
+      }
+    }
+
+    // Step 3: Update approval status
+    payment.approved = status;
+    await payment.save();
 
     return res
       .status(200)
-      .json({ message: "Processed approval updates", results });
+      .json({ message: "Approval status updated successfully", data: payment });
   } catch (error) {
     console.error("Error in accApproved:", error);
     return res.status(500).json({ message: "Server error" });
@@ -1123,17 +989,12 @@ const getExcelDataById = async function (req, res) {
 const getPay = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 10;
+    const pageSize = 10;
     const skip = (page - 1) * pageSize;
+    const query = req.query.query?.trim() || "";
 
-    const search = req.query.search?.trim() || "";
-    const status = req.query.status?.trim();
-    const tab = req.query.tab?.trim();
+    const searchRegex = new RegExp(query, "i");
 
-    const searchRegex = new RegExp(search, "i");
-    const statusRegex = new RegExp(`^${status}$`, "i");
-
-    // Base stages
     const lookupStage = {
       $lookup: {
         from: "projectdetails",
@@ -1142,136 +1003,81 @@ const getPay = async (req, res) => {
         as: "project",
       },
     };
-
-    const unwindStage = {
-      $unwind: {
-        path: "$project",
-        preserveNullAndEmptyArrays: true,
-      },
-    };
-
-    const matchConditions = [];
-    if (search) {
-      matchConditions.push({
-        $or: [
-          { pay_id: { $regex: searchRegex } },
-          { paid_for: { $regex: searchRegex } },
-          { po_number: { $regex: searchRegex } },
-          { vendor: { $regex: searchRegex } },
-          { utr: { $regex: searchRegex } },
-          { "project.customer": { $regex: searchRegex } },
-        ],
-      });
-    }
-    if (status) {
-      matchConditions.push({ approved: { $regex: statusRegex } });
-    }
-
-    const baseMatch = matchConditions.length ? { $and: matchConditions } : {};
-
-    // Common aggregation steps
-    const basePipeline = [
+    const paginatedPipeline = [
       lookupStage,
-      unwindStage,
-      ...(Object.keys(baseMatch).length ? [{ $match: baseMatch }] : []),
-      {
-        $addFields: {
-          customer_name: "$project.customer",
-          type: {
-            $switch: {
-              branches: [
-                {
-                  case: { $ifNull: ["$pay_id", false] },
-                  then: "instant",
-                },
-                {
-                  case: {
-                    $and: [
-                      { $eq: ["$credit.credit_status", true] },
-                      { $ifNull: ["$cr_id", false] },
-                    ],
-                  },
-                  then: "credit",
-                },
-              ],
-              default: "instant",
-            },
-          },
-        },
-      },
-    ];
-
-    // Tab filtering
-    const tabMatchStage = tab ? [{ $match: { type: tab } }] : [];
-
-    // If tab = credit → calculate remaining days
-    const creditRemainingDaysStage =
-      tab === "credit"
+      { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
+      ...(query
         ? [
             {
-              $addFields: {
-                remaining_days: {
-                  $floor: {
-                    $divide: [
-                      {
-                        $subtract: [
-                          { $toDate: "$credit.credit_deadline" },
-                          "$$NOW",
-                        ],
-                      },
-                      1000 * 60 * 60 * 24,
-                    ],
-                  },
-                },
+              $match: {
+                $or: [
+                  { pay_id: { $regex: searchRegex } },
+                  { paid_for: { $regex: searchRegex } },
+                  { approved: { $regex: searchRegex } },
+                  { vendor: { $regex: searchRegex } },
+                  { utr: { $regex: searchRegex } },
+                  { "project.customer": { $regex: searchRegex } },
+                ],
               },
             },
           ]
-        : [];
+        : []),
 
-    // Main data query
-    const [paginatedData, totalData] = await Promise.all([
-      payRequestModells.aggregate([
-        ...basePipeline,
-        ...tabMatchStage,
-        ...creditRemainingDaysStage,
-        { $project: { project: 0 } },
-        { $sort: { createdAt: -1 } },
-        { $skip: skip },
-        { $limit: pageSize },
-      ]),
-      payRequestModells.aggregate([
-        ...basePipeline,
-        ...tabMatchStage,
-        { $count: "total" },
-      ]),
-    ]);
-
-    // Tab-wise total counts
-    const tabWiseCounts = await payRequestModells.aggregate([
-      ...basePipeline,
       {
-        $group: {
-          _id: "$type",
-          count: { $sum: 1 },
+        $addFields: {
+          customer_name: "$project.customer",
         },
       },
+
+      {
+        $project: { project: 0 },
+      },
+
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: pageSize },
+    ];
+
+    const countPipeline = [
+      lookupStage,
+      { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
+
+      ...(query
+        ? [
+            {
+              $match: {
+                $or: [
+                  { pay_id: { $regex: searchRegex } },
+                  { paid_for: { $regex: searchRegex } },
+                  { vendor: { $regex: searchRegex } },
+                  { approved: { $regex: searchRegex } },
+                  { utr: { $regex: searchRegex } },
+                  { po_number: { $regex: searchRegex } },
+                  { "project.customer": { $regex: searchRegex } },
+                ],
+              },
+            },
+          ]
+        : []),
+
+      { $count: "total" },
+    ];
+
+    const [request, totalArr] = await Promise.all([
+      payRequestModells.aggregate(paginatedPipeline),
+      payRequestModells.aggregate(countPipeline),
     ]);
 
-    const counts = { instant: 0, credit: 0 };
-    tabWiseCounts.forEach((item) => {
-      counts[item._id] = item.count;
-    });
+    const total = totalArr[0]?.total || 0;
 
     res.status(200).json({
-      msg: "pay-summary",
+      msg: "all-pay-summary",
       meta: {
-        total: totalData[0]?.total || 0,
+        total,
         page,
-        count: paginatedData.length,
-        instantTotal: counts.instant || 0,
-        creditTotal: counts.credit || 0,
+        count: request.length,
       },
-      data: paginatedData,
+      data: request,
     });
   } catch (err) {
     console.error(err);

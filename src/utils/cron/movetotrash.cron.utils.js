@@ -8,31 +8,26 @@ cron.schedule("0 * * * *", async () => {
   const trashThreshold = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
 
   try {
-    
-    const draftResult = await PayRequest.updateMany(
+    await PayRequest.updateMany(
       {
         "approval_status.stage": { $in: ["Draft", "SCM", "CAM", "Account"] },
         "timers.draft_started_at": { $lte: draftThreshold },
         "timers.draft_frozen_at": { $exists: false },
         approved: { $nin: ["Approved", "Rejected"] },
       },
-      [
-        {
-          $set: {
-            "approval_status.stage": "Trash Pending",
-            "timers.trash_started_at": now,
+      {
+        $set: {
+          "approval_status.stage": "Trash Pending",
+          "timers.trash_started_at": now,
+        },
+        $push: {
+          status_history: {
+            stage: "Trash Pending",
+            remarks: "Auto-moved after 48 hrs",
+            timestamp: now,
           },
         },
-        {
-          $push: {
-            status_history: {
-              stage: "Trash Pending",
-              remarks: "Auto-moved after 48 hrs",
-              timestamp: now,
-            },
-          },
-        },
-      ]
+      }
     );
 
     if (draftResult.modifiedCount > 0) {
