@@ -334,6 +334,7 @@ const paymentApproval = async function (req, res) {
           credit_deadline: "$credit.credit_deadline",
           po_value: 1,
           po_number: 1,
+          vendor:1,
           credit_extension:"$credit.credit_extension",
         },
       },
