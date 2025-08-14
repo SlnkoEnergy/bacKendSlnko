@@ -172,24 +172,26 @@ const getAllLeads = async (req, res) => {
     const query = {};
 
     const regionalAccessMap = {
-      "Shambhavi Gupta": "rajasthan",
-      "Navin Kumar Gautam": "rajasthan",
-      "Ketan Kumar Jha": "madhya pradesh",
-      "Gaurav Kumar Upadhyay": "madhya pradesh",
-      "Vibhav Upadhyay": "uttar pradesh",
-      "Om Utkarsh": "rajasthan"
-    };
+  "Shambhavi Gupta": ["rajasthan"],
+  "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
+  "Navin Kumar Gautam": ["rajasthan"],
+  "Ketan Kumar Jha": ["madhya pradesh"],
+  "Gaurav Kumar Upadhyay": ["madhya pradesh"],
+  "Om Utkarsh": ["rajasthan"]
+};
+
 
     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
        query["current_assigned.user_id"]= new mongoose.Types.ObjectId(userId) 
     }
 
     if (regionalAccessMap[user.name] && !isPrivilegedUser) {
-      const region = regionalAccessMap[user.name];
-      query.$or = [
-        { "current_assigned.user_id": userId },
-        { "address.state": new RegExp(`^${region}$`, "i") },
-      ];
+      const regions = regionalAccessMap[user.name];
+query.$or = [
+  { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
+  { "address.state": { $in: regions.map(r => new RegExp(`^${r}$`, "i")) } }
+];
+
     }
 
     if (search) {
@@ -322,13 +324,14 @@ const getLeadCounts = async (req, res) => {
       (user.department === "BD" && user.role === "manager");
 
     const regionalAccessMap = {
-      "Shambhavi Gupta": "rajasthan",
-      "Navin Kumar Gautam": "rajasthan",
-      "Ketan Kumar Jha": "madhya pradesh",
-      "Gaurav Kumar Upadhyay": "madhya pradesh",
-      "Vibhav Upadhyay": "uttar pradesh",
-      "Om Utkarsh": "rajasthan"
-    };
+  "Shambhavi Gupta": ["rajasthan"],
+  "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"], 
+  "Navin Kumar Gautam": ["rajasthan"],
+  "Ketan Kumar Jha": ["madhya pradesh"],
+  "Gaurav Kumar Upadhyay": ["madhya pradesh"],
+  "Om Utkarsh": ["rajasthan"]
+};
+
     
      if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
       const userObjectId = new mongoose.Types.ObjectId(userId);
@@ -338,13 +341,14 @@ const getLeadCounts = async (req, res) => {
     }
 
     if (!isPrivilegedUser && regionalAccessMap[user.name]) {
-      const region = regionalAccessMap[user.name];
-      andConditions.push({
-        $or: [
-          { "address.state": new RegExp(`^${region.trim()}$`, "i") },
-          { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
-        ],
-      });
+      const regions = regionalAccessMap[user.name];
+andConditions.push({
+  $or: [
+    { "address.state": { $in: regions.map(r => new RegExp(`^${r.trim()}$`, "i")) } },
+    { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) }
+  ]
+});
+
     }
 
     if (search) {
