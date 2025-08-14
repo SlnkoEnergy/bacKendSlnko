@@ -7,12 +7,12 @@ const createMaterial = async function (req, res) {
   try {
     const { category, data, is_available, description } = req.body;
     const userId = req.user?.userId;
-    
+
     const existingCategory = await materialCategoryModells.findById(category);
     if (!existingCategory) {
       return res.status(404).json({ message: "Material Category not found" });
     }
-    
+
     const counter = await materialCounter.findOneAndUpdate(
       { name: "material_sku" },
       { $inc: { seq: 1 } },
@@ -24,7 +24,7 @@ const createMaterial = async function (req, res) {
     const newMaterial = new materialModells({
       category,
       sku_code: nextSkuCode,
-      description:description,
+      description: description,
       data,
       is_available,
       createdBy: userId,
@@ -35,13 +35,12 @@ const createMaterial = async function (req, res) {
 
     res.status(201).json({
       message: "Material Created Successfully",
-      data: newMaterial
+      data: newMaterial,
     });
-
   } catch (error) {
     res.status(500).json({
       message: "Error Creating Material",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -73,17 +72,18 @@ const getAllMaterials = async function (req, res) {
       filter.$or = [
         { sku_code: searchRegex },
         { "data.values.input_values": searchRegex },
-        { category: { $in: matchingCategories.map((cat) => cat._id) } }
+        { category: { $in: matchingCategories.map((cat) => cat._id) } },
       ];
     }
 
     const [materials, total] = await Promise.all([
       materialModells
         .find(filter)
+        .sort({ createdAt: -1 })
         .populate("category", "name description fields")
         .skip(skipNum)
         .limit(limitNum),
-      materialModells.countDocuments(filter)
+      materialModells.countDocuments(filter),
     ]);
 
     res.status(200).json({
@@ -96,41 +96,37 @@ const getAllMaterials = async function (req, res) {
         offset: skipNum,
         totalPages: Math.ceil(total / limitNum),
         hasNextPage: skipNum + materials.length < total,
-        hasPrevPage: pageNum > 1
-      }
+        hasPrevPage: pageNum > 1,
+      },
     });
   } catch (error) {
     res.status(500).json({
       message: "Error retrieving Materials",
-      error: error.message
+      error: error.message,
     });
   }
 };
 
-
-
 // Update material
 const updateMaterial = async function (req, res) {
   try {
-    const { category, data } = req.body;
-    const id = req.params._id;
+    const { category, data, description } = req.body;
+    const {id} = req.params;
     if (!id) {
       return res.status(400).json({ message: "Material ID is required" });
     }
     const updatedMaterial = await materialModells.findByIdAndUpdate(
       id,
-      { category, data, updatedBy: id },
+      { category, data, updatedBy: id, description },
       { new: true }
     );
     if (!updatedMaterial) {
       return res.status(404).json({ message: "Material not found" });
     }
-    res
-      .status(200)
-      .json({
-        message: "Material updated successfully",
-        data: updatedMaterial,
-      });
+    res.status(200).json({
+      message: "Material updated successfully",
+      data: updatedMaterial,
+    });
   } catch (error) {
     res
       .status(500)
@@ -149,16 +145,35 @@ const deleteMaterial = async function (req, res) {
     if (!deletedMaterial) {
       return res.status(404).json({ message: "Material not found" });
     }
-    res
-      .status(200)
-      .json({
-        message: "Material deleted successfully",
-        data: deletedMaterial,
-      });
+    res.status(200).json({
+      message: "Material deleted successfully",
+      data: deletedMaterial,
+    });
   } catch (error) {
     res
       .status(500)
       .json({ message: "Error deleting Material", error: error.message });
+  }
+};
+
+const getMaterialById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const material = await materialModells.findById(id);
+    if (!material) {
+      return res.status(404).json({
+        message: "Material Not Found",
+      });
+    }
+    res.status(200).json({
+      message: "Material Reterived Successfully",
+      data: material,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
 
@@ -168,4 +183,5 @@ module.exports = {
   getAllMaterials,
   updateMaterial,
   deleteMaterial,
+  getMaterialById,
 };
