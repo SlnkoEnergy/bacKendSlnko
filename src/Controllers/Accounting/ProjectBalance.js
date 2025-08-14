@@ -755,137 +755,120 @@ const exportProjectBalance = async (req, res) => {
       },
       {
         $addFields: {
-          totalCredit: {
-            $sum: {
-              $map: {
-                input: { $ifNull: ["$credits", []] },
-                as: "c",
-                in: { $toDouble: "$$c.cr_amount" },
-              },
-            },
-          },
-          totalDebit: {
-            $sum: {
-              $map: {
-                input: { $ifNull: ["$debits", []] },
-                as: "d",
-                in: { $toDouble: "$$d.amount_paid" },
-              },
-            },
-          },
-          totalAdjustment: {
-            $subtract: [
+          total_po_basic: {
+            $round: [
               {
                 $sum: {
                   $map: {
-                    input: {
-                      $filter: {
-                        input: { $ifNull: ["$adjustments", []] },
-                        as: "adj",
-                        cond: { $eq: ["$$adj.adj_type", "Add"] },
-                      },
-                    },
-                    as: "a",
-                    in: { $abs: { $toDouble: "$$a.adj_amount" } },
-                  },
-                },
-              },
-              {
-                $sum: {
-                  $map: {
-                    input: {
-                      $filter: {
-                        input: { $ifNull: ["$adjustments", []] },
-                        as: "adj",
-                        cond: { $eq: ["$$adj.adj_type", "Subtract"] },
-                      },
-                    },
-                    as: "a",
-                    in: { $abs: { $toDouble: "$$a.adj_amount" } },
-                  },
-                },
-              },
-            ],
-          },
-          amountOld: {
-            $subtract: [
-              {
-                $sum: {
-                  $map: {
-                    input: { $ifNull: ["$credits", []] },
-                    as: "c",
-                    in: { $toDouble: "$$c.cr_amount" },
-                  },
-                },
-              },
-              {
-                $sum: {
-                  $map: {
-                    input: { $ifNull: ["$debits", []] },
-                    as: "d",
-                    in: {
-                      $cond: [
-                        { $eq: ["$$d.paid_for", "Customer Adjustment"] },
-                        { $toDouble: "$$d.amount_paid" },
-                        0,
-                      ],
-                    },
-                  },
-                },
-              },
-            ],
-          },
-          balanceWithSlnko: {
-            $subtract: [
-              {
-                $sum: {
-                  $map: {
-                    input: { $ifNull: ["$pos", []] },
+                    input: "$pos",
                     as: "po",
-                    in: { $toDouble: "$$po.po_value" },
+                    in: {
+                      $convert: {
+                        input: { $trim: { input: "$$po.po_basic" } },
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
                   },
                 },
               },
-              {
-                $sum: {
-                  $map: {
-                    input: { $ifNull: ["$bills", []] },
-                    as: "bill",
-                    in: { $toDouble: "$$bill.bill_value" },
-                  },
-                },
-              },
-            ],
-          },
-          balancePayableToVendors: {
-            $subtract: [
-              {
-                $sum: {
-                  $map: {
-                    input: { $ifNull: ["$bills", []] },
-                    as: "bill",
-                    in: { $toDouble: "$$bill.bill_value" },
-                  },
-                },
-              },
-              {
-                $sum: {
-                  $map: {
-                    input: { $ifNull: ["$pays", []] },
-                    as: "pay",
-                    in: { $toDouble: "$$pay.amount_paid" },
-                  },
-                },
-              },
+              2,
             ],
           },
         },
       },
       {
         $addFields: {
-          netBalance: {
-            $subtract: [
-              "$totalCredit",
+          gst_as_po_basic: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$pos",
+                    as: "d",
+                    in: {
+                      $convert: {
+                        input: { $trim: { input: "$$d.gst" } },
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                  },
+                },
+              },
+              2,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          total_po_with_gst: {
+            $round: [{ $add: ["$total_po_basic", "$gst_as_po_basic"] }, 2],
+          },
+        },
+      },
+     {
+        $addFields: {
+          totalCredit: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$credits",
+                    as: "c",
+                    in: { $toDouble: "$$c.cr_amount" },
+                  },
+                },
+              },
+              2,
+            ],
+          },
+          totalDebit: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$debits",
+                    as: "d",
+                    in: { $toDouble: "$$d.amount_paid" },
+                  },
+                },
+              },
+              2,
+            ],
+          },
+          availableAmount: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$credits",
+                        as: "c",
+                        in: { $toDouble: "$$c.cr_amount" },
+                      },
+                    },
+                  },
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$debits",
+                        as: "d",
+                        in: { $toDouble: "$$d.amount_paid" },
+                      },
+                    },
+                  },
+                ],
+              },
+              2,
+            ],
+          },
+          customerAdjustmentTotal: {
+            $round: [
               {
                 $sum: {
                   $map: {
@@ -901,44 +884,306 @@ const exportProjectBalance = async (req, res) => {
                   },
                 },
               },
+              2,
+            ],
+          },
+          creditAdjustment: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$adjustments",
+                        as: "adj",
+                        cond: { $eq: ["$$adj.adj_type", "Add"] },
+                      },
+                    },
+                    as: "a",
+                    in: { $abs: { $toDouble: "$$a.adj_amount" } },
+                  },
+                },
+              },
+              2,
+            ],
+          },
+
+          debitAdjustment: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$adjustments",
+                        as: "adj",
+                        cond: { $eq: ["$$adj.adj_type", "Subtract"] },
+                      },
+                    },
+                    as: "a",
+                    in: { $abs: { $toDouble: "$$a.adj_amount" } },
+                  },
+                },
+              },
+              2,
+            ],
+          },
+          totalAdjustment: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $sum: {
+                      $map: {
+                        input: {
+                          $filter: {
+                            input: "$adjustments",
+                            as: "adj",
+                            cond: { $eq: ["$$adj.adj_type", "Add"] },
+                          },
+                        },
+                        as: "a",
+                        in: { $abs: { $toDouble: "$$a.adj_amount" } },
+                      },
+                    },
+                  },
+                  {
+                    $sum: {
+                      $map: {
+                        input: {
+                          $filter: {
+                            input: "$adjustments",
+                            as: "adj",
+                            cond: { $eq: ["$$adj.adj_type", "Subtract"] },
+                          },
+                        },
+                        as: "a",
+                        in: { $abs: { $toDouble: "$$a.adj_amount" } },
+                      },
+                    },
+                  },
+                ],
+              },
+              2,
+            ],
+          },
+          totalAmountPaid: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$debits",
+                    as: "d",
+                    in: { $toDouble: "$$d.amount_paid" },
+                  },
+                },
+              },
+              2,
+            ],
+          },
+
+          totalPoValue: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$pos",
+                    as: "po",
+                    in: { $toDouble: "$$po.po_value" },
+                  },
+                },
+              },
+              2,
+            ],
+          },
+          totalBillValue: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$bills",
+                    as: "bill",
+                    in: { $toDouble: "$$bill.bill_value" },
+                  },
+                },
+              },
+              2,
+            ],
+          },
+          netAdvance: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$pays",
+                        as: "pay",
+                        in: { $toDouble: "$$pay.amount_paid" },
+                      },
+                    },
+                  },
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$bills",
+                        as: "bill",
+                        in: { $toDouble: "$$bill.bill_value" },
+                      },
+                    },
+                  },
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+      {
+        $addFields: {
+          netBalance: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$credits",
+                        as: "c",
+                        in: { $toDouble: "$$c.cr_amount" },
+                      },
+                    },
+                  },
+                  {
+                    $sum: {
+                      $map: {
+                        input: {
+                          $filter: {
+                            input: "$debits",
+                            as: "d",
+                            cond: {
+                              $eq: ["$$d.paid_for", "Customer Adjustment"],
+                            },
+                          },
+                        },
+                        as: "d",
+                        in: { $toDouble: "$$d.amount_paid" },
+                      },
+                    },
+                  },
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+      {
+        $addFields: {
+          balanceSlnko: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $subtract: [
+                      { $ifNull: ["$netBalance", 0] },
+                      { $ifNull: ["$totalAmountPaid", 0] },
+                    ],
+                  },
+                  { $ifNull: ["$totalAdjustment", 0] },
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+      {
+        $addFields: {
+          balancePayable: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $subtract: [
+                      { $ifNull: ["$total_po_with_gst", 0] },
+                      {
+                        $sum: {
+                          $map: {
+                            input: "$bills",
+                            as: "bill",
+                            in: { $toDouble: "$$bill.bill_value" },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                  {
+                    $subtract: [
+                      {
+                        $sum: {
+                          $map: {
+                            input: "$pays",
+                            as: "pay",
+                            in: { $toDouble: "$$pay.amount_paid" },
+                          },
+                        },
+                      },
+                      {
+                        $sum: {
+                          $map: {
+                            input: "$bills",
+                            as: "bill",
+                            in: { $toDouble: "$$bill.bill_value" },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+              2,
             ],
           },
         },
       },
       {
         $addFields: {
-          balanceRequired: {
-            $subtract: [
-              {
-                $add: ["$totalCredit", "$totalAdjustment", "$amountOld"],
-              },
-              {
-                $add: [
-                  "$balanceWithSlnko",
-                  "$balancePayableToVendors",
+          tcs: {
+            $cond: {
+              if: { $gt: ["$netBalance", 5000000] },
+              then: {
+                $round: [
                   {
-                    $cond: {
-                      if: { $gt: ["$netBalance", 5000000] },
-                      then: {
-                        $round: [
-                          {
-                            $multiply: [
-                              { $subtract: ["$netBalance", 5000000] },
-                              0.001,
-                            ],
-                          },
-                          0,
-                        ],
-                      },
-                      else: 0,
-                    },
+                    $multiply: [{ $subtract: ["$netBalance", 5000000] }, 0.001],
                   },
+                  0,
+                ],
+              },
+              else: 0,
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          balanceRequired: {
+            $round: [
+              {
+                $subtract: [
+                  { $subtract: ["$balanceSlnko", "$balancePayable"] },
+                  "$tcs",
                 ],
               },
             ],
           },
         },
       },
+
+
       {
         $project: {
           _id: 1,
@@ -950,9 +1195,9 @@ const exportProjectBalance = async (req, res) => {
           totalCredit: 1,
           totalDebit: 1,
           totalAdjustment: 1,
-          amountOld: 1,
-          balanceWithSlnko: 1,
-          balancePayableToVendors: 1,
+          availableAmount: 1,
+          balanceSlnko: 1,
+          balancePayable: 1,
           balanceRequired: 1,
         },
       },
@@ -965,9 +1210,9 @@ const exportProjectBalance = async (req, res) => {
       totalCredit: item.totalCredit?.toFixed(2),
       totalDebit: item.totalDebit?.toFixed(2),
       totalAdjustment: item.totalAdjustment?.toFixed(2),
-      amountOld: item.amountOld?.toFixed(2),
-      balanceWithSlnko: item.balanceWithSlnko?.toFixed(2),
-      balancePayableToVendors: item.balancePayableToVendors?.toFixed(2),
+      availableAmount: item.availableAmount?.toFixed(2),
+      balanceSlnko: item.balanceSlnko?.toFixed(2),
+      balancePayable: item.balancePayable?.toFixed(2),
       balanceRequired: item.balanceRequired?.toFixed(2),
     }));
 
@@ -980,9 +1225,9 @@ const exportProjectBalance = async (req, res) => {
       { label: "Total Credit", value: "totalCredit" },
       { label: "Total Debit", value: "totalDebit" },
       { label: "Total Adjustment", value: "totalAdjustment" },
-      { label: "Amount (Old)", value: "amountOld" },
-      { label: "Balance with Slnko", value: "balanceWithSlnko" },
-      { label: "Balance Payable to Vendors", value: "balancePayableToVendors" },
+      { label: "Amount (Old)", value: "availableAmount" },
+      { label: "Balance with Slnko", value: "balanceSlnko" },
+      { label: "Balance Payable to Vendors", value: "balancePayable" },
       { label: "Balance Required", value: "balanceRequired" },
     ];
 

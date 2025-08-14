@@ -52,12 +52,15 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_URL;
 
 const startServer = async () => {
   try {
     await mongoose.connect(db, {});
     console.log("SlnkoEnergy database is connected");
+
+    require("../src/utils/cron/movetotrash.cron.utils");
+
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);

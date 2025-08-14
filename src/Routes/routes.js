@@ -63,10 +63,10 @@ const {
   payRrequest,
   holdpay,
   getPaySummary,
-  hold,
   account_matched,
   utrUpdate,
   accApproved,
+  restoreTrashToDraft,
   newAppovAccount,
   deletePayRequestById,
   editPayRequestById,
@@ -76,11 +76,14 @@ const {
   recoverypayrequest,
   restorepayrequest,
   getPay,
+  deadlineExtendRequest,
+  requestCreditExtension,
   approve_pending,
   hold_approve_pending,
   updateExceData,
   getExcelDataById,
   getpy,
+  getTrashPayment,
 } = require("../Controllers/payRequestControllers");
 
 const {
@@ -522,7 +525,7 @@ router.get(
   "/hold-pay-summary-IT",
   jwtMW.authentication,
   jwtMW.authorization,
-  hold
+  getTrashPayment
 );
 router.put(
   "/acc-matched",
@@ -536,6 +539,24 @@ router.put(
   jwtMW.authentication,
   jwtMW.authorization,
   accApproved
+);
+router.put(
+  "/credit-extension-by-id/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  deadlineExtendRequest
+);
+router.put(
+  "/request-extension-by-id/:_id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  requestCreditExtension
+);
+router.put(
+  "/restore-pay-request/:id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  restoreTrashToDraft
 );
 router.put(
   "/approval",
@@ -556,7 +577,7 @@ router.put(
   editPayRequestById
 ); //update pay request
 router.get(
-  "/get-pay-request-id/:_id",
+  "/get-pay-request",
   jwtMW.authentication,
   jwtMW.authorization,
   getPayRequestById
