@@ -12,13 +12,24 @@ const purchaseRequestSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "MaterialCategory",
         },
-        product_id:{
-          type: mongoose.Schema.Types.ObjectId,
-          ref:"Material"
+        product_name:{
+          type: String
+        },
+        product_make:{
+          type: String
+        },
+        quantity: {
+          type: String,
+        },
+        uom: {
+          type: String,
+        },
+        cost: {
+          type: String,
         },
         status: {
           type: String,
-        }
+        },
       },
     ],
     status: {
