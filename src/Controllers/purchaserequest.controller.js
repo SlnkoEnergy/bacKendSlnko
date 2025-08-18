@@ -4,7 +4,10 @@ const PurchaseRequestCounter = require("../Modells/purchaserequestcounter.model"
 const Project = require("../Modells/project.model");
 const purchaseOrderModells = require("../Modells/purchaseorder.model");
 const materialCategoryModells = require("../Modells/materialcategory.model");
+const modulecategory = require("../Modells/modulecategory.model")
 const scopeModel = require("../Modells/scope.model");
+const axios = require("axios");
+const XLSX = require("xlsx");
 
 const CreatePurchaseRequest = async (req, res) => {
   try {
@@ -340,7 +343,6 @@ const getAllPurchaseRequest = async (req, res) => {
     });
   }
 };
-
 
 const getPurchaseRequestById = async (req, res) => {
   try {
@@ -686,6 +688,150 @@ const getMaterialScope = async (req, res) => {
   }
 };
 
+const fetchExcelFromBOQ = async (req, res) => {
+  try {
+    const {
+      project_id,
+      template_name,
+      category,
+      category_column,
+      sheet,
+    } = req.query;
+
+    if (!project_id || !mongoose.isValidObjectId(project_id)) {
+      return res.status(400).json({ message: "Valid project_id is required" });
+    }
+
+    const doc = await modulecategory.findOne({ project_id })
+      .populate({
+        path: "items.template_id",
+        select: "name boq",
+      })
+      .lean();
+
+    if (!doc) {
+      return res.status(404).json({ message: "moduleCategory not found for given project_id" });
+    }
+
+    const items = Array.isArray(doc.items) ? doc.items : [];
+    if (items.length === 0) {
+      return res.status(404).json({ message: "No items available for this project" });
+    }
+
+    // 2) Choose the BOQ item
+    const norm = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
+    const matchesTemplateName = (it) => {
+      if (!template_name) return false;
+      const tname = it?.template_id?.name;
+      return tname && norm(tname).includes(norm(template_name));
+    };
+
+    let boqItem =
+     items.find((it) => {
+        const tname = it?.template_id?.name;
+        const n = norm(tname);
+        console.log({n})
+        return n.includes("boq") || n.includes("excel");
+
+      });
+
+    if (!boqItem) {
+      return res.status(404).json({
+        message:
+          "Could not find a BOQ Excel item (no matching template_name, no template.boq.enabled, and no template name containing 'boq'/'excel').",
+      });
+    }
+
+    const currentList = Array.isArray(boqItem.current_attachment) ? boqItem.current_attachment : [];
+    const fileUrl = currentList.filter(Boolean).at(-1);
+
+    if (!fileUrl) {
+      return res.status(404).json({
+        message: "No current_attachment URL found for the matched BOQ item.",
+        hint: "Ensure current_attachment is an array of file URLs and at least one exists.",
+      });
+    }
+
+    // 4) Download the Excel file
+    const excelResp = await axios.get(fileUrl, { responseType: "arraybuffer" });
+
+    // 5) Parse workbook
+    const wb = XLSX.read(excelResp.data, { type: "buffer" });
+
+    if (!wb.SheetNames.length) {
+      return res.status(400).json({ message: "Workbook has no sheets." });
+    }
+
+    // Determine target sheet
+    let targetSheetName;
+    if (sheet !== undefined) {
+      const asNum = Number(sheet);
+      if (!Number.isNaN(asNum)) {
+        // index
+        if (asNum < 0 || asNum >= wb.SheetNames.length) {
+          return res.status(400).json({
+            message: `Sheet index ${asNum} out of range.`,
+            available_sheets: wb.SheetNames,
+          });
+        }
+        targetSheetName = wb.SheetNames[asNum];
+      } else {
+        // name
+        if (!wb.SheetNames.includes(sheet)) {
+          return res.status(400).json({
+            message: `Sheet "${sheet}" not found.`,
+            available_sheets: wb.SheetNames,
+          });
+        }
+        targetSheetName = sheet;
+      }
+    } else {
+      targetSheetName = wb.SheetNames[0]; // default: first sheet
+    }
+
+    const ws = wb.Sheets[targetSheetName];
+    if (!ws) {
+      return res.status(404).json({ message: "Target worksheet not found." });
+    }
+
+    // 6) Convert to JSON
+    const allRows = XLSX.utils.sheet_to_json(ws, { defval: "", raw: true });
+
+    // 7) Optional category filter
+    let rows = allRows;
+    if (category) {
+      const col = category_column || "Category";
+      rows = allRows.filter(
+        (r) => norm(String(r[col])) === norm(String(category))
+      );
+    }
+
+    return res.status(200).json({
+      message: "BOQ Excel parsed successfully",
+      meta: {
+        project_id,
+        template_id: boqItem?.template_id?._id || null,
+        template_name: boqItem?.template_id?.name || null,
+        boq_enabled: !!boqItem?.template_id?.boq?.enabled,
+        sheet: targetSheetName,
+        total_rows: allRows.length,
+        filtered_rows: rows.length,
+        available_sheets: wb.SheetNames,
+        source_url_host: (() => {
+          try { return new URL(fileUrl).host; } catch { return null; }
+        })(),
+      },
+      data: rows,
+    });
+  } catch (error) {
+    console.error("fetchExcelFromBOQ error:", error?.response?.data || error?.message || error);
+    return res.status(500).json({
+      message: "Failed to fetch/parse BOQ Excel",
+      error: error?.message || "Unknown error",
+    });
+  }
+};
+
 module.exports = {
   CreatePurchaseRequest,
   getAllPurchaseRequest,
@@ -695,4 +841,5 @@ module.exports = {
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
   getMaterialScope,
+  fetchExcelFromBOQ
 };
