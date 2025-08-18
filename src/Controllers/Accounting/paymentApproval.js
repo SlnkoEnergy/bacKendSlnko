@@ -197,6 +197,49 @@ const paymentApproval = async function (req, res) {
           trimmedGroup: { $trim: { input: "$project.p_group" } },
         },
       },
+      {
+  $lookup: {
+    from: "payrequests",
+    let: { pid: "$p_id" },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: ["$p_id", "$$pid"] },
+              {
+                $or: [
+                  { $eq: ["$approved", "Approved"] },
+                  {
+                    $and: [
+                      { $eq: ["$approved", "Pending"] },
+                      { $eq: ["$approval_status.stage", "Account"] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalPaid: { $sum: { $toDouble: "$amount_paid" } }
+        }
+      }
+    ],
+    as: "creditBalanceData"
+  }
+},
+{
+  $addFields: {
+    creditBalance: {
+      $ifNull: [{ $arrayElemAt: ["$creditBalanceData.totalPaid", 0] }, 0]
+    }
+  }
+},
+
 
       // Group-level balance
       {
@@ -336,6 +379,7 @@ const paymentApproval = async function (req, res) {
           po_number: 1,
           vendor:1,
           credit_extension:"$credit.credit_extension",
+          creditBalance:1
         },
       },
     ];
