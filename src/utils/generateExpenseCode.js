@@ -1,4 +1,4 @@
-const ExpenseCounter = require("../Modells/Globals/expenseCodeCounter");
+const ExpenseCounter = require("../Modells/expensecodecounter.model");
 const User = require("../Modells/users/userModells");
 const moment = require("moment");
 

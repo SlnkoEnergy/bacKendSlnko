@@ -4,17 +4,17 @@ const PayRequest = require("../../Modells/payRequestModells");
 cron.schedule("0 * * * *", async () => {
   const now = new Date();
 
-  const draftThreshold = new Date(now.getTime() - 52 * 60 * 60 * 1000); // 52 hours ago
-  const trashThreshold = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000); // 15 days ago
+  const draftThreshold = new Date(now.getTime() - 52 * 60 * 60 * 1000);
+  const trashThreshold = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
 
   try {
-    // Step 1: Move expired drafts to Trash Pending
+    
     const draftResult = await PayRequest.updateMany(
       {
-        "approval_status.stage": "Draft",
+        "approval_status.stage": { $in: ["Draft", "SCM", "CAM", "Account"] },
         "timers.draft_started_at": { $lte: draftThreshold },
         "timers.draft_frozen_at": { $exists: false },
-        approved: { $nin: ["Approved", "Rejected"] }, // Only non-final
+        approved: { $nin: ["Approved", "Rejected"] },
       },
       [
         {
@@ -39,11 +39,10 @@ cron.schedule("0 * * * *", async () => {
       console.log(`Moved ${draftResult.modifiedCount} drafts to Trash Pending`);
     }
 
-    // Step 2: Delete old trash entries after 15 days if still not approved
     const deleteResult = await PayRequest.deleteMany({
       "approval_status.stage": "Trash Pending",
       "timers.trash_started_at": { $lte: trashThreshold },
-      approved: { $in: ["Pending", "Rejected", "Credit Pending"] },
+      approved: { $in: ["Pending", "Rejected"] },
     });
 
     if (deleteResult.deletedCount > 0) {
@@ -52,12 +51,10 @@ cron.schedule("0 * * * *", async () => {
       );
     }
 
-    // Step 3: Move expired Credit Pending to Draft
-    // Step 3: Move expired Credit Pending to Draft
     const creditResult = await PayRequest.updateMany(
       {
         "approval_status.stage": "Credit Pending",
-        "credit.credit_deadline": { $lte: now }, // deadline passed
+        "credit.credit_deadline": { $lte: now },
       },
       [
         {

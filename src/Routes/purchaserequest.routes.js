@@ -9,8 +9,8 @@ const {
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
   getMaterialScope,
-} = require("../../Controllers/purchaseRequestController/purchaseRequestController");
-const jwtMW = require("../../middlewares/auth");
+} = require("../Controllers/purchaserequest.controller");
+const jwtMW = require("../middlewares/auth");
 router.post(
   "/purchase-request",
   jwtMW.authentication,

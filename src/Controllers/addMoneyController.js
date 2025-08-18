@@ -1,5 +1,5 @@
 const addMoneyModells = require("../Modells/addMoneyModells");
-const projectModells = require("../Modells/projectModells");
+const projectModells = require("../Modells/project.model");
 const { getBill } = require("./billController");
 
 //Add Money
