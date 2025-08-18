@@ -52,8 +52,26 @@ const payRrequest = async (req, res) => {
     let cr_id = null;
 
     if (credit?.credit_status === true) {
+      // check credit deadline relative to dbt_date
+      if (!credit.credit_deadline)
+        return res.status(400).json({ msg: "Credit deadline is required." });
+
+      const dbtDateObj = new Date(dbt_date);
+      const deadlineDateObj = new Date(credit.credit_deadline);
+
+      // difference in days
+      const diffDays = Math.floor(
+        (deadlineDateObj - dbtDateObj) / (1000 * 60 * 60 * 24)
+      );
+
+      if (diffDays < 2) {
+        return res.status(400).json({
+          msg: "Credit deadline must be at least 2 days after the debit date.",
+        });
+      }
+
       do {
-        cr_id = `${project.code}/${generateRandomCreditCode()}`;
+        cr_id = `${project.code}/${generateRandomCreditCode()}/CR`;
       } while (await payRequestModells.findOne({ cr_id }));
     } else {
       do {
@@ -62,9 +80,6 @@ const payRrequest = async (req, res) => {
     }
 
     const initialStage = credit?.credit_status ? "Credit Pending" : "Draft";
-
-    if (credit?.credit_status && !credit.credit_deadline)
-      return res.status(400).json({ msg: "Credit deadline is required." });
 
     const newPayment = new payRequestModells({
       p_id,
@@ -1137,7 +1152,9 @@ const getPay = async (req, res) => {
         as: "project",
       },
     };
-    const unwindStage = { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } };
+    const unwindStage = {
+      $unwind: { path: "$project", preserveNullAndEmptyArrays: true },
+    };
 
     // Build base match conditions
     const matchConditions = [];
@@ -1159,7 +1176,7 @@ const getPay = async (req, res) => {
     if (tab === "instant") {
       // Exclude Trash Pending stage, show all approved statuses
       matchConditions.push({
-        "approval_status.stage": { $ne: "Trash Pending" }
+        "approval_status.stage": { $ne: "Trash Pending" },
       });
     } else if (status) {
       // For other tabs, filter by approved status if provided
@@ -1180,7 +1197,15 @@ const getPay = async (req, res) => {
             $switch: {
               branches: [
                 { case: { $ifNull: ["$pay_id", false] }, then: "instant" },
-                { case: { $and: [{ $eq: ["$credit.credit_status", true] }, { $ifNull: ["$cr_id", false] }] }, then: "credit" },
+                {
+                  case: {
+                    $and: [
+                      { $eq: ["$credit.credit_status", true] },
+                      { $ifNull: ["$cr_id", false] },
+                    ],
+                  },
+                  then: "credit",
+                },
               ],
               default: "instant",
             },
@@ -1202,7 +1227,12 @@ const getPay = async (req, res) => {
               {
                 $floor: {
                   $divide: [
-                    { $subtract: [{ $toDate: "$credit.credit_deadline" }, "$$NOW"] },
+                    {
+                      $subtract: [
+                        { $toDate: "$credit.credit_deadline" },
+                        "$$NOW",
+                      ],
+                    },
                     1000 * 60 * 60 * 24,
                   ],
                 },
@@ -1215,7 +1245,12 @@ const getPay = async (req, res) => {
                       $divide: [
                         {
                           $subtract: [
-                            { $add: ["$timers.trash_started_at", 1000 * 60 * 60 * 24 * 15] },
+                            {
+                              $add: [
+                                "$timers.trash_started_at",
+                                1000 * 60 * 60 * 24 * 15,
+                              ],
+                            },
                             "$$NOW",
                           ],
                         },
@@ -1260,7 +1295,15 @@ const getPay = async (req, res) => {
             $switch: {
               branches: [
                 { case: { $ifNull: ["$pay_id", false] }, then: "instant" },
-                { case: { $and: [{ $eq: ["$credit.credit_status", true] }, { $ifNull: ["$cr_id", false] }] }, then: "credit" },
+                {
+                  case: {
+                    $and: [
+                      { $eq: ["$credit.credit_status", true] },
+                      { $ifNull: ["$cr_id", false] },
+                    ],
+                  },
+                  then: "credit",
+                },
               ],
               default: "instant",
             },
@@ -1291,7 +1334,6 @@ const getPay = async (req, res) => {
     res.status(500).json({ msg: "Error retrieving data", error: err.message });
   }
 };
-
 
 const getTrashPayment = async (req, res) => {
   try {

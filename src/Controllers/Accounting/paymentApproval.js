@@ -32,7 +32,7 @@ const paymentApproval = async function (req, res) {
       accessFilter = {
         approved: "Pending",
         $or: [
-          { "approval_status.stage": "Credit Pending" },
+          // { "approval_status.stage": "Credit Pending" },
           { "approval_status.stage": "Draft" },
         ],
       };
