@@ -63,7 +63,7 @@ const payRequestschema = new mongoose.Schema(
 
     timers: {
       draft_started_at: { type: Date, default: Date.now },
-      draft_frozen_at: { type: Date, default: Date.now },
+      draft_frozen_at: { type: Date, default: null },
       trash_started_at: { type: Date, default: null },
     },
 
