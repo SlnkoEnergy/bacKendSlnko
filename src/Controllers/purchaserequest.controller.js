@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const PurchaseRequest = require("../Modells/purchaserequest.model");
 const PurchaseRequestCounter = require("../Modells/purchaserequestcounter.model");
 const Project = require("../Modells/project.model");
-const purchaseOrderModells = require("../Modells/purchaseOrderModells");
+const purchaseOrderModells = require("../Modells/purchaseorder.model");
 const materialCategoryModells = require("../Modells/materialcategory.model");
 const scopeModel = require("../Modells/scope.model");
 
@@ -321,7 +321,11 @@ const getPurchaseRequestById = async (req, res) => {
     const purchaseRequest = await PurchaseRequest.findById(id)
       .populate({
         path: "project_id",
-        select: "name code",
+        select: "name code site_address",
+      })
+      .populate({
+        path:"created_by",
+        select:"_id name"
       })
       .populate({
         path: "items.item_id",

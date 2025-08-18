@@ -1,5 +1,5 @@
 const projectModells = require("../Modells/project.model");
-const handoversheetModells = require("../Modells/handoversheetModells");
+const handoversheetModells = require("../Modells/handoversheet.model");
 
 const createProject = async function (req, res) {
   try {
@@ -163,7 +163,6 @@ const getallproject = async function (req, res) {
 };
 
 //Get Project by ID
-
 const getProjectById = async function (req, res) {
   try {
     const id = req.params._id;
@@ -252,7 +251,7 @@ const getProjectNameSearch = async (req, res) => {
     const hasMore = pageNum < totalPages;
 
     res.status(200).json({
-      message: "Material Categories retrieved Successfully",
+      message: "Project retrieved Successfully",
       data: items,
       pagination: {
         search,
@@ -266,7 +265,7 @@ const getProjectNameSearch = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({
-      message: "Error searching material categories",
+      message: "Error searching Project",
       error: error.message,
     });
   }

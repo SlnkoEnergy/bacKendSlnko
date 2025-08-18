@@ -1,16 +1,17 @@
 const materialCategory = require("../Modells/materialcategory.model");
 const scopeModel = require("../Modells/scope.model");
-const Counter = require("../Modells/materialcategorycounter.model")
+const Counter = require("../Modells/materialcategorycounter.model");
+const mongoose = require("mongoose");
 
 const addMaterialCategory = async (req, res) => {
   try {
     const { name, description, fields, type } = req.body;
     const userId = req.user?.userId;
-    
-    if(!name || !description || !type){
+
+    if (!name || !description || !type) {
       return res.status(404).json({
-        message:"Please fill all the required fields"
-      })
+        message: "Please fill all the required fields",
+      });
     }
 
     const counter = await Counter.findOneAndUpdate(
@@ -52,52 +53,111 @@ const getAllMaterialCategories = async (req, res) => {
       .find()
       .populate("createdBy", "name email")
       .populate("updatedBy", "name email");
-    res
-      .status(200)
-      .json({
-        message: "Material Categories retrieved successfully",
-        data: materialCategories,
-      });
+    res.status(200).json({
+      message: "Material Categories retrieved successfully",
+      data: materialCategories,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Error retrieving Material Categories",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error retrieving Material Categories",
+      error: error.message,
+    });
   }
 };
 
 const namesearchOfMaterialCategories = async (req, res) => {
   try {
     const {
-      search = "",                
-      page = 1,             
-      limit = 7             
+      search = "",
+      page = 1,
+      limit = 7,
+      pr = "false",
+      project_id,
     } = req.query;
 
+    const prFlag = String(pr).toLowerCase() === "true";
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
+    const skip = (pageNum - 1) * pageSize;
 
-    const filter = search
+    // Base filter from search
+    const baseFilter = search
       ? { name: { $regex: search.trim().replace(/\s+/g, ".*"), $options: "i" } }
       : {};
 
-    const projection = { _id: 1, name: 1, description:1 };
-    const sort = { name: 1, _id: 1 };
-    const skip = (pageNum - 1) * pageSize;
+    let scopeIds = null;
 
+    // If pr=true and project_id is valid, try to narrow by scope
+    if (prFlag && project_id && mongoose.Types.ObjectId.isValid(project_id)) {
+      const scopeDoc = await scopeModel
+        .findOne(
+          { project_id: new mongoose.Types.ObjectId(project_id) },
+          { items: 1, _id: 0 }
+        )
+        .lean();
+
+      // Collect only slnko item_ids
+      const ids =
+        scopeDoc?.items
+          ?.filter((it) => it?.item_id && it.scope === "slnko")
+          .map((it) => it.item_id.toString()) || [];
+
+      scopeIds = [...new Set(ids)];
+
+      if (!scopeDoc || scopeIds.length === 0) {
+        return res.status(200).json({
+          message: "Material categories retrieved successfully",
+          data: [],
+          pagination: {
+            search,
+            page: pageNum,
+            pageSize,
+            total: 0,
+            totalPages: 1,
+            hasMore: false,
+            nextPage: null,
+          },
+          meta: {
+            filteredByProjectScope: false,
+            scopeType: "slnko",
+            reason: !scopeDoc
+              ? "no_scope_for_project"
+              : "no_slnko_items_in_scope",
+          },
+        });
+      }
+    }
+
+    // Build final filter
+    const finalFilter =
+      prFlag && project_id
+        ? {
+            ...baseFilter,
+            _id: { $in: scopeIds.map((id) => new mongoose.Types.ObjectId(id)) },
+          }
+        : baseFilter;
+
+    // Projection / sort
+    const projection = { _id: 1, name: 1, description: 1 };
+    const sort = { name: 1, _id: 1 };
+
+    // Query + count
     const [items, total] = await Promise.all([
-      materialCategory.find(filter, projection).sort(sort).skip(skip).limit(pageSize),
-      materialCategory.countDocuments(filter),
+      materialCategory
+        .find(finalFilter, projection)
+        .sort(sort)
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      materialCategory.countDocuments(finalFilter),
     ]);
 
-    const totalPages = Math.ceil(total / pageSize) || 1;
+    const totalPages = Math.max(Math.ceil(total / pageSize), 1);
     const hasMore = pageNum < totalPages;
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Material categories retrieved successfully",
-      data: items,         
+      data: items,
       pagination: {
         search,
         page: pageNum,
@@ -107,9 +167,13 @@ const namesearchOfMaterialCategories = async (req, res) => {
         hasMore,
         nextPage: hasMore ? pageNum + 1 : null,
       },
+      meta: {
+        filteredByProjectScope: Boolean(prFlag && project_id),
+        scopeType: prFlag ? "slnko" : null,
+      },
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Error searching material categories",
       error: error.message,
     });
@@ -129,16 +193,18 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
     const scopeData = await scopeModel.findOne({ project_id });
 
     if (!scopeData) {
-      return res.status(404).json({ message: "Scope not found for given project" });
+      return res
+        .status(404)
+        .json({ message: "Scope not found for given project" });
     }
 
     const slnkoItemIds = new Set(
       scopeData.items
-        .filter(item => item.scope?.toLowerCase() === "slnko")
-        .map(item => item.item_id?.toString())
+        .filter((item) => item.scope?.toLowerCase() === "slnko")
+        .map((item) => item.item_id?.toString())
     );
 
-    const filteredCategories = materialCategories.filter(cat =>
+    const filteredCategories = materialCategories.filter((cat) =>
       slnkoItemIds.has(cat._id.toString())
     );
 
@@ -153,7 +219,6 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
     });
   }
 };
-
 
 // Get Material Categories By Id
 const getMaterialCategoryById = async (req, res) => {
@@ -236,5 +301,5 @@ module.exports = {
   updateMaterialCategory,
   deleteMaterialCategory,
   getAllMaterialCategoriesDropdown,
-  namesearchOfMaterialCategories
+  namesearchOfMaterialCategories,
 };

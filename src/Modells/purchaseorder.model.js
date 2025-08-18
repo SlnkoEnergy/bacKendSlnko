@@ -17,57 +17,79 @@ const purchaseOrderSchema = new mongoose.Schema(
     date: {
       type: String,
     },
-    item: {
-      type: mongoose.Schema.Types.Mixed,
-      ref: "MaterialCategory",
-    },
+    item: [
+      {
+        category: {
+          type: mongoose.Schema.Types.Mixed,
+          ref: "MaterialCategory",
+        },
+        product_name: {
+          type: String,
+        },
+        product_make: {
+          type: String,
+        },
+        uom: {
+          type: String,
+        },
+        quantity: {
+          type: String,
+        },
+        cost: {
+          type: String,
+        },
+        gst: {
+          type: String,
+        },
+      },
+    ],
     other: {
       type: String,
       default: " ",
     },
     po_value: {
-      type: Number,
+      type: Number
     },
     total_advance_paid: {
-      type: String,
+      type: String
     },
     po_balance: {
-      type: Number,
+      type: Number
     },
     vendor: {
-      type: String,
+      type: String
     },
     partial_billing: {
-      type: String,
+      type: String
     },
     amount_paid: {
-      type: Number,
+      type: Number
     },
     comment: {
-      type: String,
+      type: String
     },
     updated_on: {
-      type: String,
+      type: String
     },
     submitted_By: {
-      type: String,
+      type: String
     },
     po_basic: {
-      type: String,
+      type: String
     },
     gst: { type: String },
     pr_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "purchaseRequest",
+      ref: "purchaseRequest"
     },
     etd: {
-      type: Date,
+      type: Date
     },
     delivery_date: {
-      type: Date,
+      type: Date
     },
     dispatch_date: {
-      type: Date,
+      type: Date
     },
     status_history: [
       {
@@ -75,10 +97,11 @@ const purchaseOrderSchema = new mongoose.Schema(
           type: String,
           enum: [
             "draft",
+            "rfq",
             "po_created",
             "out_for_delivery",
             "ready_to_dispatch",
-            "delivered",
+            "delivered"
           ],
         },
         remarks: {
@@ -95,18 +118,19 @@ const purchaseOrderSchema = new mongoose.Schema(
         type: String,
         enum: [
           "draft",
+          "rfq",
           "po_created",
           "out_for_delivery",
           "ready_to_dispatch",
-          "delivered",
+          "delivered"
         ],
       },
       remarks: {
-        type: String,
+        type: String
       },
       user_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+        ref: "User"
       },
     },
   },

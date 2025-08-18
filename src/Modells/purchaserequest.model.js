@@ -12,11 +12,11 @@ const purchaseRequestSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "MaterialCategory",
         },
-        product_name:{
-          type: String
+        product_name: {
+          type: String,
         },
-        product_make:{
-          type: String
+        product_make: {
+          type: String,
         },
         quantity: {
           type: String,
@@ -25,6 +25,9 @@ const purchaseRequestSchema = new mongoose.Schema(
           type: String,
         },
         cost: {
+          type: String,
+        },
+        gst: {
           type: String,
         },
         status: {
@@ -36,6 +39,12 @@ const purchaseRequestSchema = new mongoose.Schema(
       type: String,
     },
     pr_no: {
+      type: String,
+    },
+    delivery_address: {
+      type: String,
+    },
+    description: {
       type: String,
     },
     created_by: {

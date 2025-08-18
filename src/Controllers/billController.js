@@ -1,6 +1,6 @@
 const addBillModells = require("../Modells/billDetailModells");
 const projectModells = require("../Modells/project.model");
-const purchaseOrderModeslls = require("../Modells/purchaseOrderModells");
+const purchaseOrderModeslls = require("../Modells/purchaseorder.model");
 const moment = require("moment");
 const mongoose = require("mongoose");
 const { Parser } = require("json2csv");
@@ -18,32 +18,11 @@ const addBill = async function (req, res) {
       approved_by,
     } = req.body;
 
-    // Step 1: Calculate total billed value for the given PO number
-    // const bills = await addBillModells.find({ po_number });
-    // const totalBilled = bills.reduce((sum, bill) => sum + bill.bill_value);
-
-    // Step 2: Fetch the purchase order value
     const purchaseOrder = await purchaseOrderModeslls.findOne({ po_number });
     if (!purchaseOrder) {
       return res.status(404).json({ message: "Purchase Order not found." });
     }
 
-    //  const { po_value, final } = purchaseOrder;
-
-    // Step 3: Check if total billed value exceeds PO value
-    // if (po_value < totalBilled + bill_value) {
-    //   return res.status(400).json({
-    //     message:
-    //       "Total billed amount exceeds the PO value. Please review the billing details.",
-    //   });
-    // }
-
-    // const biilnum= await addBillModells.findOne({ bill_number });
-    // if (biilnum) {
-    //   return res.status(400).send({ message: "Bill Number already used!" });
-    // }
-
-    // Step 4: Save the new bill
     const newBill = new addBillModells({
       po_number,
       bill_number,
@@ -56,7 +35,6 @@ const addBill = async function (req, res) {
 
     const savedBill = await newBill.save();
 
-    // Step 5: If "Final" bill, update the purchase order status
     if (bill_type === "Final") {
       await purchaseOrderModeslls.updateOne(
         { po_number },
@@ -259,7 +237,6 @@ const getPaginatedBill = async (req, res) => {
 };
 
 //Bills Exports
-
 const exportBills = async (req, res) => {
   try {
     const { from, to, export: exportAll } = req.query;
@@ -484,7 +461,6 @@ const updatebill = async function (req, res) {
 };
 
 //delete-bill
-
 const deleteBill = async function (req, res) {
   try {
     let id = req.params._id;

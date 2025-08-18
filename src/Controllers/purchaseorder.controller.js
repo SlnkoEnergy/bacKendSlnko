@@ -1,4 +1,4 @@
-const purchaseOrderModells = require("../Modells/purchaseOrderModells");
+const purchaseOrderModells = require("../Modells/purchaseorder.model");
 const iteamModells = require("../Modells/iteamModells");
 const recoveryPurchaseOrder = require("../Modells/recoveryPurchaseOrderModells");
 const pohisttoryModells = require("../Modells/pohistoryModells");
@@ -63,7 +63,6 @@ const addPo = async function (req, res) {
 
     res.status(200).send({
       message: "Purchase Order has been added successfully!",
-
       newPO,
     });
   } catch (error) {
@@ -215,26 +214,6 @@ const getPOByPONumber = async (req, res) => {
   }
 };
 
-// const getPOById = async (req, res) => {
-//   try {
-//     const { p_id, _id } = req.body;
-
-//     const query = {};
-//     if (_id) query._id = _id;
-//     if (p_id) query.p_id = p_id;
-
-//     const data = await purchaseOrderModells.findOne(query);
-
-//     if (!data) {
-//       return res.status(404).json({ msg: "Purchase Order not found" });
-//     }
-
-//     res.status(200).json({ msg: "Purchase Order found", data });
-//   } catch (error) {
-//     res.status(500).json({ msg: "Error retrieving PO", error: error.message });
-//   }
-// };
-
 const getPOById = async (req, res) => {
   try {
     const { p_id, _id } = req.body;
@@ -254,26 +233,6 @@ const getPOById = async (req, res) => {
     res.status(500).json({ msg: "Error retrieving PO", error: error.message });
   }
 };
-
-// const getPOHistoryById = async (req, res) => {
-//   try {
-//     const { po_number, _id } = req.query;
-
-//     const query = {};
-//     if (_id) query._id = _id;
-//     if (po_number) query.po_number = po_number;
-
-//     const data = await pohisttoryModells.findOne(query);
-
-//     if (!data) {
-//       return res.status(404).json({ msg: "Purchase Order not found" });
-//     }
-
-//     res.status(200).json({ msg: "Purchase Order found", data });
-//   } catch (error) {
-//     res.status(500).json({ msg: "Error retrieving PO", error: error.message });
-//   }
-// };
 
 const getPOHistoryById = async (req, res) => {
   try {
@@ -1191,7 +1150,6 @@ const updateStatusPO = async (req, res) => {
 };
 
 //get All PO With
-
 module.exports = {
   addPo,
   editPO,

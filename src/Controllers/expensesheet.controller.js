@@ -1,8 +1,8 @@
-const ExpenseSheet = require("../../Modells/ExpenseSheet/expenseSheetModel");
-const User = require("../../Modells/users/userModells");
+const ExpenseSheet = require("../Modells/expensesheet.model");
+const User = require("../Modells/users/userModells");
 const { Parser } = require("json2csv");
 const { default: mongoose } = require("mongoose");
-const generateExpenseCode = require("../../utils/generateExpenseCode");
+const generateExpenseCode = require("../utils/generateExpenseCode");
 const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");

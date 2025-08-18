@@ -1,11 +1,9 @@
 const projetcModells = require("../Modells/project.model");
-const purchaseorderModells = require("../Modells/purchaseOrderModells");
+const purchaseorderModells = require("../Modells/purchaseorder.model");
 const billModells = require("../Modells/billDetailModells");
 const debitmoneyModells = require("../Modells/debitMoneyModells");
 const payrequestModells = require("../Modells/payRequestModells");
 const addMoneyModells = require("../Modells/addMoneyModells");
-
-
 
 
 //total project credit amount for all project

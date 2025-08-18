@@ -48,7 +48,7 @@ const createMaterial = async function (req, res) {
 // Get all materials
 const getAllMaterials = async function (req, res) {
   try {
-    const { category, page = 1, limit = 10, offset, search } = req.query;
+    const { page = 1, limit = 10, offset, search, category } = req.query;
 
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -57,14 +57,18 @@ const getAllMaterials = async function (req, res) {
 
     let filter = {};
 
+    // ✅ Parse categories from query param (comma separated string -> array)
+    let categories = [];
     if (category) {
-      filter.category = category;
+      categories = category.split(",").map((id) => id.trim());
+      if (categories.length > 0) {
+        filter.category = { $in: categories };
+      }
     }
 
     if (search) {
       const searchRegex = new RegExp(search, "i");
 
-      // Find matching categories first
       const matchingCategories = await materialcategoryModel
         .find({ name: searchRegex })
         .select("_id");
@@ -74,6 +78,11 @@ const getAllMaterials = async function (req, res) {
         { "data.values.input_values": searchRegex },
         { category: { $in: matchingCategories.map((cat) => cat._id) } },
       ];
+
+      // keep category filter intact if already applied
+      if (categories.length > 0) {
+        filter.$or.push({ category: { $in: categories } });
+      }
     }
 
     const [materials, total] = await Promise.all([
