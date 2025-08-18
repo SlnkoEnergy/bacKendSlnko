@@ -18,42 +18,83 @@ const addPo = async function (req, res) {
     const {
       p_id,
       date,
-      item,
-      other,
       po_number,
-      po_value,
       vendor,
-      partial_billing,
       submitted_By,
+      pr_id,
+      items,
+      other = "",
+      partial_billing,
       po_basic,
       gst,
-      pr_id,
+      po_value,
+      amount_paid,
+      comment,
+      updated_on,
     } = req.body;
 
-    let resolvedItem = item === "Other" ? other : item;
-    const partialItem = await iteamModells.findOne({ item: resolvedItem });
-    const partal_billing = partialItem ? partialItem.partial_billing : "";
+    if (!po_number)
+      return res.status(400).send({ message: "po_number is required." });
+    if (!Array.isArray(items) || items.length === 0)
+      return res
+        .status(400)
+        .send({ message: "items array is required and cannot be empty." });
 
-    // Check if PO Number exists
-    const existingPO = await purchaseOrderModells.findOne({ po_number });
-    if (existingPO) {
+    const exists = await purchaseOrderModells.exists({ po_number });
+    if (exists)
       return res.status(400).send({ message: "PO Number already used!" });
-    }
 
-    // Add new Purchase Order
+    const itemsSanitized = items.map((it) => ({
+      category: it.category ?? null,
+      product_name: String(it.product_name ?? ""),
+      product_make: String(it.product_make ?? ""),
+      uom: String(it.uom ?? ""),
+      quantity: String(it.quantity ?? "0"),
+      cost: String(it.cost ?? "0"),
+      gst_percent: String(it.gst ?? "0"),
+    }));
+
+    const toNum = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const basicTotal = itemsSanitized.reduce(
+      (sum, it) => sum + toNum(it.quantity) * toNum(it.cost),
+      0
+    );
+    const gstTotal = itemsSanitized.reduce((sum, it) => {
+      const q = toNum(it.quantity);
+      const c = toNum(it.cost);
+      const g = toNum(it.gst);
+      return sum + (q * c * g) / 100;
+    }, 0);
+    const grandTotal = basicTotal + gstTotal;
+
+    const poBasicStr =
+      po_basic != null ? String(po_basic) : basicTotal.toFixed(2);
+    const gstStr = gst != null ? String(gst) : gstTotal.toFixed(2);
+    const poValueNum =
+      typeof po_value === "number"
+        ? po_value
+        : toNum(po_value ?? grandTotal.toFixed(2));
+
     const newPO = new purchaseOrderModells({
       p_id,
       po_number,
       date,
-      item: resolvedItem,
-      po_value,
-      vendor,
+      item: itemsSanitized,
       other,
+      vendor,
       submitted_By,
+      pr_id: pr_id ? new mongoose.Types.ObjectId(pr_id) : undefined,
       partial_billing,
-      po_basic,
-      gst,
-      pr_id,
+      po_basic: poBasicStr,
+      gst: gstStr,
+      po_value: poValueNum,
+      amount_paid: typeof amount_paid === "number" ? amount_paid : undefined,
+      comment,
+      updated_on,
       etd: null,
       delivery_date: null,
       dispatch_date: null,
@@ -66,6 +107,7 @@ const addPo = async function (req, res) {
       newPO,
     });
   } catch (error) {
+    console.error("addPo error:", error);
     res
       .status(500)
       .send({ message: "An error occurred while processing your request." });
@@ -376,33 +418,41 @@ const getPaginatedPo = async (req, res) => {
     }
 
     const pipeline = [
+      // normalize date and detect array/legacy shape
       {
         $addFields: {
           dateObj: {
             $cond: [
               { $eq: [{ $type: "$date" }, "string"] },
-              {
-                $dateFromString: {
-                  dateString: "$date",
-                  format: "%Y-%m-%d",
-                },
-              },
+              { $dateFromString: { dateString: "$date", format: "%Y-%m-%d" } },
               "$date",
             ],
           },
+          isItemArray: { $eq: [{ $type: "$item" }, "array"] },
         },
       },
+
       { $match: matchStage },
       { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: pageSize },
+
+      // numeric coercions (safe)
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
-          po_value: { $toDouble: "$po_value" },
+          po_value: {
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
         },
       },
 
+      // ----- Payments lookup (unchanged) -----
       {
         $lookup: {
           from: "payrequests",
@@ -424,6 +474,8 @@ const getPaginatedPo = async (req, res) => {
           as: "approvedPayments",
         },
       },
+
+      // ----- Bills lookup (unchanged) -----
       {
         $lookup: {
           from: "biildetails",
@@ -432,6 +484,8 @@ const getPaginatedPo = async (req, res) => {
           as: "billData",
         },
       },
+
+      // amounts from lookups
       {
         $addFields: {
           amount_paid: {
@@ -469,19 +523,20 @@ const getPaginatedPo = async (req, res) => {
         },
       },
 
+      // partial billing + latest bill type
       {
         $addFields: {
           partial_billing: {
-            $cond: {
-              if: { $lt: ["$total_billed", "$po_value"] },
-              then: "Bill Pending",
-              else: "Fully Billed",
-            },
+            $cond: [
+              { $lt: ["$total_billed", "$po_value"] },
+              "Bill Pending",
+              "Fully Billed",
+            ],
           },
           billingTypes: {
-            $cond: {
-              if: { $gt: [{ $size: "$billData" }, 0] },
-              then: {
+            $cond: [
+              { $gt: [{ $size: "$billData" }, 0] },
+              {
                 $let: {
                   vars: {
                     sorted: {
@@ -505,11 +560,13 @@ const getPaginatedPo = async (req, res) => {
                   in: { $arrayElemAt: ["$$sorted.type", 0] },
                 },
               },
-              else: "-",
-            },
+              "-",
+            ],
           },
         },
       },
+
+      // join to PR (unchanged)
       {
         $lookup: {
           from: "purchaserequests",
@@ -518,27 +575,128 @@ const getPaginatedPo = async (req, res) => {
           as: "prRequest",
         },
       },
+      { $addFields: { pr_no: { $arrayElemAt: ["$prRequest.pr_no", 0] } } },
+
+      // extra coercions (safe)
       {
         $addFields: {
-          pr_no: {
-            $arrayElemAt: ["$prRequest.pr_no", 0],
+          po_basic: {
+            $convert: {
+              input: "$po_basic",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
+          gst: {
+            $convert: { input: "$gst", to: "double", onError: 0, onNull: 0 },
           },
         },
       },
 
+      // ---------- CATEGORY RESOLUTION FOR BOTH SHAPES ----------
+      // Build arrays of category raw values (strings/ObjectIds) for array shape
       {
         $addFields: {
-          itemObjectId: {
+          itemCatRawArr: {
+            $cond: [
+              "$isItemArray",
+              {
+                $map: {
+                  input: "$item",
+                  as: "it",
+                  in: {
+                    $cond: [
+                      { $eq: [{ $type: "$$it.category" }, "object"] },
+                      "$$it.category._id", // object with {_id,name}
+                      "$$it.category", // string id or plain name
+                    ],
+                  },
+                },
+              },
+              [], // not an array → leave empty; legacy handled separately
+            ],
+          },
+        },
+      },
+      // Turn raw arr into ObjectIds where possible AND collect plain names
+      {
+        $addFields: {
+          itemCatObjectIdArr: {
+            $map: {
+              input: "$itemCatRawArr",
+              as: "c",
+              in: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: [{ $type: "$$c" }, "string"] },
+                      { $eq: [{ $strLenCP: "$$c" }, 24] },
+                      {
+                        $regexMatch: {
+                          input: "$$c",
+                          regex: "^[0-9a-fA-F]{24}$",
+                        },
+                      },
+                    ],
+                  },
+                  { $toObjectId: "$$c" },
+                  {
+                    $cond: [
+                      { $eq: [{ $type: "$$c" }, "objectId"] },
+                      "$$c",
+                      null,
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          itemCatNameStrArr: {
+            $map: {
+              input: "$itemCatRawArr",
+              as: "c",
+              in: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: [{ $type: "$$c" }, "string"] },
+                      {
+                        $not: [
+                          {
+                            $and: [
+                              { $eq: [{ $strLenCP: "$$c" }, 24] },
+                              {
+                                $regexMatch: {
+                                  input: "$$c",
+                                  regex: "^[0-9a-fA-F]{24}$",
+                                },
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                  "$$c",
+                  null,
+                ],
+              },
+            },
+          },
+          // legacy single value helpers
+          legacyItemStr: {
+            $cond: [{ $not: ["$isItemArray"] }, { $toString: "$item" }, null],
+          },
+          legacyItemObjId: {
             $cond: [
               {
                 $and: [
+                  { $not: ["$isItemArray"] },
+                  { $eq: [{ $type: "$item" }, "string"] },
                   { $eq: [{ $strLenCP: "$item" }, 24] },
                   {
-                    $regexMatch: {
-                      input: "$item",
-                      regex: "^[0-9a-fA-F]{24}$",
-                      options: "i",
-                    },
+                    $regexMatch: { input: "$item", regex: "^[0-9a-fA-F]{24}$" },
                   },
                 ],
               },
@@ -548,35 +706,83 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-      {
-        $addFields: {
-          po_number: { $toString: "$po_number" },
-          po_value: { $toDouble: "$po_value" },
-          po_basic: { $toDouble: "$po_basic" },
-          gst: { $toDouble: "$gst" },
-        },
-      },
 
+      // Look up categories by ids (array case + legacy id)
       {
         $lookup: {
           from: "materialcategories",
-          let: { itemField: "$item", itemObjectId: "$itemObjectId" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $or: [
-                    { $eq: ["$_id", "$$itemObjectId"] },
-                    { $eq: ["$name", "$$itemField"] },
-                  ],
+          let: {
+            idList: {
+              $setUnion: [
+                {
+                  $filter: {
+                    input: "$itemCatObjectIdArr",
+                    as: "x",
+                    cond: { $ne: ["$$x", null] },
+                  },
                 },
-              },
+                [{ $ifNull: ["$legacyItemObjId", null] }],
+              ],
             },
+          },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", "$$idList"] } } },
+            { $project: { _id: 1, name: 1 } },
           ],
-          as: "itemData",
+          as: "mcByIds",
         },
       },
+
+      // Look up categories by names (array case + legacy string-as-name)
+      {
+        $lookup: {
+          from: "materialcategories",
+          let: {
+            nameList: {
+              $setUnion: [
+                {
+                  $filter: {
+                    input: "$itemCatNameStrArr",
+                    as: "x",
+                    cond: { $ne: ["$$x", null] },
+                  },
+                },
+                [{ $ifNull: ["$legacyItemStr", null] }],
+              ],
+            },
+          },
+          pipeline: [
+            { $match: { $expr: { $in: ["$name", "$$nameList"] } } },
+            { $project: { _id: 1, name: 1 } },
+          ],
+          as: "mcByNames",
+        },
+      },
+
+      // Collect resolved names for both shapes
+      {
+        $addFields: {
+          resolvedCatNames: {
+            $setUnion: [
+              { $map: { input: "$mcByIds", as: "c", in: "$$c.name" } },
+              { $map: { input: "$mcByNames", as: "c", in: "$$c.name" } },
+            ],
+          },
+          // fallback raw strings for array case if nothing resolved
+          rawCatStrings: {
+            $map: {
+              input: "$itemCatRawArr",
+              as: "c",
+              in: { $toString: "$$c" },
+            },
+          },
+        },
+      },
+
+      // optional status match after computing partial_billing
       ...(status ? [{ $match: { partial_billing: status } }] : []),
+
+      // Final projection
       {
         $project: {
           _id: 0,
@@ -584,13 +790,63 @@ const getPaginatedPo = async (req, res) => {
           p_id: 1,
           pr_no: 1,
           vendor: 1,
+
+          // ITEM (name(s)):
           item: {
-            $cond: {
-              if: { $gt: [{ $size: "$itemData" }, 0] },
-              then: { $arrayElemAt: ["$itemData.name", 0] },
-              else: "$item",
-            },
+            $cond: [
+              "$isItemArray",
+              {
+                $cond: [
+                  { $gt: [{ $size: "$resolvedCatNames" }, 0] },
+                  {
+                    $reduce: {
+                      input: "$resolvedCatNames",
+                      initialValue: "",
+                      in: {
+                        $concat: [
+                          {
+                            $cond: [
+                              { $eq: ["$$value", ""] },
+                              "",
+                              { $concat: ["$$value", ", "] },
+                            ],
+                          },
+                          "$$this",
+                        ],
+                      },
+                    },
+                  },
+                  {
+                    $reduce: {
+                      input: "$rawCatStrings",
+                      initialValue: "",
+                      in: {
+                        $concat: [
+                          {
+                            $cond: [
+                              { $eq: ["$$value", ""] },
+                              "",
+                              { $concat: ["$$value", ", "] },
+                            ],
+                          },
+                          "$$this",
+                        ],
+                      },
+                    },
+                  },
+                ],
+              },
+              // legacy (single)
+              {
+                $cond: [
+                  { $gt: [{ $size: "$resolvedCatNames" }, 0] },
+                  { $arrayElemAt: ["$resolvedCatNames", 0] },
+                  { $toString: "$item" },
+                ],
+              },
+            ],
           },
+
           date: 1,
           po_value: 1,
           po_basic: 1,

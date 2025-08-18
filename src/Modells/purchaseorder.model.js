@@ -38,7 +38,7 @@ const purchaseOrderSchema = new mongoose.Schema(
         cost: {
           type: String,
         },
-        gst: {
+        gst_percent: {
           type: String,
         },
       },
@@ -48,48 +48,52 @@ const purchaseOrderSchema = new mongoose.Schema(
       default: " ",
     },
     po_value: {
-      type: Number
+      type: Number,
     },
     total_advance_paid: {
-      type: String
+      type: String,
     },
     po_balance: {
-      type: Number
+      type: Number,
     },
     vendor: {
-      type: String
+      type: String,
     },
     partial_billing: {
-      type: String
+      type: String,
     },
     amount_paid: {
-      type: Number
+      type: Number,
     },
     comment: {
-      type: String
+      type: String,
     },
     updated_on: {
-      type: String
+      type: String,
     },
     submitted_By: {
-      type: String
+      type: String,
     },
     po_basic: {
-      type: String
+      type: String,
     },
     gst: { type: String },
     pr_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "purchaseRequest"
+      ref: "purchaseRequest",
     },
     etd: {
-      type: Date
+      type: Date,
     },
     delivery_date: {
-      type: Date
+      type: Date,
     },
     dispatch_date: {
-      type: Date
+      type: Date,
+    },
+    delivery_type: {
+      type: String,
+      enum:["afor", "slnko", "client"]
     },
     status_history: [
       {
@@ -101,7 +105,7 @@ const purchaseOrderSchema = new mongoose.Schema(
             "po_created",
             "out_for_delivery",
             "ready_to_dispatch",
-            "delivered"
+            "delivered",
           ],
         },
         remarks: {
@@ -122,15 +126,15 @@ const purchaseOrderSchema = new mongoose.Schema(
           "po_created",
           "out_for_delivery",
           "ready_to_dispatch",
-          "delivered"
+          "delivered",
         ],
       },
       remarks: {
-        type: String
+        type: String,
       },
       user_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User"
+        ref: "User",
       },
     },
   },

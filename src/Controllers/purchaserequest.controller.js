@@ -120,7 +120,9 @@ const getAllPurchaseRequest = async (req, res) => {
     const poValueSearchNumber = Number(poValueSearch);
     const statusSearchRegex = new RegExp(statusSearch, "i");
 
-    const pipeline = [
+    // --- Base pipeline (no final sort/skip/limit here) ---
+    const baseStages = [
+      // Join project
       {
         $lookup: {
           from: "projectdetails",
@@ -130,6 +132,8 @@ const getAllPurchaseRequest = async (req, res) => {
         },
       },
       { $unwind: { path: "$project_id", preserveNullAndEmptyArrays: true } },
+
+      // Join created_by
       {
         $lookup: {
           from: "users",
@@ -138,13 +142,18 @@ const getAllPurchaseRequest = async (req, res) => {
           as: "created_by",
         },
       },
-      { $unwind: "$created_by" },
+      { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
+
+      // Unwind items TEMPORARILY so we can enrich them and filter,
+      // we'll group back later to avoid bifurcation.
       {
         $unwind: {
           path: "$items",
           preserveNullAndEmptyArrays: true,
         },
       },
+
+      // Enrich each item with material category
       {
         $lookup: {
           from: "materialcategories",
@@ -159,7 +168,8 @@ const getAllPurchaseRequest = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
-      
+
+      // Text search across PR fields (PR-level)
       ...(search
         ? [
             {
@@ -173,7 +183,8 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
-     
+
+      // Filter by item name only when itemSearch is provided
       ...(itemSearch
         ? [
             {
@@ -183,6 +194,8 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
+
+      // Filter by item status (applies only when items exist)
       ...(statusSearch
         ? [
             {
@@ -192,6 +205,8 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
+
+      // PR created date range (PR-level)
       ...(createdFrom && createdTo
         ? [
             {
@@ -204,6 +219,8 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
+
+      // Build a normalized item object per row (may be null if no items)
       {
         $project: {
           _id: 1,
@@ -223,12 +240,46 @@ const getAllPurchaseRequest = async (req, res) => {
           },
         },
       },
+
+      // GROUP BACK to one PR per document; collect items into an array
+      {
+        $group: {
+          _id: "$_id",
+          pr_no: { $first: "$pr_no" },
+          createdAt: { $first: "$createdAt" },
+          project_id: { $first: "$project_id" },
+          created_by: { $first: "$created_by" },
+          items: { $push: "$item" }, // may include nulls
+        },
+      },
+
+      // Remove null items introduced by preserveNullAndEmptyArrays
+      {
+        $project: {
+          pr_no: 1,
+          createdAt: 1,
+          project_id: 1,
+          created_by: 1,
+          items: {
+            $filter: {
+              input: "$items",
+              as: "it",
+              cond: { $and: [{ $ne: ["$$it", null] }, { $ne: ["$$it._id", null] }] },
+            },
+          },
+        },
+      },
+    ];
+
+    const pipeline = [
+      ...baseStages,
       { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: Number(limit) },
     ];
 
-    const countPipeline = [...pipeline.slice(0, -3), { $count: "totalCount" }];
+    // Count PRs after grouping (not per-item)
+    const countPipeline = [...baseStages, { $count: "totalCount" }];
 
     let [requests, countResult] = await Promise.all([
       PurchaseRequest.aggregate(pipeline),
@@ -237,17 +288,25 @@ const getAllPurchaseRequest = async (req, res) => {
 
     let totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
 
-    // Attach PO details for each request
+    // ---- Attach PO details per PR (match any PR item by id or name) ----
     requests = await Promise.all(
       requests.map(async (request) => {
         const pos = await purchaseOrderModells.find({ pr_id: request._id });
 
-        const prItemIdStr = request.item?.item_id?._id?.toString?.();
-        const prItemName = request.item?.item_id?.name;
+        const prItemIds = new Set(
+          (request.items || [])
+            .map((it) => it?.item_id?._id?.toString?.())
+            .filter(Boolean)
+        );
+        const prItemNames = new Set(
+          (request.items || [])
+            .map((it) => it?.item_id?.name)
+            .filter(Boolean)
+        );
 
         const filteredPOs = pos.filter((po) => {
           const poItemStr = po?.item?.toString?.();
-          return poItemStr === prItemIdStr || po.item === prItemName;
+          return prItemIds.has(poItemStr) || prItemNames.has(po.item);
         });
 
         const poDetails = filteredPOs.map((po) => ({
@@ -261,8 +320,12 @@ const getAllPurchaseRequest = async (req, res) => {
           0
         );
 
+        // Back-compat: when itemSearch is used, expose a single `item`
+        const singleItem = itemSearch ? (request.items?.[0] || null) : undefined;
+
         return {
           ...request,
+          ...(singleItem !== undefined ? { item: singleItem } : {}),
           po_value: totalPoValueWithGst,
           po_numbers: poDetails.map((p) => p.po_number),
           po_details: poDetails,
@@ -270,14 +333,14 @@ const getAllPurchaseRequest = async (req, res) => {
       })
     );
 
-    // Filter by PO value
+    // Filter by PO value (client-search)
     if (poValueSearch) {
       requests = requests.filter(
         (r) => Number(r.po_value) === poValueSearchNumber
       );
     }
 
-    // Filter by ETD date range
+    // Filter by ETD date range (client-search)
     if (etdFrom && etdTo) {
       const etdStart = new Date(etdFrom);
       const etdEnd = new Date(etdTo);
@@ -290,7 +353,7 @@ const getAllPurchaseRequest = async (req, res) => {
       );
     }
 
-    // Update total count if filtered
+    // If client-side filters applied post-agg, update totalCount
     if (poValueSearch || (etdFrom && etdTo)) {
       totalCount = requests.length;
     }
@@ -309,6 +372,7 @@ const getAllPurchaseRequest = async (req, res) => {
     });
   }
 };
+
 
 const getPurchaseRequestById = async (req, res) => {
   try {
