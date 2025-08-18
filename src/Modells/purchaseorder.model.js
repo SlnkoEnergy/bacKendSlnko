@@ -93,7 +93,7 @@ const purchaseOrderSchema = new mongoose.Schema(
     },
     delivery_type: {
       type: String,
-      enum:["afor", "slnko", "client"]
+      enum: ["afor", "slnko", "client"],
     },
     status_history: [
       {
@@ -101,7 +101,9 @@ const purchaseOrderSchema = new mongoose.Schema(
           type: String,
           enum: [
             "draft",
-            "rfq",
+            "approval_pending",
+            "approval_done",
+            "approval_rejected",
             "po_created",
             "out_for_delivery",
             "ready_to_dispatch",
@@ -122,7 +124,9 @@ const purchaseOrderSchema = new mongoose.Schema(
         type: String,
         enum: [
           "draft",
-          "rfq",
+          "approval_pending",
+          "approval_done",
+          "approval_rejected",
           "po_created",
           "out_for_delivery",
           "ready_to_dispatch",
