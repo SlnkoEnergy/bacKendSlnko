@@ -63,15 +63,14 @@
 const cron = require("node-cron");
 const PayRequest = require("../../Modells/payRequestModells");
 
-// Run job every minute (for testing)
-// For production, you can use "0 * * * *" to run hourly
 cron.schedule("* * * * *", async () => {
   const now = new Date();
-  const draftThreshold = new Date(now.getTime() -  60 * 1000); // 2 minutes
-  const trashDeleteThreshold = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000); // 15 days
+  const draftThreshold = new Date(now.getTime() - 52 * 60 * 60 * 1000);
+  const trashDeleteThreshold = new Date(
+    now.getTime() - 15 * 24 * 60 * 60 * 1000
+  );
 
   try {
-    // 1️⃣ Draft → Trash Pending
     const draftQuery = {
       "approval_status.stage": "Draft",
       "timers.draft_started_at": { $lte: draftThreshold },
@@ -80,7 +79,7 @@ cron.schedule("* * * * *", async () => {
     };
 
     const draftsToUpdate = await PayRequest.find(draftQuery);
-    console.log(`📝 Drafts to move: ${draftsToUpdate.length}`);
+    // console.log(`📝 Drafts to move: ${draftsToUpdate.length}`);
 
     if (draftsToUpdate.length > 0) {
       await PayRequest.updateMany(draftQuery, {
@@ -98,14 +97,15 @@ cron.schedule("* * * * *", async () => {
       });
     }
 
-    // 2️⃣ Credit Pending → Draft
     const creditQuery = {
       "approval_status.stage": "Credit Pending",
-      "credit.credit_deadline": { $lte: now }, // credit deadline expired
+      "credit.credit_deadline": { $lte: now },
     };
 
     const creditToUpdate = await PayRequest.find(creditQuery);
-    console.log(`📝 Credit Pending to move back to Draft: ${creditToUpdate.length}`);
+    // console.log(
+    //   `📝 Credit Pending to move back to Draft: ${creditToUpdate.length}`
+    // );
 
     if (creditToUpdate.length > 0) {
       await PayRequest.updateMany(creditQuery, {
@@ -123,7 +123,6 @@ cron.schedule("* * * * *", async () => {
       });
     }
 
-    // 3️⃣ Delete old Trash Pending (>15 days)
     const deleteQuery = {
       "approval_status.stage": "Trash Pending",
       "timers.trash_started_at": { $lte: trashDeleteThreshold },
@@ -131,15 +130,15 @@ cron.schedule("* * * * *", async () => {
     };
 
     const toDelete = await PayRequest.find(deleteQuery);
-    console.log(`📝 Trash Pending to delete: ${toDelete.length}`);
+    // console.log(`📝 Trash Pending to delete: ${toDelete.length}`);
 
     if (toDelete.length > 0) {
-      const deleteResult = await PayRequest.deleteMany(deleteQuery);
-      console.log(`🗑 Deleted: ${deleteResult.deletedCount} old Trash Pending requests`);
+      await PayRequest.deleteMany(deleteQuery);
+      // console.log(
+      //   `🗑 Deleted: ${deleteResult.deletedCount} old Trash Pending requests`
+      // );
     }
-
   } catch (err) {
-    console.error("❌ [Cron] Error:", err);
+    console.error(" [Cron] Error:", err);
   }
 });
-
