@@ -17,7 +17,8 @@ const {
   getProjectById,
   getProjectbyPId,
   getProjectDropwdown,
-} = require("../Controllers/ProjectController");
+  getProjectNameSearch,
+} = require("../Controllers/project.controller.js");
 const {
   userRegister,
   login,
@@ -50,14 +51,15 @@ const {
   getPOHistoryById,
   updateEditandDeliveryDate,
   updateStatusPO,
-} = require("../Controllers/purchaseOrderController");
+} = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
   getVendor,
   updateVendor,
   deleteVendor,
   getVendorDropwdown,
-} = require("../Controllers/addVenderController");
+  getVendorNameSearch,
+} = require("../Controllers/vendor.controller.js");
 const { additem, getItem } = require("../Controllers/itemController");
 const {
   payRrequest,
@@ -215,7 +217,7 @@ const {
   getByIdOrLeadId,
   getexportToCsv,
   migrateProjectToHandover,
-} = require("../Controllers/handoversheetController");
+} = require("../Controllers/handoversheet.controller.js");
 const {
   addmoduleMaster,
   getmoduleMasterdata,
@@ -235,7 +237,7 @@ const {
   updateExpenseSheet,
   updateDisbursementDate,
   getExpensePdf,
-} = require("../Controllers/expenseSheetControllers/expenseSheetController");
+} = require("../Controllers/expensesheet.controller.js");
 
 const {
   createModifiedExpense,
@@ -330,7 +332,6 @@ router.delete(
   jwtMW.authorization,
   deleteProjectById
 );
-//delete project by id
 router.get(
   "/get-project-iD-IT/:_id",
   jwtMW.authentication,
@@ -349,6 +350,7 @@ router.get(
   jwtMW.authorization,
   getProjectDropwdown
 );
+router.get("/project-search", jwtMW.authentication, getProjectNameSearch);
 
 //addMoney APi
 router.post(
@@ -484,13 +486,13 @@ router.delete(
   jwtMW.authorization,
   deleteVendor
 ); //delete vendor
-
 router.get(
   "/vendor-dropdown",
   jwtMW.authentication,
   jwtMW.authorization,
   getVendorDropwdown
 );
+router.get("/vendor-search", jwtMW.authentication, getVendorNameSearch);
 
 //item
 router.post("/add-iteM-IT", jwtMW.authentication, jwtMW.authorization, additem);

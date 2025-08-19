@@ -1,9 +1,9 @@
 const { default: mongoose } = require("mongoose");
 const moduleCategory = require("../Modells/modulecategory.model");
-const hanoversheetmodells = require("../Modells/handoversheetModells");
-const projectmodells = require("../Modells/projectModells");
+const hanoversheetmodells = require("../Modells/handoversheet.model");
+const projectmodells = require("../Modells/project.model");
 const { Parser } = require("json2csv");
-const handoversheetModells = require("../Modells/handoversheetModells");
+const handoversheetModells = require("../Modells/handoversheet.model");
 const userModells = require("../Modells/users/userModells");
 const materialCategoryModells = require("../Modells/materialcategory.model");
 const scopeModel = require("../Modells/scope.model");
@@ -140,8 +140,8 @@ const createhandoversheet = async function (req, res) {
 
       await moduleCategoryData.save();
     }
-    
-    const lead = await bdleadsModells.findOne({id: id});
+
+    const lead = await bdleadsModells.findOne({ id: id });
     lead.status_of_handoversheet = req.body.status_of_handoversheet || "draft";
     lead.handover_lock = req.body.handover_lock || "locked";
     await lead.save();
@@ -155,7 +155,6 @@ const createhandoversheet = async function (req, res) {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 const gethandoversheetdata = async function (req, res) {
   try {
@@ -195,35 +194,36 @@ const gethandoversheetdata = async function (req, res) {
       });
     }
 
-    const statuses = statusFilter
-  ?.split(",")
-  .map((s) => s.trim())
-  .filter(Boolean) || [];
+    const statuses =
+      statusFilter
+        ?.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean) || [];
 
-const hasHandoverPending = statuses.includes("handoverpending");
-const hasScopePending = statuses.includes("scopepending");
-const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
+    const hasHandoverPending = statuses.includes("handoverpending");
+    const hasScopePending = statuses.includes("scopepending");
+    const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
 
-const actualStatuses = statuses.filter(
-  (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen" 
-);
+    const actualStatuses = statuses.filter(
+      (s) =>
+        s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
+    );
 
-if (actualStatuses.length === 1) {
-  matchConditions.$and.push({ status_of_handoversheet: actualStatuses[0] });
-} else if (actualStatuses.length > 1) {
-  matchConditions.$and.push({
-    status_of_handoversheet: { $in: actualStatuses },
-  });
-}
+    if (actualStatuses.length === 1) {
+      matchConditions.$and.push({ status_of_handoversheet: actualStatuses[0] });
+    } else if (actualStatuses.length > 1) {
+      matchConditions.$and.push({
+        status_of_handoversheet: { $in: actualStatuses },
+      });
+    }
 
-if (hasHandoverPending) {
-  matchConditions.$and.push({ status_of_handoversheet: "submitted" });
-}
+    if (hasHandoverPending) {
+      matchConditions.$and.push({ status_of_handoversheet: "submitted" });
+    }
 
-if (hasScopeOpen) {
-  matchConditions.$and.push({ scope_status: "open" });
-}
-
+    if (hasScopeOpen) {
+      matchConditions.$and.push({ scope_status: "open" });
+    }
 
     const finalMatch = matchConditions.$and.length > 0 ? matchConditions : {};
 
@@ -277,22 +277,22 @@ if (hasScopeOpen) {
       },
       {
         $lookup: {
-          from: "scopes", 
+          from: "scopes",
           localField: "projectInfo._id",
           foreignField: "project_id",
-          as: "scopeInfo"
-        }
+          as: "scopeInfo",
+        },
       },
       {
         $unwind: {
           path: "$scopeInfo",
-          preserveNullAndEmptyArrays: true
-        }
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $addFields: {
-          scope_status: "$scopeInfo.current_status.status"
-        }
+          scope_status: "$scopeInfo.current_status.status",
+        },
       },
       {
         $match: finalMatch,
@@ -310,61 +310,63 @@ if (hasScopeOpen) {
         },
       ]);
 
-      const projectIds = matchedDocs.map((doc) => doc.project_id).filter(Boolean);
+      const projectIds = matchedDocs
+        .map((doc) => doc.project_id)
+        .filter(Boolean);
 
-      const scopes = await scopeModel.find({
-        project_id: { $in: projectIds },
-        $or: [
-          { status_history: { $exists: false } },
-          { status_history: { $size: 0 } },
-        ],
-      }).select("project_id");
+      const scopes = await scopeModel
+        .find({
+          project_id: { $in: projectIds },
+          $or: [
+            { status_history: { $exists: false } },
+            { status_history: { $size: 0 } },
+          ],
+        })
+        .select("project_id");
 
       const pendingScopeIds = scopes.map((s) => s.project_id.toString());
 
       pipeline.push({
         $match: {
           "projectInfo._id": {
-            $in: pendingScopeIds.map(id => new mongoose.Types.ObjectId(id)),
+            $in: pendingScopeIds.map((id) => new mongoose.Types.ObjectId(id)),
           },
         },
       });
     }
 
-    pipeline.push(
-      {
-        $facet: {
-          metadata: [{ $count: "total" }],
-          data: [
-            { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: limit },
-            {
-              $project: {
-                _id: 1,
-                id: 1,
-                createdAt: 1,
-                leadId: 1,
-                customer_details: 1,
-                scheme: "$leadDetails.scheme",
-                proposed_dc_capacity: "$project_detail.proposed_dc_capacity",
-                project_kwp: "$project_detail.project_kwp",
-                total_gst: "$other_details.total_gst",
-                service: "$other_details.service",
-                submitted_by: 1,
-                leadDetails: 1,
-                status_of_handoversheet: 1,
-                is_locked: 1,
-                comment: 1,
-                p_id: 1,
-                project_id: "$projectInfo._id",
-                scope_status: 1 
-              },
+    pipeline.push({
+      $facet: {
+        metadata: [{ $count: "total" }],
+        data: [
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 1,
+              id: 1,
+              createdAt: 1,
+              leadId: 1,
+              customer_details: 1,
+              scheme: "$leadDetails.scheme",
+              proposed_dc_capacity: "$project_detail.proposed_dc_capacity",
+              project_kwp: "$project_detail.project_kwp",
+              total_gst: "$other_details.total_gst",
+              service: "$other_details.service",
+              submitted_by: 1,
+              leadDetails: 1,
+              status_of_handoversheet: 1,
+              is_locked: 1,
+              comment: 1,
+              p_id: 1,
+              project_id: "$projectInfo._id",
+              scope_status: 1,
             },
-          ],
-        },
-      }
-    );
+          },
+        ],
+      },
+    });
 
     const result = await hanoversheetmodells.aggregate(pipeline);
     const total = result[0].metadata[0]?.total || 0;
@@ -385,8 +387,6 @@ if (hasScopeOpen) {
   }
 };
 
-
-
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
   try {
@@ -401,12 +401,12 @@ const edithandoversheetdata = async function (req, res) {
       data,
       { new: true }
     );
-    
-     if (typeof data.is_locked !== "undefined") {
+
+    if (typeof data.is_locked !== "undefined") {
       await bdleadsModells.findOneAndUpdate(
         { id: edithandoversheet.id },
         { handover_lock: data.is_locked },
-        {status_of_handoversheet: data.status_of_handoversheet}
+        { status_of_handoversheet: data.status_of_handoversheet }
       );
     }
 
@@ -434,7 +434,7 @@ const updatestatus = async function (req, res) {
     if (!updatedHandoversheet) {
       return res.status(404).json({ message: "Handoversheet not found" });
     }
-    
+
     const lead = await bdleadsModells.findOne({ id: updatedHandoversheet.id });
     lead.status_of_handoversheet = status_of_handoversheet;
     lead.handover_lock = updatedHandoversheet.is_locked;
@@ -538,19 +538,24 @@ const updatestatus = async function (req, res) {
 
         await moduleCategoryData.save();
 
-        const allMaterialCategories = await materialCategoryModells.find();
+        const allMaterialCategories = await materialCategoryModells.find(
+          {},
+          { _id: 1, name: 1, type: 1, order:1 }
+        );
 
-        const scopeData = new scopeModel({
-          project_id: projectData._id,
-          items: allMaterialCategories.map((mc) => ({
-            item_id: mc._id,
-            name: mc.name,
-            type: mc.type,
-            category: mc.category,
-            order: mc.order
-          })),
-          createdBy: req.user.userId,
-        });
+       const scopeData = await scopeModel.create({
+         project_id: projectData._id,
+         items: allMaterialCategories.map((mc) => ({
+           item_id: mc._id,
+           name: mc.name,
+           type: mc.type,
+           order: typeof mc.order === "number" ? mc.order : 0,
+           scope: "client", 
+           quantity: "", 
+           uom: "", 
+         })),
+         createdBy: req.user.userId,
+       });
 
         await scopeData.save();
 
@@ -617,7 +622,6 @@ const getByIdOrLeadId = async function (req, res) {
 };
 
 //sercher api
-
 const search = async function (req, res) {
   const letter = req.params.letter;
   try {

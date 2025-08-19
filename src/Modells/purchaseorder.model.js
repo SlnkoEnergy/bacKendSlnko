@@ -17,10 +17,32 @@ const purchaseOrderSchema = new mongoose.Schema(
     date: {
       type: String,
     },
-    item: {
-      type: mongoose.Schema.Types.Mixed,
-      ref: "MaterialCategory",
-    },
+    item: [
+      {
+        category: {
+          type: mongoose.Schema.Types.Mixed,
+          ref: "MaterialCategory",
+        },
+        product_name: {
+          type: String,
+        },
+        product_make: {
+          type: String,
+        },
+        uom: {
+          type: String,
+        },
+        quantity: {
+          type: String,
+        },
+        cost: {
+          type: String,
+        },
+        gst_percent: {
+          type: String,
+        },
+      },
+    ],
     other: {
       type: String,
       default: " ",
@@ -69,12 +91,19 @@ const purchaseOrderSchema = new mongoose.Schema(
     dispatch_date: {
       type: Date,
     },
+    delivery_type: {
+      type: String,
+      enum: ["afor", "slnko", "client"],
+    },
     status_history: [
       {
         status: {
           type: String,
           enum: [
             "draft",
+            "approval_pending",
+            "approval_done",
+            "approval_rejected",
             "po_created",
             "out_for_delivery",
             "ready_to_dispatch",
@@ -95,6 +124,9 @@ const purchaseOrderSchema = new mongoose.Schema(
         type: String,
         enum: [
           "draft",
+          "approval_pending",
+          "approval_done",
+          "approval_rejected",
           "po_created",
           "out_for_delivery",
           "ready_to_dispatch",

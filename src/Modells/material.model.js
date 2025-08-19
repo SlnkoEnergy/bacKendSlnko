@@ -7,6 +7,13 @@ const materialSchema = new mongoose.Schema(
       ref: "MaterialCategory",
       required: true,
     },
+    sku_code:{
+      type:String,
+      required: true
+    },
+    description:{
+      type: String
+    },
     data: [
       {
         _id: false,

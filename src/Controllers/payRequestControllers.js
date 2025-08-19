@@ -1,9 +1,9 @@
 const payRequestModells = require("../Modells/payRequestModells");
-const projectModells = require("../Modells/projectModells");
+const projectModells = require("../Modells/project.model");
 const holdPayment = require("../Modells/holdPaymentModells");
 const holdPaymentModells = require("../Modells/holdPaymentModells");
-const vendorModells = require("../Modells/vendorModells");
-const purchaseOrderModells = require("../Modells/purchaseOrderModells");
+const vendorModells = require("../Modells/vendor.model");
+const purchaseOrderModells = require("../Modells/purchaseorder.model");
 const { get } = require("mongoose");
 const exccelDataModells = require("../Modells/excelDataModells");
 const recoverypayrequest = require("../Modells/recoveryPayrequestModells");

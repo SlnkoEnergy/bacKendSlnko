@@ -1,10 +1,13 @@
 const mongoose = require("mongoose");
-const PurchaseRequest = require("../../Modells/purchaserequest.model");
-const PurchaseRequestCounter = require("../../Modells/Globals/purchaseRequestCounter");
-const Project = require("../../Modells/projectModells");
-const purchaseOrderModells = require("../../Modells/purchaseOrderModells");
-const materialCategoryModells = require("../../Modells/materialcategory.model");
-const scopeModel = require("../../Modells/scope.model");
+const PurchaseRequest = require("../Modells/purchaserequest.model");
+const PurchaseRequestCounter = require("../Modells/purchaserequestcounter.model");
+const Project = require("../Modells/project.model");
+const purchaseOrderModells = require("../Modells/purchaseorder.model");
+const materialCategoryModells = require("../Modells/materialcategory.model");
+const modulecategory = require("../Modells/modulecategory.model")
+const scopeModel = require("../Modells/scope.model");
+const axios = require("axios");
+const XLSX = require("xlsx");
 
 const CreatePurchaseRequest = async (req, res) => {
   try {
@@ -120,7 +123,7 @@ const getAllPurchaseRequest = async (req, res) => {
     const poValueSearchNumber = Number(poValueSearch);
     const statusSearchRegex = new RegExp(statusSearch, "i");
 
-    const pipeline = [
+    const baseStages = [
       {
         $lookup: {
           from: "projectdetails",
@@ -138,7 +141,7 @@ const getAllPurchaseRequest = async (req, res) => {
           as: "created_by",
         },
       },
-      { $unwind: "$created_by" },
+      { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
       {
         $unwind: {
           path: "$items",
@@ -159,7 +162,6 @@ const getAllPurchaseRequest = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
-      
       ...(search
         ? [
             {
@@ -173,7 +175,6 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
-     
       ...(itemSearch
         ? [
             {
@@ -223,12 +224,40 @@ const getAllPurchaseRequest = async (req, res) => {
           },
         },
       },
+      {
+        $group: {
+          _id: "$_id",
+          pr_no: { $first: "$pr_no" },
+          createdAt: { $first: "$createdAt" },
+          project_id: { $first: "$project_id" },
+          created_by: { $first: "$created_by" },
+          items: { $push: "$item" }, 
+        },
+      },
+      {
+        $project: {
+          pr_no: 1,
+          createdAt: 1,
+          project_id: 1,
+          created_by: 1,
+          items: {
+            $filter: {
+              input: "$items",
+              as: "it",
+              cond: { $and: [{ $ne: ["$$it", null] }, { $ne: ["$$it._id", null] }] },
+            },
+          },
+        },
+      },
+    ];
+
+    const pipeline = [
+      ...baseStages,
       { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: Number(limit) },
     ];
-
-    const countPipeline = [...pipeline.slice(0, -3), { $count: "totalCount" }];
+    const countPipeline = [...baseStages, { $count: "totalCount" }];
 
     let [requests, countResult] = await Promise.all([
       PurchaseRequest.aggregate(pipeline),
@@ -236,18 +265,24 @@ const getAllPurchaseRequest = async (req, res) => {
     ]);
 
     let totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
-
-    // Attach PO details for each request
     requests = await Promise.all(
       requests.map(async (request) => {
         const pos = await purchaseOrderModells.find({ pr_id: request._id });
 
-        const prItemIdStr = request.item?.item_id?._id?.toString?.();
-        const prItemName = request.item?.item_id?.name;
+        const prItemIds = new Set(
+          (request.items || [])
+            .map((it) => it?.item_id?._id?.toString?.())
+            .filter(Boolean)
+        );
+        const prItemNames = new Set(
+          (request.items || [])
+            .map((it) => it?.item_id?.name)
+            .filter(Boolean)
+        );
 
         const filteredPOs = pos.filter((po) => {
           const poItemStr = po?.item?.toString?.();
-          return poItemStr === prItemIdStr || po.item === prItemName;
+          return prItemIds.has(poItemStr) || prItemNames.has(po.item);
         });
 
         const poDetails = filteredPOs.map((po) => ({
@@ -260,9 +295,11 @@ const getAllPurchaseRequest = async (req, res) => {
           (acc, po) => acc + po.po_value,
           0
         );
+        const singleItem = itemSearch ? (request.items?.[0] || null) : undefined;
 
         return {
           ...request,
+          ...(singleItem !== undefined ? { item: singleItem } : {}),
           po_value: totalPoValueWithGst,
           po_numbers: poDetails.map((p) => p.po_number),
           po_details: poDetails,
@@ -270,14 +307,12 @@ const getAllPurchaseRequest = async (req, res) => {
       })
     );
 
-    // Filter by PO value
     if (poValueSearch) {
       requests = requests.filter(
         (r) => Number(r.po_value) === poValueSearchNumber
       );
     }
 
-    // Filter by ETD date range
     if (etdFrom && etdTo) {
       const etdStart = new Date(etdFrom);
       const etdEnd = new Date(etdTo);
@@ -290,7 +325,6 @@ const getAllPurchaseRequest = async (req, res) => {
       );
     }
 
-    // Update total count if filtered
     if (poValueSearch || (etdFrom && etdTo)) {
       totalCount = requests.length;
     }
@@ -321,7 +355,11 @@ const getPurchaseRequestById = async (req, res) => {
     const purchaseRequest = await PurchaseRequest.findById(id)
       .populate({
         path: "project_id",
-        select: "name code",
+        select: "name code site_address p_id",
+      })
+      .populate({
+        path:"created_by",
+        select:"_id name"
       })
       .populate({
         path: "items.item_id",
@@ -468,6 +506,7 @@ const getPurchaseRequest = async (req, res) => {
           _id: purchaseRequest.project_id?._id,
           name: purchaseRequest.project_id?.name,
           code: purchaseRequest.project_id?.code,
+          
         },
       },
       item: {
@@ -649,6 +688,191 @@ const getMaterialScope = async (req, res) => {
   }
 };
 
+const fetchExcelFromBOQ = async (req, res) => {
+  try {
+    const {
+      project_id,
+      template_name,
+      category,            
+      category_column,     
+      sheet,
+      category_mode,        
+      category_logic,     
+    } = req.query;
+
+    if (!project_id || !mongoose.isValidObjectId(project_id)) {
+      return res.status(400).json({ message: "Valid project_id is required" });
+    }
+
+    const doc = await modulecategory
+      .findOne({ project_id })
+      .populate({ path: "items.template_id", select: "name boq" })
+      .lean();
+
+    if (!doc) {
+      return res
+        .status(404)
+        .json({ message: "moduleCategory not found for given project_id" });
+    }
+
+    const items = Array.isArray(doc.items) ? doc.items : [];
+    if (!items.length) {
+      return res.status(404).json({ message: "No items available for this project" });
+    }
+
+    // util
+    const norm = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
+    const splitList = (val) =>
+      Array.isArray(val)
+        ? val
+        : typeof val === "string"
+          ? val.split(",").map((s) => s.trim()).filter(Boolean)
+          : [];
+
+    const matchesTemplateName = (it) => {
+      if (!template_name) return false;
+      const tname = it?.template_id?.name;
+      return tname && norm(tname).includes(norm(template_name));
+    };
+
+    let boqItem = items.find((it) => {
+      const tname = it?.template_id?.name;
+      const n = norm(tname);
+      return n.includes("boq") || n.includes("excel");
+    });
+
+    if (!boqItem) {
+      return res.status(404).json({
+        message:
+          "Could not find a BOQ Excel item (no template name containing 'boq'/'excel').",
+      });
+    }
+
+    const currentList = Array.isArray(boqItem.current_attachment)
+      ? boqItem.current_attachment
+      : [];
+    const fileUrl = currentList.filter(Boolean).at(-1);
+
+    if (!fileUrl) {
+      return res.status(404).json({
+        message: "No current_attachment URL found for the matched BOQ item.",
+        hint: "Ensure current_attachment is an array of file URLs and at least one exists.",
+      });
+    }
+
+    // Download Excel
+    const excelResp = await axios.get(fileUrl, { responseType: "arraybuffer" });
+
+    // Parse workbook
+    const wb = XLSX.read(excelResp.data, { type: "buffer" });
+    if (!wb.SheetNames.length) {
+      return res.status(400).json({ message: "Workbook has no sheets." });
+    }
+
+    // Resolve target sheet
+    let targetSheetName;
+    if (sheet !== undefined) {
+      const asNum = Number(sheet);
+      if (!Number.isNaN(asNum)) {
+        if (asNum < 0 || asNum >= wb.SheetNames.length) {
+          return res.status(400).json({
+            message: `Sheet index ${asNum} out of range.`,
+            available_sheets: wb.SheetNames,
+          });
+        }
+        targetSheetName = wb.SheetNames[asNum];
+      } else {
+        if (!wb.SheetNames.includes(sheet)) {
+          return res.status(400).json({
+            message: `Sheet "${sheet}" not found.`,
+            available_sheets: wb.SheetNames,
+          });
+        }
+        targetSheetName = sheet;
+      }
+    } else {
+      targetSheetName = wb.SheetNames[0];
+    }
+
+    const ws = wb.Sheets[targetSheetName];
+    if (!ws) {
+      return res.status(404).json({ message: "Target worksheet not found." });
+    }
+
+
+    const allRows = XLSX.utils.sheet_to_json(ws, { defval: "", raw: true });
+
+
+    const col = category_column || "Category";
+    const categories = splitList(category).map(norm); 
+    const matchMode = (category_mode || "exact").toLowerCase(); 
+    const logic = (category_logic || "or").toLowerCase();
+
+    const tokenizeCell = (cell) =>
+      String(cell)
+        .split(/[,/|]/)   
+        .map(norm)
+        .filter(Boolean);
+
+    let rows = allRows;
+    if (categories.length > 0) {
+      rows = allRows.filter((r) => {
+        const cellRaw = r[col] ?? "";
+        const cellNorm = norm(String(cellRaw));
+
+        if (matchMode === "contains") {
+          // Check substring contains for each category
+          const matches = categories.map((c) => cellNorm.includes(c));
+          return logic === "and" ? matches.every(Boolean) : matches.some(Boolean);
+        } else {
+          // "exact" token match (handles cells like "MMS, AC Cable")
+          const tokens = tokenizeCell(cellRaw);
+          const matches = categories.map((c) => tokens.includes(c));
+          return logic === "and" ? matches.every(Boolean) : matches.some(Boolean);
+        }
+      });
+    }
+
+    return res.status(200).json({
+      message: "BOQ Excel parsed successfully",
+      meta: {
+        project_id,
+        template_id: boqItem?.template_id?._id || null,
+        template_name: boqItem?.template_id?.name || null,
+        boq_enabled: !!boqItem?.template_id?.boq?.enabled,
+        sheet: targetSheetName,
+        total_rows: allRows.length,
+        filtered_rows: rows.length,
+        available_sheets: wb.SheetNames,
+        filter: {
+          column: col,
+          categories,
+          mode: matchMode,
+          logic,
+        },
+        source_url_host: (() => {
+          try {
+            return new URL(fileUrl).host;
+          } catch {
+            return null;
+          }
+        })(),
+      },
+      data: rows,
+    });
+  } catch (error) {
+    console.error(
+      "fetchExcelFromBOQ error:",
+      error?.response?.data || error?.message || error
+    );
+    return res.status(500).json({
+      message: "Failed to fetch/parse BOQ Excel",
+      error: error?.message || "Unknown error",
+    });
+  }
+};
+
+
 module.exports = {
   CreatePurchaseRequest,
   getAllPurchaseRequest,
@@ -658,4 +882,5 @@ module.exports = {
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
   getMaterialScope,
+  fetchExcelFromBOQ
 };
