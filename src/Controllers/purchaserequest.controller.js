@@ -693,56 +693,64 @@ const fetchExcelFromBOQ = async (req, res) => {
     const {
       project_id,
       template_name,
-      category,
-      category_column,
+      category,            
+      category_column,     
       sheet,
+      category_mode,        
+      category_logic,     
     } = req.query;
 
     if (!project_id || !mongoose.isValidObjectId(project_id)) {
       return res.status(400).json({ message: "Valid project_id is required" });
     }
 
-    const doc = await modulecategory.findOne({ project_id })
-      .populate({
-        path: "items.template_id",
-        select: "name boq",
-      })
+    const doc = await modulecategory
+      .findOne({ project_id })
+      .populate({ path: "items.template_id", select: "name boq" })
       .lean();
 
     if (!doc) {
-      return res.status(404).json({ message: "moduleCategory not found for given project_id" });
+      return res
+        .status(404)
+        .json({ message: "moduleCategory not found for given project_id" });
     }
 
     const items = Array.isArray(doc.items) ? doc.items : [];
-    if (items.length === 0) {
+    if (!items.length) {
       return res.status(404).json({ message: "No items available for this project" });
     }
 
-    // 2) Choose the BOQ item
+    // util
     const norm = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
+    const splitList = (val) =>
+      Array.isArray(val)
+        ? val
+        : typeof val === "string"
+          ? val.split(",").map((s) => s.trim()).filter(Boolean)
+          : [];
+
     const matchesTemplateName = (it) => {
       if (!template_name) return false;
       const tname = it?.template_id?.name;
       return tname && norm(tname).includes(norm(template_name));
     };
 
-    let boqItem =
-     items.find((it) => {
-        const tname = it?.template_id?.name;
-        const n = norm(tname);
-        console.log({n})
-        return n.includes("boq") || n.includes("excel");
-
-      });
+    let boqItem = items.find((it) => {
+      const tname = it?.template_id?.name;
+      const n = norm(tname);
+      return n.includes("boq") || n.includes("excel");
+    });
 
     if (!boqItem) {
       return res.status(404).json({
         message:
-          "Could not find a BOQ Excel item (no matching template_name, no template.boq.enabled, and no template name containing 'boq'/'excel').",
+          "Could not find a BOQ Excel item (no template name containing 'boq'/'excel').",
       });
     }
 
-    const currentList = Array.isArray(boqItem.current_attachment) ? boqItem.current_attachment : [];
+    const currentList = Array.isArray(boqItem.current_attachment)
+      ? boqItem.current_attachment
+      : [];
     const fileUrl = currentList.filter(Boolean).at(-1);
 
     if (!fileUrl) {
@@ -752,22 +760,20 @@ const fetchExcelFromBOQ = async (req, res) => {
       });
     }
 
-    // 4) Download the Excel file
+    // Download Excel
     const excelResp = await axios.get(fileUrl, { responseType: "arraybuffer" });
 
-    // 5) Parse workbook
+    // Parse workbook
     const wb = XLSX.read(excelResp.data, { type: "buffer" });
-
     if (!wb.SheetNames.length) {
       return res.status(400).json({ message: "Workbook has no sheets." });
     }
 
-    // Determine target sheet
+    // Resolve target sheet
     let targetSheetName;
     if (sheet !== undefined) {
       const asNum = Number(sheet);
       if (!Number.isNaN(asNum)) {
-        // index
         if (asNum < 0 || asNum >= wb.SheetNames.length) {
           return res.status(400).json({
             message: `Sheet index ${asNum} out of range.`,
@@ -776,7 +782,6 @@ const fetchExcelFromBOQ = async (req, res) => {
         }
         targetSheetName = wb.SheetNames[asNum];
       } else {
-        // name
         if (!wb.SheetNames.includes(sheet)) {
           return res.status(400).json({
             message: `Sheet "${sheet}" not found.`,
@@ -786,7 +791,7 @@ const fetchExcelFromBOQ = async (req, res) => {
         targetSheetName = sheet;
       }
     } else {
-      targetSheetName = wb.SheetNames[0]; // default: first sheet
+      targetSheetName = wb.SheetNames[0];
     }
 
     const ws = wb.Sheets[targetSheetName];
@@ -794,16 +799,38 @@ const fetchExcelFromBOQ = async (req, res) => {
       return res.status(404).json({ message: "Target worksheet not found." });
     }
 
-    // 6) Convert to JSON
+
     const allRows = XLSX.utils.sheet_to_json(ws, { defval: "", raw: true });
 
-    // 7) Optional category filter
+
+    const col = category_column || "Category";
+    const categories = splitList(category).map(norm); 
+    const matchMode = (category_mode || "exact").toLowerCase(); 
+    const logic = (category_logic || "or").toLowerCase();
+
+    const tokenizeCell = (cell) =>
+      String(cell)
+        .split(/[,/|]/)   
+        .map(norm)
+        .filter(Boolean);
+
     let rows = allRows;
-    if (category) {
-      const col = category_column || "Category";
-      rows = allRows.filter(
-        (r) => norm(String(r[col])) === norm(String(category))
-      );
+    if (categories.length > 0) {
+      rows = allRows.filter((r) => {
+        const cellRaw = r[col] ?? "";
+        const cellNorm = norm(String(cellRaw));
+
+        if (matchMode === "contains") {
+          // Check substring contains for each category
+          const matches = categories.map((c) => cellNorm.includes(c));
+          return logic === "and" ? matches.every(Boolean) : matches.some(Boolean);
+        } else {
+          // "exact" token match (handles cells like "MMS, AC Cable")
+          const tokens = tokenizeCell(cellRaw);
+          const matches = categories.map((c) => tokens.includes(c));
+          return logic === "and" ? matches.every(Boolean) : matches.some(Boolean);
+        }
+      });
     }
 
     return res.status(200).json({
@@ -817,20 +844,34 @@ const fetchExcelFromBOQ = async (req, res) => {
         total_rows: allRows.length,
         filtered_rows: rows.length,
         available_sheets: wb.SheetNames,
+        filter: {
+          column: col,
+          categories,
+          mode: matchMode,
+          logic,
+        },
         source_url_host: (() => {
-          try { return new URL(fileUrl).host; } catch { return null; }
+          try {
+            return new URL(fileUrl).host;
+          } catch {
+            return null;
+          }
         })(),
       },
       data: rows,
     });
   } catch (error) {
-    console.error("fetchExcelFromBOQ error:", error?.response?.data || error?.message || error);
+    console.error(
+      "fetchExcelFromBOQ error:",
+      error?.response?.data || error?.message || error
+    );
     return res.status(500).json({
       message: "Failed to fetch/parse BOQ Excel",
       error: error?.message || "Unknown error",
     });
   }
 };
+
 
 module.exports = {
   CreatePurchaseRequest,
