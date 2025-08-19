@@ -44,7 +44,6 @@ const CreatePurchaseRequest = async (req, res) => {
 
     const itemIds = purchaseRequestData.items.map((item) => item.item_id);
 
-    // 🔹 Update pr_status for all matching items in the Scope
     await scopeModel.updateOne(
       { project_id: purchaseRequestData.project_id },
       { $set: { "items.$[elem].pr_status": true } },
@@ -692,12 +691,12 @@ const fetchExcelFromBOQ = async (req, res) => {
   try {
     const {
       project_id,
-      template_name,
-      category,            
-      category_column,     
-      sheet,
-      category_mode,        
-      category_logic,     
+      template_name,      
+      category,           
+      category_column,    
+      sheet,            
+      category_mode,    
+      category_logic,   
     } = req.query;
 
     if (!project_id || !mongoose.isValidObjectId(project_id)) {
@@ -720,8 +719,10 @@ const fetchExcelFromBOQ = async (req, res) => {
       return res.status(404).json({ message: "No items available for this project" });
     }
 
-    // util
-    const norm = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
+    // ---------- utils ----------
+    const norm = (v) =>
+      typeof v === "string" ? v.trim().toLowerCase() : "";
+
     const splitList = (val) =>
       Array.isArray(val)
         ? val
@@ -729,12 +730,41 @@ const fetchExcelFromBOQ = async (req, res) => {
           ? val.split(",").map((s) => s.trim()).filter(Boolean)
           : [];
 
-    const matchesTemplateName = (it) => {
-      if (!template_name) return false;
-      const tname = it?.template_id?.name;
-      return tname && norm(tname).includes(norm(template_name));
+    const tokenizeCell = (cell) =>
+      String(cell)
+        .split(/\s*[\/|,]\s*|\s+&\s+/)
+        .map(norm)
+        .filter(Boolean);
+
+    const getCell = (row, key) => {
+      if (row == null) return "";
+      if (key in row) return row[key];
+      const want = norm(key);
+      const foundKey = Object.keys(row).find((k) => norm(k) === want);
+      return foundKey ? row[foundKey] : "";
     };
 
+    // Category expansion map (normalized keys)
+    const EXPAND = {
+      "rms": ["rms", "wms"],
+      "lt panel": ["acdb"],
+      "ht panel": ["vcb"],
+      "earthing & la": ["earthing", "la"],
+      "earthing and la": ["earthing", "la"],
+      "meter box": ["ldb"],
+      "class c": ["bos"],
+      "gss": ["pss end", "bay end ext.", "bay end ext"],
+      "i&c": ["i&c", "cleaning", "civil"],
+    };
+
+    const buildGroups = (inputs) =>
+      inputs.map((c) => {
+        const key = norm(c);
+        const alts = EXPAND[key];
+        return (alts ? alts : [key]).map(norm);
+      });
+
+    // ---------- find BOQ item ----------
     let boqItem = items.find((it) => {
       const tname = it?.template_id?.name;
       const n = norm(tname);
@@ -760,10 +790,8 @@ const fetchExcelFromBOQ = async (req, res) => {
       });
     }
 
-    // Download Excel
+    // ---------- download + parse workbook ----------
     const excelResp = await axios.get(fileUrl, { responseType: "arraybuffer" });
-
-    // Parse workbook
     const wb = XLSX.read(excelResp.data, { type: "buffer" });
     if (!wb.SheetNames.length) {
       return res.status(400).json({ message: "Workbook has no sheets." });
@@ -799,36 +827,38 @@ const fetchExcelFromBOQ = async (req, res) => {
       return res.status(404).json({ message: "Target worksheet not found." });
     }
 
-
-    const allRows = XLSX.utils.sheet_to_json(ws, { defval: "", raw: true });
-
+    // IMPORTANT: Take headers from A3 (row 3). In sheet_to_json, range is zero-based row offset.
+    // range: 2 => start at third row; that row becomes the header row.
+    const allRows = XLSX.utils.sheet_to_json(ws, {
+      defval: "",
+      raw: true,
+      range: 2,
+    });
 
     const col = category_column || "Category";
-    const categories = splitList(category).map(norm); 
-    const matchMode = (category_mode || "exact").toLowerCase(); 
-    const logic = (category_logic || "or").toLowerCase();
+    const selectedInputs = splitList(category); 
+    const groups = buildGroups(selectedInputs);
 
-    const tokenizeCell = (cell) =>
-      String(cell)
-        .split(/[,/|]/)   
-        .map(norm)
-        .filter(Boolean);
+    const matchMode = (category_mode || "exact").toLowerCase();
+    const logic = (category_logic || "or").toLowerCase();     
 
     let rows = allRows;
-    if (categories.length > 0) {
+    if (groups.length > 0) {
       rows = allRows.filter((r) => {
-        const cellRaw = r[col] ?? "";
-        const cellNorm = norm(String(cellRaw));
-
+        const cellRaw = getCell(r, col) ?? "";
         if (matchMode === "contains") {
-          // Check substring contains for each category
-          const matches = categories.map((c) => cellNorm.includes(c));
-          return logic === "and" ? matches.every(Boolean) : matches.some(Boolean);
+          const cellNorm = norm(String(cellRaw));
+          const groupOk = groups.map((alts) =>
+            alts.some((a) => cellNorm.includes(a))
+          );
+          return logic === "and" ? groupOk.every(Boolean) : groupOk.some(Boolean);
         } else {
-          // "exact" token match (handles cells like "MMS, AC Cable")
+          // exact token matching against tokenized cell
           const tokens = tokenizeCell(cellRaw);
-          const matches = categories.map((c) => tokens.includes(c));
-          return logic === "and" ? matches.every(Boolean) : matches.some(Boolean);
+          const groupOk = groups.map((alts) =>
+            alts.some((a) => tokens.includes(a))
+          );
+          return logic === "and" ? groupOk.every(Boolean) : groupOk.some(Boolean);
         }
       });
     }
@@ -841,12 +871,14 @@ const fetchExcelFromBOQ = async (req, res) => {
         template_name: boqItem?.template_id?.name || null,
         boq_enabled: !!boqItem?.template_id?.boq?.enabled,
         sheet: targetSheetName,
+        header_from_row: "A3",
         total_rows: allRows.length,
         filtered_rows: rows.length,
         available_sheets: wb.SheetNames,
         filter: {
           column: col,
-          categories,
+          user_selected: selectedInputs,
+          expanded_groups: groups, 
           mode: matchMode,
           logic,
         },
@@ -871,6 +903,7 @@ const fetchExcelFromBOQ = async (req, res) => {
     });
   }
 };
+
 
 
 module.exports = {
