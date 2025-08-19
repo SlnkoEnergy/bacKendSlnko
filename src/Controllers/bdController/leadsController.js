@@ -158,8 +158,8 @@ const getAllLeads = async (req, res) => {
       group_id,
       inactiveFilter,
       leadAgingFilter,
+      ExpectedClosingFilter,
     } = req.query;
-
     const userId = req.user.userId;
     const user = await userModells.findById(userId).lean();
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -172,25 +172,25 @@ const getAllLeads = async (req, res) => {
     const query = {};
 
     const regionalAccessMap = {
-  "Shambhavi Gupta": ["rajasthan"],
-  "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
-  "Navin Kumar Gautam": ["rajasthan"],
-  "Ketan Kumar Jha": ["madhya pradesh"],
-  "Gaurav Kumar Upadhyay": ["madhya pradesh"],
-  "Om Utkarsh": ["rajasthan"]
-};
+      "Shambhavi Gupta": ["rajasthan"],
+      "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
+      "Navin Kumar Gautam": ["rajasthan"],
+      "Ketan Kumar Jha": ["madhya pradesh"],
+      "Gaurav Kumar Upadhyay": ["madhya pradesh"],
+      "Om Utkarsh": ["rajasthan"]
+    };
 
 
     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
-       query["current_assigned.user_id"]= new mongoose.Types.ObjectId(userId) 
+      query["current_assigned.user_id"] = new mongoose.Types.ObjectId(userId)
     }
 
     if (regionalAccessMap[user.name] && !isPrivilegedUser) {
       const regions = regionalAccessMap[user.name];
-query.$or = [
-  { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
-  { "address.state": { $in: regions.map(r => new RegExp(`^${r}$`, "i")) } }
-];
+      query.$or = [
+        { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
+        { "address.state": { $in: regions.map(r => new RegExp(`^${r}$`, "i")) } }
+      ];
 
     }
 
@@ -255,6 +255,19 @@ query.$or = [
 
     if (leadAgingFilter) {
       query.leadAging = { $lte: Number(leadAgingFilter) };
+    }
+
+    if (ExpectedClosingFilter) {
+      const month = parseInt(ExpectedClosingFilter, 10); // e.g. "1" -> 1
+      const year = new Date().getFullYear(); // current year, or pass from frontend if needed
+
+      if (month >= 1 && month <= 12) {
+        const start = new Date(year, month - 1, 1); // 1st day of the month
+        const end = new Date(year, month, 0);       // last day of the month
+        end.setHours(23, 59, 59, 999);              // include full day
+
+        query.expected_closing_date = { $gte: start, $lte: end };
+      }
     }
 
     if (name) {
@@ -324,30 +337,30 @@ const getLeadCounts = async (req, res) => {
       (user.department === "BD" && user.role === "manager");
 
     const regionalAccessMap = {
-  "Shambhavi Gupta": ["rajasthan"],
-  "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"], 
-  "Navin Kumar Gautam": ["rajasthan"],
-  "Ketan Kumar Jha": ["madhya pradesh"],
-  "Gaurav Kumar Upadhyay": ["madhya pradesh"],
-  "Om Utkarsh": ["rajasthan"]
-};
+      "Shambhavi Gupta": ["rajasthan"],
+      "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
+      "Navin Kumar Gautam": ["rajasthan"],
+      "Ketan Kumar Jha": ["madhya pradesh"],
+      "Gaurav Kumar Upadhyay": ["madhya pradesh"],
+      "Om Utkarsh": ["rajasthan"]
+    };
 
-    
-     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
+
+    if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
       const userObjectId = new mongoose.Types.ObjectId(userId);
       andConditions.push({
         "current_assigned.user_id": userObjectId,
-      }); 
+      });
     }
 
     if (!isPrivilegedUser && regionalAccessMap[user.name]) {
       const regions = regionalAccessMap[user.name];
-andConditions.push({
-  $or: [
-    { "address.state": { $in: regions.map(r => new RegExp(`^${r.trim()}$`, "i")) } },
-    { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) }
-  ]
-});
+      andConditions.push({
+        $or: [
+          { "address.state": { $in: regions.map(r => new RegExp(`^${r.trim()}$`, "i")) } },
+          { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) }
+        ]
+      });
 
     }
 
@@ -1068,9 +1081,9 @@ const uploadDocuments = async (req, res) => {
         Array.isArray(respData) && respData.length > 0
           ? respData[0]
           : respData.url ||
-            respData.fileUrl ||
-            (respData.data && respData.data.url) ||
-            null;
+          respData.fileUrl ||
+          (respData.data && respData.data.url) ||
+          null;
 
       if (url) {
         uploadedFileMap[index] = url;
