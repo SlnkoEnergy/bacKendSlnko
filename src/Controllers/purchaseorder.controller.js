@@ -20,7 +20,7 @@ const addPo = async function (req, res) {
       vendor,
       submitted_By,
       pr_id,
-      items,
+      item,
       other = "",
       partial_billing,
       po_basic,
@@ -33,10 +33,10 @@ const addPo = async function (req, res) {
     } = req.body;
 
     const userId = req.user.userId;
-
+    console.log({initial_status})
     if (!po_number && initial_status !== "approval_pending")
       return res.status(400).send({ message: "po_number is required." });
-    if (!Array.isArray(items) || items.length === 0)
+    if (!Array.isArray(item) || item.length === 0)
       return res
         .status(400)
         .send({ message: "items array is required and cannot be empty." });
@@ -45,7 +45,7 @@ const addPo = async function (req, res) {
     if (exists && initial_status !== "approval_pending")
       return res.status(400).send({ message: "PO Number already used!" });
 
-    const itemsSanitized = items.map((it) => ({
+    const itemsSanitized = item.map((it) => ({
       category: it.category ?? null,
       product_name: String(it.product_name ?? ""),
       product_make: String(it.product_make ?? ""),
