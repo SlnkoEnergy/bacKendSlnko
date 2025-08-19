@@ -23,6 +23,7 @@ const paymentApproval = async function (req, res) {
             { cr_id: { $regex: search, $options: "i" } },
             { name: { $regex: search, $options: "i" } },
             { p_group: { $regex: search, $options: "i" } },
+            { po_number: { $regex: search, $options: "i" } },
           ],
         }
       : {};
@@ -32,7 +33,7 @@ const paymentApproval = async function (req, res) {
       accessFilter = {
         approved: "Pending",
         $or: [
-          { "approval_status.stage": "Credit Pending" },
+          // { "approval_status.stage": "Credit Pending" },
           { "approval_status.stage": "Draft" },
         ],
       };
@@ -197,6 +198,63 @@ const paymentApproval = async function (req, res) {
           trimmedGroup: { $trim: { input: "$project.p_group" } },
         },
       },
+      {
+        $lookup: {
+          from: "payrequests",
+          let: { pid: "$p_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$p_id", "$$pid"] },
+                    {
+                      $or: [
+                        { $eq: ["$approved", "Approved"] },
+                        {
+                          $and: [
+                            { $eq: ["$approved", "Pending"] },
+                            { $eq: ["$approval_status.stage", "Account"] },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalPaid: { $sum: { $toDouble: "$amount_paid" } },
+              },
+            },
+          ],
+          as: "creditBalanceData",
+        },
+      },
+      {
+        $addFields: {
+          creditBalance: {
+            $ifNull: [{ $arrayElemAt: ["$creditBalanceData.totalPaid", 0] }, 0],
+          },
+        },
+      },
+
+      {
+        $lookup: {
+          from: "users",
+          localField: "credit.user_id",
+          foreignField: "_id",
+          as: "creditUser",
+        },
+      },
+      {
+        $unwind: {
+          path: "$creditUser",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
 
       // Group-level balance
       {
@@ -334,8 +392,11 @@ const paymentApproval = async function (req, res) {
           credit_deadline: "$credit.credit_deadline",
           po_value: 1,
           po_number: 1,
-          vendor:1,
-          credit_extension:"$credit.credit_extension",
+          vendor: 1,
+          credit_extension: "$credit.credit_extension",
+          credit_remarks: "$credit.credit_remarks",
+          credit_user_name: "$creditUser.name",
+          creditBalance: 1,
         },
       },
     ];
@@ -495,13 +556,12 @@ const getPoApprovalPdf = async function (req, res) {
           project_code: "$project_info.code",
           project_name: "$project_info.name",
           group_name: "$project_info.p_group",
-          pay_id: 1,
+          pay_id: { $ifNull: ["$pay_id", "$cr_id"] },
           paid_for: 1,
           vendor: 1,
           dbt_date: 1,
           comment: 1,
           amt_for_customer: 1,
-         
         },
       },
     ];
