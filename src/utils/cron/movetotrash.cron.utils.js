@@ -71,12 +71,27 @@ cron.schedule("* * * * *", async () => {
   );
 
   try {
-    const draftQuery = {
-      "approval_status.stage": "Draft",
-      "timers.draft_started_at": { $lte: draftThreshold },
-      "timers.draft_frozen_at": null,
-      approved: { $nin: ["Approved", "Rejected"] },
-    };
+    await PayRequest.updateMany(
+      {
+        "approval_status.stage": { $in: ["Draft", "SCM", "CAM", "Account"] },
+        "timers.draft_started_at": { $lte: draftThreshold },
+        "timers.draft_frozen_at": { $exists: false },
+        approved: { $nin: ["Approved", "Rejected"] },
+      },
+      {
+        $set: {
+          "approval_status.stage": "Trash Pending",
+          "timers.trash_started_at": now,
+        },
+        $push: {
+          status_history: {
+            stage: "Trash Pending",
+            remarks: "Auto-moved after 48 hrs",
+            timestamp: now,
+          },
+        },
+      }
+    );
 
     const draftsToUpdate = await PayRequest.find(draftQuery);
     // console.log(`📝 Drafts to move: ${draftsToUpdate.length}`);
