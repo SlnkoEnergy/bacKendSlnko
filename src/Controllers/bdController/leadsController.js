@@ -158,7 +158,7 @@ const getAllLeads = async (req, res) => {
       group_id,
       inactiveFilter,
       leadAgingFilter,
-      ExpectedClosingFilter,
+      ClosingDateFilter,
     } = req.query;
     const userId = req.user.userId;
     const user = await userModells.findById(userId).lean();
@@ -257,17 +257,20 @@ const getAllLeads = async (req, res) => {
       query.leadAging = { $lte: Number(leadAgingFilter) };
     }
 
-    if (ExpectedClosingFilter) {
-      const month = parseInt(ExpectedClosingFilter, 10); // e.g. "1" -> 1
-      const year = new Date().getFullYear(); // current year, or pass from frontend if needed
+    if (ClosingDateFilter && ClosingDateFilter.length > 0) {
+      const year = new Date().getFullYear();
 
-      if (month >= 1 && month <= 12) {
-        const start = new Date(year, month - 1, 1); // 1st day of the month
-        const end = new Date(year, month, 0);       // last day of the month
-        end.setHours(23, 59, 59, 999);              // include full day
+      const months = ClosingDateFilter.split(",").map(m => Number(m));
 
-        query.expected_closing_date = { $gte: start, $lte: end };
-      }
+      const monthQueries = months.map(month => {
+        const start = new Date(year, month - 1, 1);
+        const end = new Date(year, month, 0);
+        end.setHours(23, 59, 59, 999);
+
+        return { expected_closing_date: { $gte: start, $lte: end } };
+      });
+
+      query.$or = monthQueries;
     }
 
     if (name) {
@@ -323,6 +326,7 @@ const getLeadCounts = async (req, res) => {
       group_id,
       inactiveFilter,
       leadAgingFilter,
+      ClosingDateFilter,
     } = req.query;
 
     const userId = req.user.userId;
@@ -431,6 +435,23 @@ const getLeadCounts = async (req, res) => {
     if (leadAgingFilter) {
       andConditions.push({ leadAging: { $lte: Number(leadAgingFilter) } });
     }
+
+    if (ClosingDateFilter && ClosingDateFilter.length > 0) {
+      const year = new Date().getFullYear();
+
+      const months = ClosingDateFilter.split(",").map(m => Number(m));
+
+      const monthQueries = months.map(month => {
+        const start = new Date(year, month - 1, 1);
+        const end = new Date(year, month, 0);
+        end.setHours(23, 59, 59, 999);
+
+        return { expected_closing_date: { $gte: start, $lte: end } };
+      });
+
+      andConditions.push({ $or: monthQueries });
+    }
+
 
     if (name) {
       const userObjectId = new mongoose.Types.ObjectId(name);
