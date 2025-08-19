@@ -209,52 +209,24 @@ const deadlineExtendRequest = async (req, res) => {
 
 const requestCreditExtension = async (req, res) => {
   const { _id } = req.params;
-  const { credit_remarks } = req.body;
 
   try {
-    if (!credit_remarks || credit_remarks.trim() === "") {
-      return res.status(400).json({ msg: "Credit remarks are required" });
-    }
-
     const payment = await payRequestModells.findById(_id);
     if (!payment) {
       return res.status(404).json({ msg: "Payment request not found" });
     }
 
-
-    if (payment.credit.credit_extension === true) {
-      return res
-        .status(400)
-        .json({ msg: "Credit extension already requested" });
-    }
-
-
     payment.credit.credit_extension = true;
     payment.credit.user_id = req.user.userId;
-    payment.credit.credit_remarks = credit_remarks;
-
-    payment.credit_history = payment.credit_history || [];
-    payment.credit_history.push({
-      credit_remarks,
-      user_id: req.user.userId,
-      status: "Updated",
-      timestamp: new Date(),
-    });
 
     await payment.save();
-
-    res.status(200).json({
-      msg: "Credit extension requested",
-      data: payment,
-    });
+    res.status(200).json({ msg: "Credit extension requested", data: payment });
   } catch (error) {
-    res.status(500).json({
-      msg: "Error requesting credit extension",
-      error: error.message,
-    });
+    res
+      .status(500)
+      .json({ msg: "Error requesting credit extension", error: error.message });
   }
 };
-
 
 //Hold payment
 const holdpay = async function (req, res) {

@@ -33,7 +33,7 @@ const paymentApproval = async function (req, res) {
       accessFilter = {
         approved: "Pending",
         $or: [
-          // { "approval_status.stage": "Credit Pending" },
+          { "approval_status.stage": "Credit Pending" },
           { "approval_status.stage": "Draft" },
         ],
       };
@@ -70,16 +70,27 @@ const paymentApproval = async function (req, res) {
     let tabFilter = {};
 
     if (currentUser.department === "Accounts") {
+      const rd = {
+        $dateDiff: {
+          startDate: "$$NOW",
+          endDate: { $toDate: "$credit.credit_deadline" },
+          unit: "day",
+        },
+      };
+
       switch (tab) {
         case "credit":
           tabFilter = {
             cr_id: { $exists: true, $ne: null },
-            $or: [
-              { "approval_status.stage": "Account" },
-              { "approval_status.stage": "Credit Pending" },
-            ],
+
+            "approval_status.stage": "Account",
+            // { "approval_status.stage": "Credit Pending" },
+
+            "credit.credit_deadline": { $ne: null },
+            $expr: { $gt: [rd, 2] },
           };
           break;
+
         case "instant":
           tabFilter = {
             cr_id: { $in: [null, ""] },
@@ -87,23 +98,26 @@ const paymentApproval = async function (req, res) {
             "approval_status.stage": "Account",
           };
           break;
+
         case "toBeApproved":
           tabFilter = {
-            "credit.credit_deadline": {
-              $exists: true,
-              $ne: null,
-              $gte: now,
-              $lte: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
+            cr_id: { $exists: true, $ne: null },
+
+            "approval_status.stage": "Account",
+            // { "approval_status.stage": "Credit Pending" },
+
+            "credit.credit_deadline": { $ne: null },
+            $expr: {
+              $and: [{ $gte: [rd, 0] }, { $lte: [rd, 2] }],
             },
           };
           break;
+
         case "overdue":
           tabFilter = {
-            "credit.credit_deadline": {
-              $exists: true,
-              $ne: null,
-              $lt: now,
-            },
+            cr_id: { $exists: true, $ne: null },
+            "credit.credit_deadline": { $ne: null },
+            $expr: { $lt: [rd, 0] },
           };
           break;
       }
@@ -236,7 +250,25 @@ const paymentApproval = async function (req, res) {
       {
         $addFields: {
           creditBalance: {
-            $ifNull: [{ $arrayElemAt: ["$creditBalanceData.totalPaid", 0] }, 0],
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$creditData.totalCredit", 0] },
+                      0,
+                    ],
+                  },
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$creditBalanceData.totalPaid", 0] },
+                      0,
+                    ],
+                  },
+                ],
+              },
+              2,
+            ],
           },
         },
       },
@@ -396,6 +428,8 @@ const paymentApproval = async function (req, res) {
           credit_extension: "$credit.credit_extension",
           credit_remarks: "$credit.credit_remarks",
           credit_user_name: "$creditUser.name",
+          totalCredited: { $arrayElemAt: ["$creditData.totalCredit", 0] },
+          totalPaid: { $arrayElemAt: ["$creditBalanceData.totalPaid", 0] },
           creditBalance: 1,
         },
       },
@@ -424,62 +458,67 @@ const paymentApproval = async function (req, res) {
     if (currentUser.department === "Accounts") {
       const now = new Date();
 
-      // Prepare a helper to merge filters
-      const matchWithSearch = (extraFilter) => ({
+      const rd = {
+        $dateDiff: {
+          startDate: "$$NOW",
+          endDate: { $toDate: "$credit.credit_deadline" },
+          unit: "day",
+        },
+      };
+
+      const matchWithSearch = (extra) => ({
         ...accessFilter,
-        ...extraFilter,
+        ...extra,
         ...(Object.keys(searchFilter).length ? searchFilter : {}),
       });
 
-      // Build all tab counts with search included
+      const toBeApprovedMatch = matchWithSearch({
+        cr_id: { $exists: true, $ne: null },
+
+        "approval_status.stage": "Account",
+        // { "approval_status.stage": "Credit Pending" },
+
+        "credit.credit_deadline": { $ne: null },
+        $expr: { $and: [{ $gte: [rd, 0] }, { $lte: [rd, 2] }] },
+      });
+
+      const overdueMatch = matchWithSearch({
+        cr_id: { $exists: true, $ne: null },
+        "credit.credit_deadline": { $ne: null },
+        $expr: { $lt: [rd, 0] },
+      });
+
+      const creditMatch = matchWithSearch({
+        cr_id: { $exists: true, $ne: null },
+
+        "approval_status.stage": "Account",
+
+        "credit.credit_deadline": { $ne: null },
+        $expr: { $gt: [rd, 2] },
+      });
+
+      const instantMatch = matchWithSearch({
+        cr_id: { $in: [null, ""] },
+        pay_id: { $exists: true, $ne: null },
+        "approval_status.stage": "Account",
+      });
+
       const [toBeApprovedResult, overdueResult, creditResult, instantResult] =
         await Promise.all([
-          // To Be Approved
           payRequestModells.aggregate([
-            {
-              $match: matchWithSearch({
-                "credit.credit_deadline": {
-                  $gte: now,
-                  $lte: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
-                },
-              }),
-            },
+            { $match: toBeApprovedMatch },
             { $count: "count" },
           ]),
-
-          // Overdue
           payRequestModells.aggregate([
-            {
-              $match: matchWithSearch({
-                "credit.credit_deadline": { $lt: now },
-              }),
-            },
+            { $match: overdueMatch },
             { $count: "count" },
           ]),
-
-          // Credit
           payRequestModells.aggregate([
-            {
-              $match: matchWithSearch({
-                cr_id: { $exists: true, $ne: null },
-                $or: [
-                  { "approval_status.stage": "Account" },
-                  { "approval_status.stage": "Credit Pending" },
-                ],
-              }),
-            },
+            { $match: creditMatch },
             { $count: "count" },
           ]),
-
-          // Instant
           payRequestModells.aggregate([
-            {
-              $match: matchWithSearch({
-                cr_id: { $in: [null, ""] },
-                pay_id: { $exists: true, $ne: null },
-                "approval_status.stage": "Account",
-              }),
-            },
+            { $match: instantMatch },
             { $count: "count" },
           ]),
         ]);
