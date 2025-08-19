@@ -45,30 +45,41 @@ const payRrequest = async (req, res) => {
     } = req.body;
 
     const project = await projectModells.findOne({ $or: [{ p_id }, { code }] });
-    if (!project?.code) {
+    if (!project?.code)
       return res.status(400).json({ msg: "Invalid or missing project code!" });
-    }
 
     let pay_id = null;
     let cr_id = null;
 
     if (credit?.credit_status === true) {
+      // check credit deadline relative to dbt_date
+      if (!credit.credit_deadline)
+        return res.status(400).json({ msg: "Credit deadline is required." });
+
+      const dbtDateObj = new Date(dbt_date);
+      const deadlineDateObj = new Date(credit.credit_deadline);
+
+      // difference in days
+      const diffDays = Math.floor(
+        (deadlineDateObj - dbtDateObj) / (1000 * 60 * 60 * 24)
+      );
+
+      if (diffDays < 2) {
+        return res.status(400).json({
+          msg: "Credit deadline must be at least 2 days after the debit date.",
+        });
+      }
+
       do {
-        cr_id = `${project.code}/${generateRandomCreditCode()}`;
+        cr_id = `${project.code}/${generateRandomCreditCode()}/CR`;
       } while (await payRequestModells.findOne({ cr_id }));
-      pay_id = null;
     } else {
       do {
         pay_id = `${project.code}/${generateRandomCode()}`;
       } while (await payRequestModells.findOne({ pay_id }));
-      cr_id = null;
     }
 
     const initialStage = credit?.credit_status ? "Credit Pending" : "Draft";
-
-    if (credit?.credit_status && !credit.credit_deadline) {
-      return res.status(400).json({ msg: "Credit deadline is required." });
-    }
 
     const newPayment = new payRequestModells({
       p_id,
@@ -132,7 +143,6 @@ const payRrequest = async (req, res) => {
     });
 
     await newPayment.save();
-
     return res
       .status(200)
       .json({ msg: "Payment requested successfully", newPayment });
@@ -199,24 +209,52 @@ const deadlineExtendRequest = async (req, res) => {
 
 const requestCreditExtension = async (req, res) => {
   const { _id } = req.params;
+  const { credit_remarks } = req.body;
 
   try {
+    if (!credit_remarks || credit_remarks.trim() === "") {
+      return res.status(400).json({ msg: "Credit remarks are required" });
+    }
+
     const payment = await payRequestModells.findById(_id);
     if (!payment) {
       return res.status(404).json({ msg: "Payment request not found" });
     }
 
+
+    if (payment.credit.credit_extension === true) {
+      return res
+        .status(400)
+        .json({ msg: "Credit extension already requested" });
+    }
+
+
     payment.credit.credit_extension = true;
     payment.credit.user_id = req.user.userId;
+    payment.credit.credit_remarks = credit_remarks;
+
+    payment.credit_history = payment.credit_history || [];
+    payment.credit_history.push({
+      credit_remarks,
+      user_id: req.user.userId,
+      status: "Updated",
+      timestamp: new Date(),
+    });
 
     await payment.save();
-    res.status(200).json({ msg: "Credit extension requested", data: payment });
+
+    res.status(200).json({
+      msg: "Credit extension requested",
+      data: payment,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({ msg: "Error requesting credit extension", error: error.message });
+    res.status(500).json({
+      msg: "Error requesting credit extension",
+      error: error.message,
+    });
   }
 };
+
 
 //Hold payment
 const holdpay = async function (req, res) {
@@ -1133,7 +1171,7 @@ const getPay = async (req, res) => {
     const searchRegex = new RegExp(search, "i");
     const statusRegex = new RegExp(`^${status}$`, "i");
 
-    // Base stages
+    // Lookup project details
     const lookupStage = {
       $lookup: {
         from: "projectdetails",
@@ -1142,19 +1180,17 @@ const getPay = async (req, res) => {
         as: "project",
       },
     };
-
     const unwindStage = {
-      $unwind: {
-        path: "$project",
-        preserveNullAndEmptyArrays: true,
-      },
+      $unwind: { path: "$project", preserveNullAndEmptyArrays: true },
     };
 
+    // Build base match conditions
     const matchConditions = [];
     if (search) {
       matchConditions.push({
         $or: [
           { pay_id: { $regex: searchRegex } },
+          { cr_id: { $regex: searchRegex } },
           { paid_for: { $regex: searchRegex } },
           { po_number: { $regex: searchRegex } },
           { vendor: { $regex: searchRegex } },
@@ -1163,13 +1199,21 @@ const getPay = async (req, res) => {
         ],
       });
     }
-    if (status) {
-      matchConditions.push({ approved: { $regex: statusRegex } });
+
+    // --- NEW LOGIC FOR INSTANT TAB ---
+    if (tab === "instant") {
+      // Exclude Trash Pending stage, show all approved statuses
+      matchConditions.push({
+        "approval_status.stage": { $ne: "Trash Pending" },
+      });
+    } else if (status) {
+      // For other tabs, filter by approved status if provided
+      matchConditions.push({ approved: status });
     }
 
     const baseMatch = matchConditions.length ? { $and: matchConditions } : {};
 
-    // Common aggregation steps
+    // Base aggregation pipeline
     const basePipeline = [
       lookupStage,
       unwindStage,
@@ -1180,10 +1224,7 @@ const getPay = async (req, res) => {
           type: {
             $switch: {
               branches: [
-                {
-                  case: { $ifNull: ["$pay_id", false] },
-                  then: "instant",
-                },
+                { case: { $ifNull: ["$pay_id", false] }, then: "instant" },
                 {
                   case: {
                     $and: [
@@ -1204,36 +1245,62 @@ const getPay = async (req, res) => {
     // Tab filtering
     const tabMatchStage = tab ? [{ $match: { type: tab } }] : [];
 
-    // If tab = credit → calculate remaining days
-    const creditRemainingDaysStage =
-      tab === "credit"
-        ? [
-            {
-              $addFields: {
-                remaining_days: {
-                  $floor: {
-                    $divide: [
-                      {
-                        $subtract: [
-                          { $toDate: "$credit.credit_deadline" },
-                          "$$NOW",
-                        ],
-                      },
-                      1000 * 60 * 60 * 24,
-                    ],
-                  },
+    // Calculate remaining days
+    const remainingDaysStage = [
+      {
+        $addFields: {
+          remaining_days: {
+            $cond: [
+              { $eq: ["$type", "credit"] },
+              {
+                $floor: {
+                  $divide: [
+                    {
+                      $subtract: [
+                        { $toDate: "$credit.credit_deadline" },
+                        "$$NOW",
+                      ],
+                    },
+                    1000 * 60 * 60 * 24,
+                  ],
                 },
               },
-            },
-          ]
-        : [];
+              {
+                $cond: [
+                  { $eq: ["$approval_status.stage", "Trash Pending"] },
+                  {
+                    $floor: {
+                      $divide: [
+                        {
+                          $subtract: [
+                            {
+                              $add: [
+                                "$timers.trash_started_at",
+                                1000 * 60 * 60 * 24 * 15,
+                              ],
+                            },
+                            "$$NOW",
+                          ],
+                        },
+                        1000 * 60 * 60 * 24,
+                      ],
+                    },
+                  },
+                  null,
+                ],
+              },
+            ],
+          },
+        },
+      },
+    ];
 
-    // Main data query
+    // Fetch paginated data
     const [paginatedData, totalData] = await Promise.all([
       payRequestModells.aggregate([
         ...basePipeline,
         ...tabMatchStage,
-        ...creditRemainingDaysStage,
+        ...remainingDaysStage,
         { $project: { project: 0 } },
         { $sort: { createdAt: -1 } },
         { $skip: skip },
@@ -1246,15 +1313,32 @@ const getPay = async (req, res) => {
       ]),
     ]);
 
-    // Tab-wise total counts
+    // Tab-wise counts
     const tabWiseCounts = await payRequestModells.aggregate([
-      ...basePipeline,
+      lookupStage,
+      unwindStage,
       {
-        $group: {
-          _id: "$type",
-          count: { $sum: 1 },
+        $addFields: {
+          type: {
+            $switch: {
+              branches: [
+                { case: { $ifNull: ["$pay_id", false] }, then: "instant" },
+                {
+                  case: {
+                    $and: [
+                      { $eq: ["$credit.credit_status", true] },
+                      { $ifNull: ["$cr_id", false] },
+                    ],
+                  },
+                  then: "credit",
+                },
+              ],
+              default: "instant",
+            },
+          },
         },
       },
+      { $group: { _id: "$type", count: { $sum: 1 } } },
     ]);
 
     const counts = { instant: 0, credit: 0 };
