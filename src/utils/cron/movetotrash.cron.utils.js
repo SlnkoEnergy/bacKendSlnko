@@ -72,14 +72,13 @@ cron.schedule("* * * * *", async () => {
 
   try {
     const draftQuery = {
-      "approval_status.stage": "Draft",
+      "approval_status.stage": ["Draft", "SCM", "CAM", "Account"],
       "timers.draft_started_at": { $lte: draftThreshold },
       "timers.draft_frozen_at": null,
       approved: { $nin: ["Approved", "Rejected"] },
     };
 
     const draftsToUpdate = await PayRequest.find(draftQuery);
-    // console.log(`📝 Drafts to move: ${draftsToUpdate.length}`);
 
     if (draftsToUpdate.length > 0) {
       await PayRequest.updateMany(draftQuery, {

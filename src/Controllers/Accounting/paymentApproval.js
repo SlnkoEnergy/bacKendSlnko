@@ -9,6 +9,8 @@ const paymentApproval = async function (req, res) {
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 10;
 
+    const currentUser = await User.findById(req.user.userId);
+
     const matchStage = {
       ...(search && {
         $or: [
