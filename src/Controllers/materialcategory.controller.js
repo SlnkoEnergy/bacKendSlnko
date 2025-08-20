@@ -80,14 +80,12 @@ const namesearchOfMaterialCategories = async (req, res) => {
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
     const skip = (pageNum - 1) * pageSize;
 
-    // Base filter from search
     const baseFilter = search
       ? { name: { $regex: search.trim().replace(/\s+/g, ".*"), $options: "i" } }
       : {};
 
     let scopeIds = null;
 
-    // If pr=true and project_id is valid, try to narrow by scope
     if (prFlag && project_id && mongoose.Types.ObjectId.isValid(project_id)) {
       const scopeDoc = await scopeModel
         .findOne(
@@ -96,7 +94,6 @@ const namesearchOfMaterialCategories = async (req, res) => {
         )
         .lean();
 
-      // Collect only slnko item_ids
       const ids =
         scopeDoc?.items
           ?.filter((it) => it?.item_id && it.scope === "slnko")
@@ -128,7 +125,6 @@ const namesearchOfMaterialCategories = async (req, res) => {
       }
     }
 
-    // Build final filter
     const finalFilter =
       prFlag && project_id
         ? {
@@ -137,11 +133,9 @@ const namesearchOfMaterialCategories = async (req, res) => {
           }
         : baseFilter;
 
-    // Projection / sort
     const projection = { _id: 1, name: 1, description: 1 };
     const sort = { name: 1, _id: 1 };
 
-    // Query + count
     const [items, total] = await Promise.all([
       materialCategory
         .find(finalFilter, projection)
