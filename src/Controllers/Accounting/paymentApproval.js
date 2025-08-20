@@ -6,24 +6,128 @@ const { default: axios } = require("axios");
 const paymentApproval = async function (req, res) {
   try {
     const search = req.query.search || "";
+    const tab = req.query.tab || "";
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 10;
 
     const currentUser = await User.findById(req.user.userId);
+    if (!currentUser) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-    const matchStage = {
-      ...(search && {
+    const searchFilter = search
+      ? {
+          $or: [
+            { code: { $regex: search, $options: "i" } },
+            { pay_id: { $regex: search, $options: "i" } },
+            { cr_id: { $regex: search, $options: "i" } },
+            { name: { $regex: search, $options: "i" } },
+            { p_group: { $regex: search, $options: "i" } },
+            { po_number: { $regex: search, $options: "i" } },
+          ],
+        }
+      : {};
+
+    let accessFilter = {};
+    if (currentUser.department === "SCM" && currentUser.role === "manager") {
+      accessFilter = {
+        approved: "Pending",
         $or: [
-          { code: { $regex: search, $options: "i" } },
-          { pay_id: { $regex: search, $options: "i" } },
-          { name: { $regex: search, $options: "i" } },
-          { p_group: { $regex: search, $options: "i" } },
+          { "approval_status.stage": "Credit Pending" },
+          { "approval_status.stage": "Draft" },
         ],
-      }),
-    };
+      };
+    } else if (
+      currentUser.department === "Internal" &&
+      currentUser.role === "manager"
+    ) {
+      accessFilter = {
+        approved: "Pending",
+        "approval_status.stage": "CAM",
+      };
+    } else if (
+      currentUser.department === "Accounts" &&
+      currentUser.role === "manager"
+    ) {
+      accessFilter = {
+        approved: "Pending",
+        $or: [
+          { "approval_status.stage": "Account" },
+          { "approval_status.stage": "Credit Pending" },
+        ],
+      };
+    } else {
+      return res.status(200).json({
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        data: [],
+        message: "You are not authorized to view approvals.",
+      });
+    }
+
+    const now = new Date();
+    let tabFilter = {};
+
+    if (currentUser.department === "Accounts") {
+      const rd = {
+        $dateDiff: {
+          startDate: "$$NOW",
+          endDate: { $toDate: "$credit.credit_deadline" },
+          unit: "day",
+        },
+      };
+
+      switch (tab) {
+        case "credit":
+          tabFilter = {
+            cr_id: { $exists: true, $ne: null },
+
+            "approval_status.stage": "Account",
+            // { "approval_status.stage": "Credit Pending" },
+
+            "credit.credit_deadline": { $ne: null },
+            $expr: { $gt: [rd, 2] },
+          };
+          break;
+
+        case "instant":
+          tabFilter = {
+            cr_id: { $in: [null, ""] },
+            pay_id: { $exists: true, $ne: null },
+            "approval_status.stage": "Account",
+          };
+          break;
+
+        case "toBeApproved":
+          tabFilter = {
+            cr_id: { $exists: true, $ne: null },
+
+            "approval_status.stage": "Account",
+            // { "approval_status.stage": "Credit Pending" },
+
+            "credit.credit_deadline": { $ne: null },
+            $expr: {
+              $and: [{ $gte: [rd, 0] }, { $lte: [rd, 2] }],
+            },
+          };
+          break;
+
+        case "overdue":
+          tabFilter = {
+            cr_id: { $exists: true, $ne: null },
+            "credit.credit_deadline": { $ne: null },
+            $expr: { $lt: [rd, 0] },
+          };
+          break;
+      }
+    }
+
+    const combinedMatch = { ...accessFilter, ...tabFilter };
 
     const pipeline = [
-      { $match: { approved: "Pending" } },
+      { $match: combinedMatch },
+      ...(Object.keys(searchFilter).length ? [{ $match: searchFilter }] : []),
 
       {
         $lookup: {
@@ -35,9 +139,21 @@ const paymentApproval = async function (req, res) {
       },
       { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
 
-      ...(Object.keys(matchStage).length ? [{ $match: matchStage }] : []),
+      {
+        $lookup: {
+          from: "purchaseorders",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "purchase",
+        },
+      },
 
-      // Calculate individual project balance
+      {
+        $addFields: {
+          po_value: { $arrayElemAt: ["$purchase.po_value", 0] },
+        },
+      },
+
       {
         $lookup: {
           from: "addmoneys",
@@ -90,13 +206,10 @@ const paymentApproval = async function (req, res) {
                   },
                 ],
               },
+              2,
             ],
           },
-          trimmedGroup: {
-            $trim: {
-              input: "$project.p_group",
-            },
-          },
+          trimmedGroup: { $trim: { input: "$project.p_group" } },
         },
       },
       {
@@ -175,6 +288,7 @@ const paymentApproval = async function (req, res) {
         },
       },
 
+      // Group-level balance
       {
         $addFields: {
           hasValidGroup: {
@@ -191,8 +305,6 @@ const paymentApproval = async function (req, res) {
           },
         },
       },
-
-      // Conditionally lookup group project IDs
       {
         $lookup: {
           from: "projectdetails",
@@ -215,8 +327,6 @@ const paymentApproval = async function (req, res) {
           },
         },
       },
-
-      // Lookup group credits
       {
         $lookup: {
           from: "addmoneys",
@@ -249,7 +359,6 @@ const paymentApproval = async function (req, res) {
           as: "groupDebitData",
         },
       },
-
       {
         $addFields: {
           groupBalance: {
@@ -280,9 +389,28 @@ const paymentApproval = async function (req, res) {
       },
 
       {
+        $addFields: {
+          remainingDays: {
+            $cond: [
+              { $ne: ["$credit.credit_deadline", null] },
+              {
+                $dateDiff: {
+                  startDate: "$$NOW",
+                  endDate: { $toDate: "$credit.credit_deadline" },
+                  unit: "day",
+                },
+              },
+              null,
+            ],
+          },
+        },
+      },
+
+      {
         $project: {
-          _id: 0,
-          payment_id: "$pay_id",
+          _id: 1,
+          pay_id: "$pay_id",
+          cr_id: "$cr_id",
           request_date: "$dbt_date",
           request_for: "$paid_for",
           payment_description: "$comment",
@@ -292,6 +420,10 @@ const paymentApproval = async function (req, res) {
           group_name: "$project.p_group",
           ClientBalance: "$Available_Amount",
           groupBalance: 1,
+          remainingDays: 1,
+          credit_deadline: "$credit.credit_deadline",
+          po_value: 1,
+          po_number: 1,
           vendor: 1,
           credit_extension: "$credit.credit_extension",
           credit_remarks: "$credit.credit_remarks",
@@ -304,6 +436,7 @@ const paymentApproval = async function (req, res) {
     ];
 
     const countPipeline = [...pipeline, { $count: "total" }];
+
     const paginatedPipeline = [
       ...pipeline,
       { $skip: (page - 1) * pageSize },
@@ -403,11 +536,18 @@ const paymentApproval = async function (req, res) {
         page,
         pageSize,
         count: data.length,
+        ...(currentUser.department === "Accounts" && {
+          toBeApprovedCount,
+          overdueCount,
+          creditCount,
+          instantCount,
+          tab,
+        }),
       },
       data,
     });
   } catch (error) {
-    console.error(error);
+    console.error("paymentApproval error:", error);
     res
       .status(500)
       .json({ message: "An error occurred while processing the request." });
