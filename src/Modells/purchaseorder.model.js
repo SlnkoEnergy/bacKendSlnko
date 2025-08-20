@@ -41,6 +41,9 @@ const purchaseOrderSchema = new mongoose.Schema(
         gst_percent: {
           type: String,
         },
+        description:{
+          type: String,
+        }
       },
     ],
     other: {
