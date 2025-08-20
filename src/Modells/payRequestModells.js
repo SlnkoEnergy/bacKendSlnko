@@ -72,7 +72,7 @@ const payRequestschema = new mongoose.Schema(
     branch: { type: String },
     created_on: { type: String, default: Date.now },
     submitted_by: { type: String },
-    utr_submitted_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    utr_submitted_by: { type: String },
 
     credit: {
       credit_deadline: { type: Date },
@@ -123,10 +123,6 @@ const payRequestschema = new mongoose.Schema(
     status_history: [StatusHistorySchema],
 
     credit_history: [CreditHistorySchema],
-
-    acc_match: { type: String },
-
-    utr: { type: String },
 
     utr_history: [UTRHistorySchema],
 
