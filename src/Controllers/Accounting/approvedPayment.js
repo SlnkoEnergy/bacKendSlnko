@@ -30,6 +30,7 @@ const paymentApproved = async (req, res) => {
         $project: {
           _id: 0,
           pay_id: "$pay_id",
+          cr_id:"$cr_id",
           projectId: "$project.code",
           projectName: "$project.name",
           requestedFor: "$paid_for",
@@ -147,6 +148,7 @@ const utrSubmission = async (req, res) => {
         $project: {
           _id: 0,
           pay_id: "$pay_id",
+          cr_id:"$cr_id",
           projectId: "$project.code",
           projectName: "$project.name",
           requestedFor: "$paid_for",

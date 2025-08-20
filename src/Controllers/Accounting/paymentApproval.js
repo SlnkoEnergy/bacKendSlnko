@@ -135,7 +135,25 @@ const paymentApproval = async function (req, res) {
       {
         $addFields: {
           creditBalance: {
-            $ifNull: [{ $arrayElemAt: ["$creditBalanceData.totalPaid", 0] }, 0],
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$creditData.totalCredit", 0] },
+                      0,
+                    ],
+                  },
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$creditBalanceData.totalPaid", 0] },
+                      0,
+                    ],
+                  },
+                ],
+              },
+              2,
+            ],
           },
         },
       },
@@ -273,8 +291,12 @@ const paymentApproval = async function (req, res) {
           ClientBalance: "$Available_Amount",
           groupBalance: 1,
           vendor: 1,
-          po_number: 1,
-          credit_extension:"$credit.credit_extension",
+          credit_extension: "$credit.credit_extension",
+          credit_remarks: "$credit.credit_remarks",
+          credit_user_name: "$creditUser.name",
+          totalCredited: { $arrayElemAt: ["$creditData.totalCredit", 0] },
+          totalPaid: { $arrayElemAt: ["$creditBalanceData.totalPaid", 0] },
+          creditBalance: 1,
         },
       },
     ];
@@ -292,6 +314,85 @@ const paymentApproval = async function (req, res) {
     ]);
 
     const total = countResult[0]?.total || 0;
+
+    let toBeApprovedCount = 0;
+    let overdueCount = 0;
+    let instantCount = 0;
+    let creditCount = 0;
+
+    if (currentUser.department === "Accounts") {
+      const now = new Date();
+
+      const rd = {
+        $dateDiff: {
+          startDate: "$$NOW",
+          endDate: { $toDate: "$credit.credit_deadline" },
+          unit: "day",
+        },
+      };
+
+      const matchWithSearch = (extra) => ({
+        ...accessFilter,
+        ...extra,
+        ...(Object.keys(searchFilter).length ? searchFilter : {}),
+      });
+
+      const toBeApprovedMatch = matchWithSearch({
+        cr_id: { $exists: true, $ne: null },
+
+        "approval_status.stage": "Account",
+        // { "approval_status.stage": "Credit Pending" },
+
+        "credit.credit_deadline": { $ne: null },
+        $expr: { $and: [{ $gte: [rd, 0] }, { $lte: [rd, 2] }] },
+      });
+
+      const overdueMatch = matchWithSearch({
+        cr_id: { $exists: true, $ne: null },
+        "credit.credit_deadline": { $ne: null },
+        $expr: { $lt: [rd, 0] },
+      });
+
+      const creditMatch = matchWithSearch({
+        cr_id: { $exists: true, $ne: null },
+
+        "approval_status.stage": "Account",
+
+        "credit.credit_deadline": { $ne: null },
+        $expr: { $gt: [rd, 2] },
+      });
+
+      const instantMatch = matchWithSearch({
+        cr_id: { $in: [null, ""] },
+        pay_id: { $exists: true, $ne: null },
+        "approval_status.stage": "Account",
+      });
+
+      const [toBeApprovedResult, overdueResult, creditResult, instantResult] =
+        await Promise.all([
+          payRequestModells.aggregate([
+            { $match: toBeApprovedMatch },
+            { $count: "count" },
+          ]),
+          payRequestModells.aggregate([
+            { $match: overdueMatch },
+            { $count: "count" },
+          ]),
+          payRequestModells.aggregate([
+            { $match: creditMatch },
+            { $count: "count" },
+          ]),
+          payRequestModells.aggregate([
+            { $match: instantMatch },
+            { $count: "count" },
+          ]),
+        ]);
+
+      toBeApprovedCount = toBeApprovedResult[0]?.count || 0;
+      overdueCount = overdueResult[0]?.count || 0;
+      creditCount = creditResult[0]?.count || 0;
+      instantCount = instantResult[0]?.count || 0;
+    }
 
     res.json({
       success: true,
