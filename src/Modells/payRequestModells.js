@@ -1,6 +1,58 @@
 const { default: mongoose } = require("mongoose");
 const updateCurrentStatus = require("../utils/payRequestUpdate/updateCurrentStatus");
 
+const StatusHistorySchema = new mongoose.Schema(
+  {
+    stage: {
+      type: String,
+      enum: [
+        "Credit Pending",
+        "Draft",
+        "SCM",
+        "CAM",
+        "Account",
+        "Initial Account",
+        "Final",
+        "Trash Pending",
+        "Rejected",
+      ],
+      required: true,
+    },
+    remarks: { type: String, default: "" },
+    timestamp: { type: Date, default: Date.now },
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  },
+  { _id: false }
+);
+
+const CreditHistorySchema = new mongoose.Schema(
+  {
+    credit_deadline: { type: Date },
+    credit_remarks: { type: String, default: "" },
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    status: {
+      type: String,
+      enum: ["Created", "Updated", "UTRUpdated", "UTRCleared"],
+    },
+    timestamp: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const UTRHistorySchema = new mongoose.Schema(
+  {
+    utr: { type: String, default: "" },
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    status: {
+      type: String,
+      enum: ["Created", "Updated", "Cleared"],
+      required: true,
+    },
+    timestamp: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const payRequestschema = new mongoose.Schema(
   {
     p_id: { type: Number },
@@ -20,7 +72,7 @@ const payRequestschema = new mongoose.Schema(
     branch: { type: String },
     created_on: { type: String, default: Date.now },
     submitted_by: { type: String },
-    utr_submitted_by: { type: String, default: " " },
+    utr_submitted_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
     credit: {
       credit_deadline: { type: Date },
@@ -48,6 +100,7 @@ const payRequestschema = new mongoose.Schema(
           "SCM",
           "CAM",
           "Account",
+          "Initial Account",
           "Final",
           "Trash Pending",
           "Rejected",
@@ -67,45 +120,15 @@ const payRequestschema = new mongoose.Schema(
       trash_started_at: { type: Date, default: null },
     },
 
-    status_history: [
-      {
-        stage: {
-          type: String,
-          enum: [
-            "Credit Pending",
-            "Draft",
-            "SCM",
-            "CAM",
-            "Account",
-            "Final",
-            "Trash Pending",
-            "Rejected",
-          ],
-        },
-        remarks: {
-          type: String,
-          default: "",
-        },
-        timestamp: { type: Date, default: Date.now },
-        user_id: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-      },
-    ],
+    status_history: [StatusHistorySchema],
 
-    credit_history: [
-      {
-        credit_deadline: { type: Date },
-        credit_remarks: { type: String, default: "" },
-        user_id: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-        status: { type: String, enum: ["Created", "Updated"] },
-        timestamp: { type: Date, default: Date.now },
-      },
-    ],
+    credit_history: [CreditHistorySchema],
+
+    acc_match: { type: String },
+
+    utr: { type: String },
+
+    utr_history: [UTRHistorySchema],
 
     acc_match: { type: String },
     utr: { type: String },
@@ -116,7 +139,13 @@ const payRequestschema = new mongoose.Schema(
 );
 
 payRequestschema.pre("save", function (next) {
-  updateCurrentStatus(this, "status_history", "approval_status");
+  updateCurrentStatus(
+    this,
+    "status_history",
+    "approval_status",
+    "utr_history",
+    "utr"
+  );
   next();
 });
 
