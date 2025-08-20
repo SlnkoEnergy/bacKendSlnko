@@ -1518,6 +1518,199 @@ const updateStatusPO = async (req, res) => {
   }
 };
 
+const getPoBasic = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize, 10) || 10, 1), 100);
+    const skip = (page - 1) * pageSize;
+
+    const search = req.query.search?.trim() || "";
+    const safeSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const searchRegex = new RegExp(safeSearch, "i");
+
+    const matchStage = {
+      $and: [
+        {
+          $or: [
+            { "current_status.status": { $exists: false } },
+            { "current_status.status": null },
+            {
+              "current_status.status": {
+                $nin: ["approval_rejected", "approval_pending"],
+              },
+            },
+          ],
+        },
+        ...(search
+          ? [
+              {
+                $or: [
+                  { p_id: { $regex: searchRegex } },
+                  { po_number: { $regex: searchRegex } },
+                  { vendor: { $regex: searchRegex } },
+                ],
+              },
+            ]
+          : []),
+      ],
+    };
+
+    const pipeline = [
+      { $match: matchStage },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: pageSize },
+
+      // ✅ convert string category → ObjectId
+      {
+        $addFields: {
+          item: {
+            $map: {
+              input: {
+                $cond: {
+                  if: { $isArray: "$item" },
+                  then: "$item",
+                  else: [],
+                },
+              },
+              as: "it",
+              in: {
+                product_name: "$$it.product_name",
+                uom: "$$it.uom",
+                make: "$$it.product_make",
+                quantity: {
+                  $convert: {
+                    input: "$$it.quantity",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+                category: {
+                  $convert: {
+                    input: "$$it.category",
+                    to: "objectId", // 👈 convert string to ObjectId
+                    onError: null,
+                    onNull: null,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+
+      // ✅ lookup materialcategories
+      {
+        $lookup: {
+          from: "materialcategories",
+          localField: "item.category",
+          foreignField: "_id",
+          as: "categoryDocs",
+        },
+      },
+
+      // ✅ rebuild items with category populated
+      {
+        $addFields: {
+          items: {
+            $map: {
+              input: "$item",
+              as: "it",
+              in: {
+                product_name: "$$it.product_name",
+                uom: "$$it.uom",
+                make: "$$it.make",
+                quantity: "$$it.quantity",
+                category: {
+                  $let: {
+                    vars: {
+                      matchedCat: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: "$categoryDocs",
+                              as: "cd",
+                              cond: { $eq: ["$$cd._id", "$$it.category"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                    in: {
+                      _id: "$$matchedCat._id",
+                      name: "$$matchedCat.name",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+
+      {
+        $project: {
+          _id: 1,
+          po_number: 1,
+          vendor: 1,
+          p_id: 1,
+          po_value: {
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
+          items: 1,
+        },
+      },
+    ];
+
+    const countPipeline = [{ $match: matchStage }, { $count: "total" }];
+
+    const [data, countResult] = await Promise.all([
+      purchaseOrderModells.aggregate(pipeline),
+      purchaseOrderModells.aggregate(countPipeline),
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+
+    res.status(200).json({
+      msg: "PO basic details fetched successfully",
+      data,
+      total,
+      count: data.length,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        count: data.length,
+        hasPrev: page > 1,
+        hasNext: page < totalPages,
+      },
+    });
+  } catch (err) {
+    console.error("getPoBasic error:", err);
+    res.status(500).json({
+      msg: "Error retrieving PO basic details",
+      error: err.message,
+    });
+  }
+};
+
+
+
+
+
+
+
+
+
 //get All PO With
 module.exports = {
   addPo,
@@ -1535,4 +1728,5 @@ module.exports = {
   getPOHistoryById,
   updateEditandDeliveryDate,
   updateStatusPO,
+  getPoBasic,
 };

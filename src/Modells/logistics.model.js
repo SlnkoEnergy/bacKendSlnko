@@ -11,7 +11,7 @@ const logisticSchema = new mongoose.Schema(
     vehicle_number: { type: String, required: true },
     driver_number: { type: String, required: true },
     total_ton: { type: String, required: true },
-    remarks: { type: String },
+    description: { type: String },
     items: [
       {
         category_id: {
