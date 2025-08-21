@@ -103,7 +103,7 @@ const {
   deleteBill,
   bill_approved,
   exportBills,
-} = require("../Controllers/billController");
+} = require("../Controllers/bill.controller");
 const {
   subtractmoney,
   getsubtractMoney,

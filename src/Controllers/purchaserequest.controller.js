@@ -230,7 +230,7 @@ const getAllPurchaseRequest = async (req, res) => {
           createdAt: { $first: "$createdAt" },
           project_id: { $first: "$project_id" },
           created_by: { $first: "$created_by" },
-          items: { $push: "$item" }, 
+          items: { $push: "$item" },
         },
       },
       {
@@ -243,7 +243,12 @@ const getAllPurchaseRequest = async (req, res) => {
             $filter: {
               input: "$items",
               as: "it",
-              cond: { $and: [{ $ne: ["$$it", null] }, { $ne: ["$$it._id", null] }] },
+              cond: {
+                $and: [
+                  { $ne: ["$$it", null] },
+                  { $ne: ["$$it._id", null] },
+                ],
+              },
             },
           },
         },
@@ -264,27 +269,13 @@ const getAllPurchaseRequest = async (req, res) => {
     ]);
 
     let totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
+
     requests = await Promise.all(
       requests.map(async (request) => {
+        // fetch all POs linked to this PR
         const pos = await purchaseOrderModells.find({ pr_id: request._id });
 
-        const prItemIds = new Set(
-          (request.items || [])
-            .map((it) => it?.item_id?._id?.toString?.())
-            .filter(Boolean)
-        );
-        const prItemNames = new Set(
-          (request.items || [])
-            .map((it) => it?.item_id?.name)
-            .filter(Boolean)
-        );
-
-        const filteredPOs = pos.filter((po) => {
-          const poItemStr = po?.item?.toString?.();
-          return prItemIds.has(poItemStr) || prItemNames.has(po.item);
-        });
-
-        const poDetails = filteredPOs.map((po) => ({
+        const poDetails = pos.map((po) => ({
           po_number: po.po_number,
           po_value: Number(po.po_value || 0),
           etd: po.etd ? new Date(po.etd) : null,
@@ -294,14 +285,17 @@ const getAllPurchaseRequest = async (req, res) => {
           (acc, po) => acc + po.po_value,
           0
         );
-        const singleItem = itemSearch ? (request.items?.[0] || null) : undefined;
+
+        const singleItem = itemSearch
+          ? request.items?.[0] || null
+          : undefined;
 
         return {
           ...request,
           ...(singleItem !== undefined ? { item: singleItem } : {}),
           po_value: totalPoValueWithGst,
-          po_numbers: poDetails.map((p) => p.po_number),
-          po_details: poDetails,
+          po_numbers: poDetails.map((p) => p.po_number) || [], // always present
+          po_details: poDetails || [], // always present
         };
       })
     );
@@ -342,6 +336,7 @@ const getAllPurchaseRequest = async (req, res) => {
     });
   }
 };
+
 
 const getPurchaseRequestById = async (req, res) => {
   try {
