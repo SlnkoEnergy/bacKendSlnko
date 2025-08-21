@@ -1,18 +1,11 @@
-function updateCurrentStatus(
-  doc,
-  statusHistoryKey = "status_history",
-  currentStatusKey = "approval_status",
-  utrHistoryKey = "utr_history",
-  currentUtrKey = "utr"
-) {
+function updateCurrentStatus(doc, update = {}) {
   if (!doc) return;
 
-  // --- Status handling ---
-  const history = doc[statusHistoryKey] || [];
+  const history = doc.status_history || [];
   const lastStatus = history[history.length - 1];
 
   if (lastStatus) {
-    doc[currentStatusKey] = {
+    doc.approval_status = {
       stage: lastStatus.stage,
       remarks: lastStatus.remarks || "",
       user_id: lastStatus.user_id || null,
@@ -23,7 +16,7 @@ function updateCurrentStatus(
       ? "Credit Pending"
       : "Draft";
 
-    doc[currentStatusKey] = {
+    doc.approval_status = {
       stage: defaultStage,
       remarks: "",
       user_id: null,
@@ -31,12 +24,13 @@ function updateCurrentStatus(
     };
   }
 
-  // --- UTR handling ---
-  const utrHistory = doc[utrHistoryKey] || [];
+  const utrHistory = doc.utr_history || [];
 
-  if (doc.isModified(currentUtrKey) && doc[currentUtrKey]) {
+  const incomingUtr = update.utr ?? doc.utr;
+
+  if (incomingUtr && incomingUtr !== doc.utr) {
     utrHistory.push({
-      utr: doc[currentUtrKey],
+      utr: incomingUtr,
       user_id: doc.approval_status?.user_id || null,
       status: utrHistory.length === 0 ? "Created" : "Updated",
       timestamp: new Date(),
@@ -44,10 +38,10 @@ function updateCurrentStatus(
   }
 
   if (utrHistory.length > 0) {
-    doc[currentUtrKey] = utrHistory[utrHistory.length - 1].utr;
+    doc.utr = utrHistory[utrHistory.length - 1].utr;
   }
 
-  doc[utrHistoryKey] = utrHistory;
+  doc.utr_history = utrHistory;
 }
 
 module.exports = updateCurrentStatus;

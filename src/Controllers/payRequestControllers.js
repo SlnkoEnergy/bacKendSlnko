@@ -767,130 +767,156 @@ const accApproved = async function (req, res) {
 };
 
 const utrUpdate = async function (req, res) {
-  const { pay_id, cr_id, utr } = req.body;
+  const { pay_id, cr_id, utr, utr_submitted_by: bodySubmittedBy } = req.body;
 
   if (!utr || typeof utr !== "string" || !utr.trim()) {
     return res.status(400).json({ message: "Valid UTR is required." });
   }
+  if (!pay_id && !cr_id) {
+    return res.status(400).json({ message: "Provide either pay_id or cr_id." });
+  }
+  if (pay_id && cr_id) {
+    return res
+      .status(400)
+      .json({ message: "Provide only one: pay_id or cr_id." });
+  }
+
+  const trimmedUtr = utr.trim();
+  const submittedBy = (req.user && req.user.userId) || bodySubmittedBy || null;
+
+  const session = await mongoose.startSession();
+  let httpStatus = 200;
+  let payload = null;
+
+  const buildSubtractDoc = (p, useUtr) => ({
+    p_id: p.p_id,
+    pay_type: p.pay_type,
+    amount_paid: p.amount_paid,
+    amt_for_customer: p.amt_for_customer,
+    dbt_date: p.dbt_date,
+    paid_for: p.paid_for,
+    vendor: p.vendor,
+    po_number: p.po_number,
+    utr: useUtr || p.utr,
+  });
 
   try {
-    if (pay_id) {
-      const payment = await payRequestModells.findOne({
-        pay_id,
-        acc_match: "matched",
-      });
+    await session.withTransaction(async () => {
+      const paymentFilter = pay_id
+        ? { pay_id, acc_match: "matched" }
+        : { cr_id, "approval_status.stage": "Final" };
+
+      let payment = await payRequestModells
+        .findOne(paymentFilter)
+        .session(session);
 
       if (!payment) {
-        return res.status(404).json({
-          message: "No matching record found or account not matched.",
-        });
+        httpStatus = 404;
+        payload = {
+          message: pay_id
+            ? "No matching record found for pay_id or account not matched."
+            : "No matching record found with this CR ID at stage 'Final'.",
+        };
+        return;
       }
 
-      if (payment.utr) {
-        return res.status(400).json({
-          message: "UTR number is already present. No update is required.",
-          data: payment,
-        });
+      const oldUtr = (payment.utr || "").trim() || null;
+      const utrChanged = oldUtr !== trimmedUtr;
+
+      const dup = await payRequestModells
+        .findOne({ utr: trimmedUtr, _id: { $ne: payment._id } })
+        .session(session);
+
+      if (dup) {
+        httpStatus = 409;
+        payload = { message: "UTR already exists on another record." };
+        return;
       }
 
-      const updatedPayment = await payRequestModells.findOneAndUpdate(
-        { pay_id, acc_match: "matched" },
-        { $set: { utr: utr.trim() } },
-        { new: true }
+      const setFields = {
+        utr: trimmedUtr,
+        ...(submittedBy ? { utr_submitted_by: submittedBy } : {}),
+      };
+
+      await payRequestModells.updateOne(
+        { _id: payment._id },
+        { $set: setFields },
+        { session, runValidators: true }
       );
 
-      if (!updatedPayment) {
-        return res.status(404).json({
-          message: "No matching record found or account not matched.",
-        });
+      payment.utr = trimmedUtr;
+      if (submittedBy) payment.utr_submitted_by = submittedBy;
+
+      const isCrPath = Boolean(cr_id);
+      if (isCrPath && utrChanged) {
+        await payRequestModells.updateOne(
+          { _id: payment._id },
+          {
+            $push: {
+              utr_history: {
+                utr: trimmedUtr,
+                user_id: submittedBy || undefined,
+                status: oldUtr ? "Updated" : "Created",
+              },
+            },
+          },
+          { session, runValidators: true }
+        );
       }
 
-      const sutractMoney = new subtractMoneyModells({
-        p_id: updatedPayment.p_id,
-        pay_type: updatedPayment.pay_type,
-        amount_paid: updatedPayment.amount_paid,
-        amt_for_customer: updatedPayment.amt_for_customer,
-        dbt_date: updatedPayment.dbt_date,
-        paid_for: updatedPayment.paid_for,
-        vendor: updatedPayment.vendor,
-        po_number: updatedPayment.po_number,
-        utr: updatedPayment.utr,
-      });
-      await sutractMoney.save();
+      let subtractMoneyDoc = null;
 
-      return res.status(200).json({
-        message: "UTR number updated successfully!",
-        data: updatedPayment,
-        subtractMoney: sutractMoney,
-      });
-    }
+      if (utrChanged && oldUtr) {
+        subtractMoneyDoc = await subtractMoneyModells.findOneAndUpdate(
+          { utr: oldUtr },
+          { $set: buildSubtractDoc(payment, trimmedUtr) },
+          { new: true, session, runValidators: true }
+        );
 
-    if (cr_id) {
-      const payment = await payRequestModells.findOne({
-        cr_id,
-        "approval_status.stage": "Final",
-      });
-
-      if (!payment) {
-        return res.status(404).json({
-          message: "No matching record found with this CR ID at stage 'Final'.",
-        });
+        if (!subtractMoneyDoc) {
+          subtractMoneyDoc = await subtractMoneyModells.findOneAndUpdate(
+            { utr: trimmedUtr },
+            { $set: buildSubtractDoc(payment, trimmedUtr) },
+            { new: true, upsert: true, session, runValidators: true }
+          );
+        }
+      } else {
+        subtractMoneyDoc = await subtractMoneyModells.findOneAndUpdate(
+          { utr: trimmedUtr },
+          { $set: buildSubtractDoc(payment, trimmedUtr) },
+          { new: true, upsert: true, session, runValidators: true }
+        );
       }
 
-      if (payment.utr) {
-        return res.status(400).json({
-          message: "UTR number is already present. No update is required.",
-          data: payment,
-        });
-      }
-
-      const updatedPayment = await payRequestModells.findOneAndUpdate(
-        {
-          cr_id,
-          "approval_status.stage": "Final",
-          utr: { $exists: false },
-        },
-        { $set: { utr: utr.trim() } },
-        { new: true }
-      );
-
-      if (!updatedPayment) {
-        return res.status(404).json({
-          message:
-            "No matching record found or UTR already exists for this CR ID.",
-        });
-      }
-
-      const sutractMoney = new subtractMoneyModells({
-        p_id: updatedPayment.p_id,
-        pay_type: updatedPayment.pay_type,
-        amount_paid: updatedPayment.amount_paid,
-        amt_for_customer: updatedPayment.amt_for_customer,
-        dbt_date: updatedPayment.dbt_date,
-        paid_for: updatedPayment.paid_for,
-        vendor: updatedPayment.vendor,
-        po_number: updatedPayment.po_number,
-        utr: updatedPayment.utr,
-      });
-      await sutractMoney.save();
-
-      return res.status(200).json({
-        message: "UTR number updated successfully by CR ID!",
-        data: updatedPayment,
-        subtractMoney: sutractMoney,
-      });
-    }
-
-    return res.status(400).json({
-      message:
-        "Provide either pay_id (with acc_match) or cr_id (at 'Initial Account' stage).",
+      httpStatus = 200;
+      payload = {
+        message: isCrPath
+          ? utrChanged
+            ? "Credit UTR Updated"
+            : "UTR unchanged via cr_id; details synced."
+          : utrChanged
+            ? "Payment UTR Submitted"
+            : "UTR unchanged via pay_id; details synced.",
+        data: payment,
+        subtractMoney: subtractMoneyDoc,
+      };
     });
   } catch (error) {
-    console.error(error);
+    if (error && error.code === 11000) {
+      return res
+        .status(409)
+        .json({ message: "UTR already exists.", error: error.message });
+    }
+    console.error("utrUpdate error:", error);
     return res.status(500).json({
       message: "An error occurred while updating the UTR number.",
+      error: error?.message,
     });
+  } finally {
+    session.endSession();
   }
+
+  return res.status(httpStatus).json(payload);
 };
 
 const restoreTrashToDraft = async (req, res) => {

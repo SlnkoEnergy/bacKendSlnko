@@ -124,27 +124,11 @@ const utrSubmission = async (req, res) => {
     const skip = (page - 1) * pageSize;
     const search = req.query.search?.trim() || "";
 
-    // ----- Conditions -----
-    // 1) Approved + matched + UTR empty
-    const cond1 = {
-      approved: "Approved",
-      acc_match: "matched",
-      $or: [{ utr: { $exists: false } }, { utr: null }, { utr: "" }],
-    };
-
-    // 2) Approved + matched + Final stage + UTR filled
-    const cond2 = {
-      approved: "Approved",
-      acc_match: "matched",
-      "approval_status.stage": "Final",
-      utr: { $nin: [null, ""] },
-    };
-
-    const baseMatch = { $or: [cond1, cond2] };
-
-    // Build the data pipeline: match -> lookup -> unwind -> project -> search -> sort -> paginate
     const dataPipeline = [
-      { $match: baseMatch },
+      {
+        $match: { approved: "Approved", acc_match: "matched" },
+      },
+
       {
         $lookup: {
           from: "projectdetails",
@@ -154,6 +138,31 @@ const utrSubmission = async (req, res) => {
         },
       },
       { $unwind: { path: "$project", preserveNullAndEmptyArrays: false } },
+
+      {
+        $addFields: {
+          latestUTRStatus: {
+            $arrayElemAt: ["$utr_history.status", -1],
+          },
+        },
+      },
+
+      {
+        $match: {
+          $or: [
+            { utr: { $in: [null, ""] } },
+
+            {
+              $and: [
+                { utr: { $nin: [null, ""] } },
+                { latestUTRStatus: { $ne: "Updated" } },
+                { "approval_status.stage": "Final" },
+              ],
+            },
+          ],
+        },
+      },
+
       {
         $project: {
           _id: 0,
@@ -194,9 +203,8 @@ const utrSubmission = async (req, res) => {
 
     const data = await payrequestModells.aggregate(dataPipeline);
 
-    // Count pipeline mirrors filters (no skip/limit), then counts
     const countPipeline = [
-      { $match: baseMatch },
+      { $match: { approved: "Approved", acc_match: "matched" } },
       {
         $lookup: {
           from: "projectdetails",
@@ -207,32 +215,28 @@ const utrSubmission = async (req, res) => {
       },
       { $unwind: { path: "$project", preserveNullAndEmptyArrays: false } },
       {
-        $project: {
-          pay_id: 1,
-          projectId: "$project.code",
-          projectName: "$project.name",
-          requestedFor: "$paid_for",
-          vendor: "$vendor",
+        $addFields: {
+          latestUTRStatus: {
+            $arrayElemAt: ["$utr_history.status", -1],
+          },
         },
       },
-    ];
-
-    if (search) {
-      const rx = new RegExp(search, "i");
-      countPipeline.push({
+      {
         $match: {
           $or: [
-            { pay_id: rx },
-            { projectId: rx },
-            { projectName: rx },
-            { requestedFor: rx },
-            { vendor: rx },
+            { utr: { $in: [null, ""] } },
+            {
+              $and: [
+                { utr: { $nin: [null, ""] } },
+                { latestUTRStatus: { $ne: "Updated" } },
+                { "approval_status.stage": "Final" },
+              ],
+            },
           ],
         },
-      });
-    }
-
-    countPipeline.push({ $count: "total" });
+      },
+      { $count: "total" },
+    ];
 
     const countAgg = await payrequestModells.aggregate(countPipeline);
     const total = countAgg[0]?.total || 0;
