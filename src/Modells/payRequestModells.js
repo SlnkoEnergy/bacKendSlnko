@@ -32,7 +32,7 @@ const CreditHistorySchema = new mongoose.Schema(
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     status: {
       type: String,
-      enum: ["Created", "Updated", "UTRUpdated", "UTRCleared"],
+      enum: ["Created", "Updated", "UTRUpdated", "UTRCleared"], // keep if you really use these
     },
     timestamp: { type: Date, default: Date.now },
   },
@@ -85,10 +85,7 @@ const payRequestschema = new mongoose.Schema(
       credit_deadline: { type: Date },
       credit_status: { type: Boolean, default: false },
       credit_remarks: { type: String, default: "" },
-      user_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
+      user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       credit_extension: { type: Boolean, default: false },
     },
 
@@ -114,11 +111,9 @@ const payRequestschema = new mongoose.Schema(
         ],
         default: "Draft",
       },
-      user_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
+      user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       remarks: { type: String },
+      // (optional) timestamp: { type: Date, default: Date.now },
     },
 
     timers: {
@@ -128,9 +123,7 @@ const payRequestschema = new mongoose.Schema(
     },
 
     status_history: [StatusHistorySchema],
-
     credit_history: [CreditHistorySchema],
-
     utr_history: [UTRHistorySchema],
 
     acc_match: { type: String },
@@ -142,14 +135,9 @@ const payRequestschema = new mongoose.Schema(
   { timestamps: true }
 );
 
+
 payRequestschema.pre("save", function (next) {
-  updateCurrentStatus(
-    this,
-    "status_history",
-    "approval_status",
-    "utr_history",
-    "utr"
-  );
+  updateCurrentStatus(this);
   next();
 });
 
