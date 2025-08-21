@@ -46,12 +46,11 @@ const createTask = async (req, res) => {
     await newTask.save();
 
     // Notification functionality for Creating Task
-    console.log(assigned_to);
     try {
       const workflow = 'task-create';
       const senders = assigned_to;
       const data  = {
-        message : ` New Task is created`,
+        message: `New task created for Lead #${lead.id}`,
         link:`leadProfile?id=${lead._id}`
       }
       await getnovuNotification(workflow, senders, data);
@@ -104,7 +103,7 @@ const updateStatus = async (req, res) => {
       const workflow = 'task-status';
       const senders = [task?.user_id];
       const data = {
-        message : `Update Status : ${status} of Lead Id ${lead?.id} and Task Name ${task.title}`,
+       message: `Task "${task.title}" for Lead #${lead?.id} updated to status: ${status}`,
         link:`leadProfile?id=${lead._id}`
       }
       await getnovuNotification(workflow, senders, data);

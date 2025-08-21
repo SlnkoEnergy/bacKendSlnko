@@ -155,7 +155,8 @@ const createhandoversheet = async function (req, res) {
       const workflow = 'handover-submit';
       const Ids = await userModells.find({ department: 'internal' }).select('_id').lean().then(users => users.map(u => u._id));
       const data = {
-        message: `Handover submited by user`,
+        message: `Handover submitted by ${req.user.name} on ${new Date().toLocaleString()}`,
+
       }
 
       await getnovuNotification(workflow, Ids, data);
@@ -590,7 +591,7 @@ const updatestatus = async function (req, res) {
       senders = [owner._id];
       workflow = 'handover-submit';
       data = {
-        message: `Handover Sheet Status Updated Of Lead ${updatedHandoversheet.id}`
+        message: `Handover Sheet status updated for Lead #${updatedHandoversheet.id}`,
       }
 
       await getnovuNotification(workflow, senders, data);

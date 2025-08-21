@@ -540,7 +540,7 @@ const deleteLead = async (req, res) => {
       .lean()
       .then(users => users.map(u => u._id));
       const data = {
-        message : `Lead ${deletedLead.name} deleted by Manager`
+        message: `Lead ${deletedLead.name} (ID: ${deletedLead.id}) was deleted by ${req.user.name}`
       }
       await getnovuNotification(workflow, senders, data);
     } catch (error) {
@@ -613,7 +613,7 @@ const updateAssignedTo = async (req, res) => {
 
         const senders = [...new Set([...alluser, assigned])];
         const data = {
-          message: `Lead ${lead.id} transfer to ${assign.name}`,
+          message: `Lead ${lead.id} transferred to ${assign.name}`,
           link: 'leads'
         }
 
