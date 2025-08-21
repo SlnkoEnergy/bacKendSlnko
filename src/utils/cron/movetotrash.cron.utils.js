@@ -102,9 +102,7 @@ cron.schedule("* * * * *", async () => {
     };
 
     const creditToUpdate = await PayRequest.find(creditQuery);
-    // console.log(
-    //   `📝 Credit Pending to move back to Draft: ${creditToUpdate.length}`
-    // );
+  
 
     if (creditToUpdate.length > 0) {
       await PayRequest.updateMany(creditQuery, {
