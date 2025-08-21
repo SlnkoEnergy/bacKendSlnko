@@ -72,7 +72,7 @@ const payRequestschema = new mongoose.Schema(
     branch: { type: String },
     created_on: { type: String, default: Date.now },
     submitted_by: { type: String },
-    utr_submitted_by: { type: String },
+    utr_submitted_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
     credit: {
       credit_deadline: { type: Date },

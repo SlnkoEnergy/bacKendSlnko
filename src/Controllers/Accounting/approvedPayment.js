@@ -30,7 +30,7 @@ const paymentApproved = async (req, res) => {
         $project: {
           _id: 0,
           pay_id: "$pay_id",
-          cr_id:"$cr_id",
+          cr_id: "$cr_id",
           projectId: "$project.code",
           projectName: "$project.name",
           requestedFor: "$paid_for",
@@ -124,17 +124,27 @@ const utrSubmission = async (req, res) => {
     const skip = (page - 1) * pageSize;
     const search = req.query.search?.trim() || "";
 
-    const matchFilter = {
+    // ----- Conditions -----
+    // 1) Approved + matched + UTR empty
+    const cond1 = {
       approved: "Approved",
       acc_match: "matched",
-      $or: [{ utr: { $in: [null, ""] } }],
+      $or: [{ utr: { $exists: false } }, { utr: null }, { utr: "" }],
     };
 
-    const pipeline = [
-      { $match: matchFilter },
-      { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: pageSize },
+    // 2) Approved + matched + Final stage + UTR filled
+    const cond2 = {
+      approved: "Approved",
+      acc_match: "matched",
+      "approval_status.stage": "Final",
+      utr: { $nin: [null, ""] },
+    };
+
+    const baseMatch = { $or: [cond1, cond2] };
+
+    // Build the data pipeline: match -> lookup -> unwind -> project -> search -> sort -> paginate
+    const dataPipeline = [
+      { $match: baseMatch },
       {
         $lookup: {
           from: "projectdetails",
@@ -143,12 +153,12 @@ const utrSubmission = async (req, res) => {
           as: "project",
         },
       },
-      { $unwind: "$project" },
+      { $unwind: { path: "$project", preserveNullAndEmptyArrays: false } },
       {
         $project: {
           _id: 0,
-          pay_id: "$pay_id",
-          cr_id:"$cr_id",
+          pay_id: 1,
+          cr_id: 1,
           projectId: "$project.code",
           projectName: "$project.name",
           requestedFor: "$paid_for",
@@ -162,23 +172,31 @@ const utrSubmission = async (req, res) => {
     ];
 
     if (search) {
-      pipeline.push({
+      const rx = new RegExp(search, "i");
+      dataPipeline.push({
         $match: {
           $or: [
-            { pay_id: { $regex: search, $options: "i" } },
-            { projectId: { $regex: search, $options: "i" } },
-            { projectName: { $regex: search, $options: "i" } },
-            { requestedFor: { $regex: search, $options: "i" } },
-            { vendor: { $regex: search, $options: "i" } },
+            { pay_id: rx },
+            { projectId: rx },
+            { projectName: rx },
+            { requestedFor: rx },
+            { vendor: rx },
           ],
         },
       });
     }
 
-    const data = await payrequestModells.aggregate(pipeline);
+    dataPipeline.push(
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: pageSize }
+    );
 
+    const data = await payrequestModells.aggregate(dataPipeline);
+
+    // Count pipeline mirrors filters (no skip/limit), then counts
     const countPipeline = [
-      { $match: matchFilter },
+      { $match: baseMatch },
       {
         $lookup: {
           from: "projectdetails",
@@ -187,10 +205,10 @@ const utrSubmission = async (req, res) => {
           as: "project",
         },
       },
-      { $unwind: "$project" },
+      { $unwind: { path: "$project", preserveNullAndEmptyArrays: false } },
       {
         $project: {
-          pay_id: "$pay_id",
+          pay_id: 1,
           projectId: "$project.code",
           projectName: "$project.name",
           requestedFor: "$paid_for",
@@ -200,14 +218,15 @@ const utrSubmission = async (req, res) => {
     ];
 
     if (search) {
+      const rx = new RegExp(search, "i");
       countPipeline.push({
         $match: {
           $or: [
-            { pay_id: { $regex: search, $options: "i" } },
-            { projectId: { $regex: search, $options: "i" } },
-            { projectName: { $regex: search, $options: "i" } },
-            { requestedFor: { $regex: search, $options: "i" } },
-            { vendor: { $regex: search, $options: "i" } },
+            { pay_id: rx },
+            { projectId: rx },
+            { projectName: rx },
+            { requestedFor: rx },
+            { vendor: rx },
           ],
         },
       });
@@ -220,12 +239,7 @@ const utrSubmission = async (req, res) => {
 
     res.json({
       psuccess: true,
-      meta: {
-        total,
-        page,
-        pageSize,
-        count: data.length,
-      },
+      meta: { total, page, pageSize, count: data.length },
       data,
     });
   } catch (error) {

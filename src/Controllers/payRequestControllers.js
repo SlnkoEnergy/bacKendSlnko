@@ -466,10 +466,14 @@ const accApproved = async function (req, res) {
 
     const ACTIONS = ["Approved", "Rejected", "Pending"];
     if (!_id || !status || !ACTIONS.includes(status)) {
-      return res.status(400).json({ message: "status must be Approved or Rejected" });
+      return res
+        .status(400)
+        .json({ message: "status must be Approved or Rejected" });
     }
     if (status === "Rejected" && !remarks?.trim()) {
-      return res.status(400).json({ message: "Remarks are required when status is Rejected" });
+      return res
+        .status(400)
+        .json({ message: "Remarks are required when status is Rejected" });
     }
 
     const currentUser = await userModells.findById(req.user.userId).lean();
@@ -477,14 +481,17 @@ const accApproved = async function (req, res) {
 
     const { department, role, _id: actorId } = currentUser;
     if (role !== "manager") {
-      return res.status(403).json({ message: "Only managers can approve or reject" });
+      return res
+        .status(403)
+        .json({ message: "Only managers can approve or reject" });
     }
 
     const ids = Array.isArray(_id) ? _id : [_id];
     const results = [];
 
     const pushHistory = (paymentDoc, { stage, statusValue, remarksValue }) => {
-      if (!Array.isArray(paymentDoc.status_history)) paymentDoc.status_history = [];
+      if (!Array.isArray(paymentDoc.status_history))
+        paymentDoc.status_history = [];
       paymentDoc.status_history.push({
         stage,
         user_id: actorId,
@@ -497,7 +504,10 @@ const accApproved = async function (req, res) {
     };
 
     const computeTransition = (currentStage) => {
-      if ((currentStage === "Draft" || currentStage === "Credit Pending") && department === "SCM")
+      if (
+        (currentStage === "Draft" || currentStage === "Credit Pending") &&
+        department === "SCM"
+      )
         return { nextStage: "CAM", approvedValue: "Pending" };
       if (currentStage === "CAM" && department === "Internal")
         return { nextStage: "Account", approvedValue: "Pending" };
@@ -511,13 +521,21 @@ const accApproved = async function (req, res) {
     for (const id of ids) {
       try {
         if (!mongoose.isValidObjectId(id)) {
-          results.push({ _id: id, status: "error", message: "Invalid payment id" });
+          results.push({
+            _id: id,
+            status: "error",
+            message: "Invalid payment id",
+          });
           continue;
         }
 
         const payment = await payRequestModells.findById(id);
         if (!payment) {
-          results.push({ _id: id, status: "error", message: "Payment not found" });
+          results.push({
+            _id: id,
+            status: "error",
+            message: "Payment not found",
+          });
           continue;
         }
 
@@ -525,21 +543,41 @@ const accApproved = async function (req, res) {
 
         // Already terminal states
         if (payment.approved === "Approved") {
-          results.push({ _id: id, status: "error", message: "Already fully approved" });
+          results.push({
+            _id: id,
+            status: "error",
+            message: "Already fully approved",
+          });
           continue;
         }
         if (payment.approved === "Rejected") {
-          results.push({ _id: id, status: "error", message: "Already rejected" });
+          results.push({
+            _id: id,
+            status: "error",
+            message: "Already rejected",
+          });
           continue;
         }
 
         // Handle explicit rejection
         if (status === "Rejected") {
           payment.approved = "Rejected";
-          payment.approval_status = { stage: currentStage, user_id: actorId, remarks: remarks || "" };
-          pushHistory(payment, { stage: currentStage, statusValue: "Rejected", remarksValue: remarks });
+          payment.approval_status = {
+            stage: currentStage,
+            user_id: actorId,
+            remarks: remarks || "",
+          };
+          pushHistory(payment, {
+            stage: currentStage,
+            statusValue: "Rejected",
+            remarksValue: remarks,
+          });
           await payment.save();
-          results.push({ _id: id, status: "success", message: "Payment rejected successfully" });
+          results.push({
+            _id: id,
+            status: "success",
+            message: "Payment rejected successfully",
+          });
           continue;
         }
 
@@ -556,14 +594,21 @@ const accApproved = async function (req, res) {
               results.push({
                 _id: id,
                 status: "error",
-                message: "PO number is required for Material Category based payments.",
+                message:
+                  "PO number is required for Material Category based payments.",
               });
               continue;
             }
 
-            const purchaseOrder = await purchaseOrderModells.findOne({ po_number: poNumber }).lean();
+            const purchaseOrder = await purchaseOrderModells
+              .findOne({ po_number: poNumber })
+              .lean();
             if (!purchaseOrder) {
-              results.push({ _id: id, status: "error", message: "Purchase order not found" });
+              results.push({
+                _id: id,
+                status: "error",
+                message: "Purchase order not found",
+              });
               continue;
             }
 
@@ -604,7 +649,6 @@ const accApproved = async function (req, res) {
 
         const { nextStage, approvedValue } = transition;
 
-        // ---------- Initial Account: gated UTR generation ----------
         let generatedUtr = null;
         if (nextStage === "Initial Account") {
           const projectIdNum = Number(payment?.p_id);
@@ -617,61 +661,60 @@ const accApproved = async function (req, res) {
             continue;
           }
 
-          const isCRFlow = typeof payment.cr_id === "string" && payment.cr_id.trim().length > 0;
-          const isPayIdFlow = typeof payment.pay_id === "string" && payment.pay_id.trim().length > 0;
+          const isCRFlow =
+            typeof payment.cr_id === "string" &&
+            payment.cr_id.trim().length > 0;
+          const isPayIdFlow =
+            typeof payment.pay_id === "string" &&
+            payment.pay_id.trim().length > 0;
 
-          if (!isCRFlow) {
-            if (isPayIdFlow && payment.acc_match !== "matched") {
-              results.push({
-                _id: id,
-                status: "error",
-                message: "Account verification is missing for pay_id flow. Please match account before Account approval.",
-              });
-              continue;
-            }
-            if (!isPayIdFlow) {
-              results.push({
-                _id: id,
-                status: "error",
-                message: "Neither CR flow nor verified pay_id flow. Cannot generate UTR.",
-              });
-              continue;
-            }
-          }
+          if (isPayIdFlow) {
+            generatedUtr = payment.utr || null;
+          } else if (isCRFlow) {
+            if (!payment.utr) {
+              const counter = await utrCounter.findOneAndUpdate(
+                { p_id: projectIdNum },
+                {
+                  $inc: { count: 1, lastDigit: 1 },
+                  $setOnInsert: { p_id: projectIdNum },
+                },
+                { new: true, upsert: true }
+              );
 
-          if (!payment.utr) {
-            const counter = await utrCounter.findOneAndUpdate(
-              { p_id: projectIdNum },
-              { $inc: { count: 1, lastDigit: 1 }, $setOnInsert: { p_id: projectIdNum } },
-              { new: true, upsert: true }
-            );
+              generatedUtr = `CR/${projectIdNum}/${String(counter.lastDigit).padStart(2, "0")}`;
+              payment.utr = generatedUtr;
 
-            generatedUtr = `CR/${projectIdNum}/${String(counter.lastDigit).padStart(2, "0")}`;
-            payment.utr = generatedUtr;
-
-            try {
-              await subtractMoneyModells.create({
-                p_id: projectIdNum,
-                pay_id: payment._id,
-                pay_type: payment.pay_type,
-                amount_paid: payment.amount_paid,
-                amt_for_customer: payment.amt_for_customer,
-                dbt_date: payment.dbt_date,
-                paid_for: payment.paid_for,
-                vendor: payment.vendor,
-                po_number: payment.po_number,
-                utr: generatedUtr,
-                submitted_by: actorId,
-              });
-            } catch (e) {
-              results.push({
-                _id: id,
-                status: "warning",
-                message: `UTR saved; subtractMoney failed: ${e.message}`,
-              });
+              try {
+                await subtractMoneyModells.create({
+                  p_id: projectIdNum,
+                  pay_id: payment._id,
+                  pay_type: payment.pay_type,
+                  amount_paid: payment.amount_paid,
+                  amt_for_customer: payment.amt_for_customer,
+                  dbt_date: payment.dbt_date,
+                  paid_for: payment.paid_for,
+                  vendor: payment.vendor,
+                  po_number: payment.po_number,
+                  utr: generatedUtr,
+                  submitted_by: actorId,
+                });
+              } catch (e) {
+                results.push({
+                  _id: id,
+                  status: "warning",
+                  message: `UTR saved; subtractMoney failed: ${e.message}`,
+                });
+              }
+            } else {
+              generatedUtr = payment.utr;
             }
           } else {
-            generatedUtr = payment.utr; // reuse existing UTR
+            results.push({
+              _id: id,
+              status: "error",
+              message: "Neither CR flow nor pay_id flow. Cannot proceed.",
+            });
+            continue;
           }
         }
 
@@ -685,8 +728,16 @@ const accApproved = async function (req, res) {
 
         // ---------- persist state & history ----------
         payment.approved = approvedValue;
-        payment.approval_status = { stage: nextStage, user_id: actorId, remarks: remarks || "" };
-        pushHistory(payment, { stage: nextStage, statusValue: approvedValue, remarksValue: remarks });
+        payment.approval_status = {
+          stage: nextStage,
+          user_id: actorId,
+          remarks: remarks || "",
+        };
+        pushHistory(payment, {
+          stage: nextStage,
+          statusValue: approvedValue,
+          remarksValue: remarks,
+        });
         await payment.save();
 
         results.push({
@@ -706,7 +757,9 @@ const accApproved = async function (req, res) {
       }
     }
 
-    return res.status(200).json({ message: "Processed approval updates", results });
+    return res
+      .status(200)
+      .json({ message: "Processed approval updates", results });
   } catch (error) {
     console.error("Error in accApproved:", error);
     return res.status(500).json({ message: "Server error" });
@@ -775,13 +828,12 @@ const utrUpdate = async function (req, res) {
     if (cr_id) {
       const payment = await payRequestModells.findOne({
         cr_id,
-        "approval_status.stage": "Initial Account",
+        "approval_status.stage": "Final",
       });
 
       if (!payment) {
         return res.status(404).json({
-          message:
-            "No matching record found with this CR ID at stage 'Initial Account'.",
+          message: "No matching record found with this CR ID at stage 'Final'.",
         });
       }
 
@@ -795,7 +847,7 @@ const utrUpdate = async function (req, res) {
       const updatedPayment = await payRequestModells.findOneAndUpdate(
         {
           cr_id,
-          "approval_status.stage": "Initial Account",
+          "approval_status.stage": "Final",
           utr: { $exists: false },
         },
         { $set: { utr: utr.trim() } },
@@ -910,8 +962,6 @@ const restoreTrashToDraft = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-
 
 const newAppovAccount = async function (req, res) {
   const { pay_id, status } = req.body;
@@ -1171,7 +1221,7 @@ const getExcelDataById = async function (req, res) {
 const getPay = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 10;
+    const pageSize = parseInt(req.query.pageSize) || 50;
     const skip = (page - 1) * pageSize;
 
     const search = req.query.search?.trim() || "";

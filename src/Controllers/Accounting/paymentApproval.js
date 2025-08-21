@@ -9,8 +9,8 @@ const paymentApproval = async function (req, res) {
     const tab =
       req.query.tab === "finalApprovalPayments" ? "finalApprovalPayments" : "payments";
 
-    const page = parseInt(req.query.page, 10) || 1;
-    const pageSize = parseInt(req.query.pageSize, 10) || 10;
+    const page = parseInt(req.query.page, 50) || 1;
+    const pageSize = parseInt(req.query.pageSize, 50) || 50;
 
     const currentUser = await User.findById(req.user.userId);
     if (!currentUser) {
