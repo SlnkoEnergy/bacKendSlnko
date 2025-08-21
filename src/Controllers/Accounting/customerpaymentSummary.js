@@ -327,33 +327,52 @@ const getCustomerPaymentSummary = async (req, res) => {
           "purchase_orders.createdAt": -1,
         },
       },
+     {
+  $lookup: {
+    from: "payrequests",
+    let: { po_numberStr: { $toString: "$purchase_orders.po_number" } },
+    pipeline: [
       {
-        $lookup: {
-          from: "payrequests",
-          let: { po_numberStr: { $toString: "$purchase_orders.po_number" } },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: [{ $toString: "$po_number" }, "$$po_numberStr"] },
-                    { $eq: ["$approved", "Approved"] },
-                    { $eq: ["$acc_match", "matched"] },
-                    { $ne: ["$utr", ""] },
-                  ],
-                },
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: [{ $toString: "$po_number" }, "$$po_numberStr"] },
+              {
+                $or: [
+                  // original condition
+                  {
+                    $and: [
+                      { $eq: ["$approved", "Approved"] },
+                      { $eq: ["$acc_match", "matched"] },
+                      { $ne: ["$utr", ""] },
+                    ],
+                  },
+                  // NEW condition: approved=Pending, matched, UTR exists, stage=Account
+                  {
+                    $and: [
+                      { $eq: ["$approved", "Approved"] },
+                      { $ne: ["$utr", ""] },
+                      { $eq: ["$approval_status.stage", "Final"] },
+                    ],
+                  },
+                ],
               },
-            },
-            {
-              $group: {
-                _id: null,
-                totalPaid: { $sum: { $toDouble: "$amount_paid" } },
-              },
-            },
-          ],
-          as: "approved_payment",
+            ],
+          },
         },
       },
+      {
+        $group: {
+          _id: null,
+          totalPaid: { $sum: { $toDouble: "$amount_paid" } },
+        },
+      },
+    ],
+    as: "approved_payment",
+  },
+}
+,
+
       {
         $addFields: {
           itemObjectId: {

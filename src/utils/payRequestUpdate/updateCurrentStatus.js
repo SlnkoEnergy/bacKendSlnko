@@ -1,30 +1,47 @@
-function updateCurrentStatus(
-  doc,
-  statusHistoryKey = "status_history",
-  currentStatusKey = "approval_status"
-) {
+function updateCurrentStatus(doc, update = {}) {
   if (!doc) return;
 
-  const history = doc[statusHistoryKey];
+  const history = doc.status_history || [];
+  const lastStatus = history[history.length - 1];
 
-  if (history && history.length > 0) {
-    doc[currentStatusKey] = {
-      stage: history[history.length - 1].stage,
-      remarks: history[history.length - 1].remarks || "",
-      user_id: history[history.length - 1].user_id || null,
-      timestamp: history[history.length - 1].timestamp || new Date(),
+  if (lastStatus) {
+    doc.approval_status = {
+      stage: lastStatus.stage,
+      remarks: lastStatus.remarks || "",
+      user_id: lastStatus.user_id || null,
+      timestamp: lastStatus.timestamp || new Date(),
     };
   } else {
-    const defaultStage =
-      doc.credit && doc.credit.credit_deadline ? "Credit Pending" : "Draft";
+    const defaultStage = doc.credit?.credit_deadline
+      ? "Credit Pending"
+      : "Draft";
 
-    doc[currentStatusKey] = {
+    doc.approval_status = {
       stage: defaultStage,
       remarks: "",
       user_id: null,
       timestamp: new Date(),
     };
   }
+
+  const utrHistory = doc.utr_history || [];
+
+  const incomingUtr = update.utr ?? doc.utr;
+
+  if (incomingUtr && incomingUtr !== doc.utr) {
+    utrHistory.push({
+      utr: incomingUtr,
+      user_id: doc.approval_status?.user_id || null,
+      status: utrHistory.length === 0 ? "Created" : "Updated",
+      timestamp: new Date(),
+    });
+  }
+
+  if (utrHistory.length > 0) {
+    doc.utr = utrHistory[utrHistory.length - 1].utr;
+  }
+
+  doc.utr_history = utrHistory;
 }
 
 module.exports = updateCurrentStatus;
