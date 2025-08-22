@@ -9,8 +9,9 @@ const {
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
   getMaterialScope,
-} = require("../../Controllers/purchaseRequestController/purchaseRequestController");
-const jwtMW = require("../../middlewares/auth");
+  fetchExcelFromBOQ,
+} = require("../Controllers/purchaserequest.controller");
+const jwtMW = require("../middlewares/auth");
 router.post(
   "/purchase-request",
   jwtMW.authentication,
@@ -59,5 +60,6 @@ router.get(
   jwtMW.authorization,
   getMaterialScope
 );
+router.get('/fetch-boq', jwtMW.authentication, fetchExcelFromBOQ);
 
 module.exports = router;

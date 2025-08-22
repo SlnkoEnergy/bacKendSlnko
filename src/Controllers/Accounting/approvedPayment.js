@@ -30,6 +30,7 @@ const paymentApproved = async (req, res) => {
         $project: {
           _id: 0,
           pay_id: "$pay_id",
+          cr_id: "$cr_id",
           projectId: "$project.code",
           projectName: "$project.name",
           requestedFor: "$paid_for",
@@ -123,17 +124,11 @@ const utrSubmission = async (req, res) => {
     const skip = (page - 1) * pageSize;
     const search = req.query.search?.trim() || "";
 
-    const matchFilter = {
-      approved: "Approved",
-      acc_match: "matched",
-      $or: [{ utr: { $in: [null, ""] } }],
-    };
+    const dataPipeline = [
+      {
+        $match: { approved: "Approved", acc_match: "matched" },
+      },
 
-    const pipeline = [
-      { $match: matchFilter },
-      { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: pageSize },
       {
         $lookup: {
           from: "projectdetails",
@@ -142,11 +137,37 @@ const utrSubmission = async (req, res) => {
           as: "project",
         },
       },
-      { $unwind: "$project" },
+      { $unwind: { path: "$project", preserveNullAndEmptyArrays: false } },
+
+      {
+        $addFields: {
+          latestUTRStatus: {
+            $arrayElemAt: ["$utr_history.status", -1],
+          },
+        },
+      },
+
+      {
+        $match: {
+          $or: [
+            { utr: { $in: [null, ""] } },
+
+            {
+              $and: [
+                { utr: { $nin: [null, ""] } },
+                { latestUTRStatus: { $ne: "Updated" } },
+                { "approval_status.stage": "Final" },
+              ],
+            },
+          ],
+        },
+      },
+
       {
         $project: {
           _id: 0,
-          pay_id: "$pay_id",
+          pay_id: 1,
+          cr_id: 1,
           projectId: "$project.code",
           projectName: "$project.name",
           requestedFor: "$paid_for",
@@ -160,23 +181,30 @@ const utrSubmission = async (req, res) => {
     ];
 
     if (search) {
-      pipeline.push({
+      const rx = new RegExp(search, "i");
+      dataPipeline.push({
         $match: {
           $or: [
-            { pay_id: { $regex: search, $options: "i" } },
-            { projectId: { $regex: search, $options: "i" } },
-            { projectName: { $regex: search, $options: "i" } },
-            { requestedFor: { $regex: search, $options: "i" } },
-            { vendor: { $regex: search, $options: "i" } },
+            { pay_id: rx },
+            { projectId: rx },
+            { projectName: rx },
+            { requestedFor: rx },
+            { vendor: rx },
           ],
         },
       });
     }
 
-    const data = await payrequestModells.aggregate(pipeline);
+    dataPipeline.push(
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: pageSize }
+    );
+
+    const data = await payrequestModells.aggregate(dataPipeline);
 
     const countPipeline = [
-      { $match: matchFilter },
+      { $match: { approved: "Approved", acc_match: "matched" } },
       {
         $lookup: {
           from: "projectdetails",
@@ -185,45 +213,37 @@ const utrSubmission = async (req, res) => {
           as: "project",
         },
       },
-      { $unwind: "$project" },
+      { $unwind: { path: "$project", preserveNullAndEmptyArrays: false } },
       {
-        $project: {
-          pay_id: "$pay_id",
-          projectId: "$project.code",
-          projectName: "$project.name",
-          requestedFor: "$paid_for",
-          vendor: "$vendor",
+        $addFields: {
+          latestUTRStatus: {
+            $arrayElemAt: ["$utr_history.status", -1],
+          },
         },
       },
-    ];
-
-    if (search) {
-      countPipeline.push({
+      {
         $match: {
           $or: [
-            { pay_id: { $regex: search, $options: "i" } },
-            { projectId: { $regex: search, $options: "i" } },
-            { projectName: { $regex: search, $options: "i" } },
-            { requestedFor: { $regex: search, $options: "i" } },
-            { vendor: { $regex: search, $options: "i" } },
+            { utr: { $in: [null, ""] } },
+            {
+              $and: [
+                { utr: { $nin: [null, ""] } },
+                { latestUTRStatus: { $ne: "Updated" } },
+                { "approval_status.stage": "Final" },
+              ],
+            },
           ],
         },
-      });
-    }
-
-    countPipeline.push({ $count: "total" });
+      },
+      { $count: "total" },
+    ];
 
     const countAgg = await payrequestModells.aggregate(countPipeline);
     const total = countAgg[0]?.total || 0;
 
     res.json({
       psuccess: true,
-      meta: {
-        total,
-        page,
-        pageSize,
-        count: data.length,
-      },
+      meta: { total, page, pageSize, count: data.length },
       data,
     });
   } catch (error) {

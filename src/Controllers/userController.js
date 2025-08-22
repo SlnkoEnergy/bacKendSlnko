@@ -226,7 +226,7 @@ const login = async function (req, res) {
     }
 
     
-    if (user.department === "BD") {
+    if (user.department === "BD" || name === "Shantanu Sameer" || emp_id === "SE-187" || email === "shantanu.sameer12@gmail.com") {
       const { device_id, ip } = await getSystemIdentifier(req, res);
       const registeredDevice = await session.findOne({
         user_id: user._id,

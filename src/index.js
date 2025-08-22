@@ -5,16 +5,18 @@ const routes = require("../src/Routes/routes");
 const engineeringRoutes = require("./Routes/engineering.routes");
 const bdleadsRoutes = require("../src/Routes/bdleads/bdleadDashboardRoutes");
 const dprRoutes = require("../src/Routes/dpr/dprRoutes");
-const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRoutes");
+const purchaseRoutes = require("../src/Routes/purchaserequest.routes");
 const taskRoutes = require("./Routes/tasks.routes");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
 const scopeRoutes = require("../src/Routes/scope.routes");
+const productRoutes = require("../src/Routes/products.routes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
-const http = require("http");
 const Sentry = require("@sentry/node");
 const Tracing = require("@sentry/tracing");
+require("../src/utils/cron/inactivelead.cron.utils");
+require("../src/utils/cron/movetotrash.cron.utils");
 
 Sentry.init({
   dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",
@@ -58,7 +60,6 @@ const startServer = async () => {
     await mongoose.connect(db, {});
     console.log("SlnkoEnergy database is connected");
 
-    require("../src/utils/cron/movetotrash.cron.utils");
 
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
@@ -68,6 +69,7 @@ const startServer = async () => {
     app.use("/v1/tasks", taskRoutes);
     app.use("/v1/accounting", accountingRoutes);
     app.use("/v1/scope", scopeRoutes);
+    app.use("/v1/products", productRoutes);
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);

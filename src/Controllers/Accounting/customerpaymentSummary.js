@@ -1,8 +1,8 @@
 const CreditModel = require("../../Modells/addMoneyModells");
 const DebitModel = require("../../Modells/debitMoneyModells");
 const AdjustmentModel = require("../../Modells/adjustmentRequestModells");
-const ClientModel = require("../../Modells/purchaseOrderModells");
-const ProjectModel = require("../../Modells/projectModells");
+const ClientModel = require("../../Modells/purchaseorder.model");
+const ProjectModel = require("../../Modells/project.model");
 const { Parser } = require("json2csv");
 
 const getCustomerPaymentSummary = async (req, res) => {
@@ -36,7 +36,7 @@ const getCustomerPaymentSummary = async (req, res) => {
       return { [field]: dateRange };
     };
 
-    // 1️⃣ Project Details
+
     const [project] = await ProjectModel.aggregate([
       { $match: { p_id: projectId } },
       {
@@ -337,9 +337,30 @@ const getCustomerPaymentSummary = async (req, res) => {
                 $expr: {
                   $and: [
                     { $eq: [{ $toString: "$po_number" }, "$$po_numberStr"] },
-                    { $eq: ["$approved", "Approved"] },
-                    { $eq: ["$acc_match", "matched"] },
-                    { $ne: ["$utr", ""] },
+                    {
+                      $or: [
+                   
+                        {
+                          $and: [
+                            { $eq: ["$approved", "Approved"] },
+                            { $eq: ["$acc_match", "matched"] },
+                            { $ne: ["$utr", ""] },
+                          ],
+                        },
+                        {
+                          $and: [
+                            { $eq: ["$approved", "Approved"] },
+                            { $ne: ["$utr", ""] },
+                            {
+                              $eq: [
+                                "$approval_status.stage",
+                                "Initial Account",
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
                   ],
                 },
               },
@@ -354,6 +375,7 @@ const getCustomerPaymentSummary = async (req, res) => {
           as: "approved_payment",
         },
       },
+
       {
         $addFields: {
           itemObjectId: {

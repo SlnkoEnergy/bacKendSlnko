@@ -10,7 +10,7 @@ const task = require("../../Modells/bdleads/task");
 const groupModells = require("../../Modells/bdleads/group");
 const { Novu } = require('@novu/node');
 const { getnovuNotification } = require("../../utils/nouvnotificationutils");
-const handoversheetModells = require("../../Modells/handoversheetModells");
+const handoversheetModells = require("../../Modells/handoversheet.model");
 
 const createBDlead = async function (req, res) {
   try {
@@ -177,24 +177,26 @@ const getAllLeads = async (req, res) => {
     const query = {};
 
     const regionalAccessMap = {
-      "Shambhavi Gupta": "rajasthan",
-      "Navin Kumar Gautam": "rajasthan",
-      "Ketan Kumar Jha": "madhya pradesh",
-      "Gaurav Kumar Upadhyay": "madhya pradesh",
-      "Vibhav Upadhyay": "uttar pradesh",
-      "Om Utkarsh": "rajasthan"
+      "Shambhavi Gupta": ["rajasthan"],
+      "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
+      "Navin Kumar Gautam": ["rajasthan"],
+      "Ketan Kumar Jha": ["madhya pradesh"],
+      "Gaurav Kumar Upadhyay": ["madhya pradesh"],
+      "Om Utkarsh": ["rajasthan"]
     };
+
 
     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
       query["current_assigned.user_id"] = new mongoose.Types.ObjectId(userId)
     }
 
     if (regionalAccessMap[user.name] && !isPrivilegedUser) {
-      const region = regionalAccessMap[user.name];
+      const regions = regionalAccessMap[user.name];
       query.$or = [
-        { "current_assigned.user_id": userId },
-        { "address.state": new RegExp(`^${region}$`, "i") },
+        { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
+        { "address.state": { $in: regions.map(r => new RegExp(`^${r}$`, "i")) } }
       ];
+
     }
 
     if (search) {
@@ -317,7 +319,6 @@ const getLeadCounts = async (req, res) => {
 
     const userId = req.user.userId;
     const user = await userModells.findById(userId).lean();
-    console.log(user.name);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const andConditions = [];
@@ -328,13 +329,14 @@ const getLeadCounts = async (req, res) => {
       (user.department === "BD" && user.role === "manager");
 
     const regionalAccessMap = {
-      "Shambhavi Gupta": "rajasthan",
-      "Navin Kumar Gautam": "rajasthan",
-      "Ketan Kumar Jha": "madhya pradesh",
-      "Gaurav Kumar Upadhyay": "madhya pradesh",
-      "Vibhav Upadhyay": "uttar pradesh",
-      "Om Utkarsh": "rajasthan"
+      "Shambhavi Gupta": ["rajasthan"],
+      "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
+      "Navin Kumar Gautam": ["rajasthan"],
+      "Ketan Kumar Jha": ["madhya pradesh"],
+      "Gaurav Kumar Upadhyay": ["madhya pradesh"],
+      "Om Utkarsh": ["rajasthan"]
     };
+
 
     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
       const userObjectId = new mongoose.Types.ObjectId(userId);
@@ -344,13 +346,14 @@ const getLeadCounts = async (req, res) => {
     }
 
     if (!isPrivilegedUser && regionalAccessMap[user.name]) {
-      const region = regionalAccessMap[user.name];
+      const regions = regionalAccessMap[user.name];
       andConditions.push({
         $or: [
-          { "address.state": new RegExp(`^${region.trim()}$`, "i") },
-          { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
-        ],
+          { "address.state": { $in: regions.map(r => new RegExp(`^${r.trim()}$`, "i")) } },
+          { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) }
+        ]
       });
+
     }
 
     if (search) {
@@ -788,6 +791,15 @@ const getLeadByLeadIdorId = async (req, res) => {
     const data = await bdleadsModells.aggregate([
       { $match: matchQuery },
 
+      // Normalize missing arrays to avoid errors
+      {
+        $addFields: {
+          status_history: { $ifNull: ["$status_history", []] },
+          assigned_to: { $ifNull: ["$assigned_to", []] },
+          documents: { $ifNull: ["$documents", []] },
+        },
+      },
+
       // submitted_by
       {
         $lookup: {
@@ -912,6 +924,7 @@ const getLeadByLeadIdorId = async (req, res) => {
       },
       { $project: { current_assigned_user: 0 } },
 
+      // group info
       {
         $lookup: {
           from: "groups",
@@ -930,10 +943,6 @@ const getLeadByLeadIdorId = async (req, res) => {
               else: null,
             },
           },
-        },
-      },
-      {
-        $addFields: {
           group_name: {
             $cond: {
               if: { $gt: [{ $size: "$group_info" }, 0] },
@@ -944,6 +953,8 @@ const getLeadByLeadIdorId = async (req, res) => {
         },
       },
       { $project: { group_info: 0 } },
+
+      // Backup docs
       {
         $addFields: {
           documentsBackup: "$documents",
@@ -980,7 +991,6 @@ const getLeadByLeadIdorId = async (req, res) => {
           },
         },
       },
-
       {
         $replaceRoot: {
           newRoot: {
@@ -1025,6 +1035,7 @@ const getLeadByLeadIdorId = async (req, res) => {
     });
   }
 };
+
 
 const updateLeadStatus = async function (req, res) {
   try {

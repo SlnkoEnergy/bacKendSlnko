@@ -5,56 +5,48 @@ const { default: axios } = require("axios");
 
 const paymentApproval = async function (req, res) {
   try {
-    const search = req.query.search || "";
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 10;
+    const search = req.query.search?.trim() || "";
+    const tab =
+      req.query.tab === "finalApprovalPayments"
+        ? "finalApprovalPayments"
+        : "payments";
+
+    const page = parseInt(req.query.page, 50) || 1;
+    const pageSize = parseInt(req.query.pageSize, 50) || 50;
 
     const currentUser = await User.findById(req.user.userId);
+    if (!currentUser) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-    const matchStage = {
-      ...(search && {
-        $or: [
-          { code: { $regex: search, $options: "i" } },
-          { pay_id: { $regex: search, $options: "i" } },
-          { name: { $regex: search, $options: "i" } },
-          { p_group: { $regex: search, $options: "i" } },
-        ],
-      }),
-    };
-
-    let accessFilter = {
-      $match: { approved: "Pending", $expr: { $literal: false } },
-    };
-
+    // ---------- access filter by role/department ----------
+    let accessFilter = {};
     if (currentUser.department === "SCM" && currentUser.role === "manager") {
       accessFilter = {
-        $match: {
-          approved: "Pending",
-          $or: [
-            { "approval_status.stage": "Credit Pending" },
-            { "approval_status.stage": "Draft" },
-          ],
-        },
+        approved: "Pending",
+        $or: [
+          { "approval_status.stage": "Credit Pending" },
+          { "approval_status.stage": "Draft" },
+        ],
       };
     } else if (
       currentUser.department === "Internal" &&
       currentUser.role === "manager"
     ) {
       accessFilter = {
-        $match: {
-          approved: "Pending",
-          "approval_status.stage": "CAM",
-        },
+        approved: "Pending",
+        "approval_status.stage": "CAM",
       };
     } else if (
       currentUser.department === "Accounts" &&
       currentUser.role === "manager"
     ) {
       accessFilter = {
-        $match: {
-          approved: "Pending",
-          "approval_status.stage": "Account",
-        },
+        $or: [
+          { "approval_status.stage": "Account" },
+          { "approval_status.stage": "Credit Pending" },
+          { "approval_status.stage": "Initial Account" },
+        ],
       };
     } else {
       return res.status(200).json({
@@ -66,8 +58,91 @@ const paymentApproval = async function (req, res) {
       });
     }
 
-    const pipeline = [
-      { $match: { approved: "Pending" } },
+    // ---------- tab filter (Accounts only) ----------
+    const CR_EMPTY = {
+      $or: [{ cr_id: { $exists: false } }, { cr_id: null }, { cr_id: "" }],
+    };
+    const CR_PRESENT = { cr_id: { $nin: [null, ""] } };
+    const PAY_PRESENT = { pay_id: { $nin: [null, ""] } };
+
+    let tabFilter = {};
+    if (currentUser.department === "Accounts") {
+      if (tab === "finalApprovalPayments") {
+        tabFilter = { "approval_status.stage": "Initial Account" };
+      } else {
+        tabFilter = {
+          "approval_status.stage": "Account",
+          $or: [CR_PRESENT, { ...CR_EMPTY, ...PAY_PRESENT }],
+        };
+      }
+    }
+
+    const combinedMatch = { ...accessFilter, ...tabFilter };
+
+    // ---------- search filter (applied after project lookup) ----------
+    const searchFilter = search
+      ? {
+          $or: [
+            { code: { $regex: search, $options: "i" } },
+            { name: { $regex: search, $options: "i" } },
+            { p_group: { $regex: search, $options: "i" } },
+            { po_number: { $regex: search, $options: "i" } },
+            { pay_id: { $regex: search, $options: "i" } },
+            { cr_id: { $regex: search, $options: "i" } },
+          ],
+        }
+      : {};
+
+    // ---------- expressions ----------
+    const remDaysExpr = {
+      $let: {
+        vars: {
+          parsedDeadline: {
+            $cond: [
+              { $eq: [{ $type: "$credit.credit_deadline" }, "date"] },
+              "$credit.credit_deadline",
+              {
+                $dateFromString: {
+                  dateString: "$credit.credit_deadline",
+                  onError: null,
+                  onNull: null,
+                },
+              },
+            ],
+          },
+          nowDayIST: {
+            $dateTrunc: {
+              date: "$$NOW",
+              unit: "day",
+              timezone: "Asia/Kolkata",
+            },
+          },
+        },
+        in: {
+          $cond: [
+            { $ne: ["$$parsedDeadline", null] },
+            {
+              $dateDiff: {
+                startDate: "$$nowDayIST",
+                endDate: {
+                  $dateTrunc: {
+                    date: "$$parsedDeadline",
+                    unit: "day",
+                    timezone: "Asia/Kolkata",
+                  },
+                },
+                unit: "day",
+              },
+            },
+            null,
+          ],
+        },
+      },
+    };
+
+    // ---------- base pipeline ----------
+    const basePipeline = [
+      { $match: combinedMatch },
 
       {
         $lookup: {
@@ -78,9 +153,31 @@ const paymentApproval = async function (req, res) {
         },
       },
       { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          code: "$project.code",
+          name: "$project.name",
+          p_group: "$project.p_group",
+        },
+      },
 
-      ...(Object.keys(matchStage).length ? [{ $match: matchStage }] : []),
-      accessFilter,
+      ...(Object.keys(searchFilter).length ? [{ $match: searchFilter }] : []),
+
+      {
+        $lookup: {
+          from: "purchaseorders",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "purchase",
+        },
+      },
+      {
+        $addFields: {
+          po_value: {
+            $ifNull: [{ $arrayElemAt: ["$purchase.po_value", 0] }, 0],
+          },
+        },
+      },
 
       {
         $lookup: {
@@ -134,16 +231,91 @@ const paymentApproval = async function (req, res) {
                   },
                 ],
               },
+              2,
             ],
           },
-          trimmedGroup: {
-            $trim: {
-              input: "$project.p_group",
+          trimmedGroup: { $trim: { input: "$project.p_group" } },
+        },
+      },
+
+      {
+        $lookup: {
+          from: "payrequests",
+          let: { pid: "$p_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$p_id", "$$pid"] },
+                    {
+                      $or: [
+                        { $eq: ["$approved", "Approved"] },
+                        {
+                          $and: [
+                            { $eq: ["$approved", "Approved"] },
+                            {
+                              $eq: [
+                                "$approval_status.stage",
+                                "Initial Account",
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
             },
+            {
+              $group: {
+                _id: null,
+                totalPaid: { $sum: { $toDouble: "$amount_paid" } },
+              },
+            },
+          ],
+          as: "creditBalanceData",
+        },
+      },
+      {
+        $addFields: {
+          creditBalance: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$creditData.totalCredit", 0] },
+                      0,
+                    ],
+                  },
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$creditBalanceData.totalPaid", 0] },
+                      0,
+                    ],
+                  },
+                ],
+              },
+              2,
+            ],
           },
         },
       },
 
+      // credit user
+      {
+        $lookup: {
+          from: "users",
+          localField: "credit.user_id",
+          foreignField: "_id",
+          as: "creditUser",
+        },
+      },
+      { $unwind: { path: "$creditUser", preserveNullAndEmptyArrays: true } },
+
+      // group balances
       {
         $addFields: {
           hasValidGroup: {
@@ -160,8 +332,6 @@ const paymentApproval = async function (req, res) {
           },
         },
       },
-
-      // Conditionally lookup group project IDs
       {
         $lookup: {
           from: "projectdetails",
@@ -184,8 +354,6 @@ const paymentApproval = async function (req, res) {
           },
         },
       },
-
-      // Lookup group credits
       {
         $lookup: {
           from: "addmoneys",
@@ -218,7 +386,6 @@ const paymentApproval = async function (req, res) {
           as: "groupDebitData",
         },
       },
-
       {
         $addFields: {
           groupBalance: {
@@ -245,13 +412,16 @@ const paymentApproval = async function (req, res) {
               0,
             ],
           },
+          remainingDays: remDaysExpr,
         },
       },
 
+      // final shape
       {
         $project: {
           _id: 1,
-          payment_id: "$pay_id",
+          pay_id: 1,
+          cr_id: 1,
           request_date: "$dbt_date",
           request_for: "$paid_for",
           payment_description: "$comment",
@@ -261,13 +431,50 @@ const paymentApproval = async function (req, res) {
           group_name: "$project.p_group",
           ClientBalance: "$Available_Amount",
           groupBalance: 1,
+          remainingDays: 1,
+          credit_deadline: "$credit.credit_deadline",
+          po_value: 1,
+          po_number: 1,
+          vendor: 1,
+          credit_extension: "$credit.credit_extension",
+          credit_remarks: "$credit.credit_remarks",
+          credit_user_name: "$creditUser.name",
+          totalCredited: {
+            $ifNull: [{ $arrayElemAt: ["$creditData.totalCredit", 0] }, 0],
+          },
+          totalPaid: {
+            $ifNull: [{ $arrayElemAt: ["$creditBalanceData.totalPaid", 0] }, 0],
+          },
+          creditBalance: 1,
+          // ---- pay_type classification ----
+          pay_type: {
+            $cond: [
+              { $and: [{ $ne: ["$pay_id", null] }, { $ne: ["$pay_id", ""] }] },
+              "instant",
+              {
+                $cond: [
+                  {
+                    $and: [{ $ne: ["$cr_id", null] }, { $ne: ["$cr_id", ""] }],
+                  },
+                  "credit",
+                  "unknown",
+                ],
+              },
+            ],
+          },
         },
       },
     ];
 
-    const countPipeline = [...pipeline, { $count: "total" }];
+    const sortStage =
+      currentUser.department === "Accounts" && tab === "finalApprovalPayments"
+        ? { $sort: { remainingDays: 1, _id: -1 } }
+        : { $sort: { _id: -1 } };
+
+    const countPipeline = [...basePipeline, sortStage, { $count: "total" }];
     const paginatedPipeline = [
-      ...pipeline,
+      ...basePipeline,
+      sortStage,
       { $skip: (page - 1) * pageSize },
       { $limit: pageSize },
     ];
@@ -277,21 +484,93 @@ const paymentApproval = async function (req, res) {
       payRequestModells.aggregate(countPipeline),
     ]);
 
-    const total = countResult[0]?.total || 0;
+    const total = countResult?.[0]?.total || 0;
 
-    res.json({
+    // ---------- Accounts-only: compute tab badge counts with SAME search ----------
+    let paymentsCount;
+    let finalApprovalPaymentsCount;
+
+    if (currentUser.department === "Accounts") {
+      const baseMatch = {
+        $or: [
+          { "approval_status.stage": "Account" },
+          { "approval_status.stage": "Credit Pending" },
+          { "approval_status.stage": "Initial Account" },
+        ],
+      };
+
+      const paymentsMatch = {
+        ...baseMatch,
+        "approval_status.stage": "Account",
+        $or: [CR_PRESENT, { ...CR_EMPTY, ...PAY_PRESENT }],
+      };
+
+      const finalMatch = {
+        ...baseMatch,
+        "approval_status.stage": "Initial Account",
+      };
+
+      // helper for count pipeline (reuses search + remainingDays filter if needed)
+      const mkCountPipe = (extraMatch, filterRemainingDays = false) => {
+        const pipeline = [
+          { $match: extraMatch },
+          {
+            $lookup: {
+              from: "projectdetails",
+              localField: "p_id",
+              foreignField: "p_id",
+              as: "project",
+            },
+          },
+          { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
+          {
+            $addFields: {
+              code: "$project.code",
+              name: "$project.name",
+              p_group: "$project.p_group",
+            },
+          },
+          ...(Object.keys(searchFilter).length
+            ? [{ $match: searchFilter }]
+            : []),
+        ];
+
+        if (filterRemainingDays) {
+          pipeline.push({ $addFields: { remainingDays: remDaysExpr } });
+          pipeline.push({ $match: { remainingDays: { $lte: 2 } } });
+        }
+
+        pipeline.push({ $count: "total" });
+        return pipeline;
+      };
+
+      const [pCnt, fCnt] = await Promise.all([
+        payRequestModells.aggregate(mkCountPipe(paymentsMatch)),
+        payRequestModells.aggregate(mkCountPipe(finalMatch, true)),
+      ]);
+
+      paymentsCount = pCnt?.[0]?.total || 0;
+      finalApprovalPaymentsCount = fCnt?.[0]?.total || 0;
+    }
+
+    return res.json({
       success: true,
       meta: {
         total,
         page,
         pageSize,
         count: data.length,
+        tab,
+        ...(currentUser.department === "Accounts" && {
+          paymentsCount,
+          finalApprovalPaymentsCount,
+        }),
       },
       data,
     });
   } catch (error) {
-    console.error(error);
-    res
+    console.error("paymentApproval error:", error);
+    return res
       .status(500)
       .json({ message: "An error occurred while processing the request." });
   }
@@ -305,7 +584,9 @@ const getPoApprovalPdf = async function (req, res) {
       return res.status(400).json({ message: "No PO Provided." });
     }
 
-    const validPoIds = poIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    const validPoIds = poIds.filter((id) =>
+      mongoose.Types.ObjectId.isValid(id)
+    );
     if (validPoIds.length === 0) {
       return res.status(400).json({ message: "Invalid PO IDs provided." });
     }
@@ -336,7 +617,7 @@ const getPoApprovalPdf = async function (req, res) {
           project_code: "$project_info.code",
           project_name: "$project_info.name",
           group_name: "$project_info.p_group",
-          pay_id: 1,
+          pay_id: { $ifNull: ["$pay_id", "$cr_id"] },
           paid_for: 1,
           vendor: 1,
           dbt_date: 1,
@@ -371,10 +652,11 @@ const getPoApprovalPdf = async function (req, res) {
     axiosResponse.data.pipe(res);
   } catch (error) {
     console.error("Error generating PO approval PDF:", error);
-    res.status(500).json({ message: "Error Fetching PDF", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error Fetching PDF", error: error.message });
   }
 };
-
 
 module.exports = {
   paymentApproval,

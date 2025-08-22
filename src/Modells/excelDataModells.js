@@ -5,6 +5,9 @@ const excelSchema = new mongoose.Schema({
     p_id: {
         type: String,
     },
+    cr_id: {
+        type: String,
+    },
     pay_id: {
         type: String,
     },
