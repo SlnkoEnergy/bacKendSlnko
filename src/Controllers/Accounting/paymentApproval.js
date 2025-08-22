@@ -11,8 +11,14 @@ const paymentApproval = async function (req, res) {
         ? "finalApprovalPayments"
         : "payments";
 
-    const page = parseInt(req.query.page, 50) || 1;
-    const pageSize = parseInt(req.query.pageSize, 50) || 50;
+    // pagination
+    const page = Number.parseInt(req.query.page, 10) || 1;
+    const pageSize = Number.parseInt(req.query.pageSize, 10) || 50;
+
+    // delaydays parsing (undefined/empty/non-numeric => no filter)
+    const raw = (req.query.delaydays ?? "").toString().trim();
+    const delaydays = raw === "" ? null : Number(raw);
+    const applyDelayFilter = Number.isFinite(delaydays);
 
     const currentUser = await User.findById(req.user.userId);
     if (!currentUser) {
@@ -140,6 +146,35 @@ const paymentApproval = async function (req, res) {
       },
     };
 
+    const delaydaysMatchStage = Number.isFinite(delaydays)
+      ? delaydays === -1
+        ? [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $ne: ["$remainingDays", null] },
+                    { $lt: ["$remainingDays", 0] },
+                  ],
+                },
+              },
+            },
+          ]
+        : [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $ne: ["$remainingDays", null] },
+                    { $gte: ["$remainingDays", 0] },
+                    { $lte: ["$remainingDays", delaydays] },
+                  ],
+                },
+              },
+            },
+          ]
+      : [];
+
     // ---------- base pipeline ----------
     const basePipeline = [
       { $match: combinedMatch },
@@ -197,7 +232,7 @@ const paymentApproval = async function (req, res) {
       },
       {
         $lookup: {
-          from: "subtract moneys",
+          from: "subtract moneys", // ensure this matches your actual collection name
           let: { pid: "$p_id" },
           pipeline: [
             { $match: { $expr: { $eq: ["$p_id", "$$pid"] } } },
@@ -416,6 +451,8 @@ const paymentApproval = async function (req, res) {
         },
       },
 
+      ...delaydaysMatchStage,
+
       // final shape
       {
         $project: {
@@ -559,6 +596,7 @@ const paymentApproval = async function (req, res) {
         total,
         page,
         pageSize,
+        delaydays,
         count: data.length,
         tab,
         ...(currentUser.department === "Accounts" && {
