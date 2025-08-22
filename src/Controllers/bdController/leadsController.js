@@ -1010,25 +1010,44 @@ const getLeadByLeadIdorId = async (req, res) => {
 
 const updateLeadStatus = async function (req, res) {
   try {
-    const leads = await bdleadsModells.findById(req.params._id);
-    if (!leads) return res.status(404).json({ error: "Lead not found" });
+    const { ids, statusData = {}, remarks = {} } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No lead IDs provided" });
+    }
 
     const user_id = req.user.userId;
 
-    leads.status_history.push({
-      ...req.body,
-      user_id: user_id,
+    const results = await Promise.all(
+      ids.map(async (id) => {
+        const lead = await bdleadsModells.findById(id);
+        if (!lead) return null;
+
+        lead.status_history.push({
+          ...statusData,
+          ...remarks,
+          user_id,
+        });
+
+        if (
+          lead.expected_closing_date === undefined ||
+          lead.expected_closing_date === null
+        ) {
+          lead.expected_closing_date = statusData.expected_closing_date;
+        }
+
+        await lead.save();
+        return lead;
+      })
+    );
+
+    const updatedLeads = results.filter((lead) => lead !== null);
+
+    res.status(200).json({
+      message: "Leads updated successfully",
+      updatedLeads,
+      notFound: ids.filter((id, i) => results[i] === null),
     });
-
-    if (
-      leads.expected_closing_date === undefined ||
-      leads.expected_closing_date === null
-    ) {
-      leads.expected_closing_date = req.body.expected_closing_date;
-    }
-
-    await leads.save();
-    res.status(200).json(leads);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

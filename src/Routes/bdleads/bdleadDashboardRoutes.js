@@ -145,7 +145,7 @@ router.post(
   exportLeadsCSV
 );
 router.put(
-  "/:_id/updateLeadStatus",
+  "/updateLeadStatus",
   jwtMW.authentication,
   jwtMW.authorization,
   updateLeadStatus
