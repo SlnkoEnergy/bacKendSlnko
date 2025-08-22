@@ -418,11 +418,10 @@ const account_matched = async function (req, res) {
     const normalizedAcc = String(acc_number).trim();
     const normalizedIfsc = String(ifsc).trim();
 
-    
     const query = {
       ifsc: normalizedIfsc,
       acc_number: normalizedAcc,
-      $or: []
+      $or: [],
     };
 
     if (pay_id) query.$or.push({ pay_id: String(pay_id).trim() });
@@ -430,7 +429,7 @@ const account_matched = async function (req, res) {
 
     if (query.$or.length === 0) {
       return res.status(400).json({
-        message: "Either pay_id or cr_id is required."
+        message: "Either pay_id or cr_id is required.",
       });
     }
 
@@ -472,12 +471,16 @@ const accApproved = async function (req, res) {
 
     const ACTIONS = ["Approved", "Rejected", "Pending"];
     if (!status || !ACTIONS.includes(status)) {
-      return res.status(400).json({ message: "status must be Approved, Rejected, or Pending" });
+      return res
+        .status(400)
+        .json({ message: "status must be Approved, Rejected, or Pending" });
     }
 
     // Keep (or relax) this rule
     if (status === "Rejected" && !remarks?.trim()) {
-      return res.status(400).json({ message: "Remarks are required when status is Rejected" });
+      return res
+        .status(400)
+        .json({ message: "Remarks are required when status is Rejected" });
     }
 
     const currentUser = await userModells.findById(req.user.userId).lean();
@@ -485,7 +488,9 @@ const accApproved = async function (req, res) {
 
     const { department, role, _id: actorId } = currentUser;
     if (role !== "manager") {
-      return res.status(403).json({ message: "Only managers can approve or reject" });
+      return res
+        .status(403)
+        .json({ message: "Only managers can approve or reject" });
     }
 
     // -------- Resolve target payment _ids from _id | pay_id | cr_id --------
@@ -494,25 +499,35 @@ const accApproved = async function (req, res) {
     if (_id) {
       ids = Array.isArray(_id) ? _id : [_id];
     } else if (pay_id) {
-      const doc = await payRequestModells.findOne({ pay_id: String(pay_id).trim() }).select("_id");
+      const doc = await payRequestModells
+        .findOne({ pay_id: String(pay_id).trim() })
+        .select("_id");
       if (doc) ids = [doc._id];
     } else if (cr_id) {
       const docs = await payRequestModells
         .find({ cr_id: String(cr_id).trim() })
         .select("_id");
-      ids = docs.map(d => d._id);
+      ids = docs.map((d) => d._id);
     } else {
-      return res.status(400).json({ message: "Provide one of: _id | pay_id | cr_id" });
+      return res
+        .status(400)
+        .json({ message: "Provide one of: _id | pay_id | cr_id" });
     }
 
     if (!ids.length) {
-      return res.status(404).json({ message: "No matching payments found for given identifier(s)" });
+      return res.status(404).json({
+        message: "No matching payments found for given identifier(s)",
+      });
     }
 
     const results = [];
 
-    const pushStatusHistory = (paymentDoc, { stage, statusValue, remarksValue }) => {
-      if (!Array.isArray(paymentDoc.status_history)) paymentDoc.status_history = [];
+    const pushStatusHistory = (
+      paymentDoc,
+      { stage, statusValue, remarksValue }
+    ) => {
+      if (!Array.isArray(paymentDoc.status_history))
+        paymentDoc.status_history = [];
       paymentDoc.status_history.push({
         stage,
         user_id: actorId,
@@ -525,7 +540,8 @@ const accApproved = async function (req, res) {
     };
 
     const pushUtrHistory = (paymentDoc, { note, status = "UTRUpdated" }) => {
-      if (!Array.isArray(paymentDoc.credit_history)) paymentDoc.credit_history = [];
+      if (!Array.isArray(paymentDoc.credit_history))
+        paymentDoc.credit_history = [];
       paymentDoc.credit_history.push({
         status,
         credit_deadline: null,
@@ -536,7 +552,10 @@ const accApproved = async function (req, res) {
     };
 
     const computeTransition = (currentStage) => {
-      if ((currentStage === "Draft" || currentStage === "Credit Pending") && department === "SCM")
+      if (
+        (currentStage === "Draft" || currentStage === "Credit Pending") &&
+        department === "SCM"
+      )
         return { nextStage: "CAM", approvedValue: "Pending" };
       if (currentStage === "CAM" && department === "Internal")
         return { nextStage: "Account", approvedValue: "Pending" };
@@ -550,13 +569,21 @@ const accApproved = async function (req, res) {
     for (const id of ids) {
       try {
         if (!mongoose.isValidObjectId(id)) {
-          results.push({ _id: id, status: "error", message: "Invalid payment id" });
+          results.push({
+            _id: id,
+            status: "error",
+            message: "Invalid payment id",
+          });
           continue;
         }
 
         const payment = await payRequestModells.findById(id);
         if (!payment) {
-          results.push({ _id: id, status: "error", message: "Payment not found" });
+          results.push({
+            _id: id,
+            status: "error",
+            message: "Payment not found",
+          });
           continue;
         }
 
@@ -567,15 +594,15 @@ const accApproved = async function (req, res) {
           const now = new Date();
           payment.approved = "Rejected";
           payment.approval_status = {
-            stage: "Rejected",              
+            stage: "Rejected",
             user_id: actorId,
             remarks: (remarks || "").trim(),
-            rejected_at: now,                 
+            rejected_at: now,
             rejected_by: { department, role },
           };
 
           pushStatusHistory(payment, {
-            stage: "Rejected",                
+            stage: "Rejected",
             statusValue: "Rejected",
             remarksValue: remarks,
           });
@@ -603,14 +630,21 @@ const accApproved = async function (req, res) {
               results.push({
                 _id: id,
                 status: "error",
-                message: "PO number is required for Material Category based payments.",
+                message:
+                  "PO number is required for Material Category based payments.",
               });
               continue;
             }
 
-            const purchaseOrder = await purchaseOrderModells.findOne({ po_number: poNumber }).lean();
+            const purchaseOrder = await purchaseOrderModells
+              .findOne({ po_number: poNumber })
+              .lean();
             if (!purchaseOrder) {
-              results.push({ _id: id, status: "error", message: "Purchase order not found" });
+              results.push({
+                _id: id,
+                status: "error",
+                message: "Purchase order not found",
+              });
               continue;
             }
 
@@ -664,8 +698,12 @@ const accApproved = async function (req, res) {
             continue;
           }
 
-          const isCRFlow = typeof payment.cr_id === "string" && payment.cr_id.trim().length > 0;
-          const isPayIdFlow = typeof payment.pay_id === "string" && payment.pay_id.trim().length > 0;
+          const isCRFlow =
+            typeof payment.cr_id === "string" &&
+            payment.cr_id.trim().length > 0;
+          const isPayIdFlow =
+            typeof payment.pay_id === "string" &&
+            payment.pay_id.trim().length > 0;
 
           if (isPayIdFlow) {
             generatedUtr = payment.utr || null;
@@ -683,7 +721,10 @@ const accApproved = async function (req, res) {
               generatedUtr = `CR/${projectIdNum}/${String(counter.lastDigit).padStart(2, "0")}`;
               payment.utr = generatedUtr;
 
-              pushUtrHistory(payment, { note: `UTR generated: ${generatedUtr}`, status: "UTRUpdated" });
+              pushUtrHistory(payment, {
+                note: `UTR generated: ${generatedUtr}`,
+                status: "UTRUpdated",
+              });
 
               try {
                 await subtractMoneyModells.create({
@@ -759,7 +800,9 @@ const accApproved = async function (req, res) {
       }
     }
 
-    return res.status(200).json({ message: "Processed approval updates", results });
+    return res
+      .status(200)
+      .json({ message: "Processed approval updates", results });
   } catch (error) {
     console.error("Error in accApproved:", error);
     return res.status(500).json({ message: "Server error" });
