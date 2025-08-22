@@ -8,30 +8,32 @@ const billSchema = new mongoose.Schema(
     po_number: {
       type: String,
     },
-    item: {
-      category_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+    item: [
+      {
+        category_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        product_name: {
+          type: String,
+        },
+        product_make: {
+          type: String,
+        },
+        uom: {
+          type: String,
+        },
+        quantity: {
+          type: String,
+        },
+        bill_value: {
+          type: String,
+        },
+        gst_percent: {
+          type: String,
+        },
       },
-      product_name: {
-        type: String,
-      },
-      product_make: {
-        type: String,
-      },
-      uom: {
-        type: String,
-      },
-      quantity: {
-        type: String,
-      },
-      bill_value: {
-        type: String,
-      },
-      gst_percent: {
-        type: String,
-      },
-    },
+    ],
     bill_number: {
       type: String,
     },
