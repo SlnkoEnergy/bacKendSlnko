@@ -8,10 +8,13 @@ const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
 const group = require("../../Modells/bdleads/group");
 const task = require("../../Modells/bdleads/task");
 const groupModells = require("../../Modells/bdleads/group");
+const { Novu } = require('@novu/node');
+const { getnovuNotification } = require("../../utils/nouvnotificationutils");
 const handoversheetModells = require("../../Modells/handoversheet.model");
 
 const createBDlead = async function (req, res) {
   try {
+    const novu = new Novu(process.env.NOVU_SECRET_KEY);
     const body = req.body;
     const requiredFields = [
       "name",
@@ -131,6 +134,8 @@ const createBDlead = async function (req, res) {
     };
 
     const bdLead = new bdleadsModells(payload);
+
+
     await bdLead.save();
 
     res.status(200).json({
@@ -172,25 +177,25 @@ const getAllLeads = async (req, res) => {
     const query = {};
 
     const regionalAccessMap = {
-  "Shambhavi Gupta": ["rajasthan"],
-  "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
-  "Navin Kumar Gautam": ["rajasthan"],
-  "Ketan Kumar Jha": ["madhya pradesh"],
-  "Gaurav Kumar Upadhyay": ["madhya pradesh"],
-  "Om Utkarsh": ["rajasthan"]
-};
+      "Shambhavi Gupta": ["rajasthan"],
+      "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
+      "Navin Kumar Gautam": ["rajasthan"],
+      "Ketan Kumar Jha": ["madhya pradesh"],
+      "Gaurav Kumar Upadhyay": ["madhya pradesh"],
+      "Om Utkarsh": ["rajasthan"]
+    };
 
 
     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
-       query["current_assigned.user_id"]= new mongoose.Types.ObjectId(userId) 
+      query["current_assigned.user_id"] = new mongoose.Types.ObjectId(userId)
     }
 
     if (regionalAccessMap[user.name] && !isPrivilegedUser) {
       const regions = regionalAccessMap[user.name];
-query.$or = [
-  { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
-  { "address.state": { $in: regions.map(r => new RegExp(`^${r}$`, "i")) } }
-];
+      query.$or = [
+        { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
+        { "address.state": { $in: regions.map(r => new RegExp(`^${r}$`, "i")) } }
+      ];
 
     }
 
@@ -324,30 +329,30 @@ const getLeadCounts = async (req, res) => {
       (user.department === "BD" && user.role === "manager");
 
     const regionalAccessMap = {
-  "Shambhavi Gupta": ["rajasthan"],
-  "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"], 
-  "Navin Kumar Gautam": ["rajasthan"],
-  "Ketan Kumar Jha": ["madhya pradesh"],
-  "Gaurav Kumar Upadhyay": ["madhya pradesh"],
-  "Om Utkarsh": ["rajasthan"]
-};
+      "Shambhavi Gupta": ["rajasthan"],
+      "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
+      "Navin Kumar Gautam": ["rajasthan"],
+      "Ketan Kumar Jha": ["madhya pradesh"],
+      "Gaurav Kumar Upadhyay": ["madhya pradesh"],
+      "Om Utkarsh": ["rajasthan"]
+    };
 
-    
-     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
+
+    if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
       const userObjectId = new mongoose.Types.ObjectId(userId);
       andConditions.push({
         "current_assigned.user_id": userObjectId,
-      }); 
+      });
     }
 
     if (!isPrivilegedUser && regionalAccessMap[user.name]) {
       const regions = regionalAccessMap[user.name];
-andConditions.push({
-  $or: [
-    { "address.state": { $in: regions.map(r => new RegExp(`^${r.trim()}$`, "i")) } },
-    { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) }
-  ]
-});
+      andConditions.push({
+        $or: [
+          { "address.state": { $in: regions.map(r => new RegExp(`^${r.trim()}$`, "i")) } },
+          { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) }
+        ]
+      });
 
     }
 
@@ -524,6 +529,30 @@ const deleteLead = async (req, res) => {
       return res.status(404).json({ message: "Lead not found" });
     }
 
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
+
+    // Notification fuctionality on Delete Lead
+
+    try {
+      const workflow = 'delete-notification';
+
+      const senders = await userModells.find({
+        $or: [
+          { department: 'admin' },
+          { department: 'BD', role: 'manager' },
+        ]
+      }).select('_id')
+        .lean()
+        .then(users => users.map(u => u._id));
+      const data = {
+        message: `Lead ${deletedLead.name} (ID: ${deletedLead.id}) was deleted by ${user}`
+      }
+      await getnovuNotification(workflow, senders, data);
+    } catch (error) {
+      console.log(error);
+    }
+
     res
       .status(200)
       .json({ message: "Lead deleted successfully", data: deletedLead });
@@ -567,6 +596,40 @@ const updateAssignedTo = async (req, res) => {
       await lead.save();
       updatedLeads.push(lead);
     }
+
+    // Notification Functionality for Transfer Lead 
+
+    const Ids = leadIds.map(id => new mongoose.Types.ObjectId(id));
+
+    const leads = await bdleadsModells.find({ _id: { $in: Ids } }).select('id')
+
+    const assign = await userModells.findById(assigned).select('name');
+
+    for (const lead of leads) {
+      try {
+        const workflow = 'all-notification';
+        const alluser = await userModells.find({
+          $or: [
+            { department: 'admin' },
+            { department: 'BD', role: 'manager' }
+          ]
+        }).select('_id')
+          .lean()
+          .then(users => users.map(u => u._id));
+
+        const senders = [...new Set([...alluser, assigned])];
+        const data = {
+          message: `Lead ${lead.id} transferred to ${assign.name}`,
+          link: 'leads'
+        }
+
+        await getnovuNotification(workflow, senders, data);
+      } catch (error) {
+        console.log(error);
+      }
+    }
+
+
 
     return res.status(200).json({
       success: true,
@@ -1068,9 +1131,9 @@ const uploadDocuments = async (req, res) => {
         Array.isArray(respData) && respData.length > 0
           ? respData[0]
           : respData.url ||
-            respData.fileUrl ||
-            (respData.data && respData.data.url) ||
-            null;
+          respData.fileUrl ||
+          (respData.data && respData.data.url) ||
+          null;
 
       if (url) {
         uploadedFileMap[index] = url;

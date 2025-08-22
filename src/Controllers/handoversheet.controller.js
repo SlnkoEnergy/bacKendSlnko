@@ -5,6 +5,7 @@ const projectmodells = require("../Modells/project.model");
 const { Parser } = require("json2csv");
 const handoversheetModells = require("../Modells/handoversheet.model");
 const userModells = require("../Modells/users/userModells");
+const { getNotification, getnovuNotification } = require("../utils/nouvnotificationutils");
 const materialCategoryModells = require("../Modells/materialcategory.model");
 const scopeModel = require("../Modells/scope.model");
 const bdleadsModells = require("../Modells/bdleads/bdleadsModells");
@@ -106,6 +107,9 @@ const createhandoversheet = async function (req, res) {
       invoice_detail,
       submitted_by,
     } = req.body;
+    
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -146,6 +150,22 @@ const createhandoversheet = async function (req, res) {
     lead.handover_lock = req.body.handover_lock || "locked";
     await lead.save();
     await handoversheet.save();
+
+
+    // Notification for Creating Handover
+
+    try {
+      const workflow = 'handover-submit';
+      const Ids = await userModells.find({ department: 'Internal', role : 'manager' }).select('_id').lean().then(users => users.map(u => u._id));
+      const data = {
+        message : `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`
+      }
+      await getnovuNotification(workflow, Ids, data);
+    } catch (error) {
+      console.log(error);
+    }
+
+
 
     res.status(200).json({
       message: "Data saved successfully",
@@ -569,6 +589,37 @@ const updatestatus = async function (req, res) {
       }
     }
 
+    // Notification Functionality on Status Update 
+
+    try {
+      const owner = await userModells.find({ name: submitted_by })
+
+      senders = [owner._id];
+      workflow = 'handover-submit';
+      data = {
+        message: `Handover Sheet status updated for Lead #${updatedHandoversheet.id}`,
+      }
+
+      await getnovuNotification(workflow, senders, data);
+    } catch (error) {
+      console.log(error);
+    }
+
+    // Notification for Engineering and Accounts  After Approved handoversheet 
+
+    // if( updatedHandoversheet.status_of_handoversheet === "Approved" ){
+
+    //   try {
+    //     senders = "all person from Engineering and Accounts ";
+    //     workflow = 'handover-submit';
+    //     data ={
+    //       message: `Handover Sheet Status Updated Of Lead ${updatedHandoversheet.id}`
+    //     }
+    //   } catch (error) {
+        
+    //   }
+
+    // }
     return res.status(200).json({
       message: "Status updated",
       handoverSheet: updatedHandoversheet,

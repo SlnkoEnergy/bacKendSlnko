@@ -5,6 +5,7 @@ const deadleadModells = require("../../Modells/deadleadModells");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
 const { default: mongoose } = require("mongoose");
 const { Parser } = require("json2csv");
+const { getNotification, getnovuNotification } = require("../../utils/nouvnotificationutils");
 
 const createTask = async (req, res) => {
   try {
@@ -44,6 +45,20 @@ const createTask = async (req, res) => {
 
     await newTask.save();
 
+    // Notification functionality for Creating Task
+    try {
+      const workflow = 'task-create';
+      const senders = assigned_to;
+      const data  = {
+        message: `New task created for Lead #${lead.id}`,
+        link:`leadProfile?id=${lead._id}`
+      }
+      await getnovuNotification(workflow, senders, data);
+
+    } catch (error) {
+      console.log(error);
+    }
+
     res.status(201).json({
       message: "Task created successfully",
       task: newTask,
@@ -60,16 +75,13 @@ const updateStatus = async (req, res) => {
   try {
     const { _id } = req.params;
     const { status, remarks, user_id } = req.body;
-
     if (!status) {
       return res.status(400).json({ error: "Status is required" });
     }
-
     const task = await BDtask.findById(_id);
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
-
     task.status_history.push({
       status,
       user_id,
@@ -79,8 +91,18 @@ const updateStatus = async (req, res) => {
     const lead = await bdleadsModells.findById(task.lead_id);
     lead.inactivedate = Date.now();
     await lead.save();
-
     await task.save();
+    try {
+      const workflow = 'task-status';
+      const senders = [task?.user_id];
+      const data = {
+        message: `Task ${task.title} for Lead ${lead?.id} updated to status: ${status}`,
+        link:`leadProfile?id=${lead._id}`
+      }
+      await getnovuNotification(workflow, senders, data);
+    } catch (error) {
+      console.log(error);
+    }
 
     res.status(200).json({
       message: "Task status updated successfully",
