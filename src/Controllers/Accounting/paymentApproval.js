@@ -88,15 +88,15 @@ const paymentApproval = async function (req, res) {
     // ---------- search filter (applied after project lookup) ----------
     const searchFilter = search
       ? {
-        $or: [
-          { code: { $regex: search, $options: "i" } },
-          { name: { $regex: search, $options: "i" } },
-          { p_group: { $regex: search, $options: "i" } },
-          { po_number: { $regex: search, $options: "i" } },
-          { pay_id: { $regex: search, $options: "i" } },
-          { cr_id: { $regex: search, $options: "i" } },
-        ],
-      }
+          $or: [
+            { code: { $regex: search, $options: "i" } },
+            { name: { $regex: search, $options: "i" } },
+            { p_group: { $regex: search, $options: "i" } },
+            { po_number: { $regex: search, $options: "i" } },
+            { pay_id: { $regex: search, $options: "i" } },
+            { cr_id: { $regex: search, $options: "i" } },
+          ],
+        }
       : {};
 
     // ---------- expressions ----------
@@ -147,30 +147,32 @@ const paymentApproval = async function (req, res) {
     };
 
     const delaydaysMatchStage = Number.isFinite(delaydays)
-      ? (
-        delaydays === -1
-          ? [{
-            $match: {
-              $expr: {
-                $and: [
-                  { $ne: ["$remainingDays", null] },
-                  { $lt: ["$remainingDays", 0] }   
-                ]
-              }
-            }
-          }]
-          : [{
-            $match: {
-              $expr: {
-                $and: [
-                  { $ne: ["$remainingDays", null] },
-                  { $gte: ["$remainingDays", 0] },     
-                  { $lte: ["$remainingDays", delaydays] } 
-                ]
-              }
-            }
-          }]
-      )
+      ? delaydays === -1
+        ? [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $ne: ["$remainingDays", null] },
+                    { $lt: ["$remainingDays", 0] },
+                  ],
+                },
+              },
+            },
+          ]
+        : [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $ne: ["$remainingDays", null] },
+                    { $gte: ["$remainingDays", 0] },
+                    { $lte: ["$remainingDays", delaydays] },
+                  ],
+                },
+              },
+            },
+          ]
       : [];
 
     // ---------- base pipeline ----------
@@ -405,7 +407,7 @@ const paymentApproval = async function (req, res) {
       },
       {
         $lookup: {
-          from: "subtract moneys", // ensure this matches your actual collection name
+          from: "subtract moneys",
           let: { gids: "$groupProjectIds" },
           pipeline: [
             { $match: { $expr: { $in: ["$p_id", "$$gids"] } } },
@@ -449,7 +451,6 @@ const paymentApproval = async function (req, res) {
         },
       },
 
-      // >>> apply optional delaydays filter here <<<
       ...delaydaysMatchStage,
 
       // final shape
@@ -612,7 +613,6 @@ const paymentApproval = async function (req, res) {
       .json({ message: "An error occurred while processing the request." });
   }
 };
-
 
 const getPoApprovalPdf = async function (req, res) {
   try {
