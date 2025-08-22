@@ -261,134 +261,7 @@ const requestCreditExtension = async (req, res) => {
   }
 };
 
-//Hold payment
-const holdpay = async function (req, res) {
-  try {
-    const {
-      id,
-      p_id,
-      pay_id,
-      pay_type,
-      amount_paid,
-      amt_for_customer,
-      dbt_date,
-      paid_for,
-      vendor,
-      po_number,
-      po_value,
-      po_balance,
-      pay_mode,
-      paid_to,
-      ifsc,
-      benificiary,
-      acc_number,
-      branch,
-      created_on,
-      submitted_by,
-      approved,
-      disable,
-      acc_match,
-      utr,
-      total_advance_paid,
-      other,
-      comment,
-    } = req.body;
 
-    // const existingPayment = await payRequestModells.findOne({ pay_id: pay_id });
-    // if (!existingPayment) {
-    //   return res.status(400).json({ msg: "Payment ID already used!" });
-    // }
-
-    // Get project details by project ID
-    // const project = await projectModells.find({ p_id: p_id });
-    // if (!project) {
-    //   return res.status(400).json({ msg: "Project ID is invalid!" });
-    // }
-    const project = await projectModells.findOne({ p_id: p_id });
-    if (!project) {
-      return res.status(400).json({ msg: "Project ID is invalid!" });
-    }
-
-    // if (!project.code) {
-    //   return res.status(400).json({ msg: "Project code not found!" });
-    // }
-
-    // console.log("Project code:", project.code); // Debugging log
-
-    // Validation: Amount paid should not exceed PO value
-    // if (amount_paid > po_balance) {
-    //   return res
-    //     .status(400)
-    //     .json({ msg: "Requested Amount is greater than PO Balance!" });
-    // }
-    const projectCode = project.code; // Assuming `code` is a field in projectModells
-
-    // Generate random three-digit code
-    const randomCode = Math.floor(100 + Math.random() * 900); // Random 3-digit number
-
-    // Append the random code to the project code to form modified p_id
-    const modifiedPId = `${projectCode}/${randomCode}`;
-
-    let existingPayRequest = await holdPaymentModells.findOne({
-      pay_id: modifiedPId,
-    });
-
-    while (existingPayRequest) {
-      // If the modifiedPId exists, generate a new one and check again
-      modifiedPId = `${projectCode}/${generateRandomCode()}`;
-      existingPayRequest = await holdPaymentModells.findOne({
-        pay_id: modifiedPId,
-      });
-    }
-
-    // Validation: Amount paid should not exceed PO balance
-    // if (amount_paid > po_balance) {
-    //   return res
-    //     .status(400)
-    //     .json({ msg: "Requested Amount is greater than PO_balance!" });
-    // }
-
-    const holdPayment = new holdPaymentModells({
-      id,
-      p_id,
-      pay_id: modifiedPId,
-      pay_type,
-      amount_paid,
-      amt_for_customer,
-      dbt_date,
-      paid_for,
-      vendor,
-      po_number,
-      po_value,
-      po_balance,
-      pay_mode,
-      paid_to,
-      ifsc,
-      benificiary,
-      acc_number,
-      branch,
-      created_on,
-      submitted_by,
-      approved,
-      disable,
-      acc_match,
-      utr,
-      total_advance_paid,
-      other,
-      comment,
-    });
-    await holdPayment.save();
-    return res
-      .status(200)
-      .json({ msg: "Hold Payment requested successfully", holdPayment });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({
-      msg: "Failed to request hold payment. Please try again.",
-      error: error.message,
-    });
-  }
-};
 
 //get alll pay summary
 const getPaySummary = async (req, res) => {
@@ -476,7 +349,6 @@ const accApproved = async function (req, res) {
         .json({ message: "status must be Approved, Rejected, or Pending" });
     }
 
-    // Keep (or relax) this rule
     if (status === "Rejected" && !remarks?.trim()) {
       return res
         .status(400)
@@ -515,11 +387,9 @@ const accApproved = async function (req, res) {
     }
 
     if (!ids.length) {
-      return res
-        .status(404)
-        .json({
-          message: "No matching payments found for given identifier(s)",
-        });
+      return res.status(404).json({
+        message: "No matching payments found for given identifier(s)",
+      });
     }
 
     const results = [];
@@ -553,18 +423,28 @@ const accApproved = async function (req, res) {
       });
     };
 
-    const computeTransition = (currentStage) => {
+    // --- MODIFIED: computeTransition needs payment to decide pay_id fast path ---
+    const computeTransition = (payment, currentStage) => {
       if (
         (currentStage === "Draft" || currentStage === "Credit Pending") &&
         department === "SCM"
-      )
+      ) {
         return { nextStage: "CAM", approvedValue: "Pending" };
-      if (currentStage === "CAM" && department === "Internal")
+      }
+      if (currentStage === "CAM" && department === "Internal") {
         return { nextStage: "Account", approvedValue: "Pending" };
-      if (currentStage === "Account" && department === "Accounts")
+      }
+      if (currentStage === "Account" && department === "Accounts") {
+        // NEW RULE: if pay_id exists, go directly to Final (skip Initial Account)
+        if (payment?.pay_id && String(payment.pay_id).trim().length > 0) {
+          return { nextStage: "Final", approvedValue: "Approved" };
+        }
+        // Otherwise (CR flow), keep existing behavior
         return { nextStage: "Initial Account", approvedValue: "Approved" };
-      if (currentStage === "Initial Account" && department === "Accounts")
+      }
+      if (currentStage === "Initial Account" && department === "Accounts") {
         return { nextStage: "Final", approvedValue: "Approved" };
+      }
       return null;
     };
 
@@ -674,7 +554,7 @@ const accApproved = async function (req, res) {
         }
 
         // ---------- transition (non-reject) ----------
-        const transition = computeTransition(currentStage);
+        const transition = computeTransition(payment, currentStage);
         if (!transition) {
           results.push({
             _id: id,
@@ -688,7 +568,7 @@ const accApproved = async function (req, res) {
 
         let generatedUtr = null;
 
-        // Create/ensure UTR at "Initial Account"
+        // UTR is ONLY for CR flow (unchanged): happens at Initial Account
         if (nextStage === "Initial Account") {
           const projectIdNum = Number(payment?.p_id);
           if (!Number.isFinite(projectIdNum)) {
@@ -708,6 +588,8 @@ const accApproved = async function (req, res) {
             payment.pay_id.trim().length > 0;
 
           if (isPayIdFlow) {
+            // Should not reach here anymore for pay_id due to new rule,
+            // but keep the guard to be safe.
             generatedUtr = payment.utr || null;
           } else if (isCRFlow) {
             if (!payment.utr) {
@@ -763,7 +645,7 @@ const accApproved = async function (req, res) {
         }
 
         // Final stage: stamp timer once
-        if (nextStage === "Account") {
+        if (nextStage === "Final") {
           payment.timers = payment.timers || {};
           if (!payment.timers.draft_frozen_at) {
             payment.timers.draft_frozen_at = new Date();
@@ -1743,7 +1625,6 @@ const getpy = async function (req, res) {
 
 module.exports = {
   payRrequest,
-  holdpay,
   getPaySummary,
   hold,
   account_matched,

@@ -61,7 +61,6 @@ const {
 const { additem, getItem } = require("../Controllers/itemController");
 const {
   payRrequest,
-  holdpay,
   getPaySummary,
   account_matched,
   utrUpdate,
@@ -508,12 +507,6 @@ router.post(
   jwtMW.authentication,
   jwtMW.authorization,
   payRrequest
-);
-router.post(
-  "/hold-paymenT-IT",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  holdpay
 );
 router.get(
   "/get-pay-summarY-IT",
