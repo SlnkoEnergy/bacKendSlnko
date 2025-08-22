@@ -156,7 +156,7 @@ const createhandoversheet = async function (req, res) {
 
     try {
       const workflow = 'handover-submit';
-      const Ids = await userModells.find({ department: 'internal' }).select('_id').lean().then(users => users.map(u => u._id));
+      const Ids = await userModells.find({ department: 'Internal', role : 'manager' }).select('_id').lean().then(users => users.map(u => u._id));
       const data = {
         message : `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`
       }
