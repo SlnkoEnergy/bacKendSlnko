@@ -107,6 +107,9 @@ const createhandoversheet = async function (req, res) {
       invoice_detail,
       submitted_by,
     } = req.body;
+    
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -155,10 +158,9 @@ const createhandoversheet = async function (req, res) {
       const workflow = 'handover-submit';
       const Ids = await userModells.find({ department: 'internal' }).select('_id').lean().then(users => users.map(u => u._id));
       const data = {
-        message: `Handover submitted by ${req.user.name} on ${new Date().toLocaleString()}`,
+        message : `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`
 
       }
-
       await getnovuNotification(workflow, Ids, data);
     } catch (error) {
       console.log(error);

@@ -98,12 +98,12 @@ const updateStatus = async (req, res) => {
     await task.save();
 
     // Notification on Task status change
-
+    console.log("task status updated")
     try {
       const workflow = 'task-status';
       const senders = [task?.user_id];
       const data = {
-       message: `Task "${task.title}" for Lead #${lead?.id} updated to status: ${status}`,
+        message: `Task ${task.title} for Lead ${lead?.id} updated to status: ${status}`,
         link:`leadProfile?id=${lead._id}`
       }
       await getnovuNotification(workflow, senders, data);
