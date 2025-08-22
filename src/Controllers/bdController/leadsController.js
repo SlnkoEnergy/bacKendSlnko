@@ -186,7 +186,7 @@ const getAllLeads = async (req, res) => {
     };
 
     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
-       query["current_assigned.user_id"]= new mongoose.Types.ObjectId(userId) 
+      query["current_assigned.user_id"] = new mongoose.Types.ObjectId(userId)
     }
 
     if (regionalAccessMap[user.name] && !isPrivilegedUser) {
@@ -335,12 +335,12 @@ const getLeadCounts = async (req, res) => {
       "Vibhav Upadhyay": "uttar pradesh",
       "Om Utkarsh": "rajasthan"
     };
-    
-     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
+
+    if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
       const userObjectId = new mongoose.Types.ObjectId(userId);
       andConditions.push({
         "current_assigned.user_id": userObjectId,
-      }); 
+      });
     }
 
     if (!isPrivilegedUser && regionalAccessMap[user.name]) {
@@ -526,21 +526,24 @@ const deleteLead = async (req, res) => {
       return res.status(404).json({ message: "Lead not found" });
     }
 
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
+
     // Notification fuctionality on Delete Lead
 
     try {
       const workflow = 'delete-notification';
-      
+
       const senders = await userModells.find({
-        $or :[
-          {department: 'admin'},
-          {department: 'BD', role: 'manager'},
+        $or: [
+          { department: 'admin' },
+          { department: 'BD', role: 'manager' },
         ]
       }).select('_id')
-      .lean()
-      .then(users => users.map(u => u._id));
+        .lean()
+        .then(users => users.map(u => u._id));
       const data = {
-        message: `Lead ${deletedLead.name} (ID: ${deletedLead.id}) was deleted by ${req.user.name}`
+        message: `Lead ${deletedLead.name} (ID: ${deletedLead.id}) was deleted by ${user}`
       }
       await getnovuNotification(workflow, senders, data);
     } catch (error) {
@@ -595,21 +598,21 @@ const updateAssignedTo = async (req, res) => {
 
     const Ids = leadIds.map(id => new mongoose.Types.ObjectId(id));
 
-    const leads = await bdleadsModells.find( { _id : { $in : Ids}}).select('id')
+    const leads = await bdleadsModells.find({ _id: { $in: Ids } }).select('id')
 
     const assign = await userModells.findById(assigned).select('name');
 
-    for(const lead of leads){
+    for (const lead of leads) {
       try {
         const workflow = 'all-notification';
         const alluser = await userModells.find({
-          $or :[
-            {department: 'admin'},
-            {department: 'BD', role: 'manager'}
+          $or: [
+            { department: 'admin' },
+            { department: 'BD', role: 'manager' }
           ]
         }).select('_id')
-        .lean()
-        .then(users => users.map(u => u._id));
+          .lean()
+          .then(users => users.map(u => u._id));
 
         const senders = [...new Set([...alluser, assigned])];
         const data = {
@@ -623,7 +626,7 @@ const updateAssignedTo = async (req, res) => {
       }
     }
 
-    
+
 
     return res.status(200).json({
       success: true,

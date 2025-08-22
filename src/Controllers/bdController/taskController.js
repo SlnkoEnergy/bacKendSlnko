@@ -75,16 +75,13 @@ const updateStatus = async (req, res) => {
   try {
     const { _id } = req.params;
     const { status, remarks, user_id } = req.body;
-
     if (!status) {
       return res.status(400).json({ error: "Status is required" });
     }
-
     const task = await BDtask.findById(_id);
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
-
     task.status_history.push({
       status,
       user_id,
@@ -94,11 +91,7 @@ const updateStatus = async (req, res) => {
     const lead = await bdleadsModells.findById(task.lead_id);
     lead.inactivedate = Date.now();
     await lead.save();
-
     await task.save();
-
-    // Notification on Task status change
-    console.log("task status updated")
     try {
       const workflow = 'task-status';
       const senders = [task?.user_id];
