@@ -32,7 +32,7 @@ const CreditHistorySchema = new mongoose.Schema(
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     status: {
       type: String,
-      enum: ["Created", "Updated", "UTRUpdated", "UTRCleared"], // keep if you really use these
+      enum: ["Created", "Updated", "UTRUpdated", "UTRCleared"],
     },
     timestamp: { type: Date, default: Date.now },
   },
@@ -77,7 +77,7 @@ const payRequestschema = new mongoose.Schema(
     benificiary: { type: String },
     acc_number: { type: mongoose.Schema.Types.Mixed},
     branch: { type: String },
-    created_on: { type: String, default: Date.now },
+    // created_on: { type: String, default: Date.now },
     submitted_by: { type: String },
     utr_submitted_by: { type: String },
 
