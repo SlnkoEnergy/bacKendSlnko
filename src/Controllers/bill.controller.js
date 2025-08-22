@@ -48,7 +48,7 @@ const getBill = catchAsyncError(async (req, res) => {
   const data = await billModel.find();
   res.status(200).json({ msg: "All Bill Details", data });
 });
-//
+
 const getPaginatedBill = catchAsyncError(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 10;
