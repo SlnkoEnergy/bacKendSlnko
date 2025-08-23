@@ -1,21 +1,25 @@
 const cron = require("node-cron");
 const PayRequest = require("../../Modells/payRequestModells");
 
-cron.schedule("0 * * * *", async () => {
+cron.schedule("* * * * *", async () => {
   const now = new Date();
-
   const draftThreshold = new Date(now.getTime() - 52 * 60 * 60 * 1000);
-  const trashThreshold = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+  const trashDeleteThreshold = new Date(
+    now.getTime() - 15 * 24 * 60 * 60 * 1000
+  );
 
   try {
-    await PayRequest.updateMany(
-      {
-        "approval_status.stage": { $in: ["Draft", "SCM", "CAM", "Account"] },
-        "timers.draft_started_at": { $lte: draftThreshold },
-        "timers.draft_frozen_at": { $exists: false },
-        approved: { $nin: ["Approved", "Rejected"] },
-      },
-      {
+    const draftQuery = {
+      "approval_status.stage": ["Draft", "SCM", "CAM"],
+      "timers.draft_started_at": { $lte: draftThreshold },
+      "timers.draft_frozen_at": null,
+      approved: { $nin: ["Approved", "Rejected"] },
+    };
+
+    const draftsToUpdate = await PayRequest.find(draftQuery);
+
+    if (draftsToUpdate.length > 0) {
+      await PayRequest.updateMany(draftQuery, {
         $set: {
           "approval_status.stage": "Trash Pending",
           "timers.trash_started_at": now,
@@ -23,59 +27,53 @@ cron.schedule("0 * * * *", async () => {
         $push: {
           status_history: {
             stage: "Trash Pending",
-            remarks: "Auto-moved after 48 hrs",
+            remarks: "Auto-moved after 48 hours in Draft",
             timestamp: now,
           },
         },
-      }
-    );
-
-    if (draftResult.modifiedCount > 0) {
-      console.log(`Moved ${draftResult.modifiedCount} drafts to Trash Pending`);
+      });
     }
 
-    const deleteResult = await PayRequest.deleteMany({
+    const creditQuery = {
+      "approval_status.stage": "Credit Pending",
+      "credit.credit_deadline": { $lte: now },
+    };
+
+    const creditToUpdate = await PayRequest.find(creditQuery);
+    // console.log(
+    //   `📝 Credit Pending to move back to Draft: ${creditToUpdate.length}`
+    // );
+
+    if (creditToUpdate.length > 0) {
+      await PayRequest.updateMany(creditQuery, {
+        $set: {
+          "approval_status.stage": "Draft",
+          "timers.draft_started_at": now,
+        },
+        $push: {
+          status_history: {
+            stage: "Draft",
+            remarks: "Credit deadline expired - moved back to Draft",
+            timestamp: now,
+          },
+        },
+      });
+    }
+
+    const deleteQuery = {
       "approval_status.stage": "Trash Pending",
-      "timers.trash_started_at": { $lte: trashThreshold },
+      "timers.trash_started_at": { $lte: trashDeleteThreshold },
       approved: { $in: ["Pending", "Rejected"] },
-    });
+    };
 
-    if (deleteResult.deletedCount > 0) {
-      console.log(
-        `Deleted ${deleteResult.deletedCount} entries from trash after 15 days`
-      );
-    }
+    const toDelete = await PayRequest.find(deleteQuery);
+   
 
-    const creditResult = await PayRequest.updateMany(
-      {
-        "approval_status.stage": "Credit Pending",
-        "credit.credit_deadline": { $lte: now },
-      },
-      [
-        {
-          $set: {
-            "approval_status.stage": "Draft",
-            "timers.draft_started_at": now,
-          },
-        },
-        {
-          $push: {
-            status_history: {
-              stage: "Draft",
-              remarks: "Credit deadline expired - moved to Draft",
-              timestamp: now,
-            },
-          },
-        },
-      ]
-    );
-
-    if (creditResult.modifiedCount > 0) {
-      console.log(
-        `Moved ${creditResult.modifiedCount} Credit Pending to Draft`
-      );
+    if (toDelete.length > 0) {
+      await PayRequest.deleteMany(deleteQuery);
+    
     }
   } catch (err) {
-    console.error("Error in cron job:", err);
+    console.error(" [Cron] Error:", err);
   }
 });
