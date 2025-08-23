@@ -1007,10 +1007,36 @@ const getLeadByLeadIdorId = async (req, res) => {
   }
 };
 
-
 const updateLeadStatus = async function (req, res) {
   try {
-    const { ids, statusData = {}, remarks = {} } = req.body;
+    const leads = await bdleadsModells.findById(req.params._id);
+
+    if (!leads) return res.status(404).json({ error: "Lead not found" });
+    const user_id = req.user.userId;
+
+    leads.status_history.push({
+      ...req.body,
+      user_id: user_id,
+    });
+
+    if (
+      leads.expected_closing_date === undefined ||
+      leads.expected_closing_date === null
+    ) {
+      leads.expected_closing_date = req.body.expected_closing_date;
+    }
+
+    await leads.save();
+    res.status(200).json(leads);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+
+const updateLeadStatusBulk = async function (req, res) {
+  try {
+    const { ids, name, stage, remarks, expected_closing_date } = req.body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: "No lead IDs provided" });
@@ -1024,17 +1050,12 @@ const updateLeadStatus = async function (req, res) {
         if (!lead) return null;
 
         lead.status_history.push({
-          ...statusData,
-          ...remarks,
+          name,
+          stage,
+          remarks,
           user_id,
+          updatedAt: new Date(),
         });
-
-        if (
-          lead.expected_closing_date === undefined ||
-          lead.expected_closing_date === null
-        ) {
-          lead.expected_closing_date = statusData.expected_closing_date;
-        }
 
         await lead.save();
         return lead;
@@ -1043,15 +1064,16 @@ const updateLeadStatus = async function (req, res) {
 
     const updatedLeads = results.filter((lead) => lead !== null);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Leads updated successfully",
       updatedLeads,
       notFound: ids.filter((id, i) => results[i] === null),
     });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
   }
 };
+
 
 const getAllLeadDropdown = async (req, res) => {
   try {
@@ -1315,4 +1337,5 @@ module.exports = {
   attachToGroup,
   fixBdLeadsFields,
   getLeadCounts,
+  updateLeadStatusBulk
 };
