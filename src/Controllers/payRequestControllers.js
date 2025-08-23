@@ -1225,7 +1225,10 @@ const getPay = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 50;
     const skip = (page - 1) * pageSize;
-    const query = req.query.query?.trim() || "";
+
+    const search = req.query.search?.trim() || "";
+    const status = req.query.status?.trim();
+    const tab = req.query.tab?.trim();
 
     const searchRegex = new RegExp(search, "i");
     const statusRegex = new RegExp(`^${status}$`, "i");
@@ -1400,16 +1403,21 @@ const getPay = async (req, res) => {
       { $group: { _id: "$type", count: { $sum: 1 } } },
     ]);
 
-    const total = totalArr[0]?.total || 0;
+    const counts = { instant: 0, credit: 0 };
+    tabWiseCounts.forEach((item) => {
+      counts[item._id] = item.count;
+    });
 
     res.status(200).json({
-      msg: "all-pay-summary",
+      msg: "pay-summary",
       meta: {
-        total,
+        total: totalData[0]?.total || 0,
         page,
-        count: request.length,
+        count: paginatedData.length,
+        instantTotal: counts.instant || 0,
+        creditTotal: counts.credit || 0,
       },
-      data: request,
+      data: paginatedData,
     });
   } catch (err) {
     console.error(err);
@@ -1540,6 +1548,8 @@ const getTrashPayment = async (req, res) => {
       .json({ msg: "Error retrieving trash payments", error: err.message });
   }
 };
+
+
 
 const approve_pending = async function (req, res) {
   try {
