@@ -33,17 +33,16 @@ const addMoney = async function (req, res) {
       comment,
     });
 
-    // Save the record to the database
     await admoney.save();
 
-    // Send a success response
+ 
     return res.status(201).json({
       msg: "Money added successfully",
       data: admoney,
     });
   } catch (error) {
     // Handle errors
-    console.error(error); // Log the actual error for debugging
+    console.error(error);
     return res.status(400).json({ msg: "Server error", error: error.message });
   }
 };

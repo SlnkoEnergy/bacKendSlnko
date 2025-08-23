@@ -20,7 +20,7 @@ const paymentHistory = async (req, res) => {
       },
       {
         $lookup: {
-          from: "purchaseorders", // Replace with your actual PO collection name
+          from: "purchaseorders",
           localField: "po_number",
           foreignField: "po_number",
           as: "po_info",
@@ -92,7 +92,7 @@ const paymentHistory = async (req, res) => {
 };
 
 
-// debit history to CSV format
+
 const exportDebitHistoryCsv = async (req, res) => {
   try {
     const { po_number } = req.query;
