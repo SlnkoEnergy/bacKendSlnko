@@ -1,13 +1,13 @@
-// controllers/logistic.controller.js
-const mongoose = require("mongoose"); // ✅ needed for ObjectId checks
-const Logistic = require("../Modells/logistics.model"); // ⬅️ ensure this path & casing are correct
+const mongoose = require("mongoose"); 
+const Logistic = require("../Modells/logistics.model");
+const { nextLogisticCode } = require("../utils/logisticscounter.utils");
 
-// helper to accept either :id or :_id from routes
 const getParamId = (req) => req.params.id || req.params._id;
 
 const createLogistic = async (req, res) => {
   try {
     const {
+      
       po_id = [],
       attachment_url = "",
       vehicle_number,
@@ -17,7 +17,7 @@ const createLogistic = async (req, res) => {
       description = "",
       items = [],
     } = req.body;
-
+    const logistic_code = await nextLogisticCode();
     const isId = (v) => mongoose.Types.ObjectId.isValid(v);
 
     // Basic required fields
@@ -57,12 +57,13 @@ const createLogistic = async (req, res) => {
     });
 
     const doc = await Logistic.create({
+      logistic_code,
       po_id,
       attachment_url,
       vehicle_number,
       driver_number,
-      total_ton: String(total_ton),                       // schema: String
-      total_transport_po_value: String(total_transport_po_value), // schema: String (required)
+      total_ton: String(total_ton),                     
+      total_transport_po_value: String(total_transport_po_value), 
       description,
       items: mappedItems,
       created_by: req.user?.userId ?? null,
@@ -80,23 +81,60 @@ const createLogistic = async (req, res) => {
 
 const getAllLogistics = async (req, res) => {
   try {
-    const logistics = await Logistic.find()
-      .populate("po_id")
-      .populate("items.material_po", "po_number") // optional: show PO number for item POs
-      .populate("items.category_id")
-      .populate("created_by")
-      .sort({ createdAt: -1 });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.max(1, Math.min(200, parseInt(req.query.pageSize, 10) || 50));
+    const search = (req.query.search || "").trim();
+    const status = (req.query.status || "").trim();
+    const poId = (req.query.po_id || "").trim();
 
-    res
-      .status(200)
-      .json({ message: "Logistics fetched successfully", data: logistics });
+    const filter = {};
+    if (search) {
+      filter.$or = [
+        { logistic_code: { $regex: search, $options: "i" } },
+        { vehicle_number: { $regex: search, $options: "i" } },
+        { driver_number: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
+    if (status) filter.status = status;
+    if (poId) filter.po_id = poId;
+
+    const [total, raw] = await Promise.all([
+      Logistic.countDocuments(filter),
+      Logistic.find(filter)
+        .select("logistic_code po_id items vehicle_number total_transport_po_value total_ton status created_by createdAt")
+        .populate("po_id", "po_number")
+        .populate("items.material_po", "po_number")
+        // ⬇️ populate the category doc; select whichever field(s) exist in your schema
+        .populate({ path: "items.category_id", select: "name category_name" })
+        .populate("created_by", "_id name")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .lean()
+    ]);
+
+    // ⬇️ If your category schema uses `name` (not `category_name`), expose a `category_name` alias on each item
+    const logistics = raw.map(doc => ({
+      ...doc,
+      items: (doc.items || []).map(it => ({
+        ...it,
+        category_name: it?.category_id?.category_name ?? it?.category_id?.name ?? null,
+      })),
+    }));
+
+    return res.status(200).json({
+      message: "Logistics fetched successfully",
+      meta: { total, page, pageSize, count: logistics.length },
+      data: logistics,
+    });
   } catch (err) {
     console.error("Error fetching logistics:", err);
-    res
-      .status(500)
-      .json({ message: "Failed to fetch logistics", error: err.message });
+    return res.status(500).json({ message: "Failed to fetch logistics", error: err.message });
   }
 };
+
+
 
 const getLogisticById = async (req, res) => {
   try {

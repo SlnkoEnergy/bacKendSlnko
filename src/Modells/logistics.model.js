@@ -9,6 +9,12 @@ const logisticSchema = new mongoose.Schema(
         required: true,
       },
     ],
+    logistic_code: {
+      type: String,
+      uniuqe: true,
+      index: true,
+      required: true,
+    },
     attachment_url: { type: String },
     vehicle_number: { type: String, required: true },
     driver_number: { type: String, required: true },
@@ -30,7 +36,6 @@ const logisticSchema = new mongoose.Schema(
         quantity_requested: { type: String },
         quantity_po: { type: String },
         weight: { type: String },
-        
       },
     ],
     created_by: {
