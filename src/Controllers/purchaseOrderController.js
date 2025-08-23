@@ -301,28 +301,28 @@ const getallpo = async function (req, res) {
     const updatedData = await purchaseOrderModells.aggregate([
       {
         $lookup: {
-          from: "materialcategorymodells", 
-          localField: "item", 
-          foreignField: "_id", 
+          from: "materialcategorymodells",
+          localField: "item",
+          foreignField: "_id",
           as: "material",
         },
       },
       {
         $unwind: {
           path: "$material",
-          preserveNullAndEmptyArrays: true, 
+          preserveNullAndEmptyArrays: true,
         },
       },
       {
         $addFields: {
           item: {
-            $ifNull: ["$material.name", "$item"], 
+            $ifNull: ["$material.name", "$item"],
           },
         },
       },
       {
         $project: {
-          material: 0, 
+          material: 0,
         },
       },
     ]);
@@ -332,6 +332,148 @@ const getallpo = async function (req, res) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
+
+const getallpodetail = async function (req, res) {
+  try {
+    const pipeline = [
+      {
+        $lookup: {
+          from: "materialcategorymodells",
+          localField: "item",
+          foreignField: "_id",
+          as: "material",
+        },
+      },
+      {
+        $unwind: {
+          path: "$material",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          item: { $ifNull: ["$material.name", "$item"] },
+        },
+      },
+      {
+        $lookup: {
+          from: "payrequestmodells",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "payrequest",
+        },
+      },
+      {
+        $unwind: {
+          path: "$payrequest",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          approved_amount: {
+            $cond: [
+              { $eq: ["$payrequest.approved", "Approved"] },
+              "$payrequest.amount_paid",
+              0,
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id",
+          po_number: { $first: "$po_number" },
+          po_value: { $first: "$po_value" },
+          vendor: { $first: "$vendor" },
+          item: { $first: "$item" },
+          date: { $first: "$date" },
+          p_id: { $first: "$p_id" },
+          total_Advance_Paid: { $sum: "$approved_amount" },
+        },
+      },
+      {
+        $addFields: {
+          PO_Balance: { $subtract: ["$po_value", "$total_Advance_Paid"] },
+        },
+      },
+      {
+        $lookup: {
+          from: "vendermodells",
+          localField: "vendor",
+          foreignField: "vendor",
+          as: "vendordetail",
+        },
+      },
+      {
+        $unwind: {
+          path: "$vendordetail",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "handoversheetmodells",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "handoverDocs",
+        },
+      },
+      {
+        $addFields: {
+          handover: { $gt: [{ $size: "$handoverDocs" }, 0] },
+        },
+      },
+      {
+        $lookup: {
+          from: "projectmodells",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "project_detail",
+        },
+      },
+      {
+        $unwind: {
+          path: "$project_detail",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          po_number: 1,
+          item: 1,
+          vendor: 1,
+          po_value: 1,
+          total_Advance_Paid: 1,
+          PO_Balance: 1,
+          handover: 1,
+          projectID: {
+            p_id: "$p_id",
+            code: "$project_detail.code",
+            name: "$project_detail.name",
+            customer: "$project_detail.customer",
+            p_group: "$project_detail.p_group",
+          },
+          vendorDetail: {
+            name: "$vendordetail.name",
+            accNo: "$vendordetail.acc_no", 
+            ifsc: "$vendordetail.ifsc_code",
+            bankName: "$vendordetail.bank_name",
+          },
+        },
+      },
+    ];
+
+    const data = await purchaseOrderModells.aggregate(pipeline);
+
+    res.status(200).json({ message: "PO Detail successful", data });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error Fetching Po Number", error: error.message });
+  }
+};
+
 
 const getPaginatedPo = async (req, res) => {
   try {
