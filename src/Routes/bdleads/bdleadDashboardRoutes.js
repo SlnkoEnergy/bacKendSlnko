@@ -36,6 +36,7 @@ const {
   getUniqueState,
   fixBdLeadsFields,
   getLeadCounts,
+  updateLeadStatusBulk,
 } = require("../../Controllers/bdController/leadsController.js");
 const {
   getNotesById,
@@ -150,6 +151,7 @@ router.put(
   jwtMW.authorization,
   updateLeadStatus
 );
+router.put('/updateLeadStatusBulk', jwtMW.authentication, updateLeadStatusBulk)
 router.put(
   "/uploadDocuments",
   jwtMW.authentication,
