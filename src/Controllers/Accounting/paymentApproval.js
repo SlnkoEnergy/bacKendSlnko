@@ -11,11 +11,9 @@ const paymentApproval = async function (req, res) {
         ? "finalApprovalPayments"
         : "payments";
 
-    // pagination
     const page = Number.parseInt(req.query.page, 10) || 1;
     const pageSize = Number.parseInt(req.query.pageSize, 10) || 50;
 
-    // delaydays parsing (undefined/empty/non-numeric => no filter)
     const raw = (req.query.delaydays ?? "").toString().trim();
     const delaydays = raw === "" ? null : Number(raw);
     const applyDelayFilter = Number.isFinite(delaydays);
@@ -25,7 +23,6 @@ const paymentApproval = async function (req, res) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // ---------- access filter by role/department ----------
     let accessFilter = {};
     if (currentUser.department === "SCM" && currentUser.role === "manager") {
       accessFilter = {
@@ -36,8 +33,9 @@ const paymentApproval = async function (req, res) {
         ],
       };
     } else if (
-      currentUser.department === "Internal" &&
-      currentUser.role === "manager"
+      (currentUser.department === "Projects" ||
+        currentUser.department === "Infra") &&
+      currentUser.role === "visitor"
     ) {
       accessFilter = {
         approved: "Pending",
