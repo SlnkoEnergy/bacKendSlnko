@@ -298,28 +298,34 @@ const getPOHistoryById = async (req, res) => {
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
-    let data = await purchaseOrderModells.find().lean();
-
-    const updatedData = await Promise.all(
-      data.map(async (po) => {
-        let itemName = po.item;
-
-        const isObjectId = mongoose.Types.ObjectId.isValid(po.item);
-
-        if (isObjectId) {
-          const material = await materialCategoryModells
-            .findById(po.item)
-            .select("name")
-            .lean();
-          itemName = material?.name || null;
-        }
-
-        return {
-          ...po,
-          item: itemName,
-        };
-      })
-    );
+    const updatedData = await purchaseOrderModells.aggregate([
+      {
+        $lookup: {
+          from: "materialcategorymodells", 
+          localField: "item", 
+          foreignField: "_id", 
+          as: "material",
+        },
+      },
+      {
+        $unwind: {
+          path: "$material",
+          preserveNullAndEmptyArrays: true, 
+        },
+      },
+      {
+        $addFields: {
+          item: {
+            $ifNull: ["$material.name", "$item"], 
+          },
+        },
+      },
+      {
+        $project: {
+          material: 0, 
+        },
+      },
+    ]);
 
     res.status(200).json({ msg: "All PO", data: updatedData });
   } catch (error) {
