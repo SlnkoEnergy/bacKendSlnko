@@ -9,6 +9,7 @@ const group = require("../../Modells/bdleads/group");
 const task = require("../../Modells/bdleads/task");
 const groupModells = require("../../Modells/bdleads/group");
 const handoversheetModells = require("../../Modells/handoversheetModells");
+const { getnovuNotification } = require("../../utils/nouvnotification.utils");
 
 const createBDlead = async function (req, res) {
   try {
@@ -558,6 +559,31 @@ const deleteLead = async (req, res) => {
       return res.status(404).json({ message: "Lead not found" });
     }
 
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
+
+    // Notification fuctionality on Delete Lead
+
+    try {
+      const workflow = 'delete-notification';
+
+      const senders = await userModells.find({
+        $or: [
+          { department: 'admin' },
+          { department: 'BD', role: '' },
+        ]
+      }).select('_id')
+        .lean()
+        .then(users => users.map(u => u._id));
+      const data = {
+        message: `Lead ${deletedLead.name} (ID: ${deletedLead.id}) was deleted by ${user}`
+      }
+      await getnovuNotification(workflow, senders, data);
+    } catch (error) {
+      console.log(error);
+    }
+
+
     res
       .status(200)
       .json({ message: "Lead deleted successfully", data: deletedLead });
@@ -601,6 +627,42 @@ const updateAssignedTo = async (req, res) => {
       await lead.save();
       updatedLeads.push(lead);
     }
+
+    // Notification Functionality for Transfer Lead 
+
+    const Ids = leadIds.map(id => new mongoose.Types.ObjectId(id));
+
+    const leads = await bdleadsModells.find({ _id: { $in: Ids } }).select('id')
+
+    const assign = await userModells.findById(assigned).select('name');
+
+    try {
+      for (const lead of leads) {
+
+        const workflow = 'all-notification';
+        const alluser = await userModells.find({
+          $or: [
+            { department: 'admin' },
+            { department: 'BD', role: 'manager' }
+          ]
+        }).select('_id')
+          .lean()
+          .then(users => users.map(u => u._id));
+
+        const senders = [...new Set([...alluser, assigned])];
+        const data = {
+          message: `Lead ${lead.id} transferred to ${assign.name}`,
+          link: 'leads'
+        }
+
+        await getnovuNotification(workflow, senders, data);
+
+      }
+    } catch (error) {
+      console.log(error);
+    }
+
+
 
     return res.status(200).json({
       success: true,
