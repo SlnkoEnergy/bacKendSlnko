@@ -261,8 +261,6 @@ const requestCreditExtension = async (req, res) => {
   }
 };
 
-
-
 //get alll pay summary
 const getPaySummary = async (req, res) => {
   let request = await payRequestModells.find();
@@ -423,7 +421,6 @@ const accApproved = async function (req, res) {
       });
     };
 
-    // --- MODIFIED: computeTransition needs payment to decide pay_id fast path ---
     const computeTransition = (payment, currentStage) => {
       if (
         (currentStage === "Draft" || currentStage === "Credit Pending") &&
@@ -431,15 +428,18 @@ const accApproved = async function (req, res) {
       ) {
         return { nextStage: "CAM", approvedValue: "Pending" };
       }
-      if (currentStage === "CAM" && department === "Internal") {
+      if (
+        currentStage === "CAM" &&
+        role === "visitor" &&
+        (department === "Projects" || department === "Infra")
+      ) {
         return { nextStage: "Account", approvedValue: "Pending" };
       }
       if (currentStage === "Account" && department === "Accounts") {
-        // NEW RULE: if pay_id exists, go directly to Final (skip Initial Account)
         if (payment?.pay_id && String(payment.pay_id).trim().length > 0) {
           return { nextStage: "Final", approvedValue: "Approved" };
         }
-        // Otherwise (CR flow), keep existing behavior
+
         return { nextStage: "Initial Account", approvedValue: "Approved" };
       }
       if (currentStage === "Initial Account" && department === "Accounts") {
@@ -568,7 +568,6 @@ const accApproved = async function (req, res) {
 
         let generatedUtr = null;
 
-        // UTR is ONLY for CR flow (unchanged): happens at Initial Account
         if (nextStage === "Initial Account") {
           const projectIdNum = Number(payment?.p_id);
           if (!Number.isFinite(projectIdNum)) {
@@ -588,8 +587,6 @@ const accApproved = async function (req, res) {
             payment.pay_id.trim().length > 0;
 
           if (isPayIdFlow) {
-            // Should not reach here anymore for pay_id due to new rule,
-            // but keep the guard to be safe.
             generatedUtr = payment.utr || null;
           } else if (isCRFlow) {
             if (!payment.utr) {
@@ -644,7 +641,6 @@ const accApproved = async function (req, res) {
           }
         }
 
-        // Final stage: stamp timer once
         if (nextStage === "Final") {
           payment.timers = payment.timers || {};
           if (!payment.timers.draft_frozen_at) {
@@ -652,7 +648,6 @@ const accApproved = async function (req, res) {
           }
         }
 
-        // Persist approval state & status history
         payment.approved = approvedValue;
         payment.approval_status = {
           stage: nextStage,
