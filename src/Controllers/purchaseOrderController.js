@@ -371,7 +371,7 @@ const getallpodetail = async function (req, res) {
       },
       {
         $addFields: {
-          approved_amount: {
+          total_Advance_Paid: {
             $cond: [
               { $eq: ["$payrequest.approved", "Approved"] },
               "$payrequest.amount_paid",
