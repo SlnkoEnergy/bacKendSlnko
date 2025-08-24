@@ -858,12 +858,14 @@ const restoreTrashToDraft = async (req, res) => {
         .json({ message: "Request is not in Trash Pending stage" });
     }
 
+ 
     request.timers = request.timers || {};
     request.status_history = Array.isArray(request.status_history)
       ? request.status_history
       : [];
 
     const now = new Date();
+
 
     request.approval_status = {
       stage: "Draft",
@@ -893,6 +895,7 @@ const restoreTrashToDraft = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
 
 const newAppovAccount = async function (req, res) {
   const { pay_id, status } = req.body;
@@ -1193,14 +1196,15 @@ const getPay = async (req, res) => {
       });
     }
 
-    const instantStageExclusion =
-      tab === "instant"
-        ? [{ $match: { "approval_status.stage": { $ne: "Trash Pending" } } }]
-        : [];
+
+    const instantStageExclusion = (tab === "instant")
+      ? [{ $match: { "approval_status.stage": { $ne: "Trash Pending" } } }]
+      : [];
 
     const statusMatchStage = statusRegex
       ? [{ $match: { approved: { $regex: statusRegex } } }]
       : [];
+
 
     const addTypeStage = {
       $addFields: {
@@ -1232,7 +1236,9 @@ const getPay = async (req, res) => {
       addTypeStage,
     ];
 
+
     const tabMatchStage = tab ? [{ $match: { type: tab } }] : [];
+
 
     const remainingDaysStage = [
       {
@@ -1243,12 +1249,7 @@ const getPay = async (req, res) => {
               {
                 $floor: {
                   $divide: [
-                    {
-                      $subtract: [
-                        { $toDate: "$credit.credit_deadline" },
-                        "$$NOW",
-                      ],
-                    },
+                    { $subtract: [{ $toDate: "$credit.credit_deadline" }, "$$NOW"] },
                     1000 * 60 * 60 * 24,
                   ],
                 },
@@ -1261,12 +1262,7 @@ const getPay = async (req, res) => {
                       $divide: [
                         {
                           $subtract: [
-                            {
-                              $add: [
-                                "$timers.trash_started_at",
-                                1000 * 60 * 60 * 24 * 15,
-                              ],
-                            },
+                            { $add: ["$timers.trash_started_at", 1000 * 60 * 60 * 24 * 15] },
                             "$$NOW",
                           ],
                         },
@@ -1307,7 +1303,7 @@ const getPay = async (req, res) => {
         ...baseCommon,
         ...statusMatchStage,
         {
-          $group: { _id: "$type", count: { $sum: 1 } },
+          $group: { _id: "$type", count: { $sum: 1 } }
         },
       ]),
     ]);
@@ -1334,7 +1330,6 @@ const getPay = async (req, res) => {
     res.status(500).json({ msg: "Error retrieving data", error: err.message });
   }
 };
-
 const getTrashPayment = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -1458,6 +1453,7 @@ const getTrashPayment = async (req, res) => {
       .json({ msg: "Error retrieving trash payments", error: err.message });
   }
 };
+
 
 const approve_pending = async function (req, res) {
   try {
