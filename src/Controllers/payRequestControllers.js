@@ -12,6 +12,9 @@ const materialCategoryModells = require("../Modells/materialcategory.model");
 const userModells = require("../Modells/users/userModells");
 const utrCounter = require("../Modells/Globals/utrCounter");
 
+const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
+const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
+
 const payRrequest = async (req, res) => {
   try {
     const userId = req.user?.userId || null;
@@ -108,15 +111,12 @@ const payRrequest = async (req, res) => {
       } while (await payRequestModells.exists({ pay_id }));
     }
 
-    // ---------- initial stage & histories ----------
     const initialStage = credit?.credit_status ? "Credit Pending" : "Draft";
 
     const newPayment = new payRequestModells({
       p_id: Number(p_id) || project.p_id,
       pay_id,
       cr_id,
-
-      // payment body
       pay_type,
       amount_paid,
       amt_for_customer,
@@ -125,9 +125,6 @@ const payRrequest = async (req, res) => {
       vendor,
       po_number,
       po_value,
-      po_balance,
-      pay_mode,
-      paid_to,
       ifsc,
       benificiary,
       acc_number,
@@ -135,12 +132,9 @@ const payRrequest = async (req, res) => {
       created_on,
       submitted_by,
       approved,
-      disable,
       acc_match,
       utr,
-      total_advance_paid,
       other,
-      code,
       comment,
 
       credit: {
@@ -895,7 +889,6 @@ const utrUpdate = async function (req, res) {
   return res.status(httpStatus).json(payload);
 };
 
-
 const restoreTrashToDraft = async (req, res) => {
   try {
     const { id } = req.params;
@@ -921,14 +914,12 @@ const restoreTrashToDraft = async (req, res) => {
         .json({ message: "Request is not in Trash Pending stage" });
     }
 
- 
     request.timers = request.timers || {};
     request.status_history = Array.isArray(request.status_history)
       ? request.status_history
       : [];
 
     const now = new Date();
-
 
     request.approval_status = {
       stage: "Draft",
@@ -958,8 +949,6 @@ const restoreTrashToDraft = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
-
 
 const newAppovAccount = async function (req, res) {
   const { pay_id, status } = req.body;
@@ -1260,15 +1249,14 @@ const getPay = async (req, res) => {
       });
     }
 
-
-    const instantStageExclusion = (tab === "instant")
-      ? [{ $match: { "approval_status.stage": { $ne: "Trash Pending" } } }]
-      : [];
+    const instantStageExclusion =
+      tab === "instant"
+        ? [{ $match: { "approval_status.stage": { $ne: "Trash Pending" } } }]
+        : [];
 
     const statusMatchStage = statusRegex
       ? [{ $match: { approved: { $regex: statusRegex } } }]
       : [];
-
 
     const addTypeStage = {
       $addFields: {
@@ -1300,9 +1288,7 @@ const getPay = async (req, res) => {
       addTypeStage,
     ];
 
-
     const tabMatchStage = tab ? [{ $match: { type: tab } }] : [];
-
 
     const remainingDaysStage = [
       {
@@ -1313,7 +1299,12 @@ const getPay = async (req, res) => {
               {
                 $floor: {
                   $divide: [
-                    { $subtract: [{ $toDate: "$credit.credit_deadline" }, "$$NOW"] },
+                    {
+                      $subtract: [
+                        { $toDate: "$credit.credit_deadline" },
+                        "$$NOW",
+                      ],
+                    },
                     1000 * 60 * 60 * 24,
                   ],
                 },
@@ -1326,7 +1317,12 @@ const getPay = async (req, res) => {
                       $divide: [
                         {
                           $subtract: [
-                            { $add: ["$timers.trash_started_at", 1000 * 60 * 60 * 24 * 15] },
+                            {
+                              $add: [
+                                "$timers.trash_started_at",
+                                1000 * 60 * 60 * 24 * 15,
+                              ],
+                            },
                             "$$NOW",
                           ],
                         },
@@ -1367,7 +1363,7 @@ const getPay = async (req, res) => {
         ...baseCommon,
         ...statusMatchStage,
         {
-          $group: { _id: "$type", count: { $sum: 1 } }
+          $group: { _id: "$type", count: { $sum: 1 } },
         },
       ]),
     ]);
@@ -1394,8 +1390,6 @@ const getPay = async (req, res) => {
     res.status(500).json({ msg: "Error retrieving data", error: err.message });
   }
 };
-
-
 
 const getTrashPayment = async (req, res) => {
   try {
@@ -1520,8 +1514,6 @@ const getTrashPayment = async (req, res) => {
       .json({ msg: "Error retrieving trash payments", error: err.message });
   }
 };
-
-
 
 const approve_pending = async function (req, res) {
   try {
