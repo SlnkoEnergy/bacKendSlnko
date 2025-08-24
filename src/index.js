@@ -10,6 +10,7 @@ const taskRoutes = require("./Routes/tasks.routes");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
 const scopeRoutes = require("../src/Routes/scope.routes");
 const productRoutes = require("../src/Routes/products.routes");
+const historyRoutes = require("../src/Routes/history.routes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
@@ -30,11 +31,10 @@ Sentry.init({
 
 config({ path: "./.env" });
 
-
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",")
   : [];
-  
+
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -60,7 +60,6 @@ const startServer = async () => {
     await mongoose.connect(db, {});
     console.log("SlnkoEnergy database is connected");
 
-
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);
@@ -70,6 +69,7 @@ const startServer = async () => {
     app.use("/v1/accounting", accountingRoutes);
     app.use("/v1/scope", scopeRoutes);
     app.use("/v1/products", productRoutes);
+    app.use("/v1/history", historyRoutes);
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);

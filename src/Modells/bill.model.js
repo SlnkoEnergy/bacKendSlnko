@@ -12,7 +12,7 @@ const billSchema = new mongoose.Schema(
       {
         category_id: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
+          ref: "MaterialCategory",
         },
         product_name: {
           type: String,
