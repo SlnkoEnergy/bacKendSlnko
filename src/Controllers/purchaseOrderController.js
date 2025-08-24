@@ -1351,6 +1351,7 @@ module.exports = {
   moverecovery,
   getPOByPONumber,
   getPOById,
+  getallpodetail,
   deletePO,
   getpohistory,
   getPOHistoryById,
