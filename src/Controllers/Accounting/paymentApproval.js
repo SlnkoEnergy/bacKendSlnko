@@ -35,12 +35,8 @@ const paymentApproval = async function (req, res) {
         ],
       };
     } else if (
-<<<<<<< HEAD
-      (currentUser.department === "Projects" || currentUser.department === "Infra")  &&
-=======
       (currentUser.department === "Projects" ||
         currentUser.department === "Infra") &&
->>>>>>> accounts-approval
       currentUser.role === "visitor"
     ) {
       accessFilter = {
