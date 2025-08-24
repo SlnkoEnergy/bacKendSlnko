@@ -359,8 +359,6 @@ const accApproved = async function (req, res) {
         .status(403)
         .json({ message: "Only managers can approve or reject" });
     }
-
-    // -------- Resolve target payment _ids from _id | pay_id | cr_id --------
     let ids = [];
 
     if (_id) {
@@ -468,7 +466,6 @@ const accApproved = async function (req, res) {
 
         const currentStage = payment.approval_status?.stage || "Draft";
 
-        // ---------- REJECTION: allowed at ANY stage; sets stage="Rejected" ----------
         if (status === "Rejected") {
           const now = new Date();
           payment.approved = "Rejected";
@@ -496,7 +493,6 @@ const accApproved = async function (req, res) {
           continue;
         }
 
-        // ---------- SCM validations for PO/value (non-reject) ----------
         if (department === "SCM") {
           const paidFor = payment.paid_for?.trim();
           const poNumber = payment.po_number?.trim();
@@ -550,7 +546,6 @@ const accApproved = async function (req, res) {
           }
         }
 
-        // ---------- transition (non-reject) ----------
         const transition = computeTransition(payment, currentStage);
         if (!transition) {
           results.push({
@@ -676,60 +671,9 @@ const accApproved = async function (req, res) {
       }
     }
 
-    const paidFor = payment.paid_for?.trim();
-    const poNumber = payment.po_number?.trim();
-
-    // Step 1: Check if paid_for matches any Material Category name
-    const isMaterialCategory = await materialCategoryModells.exists({
-      name: paidFor,
-    });
-
-    // Step 2: If status is Approved and paid_for is a Material Category, PO validation is required
-    if (status === "Approved" && isMaterialCategory) {
-      if (!poNumber || poNumber === "N/A") {
-        return res.status(400).json({
-          message:
-            "PO number is required for Material Category based payments.",
-        });
-      }
-
-      const purchaseOrder = await purchaseOrderModells.findOne({
-        po_number: { $regex: `^\\s*${poNumber}\\s*$`, $options: "i" },
-      });
-
-      if (!purchaseOrder) {
-        return res.status(404).json({ message: "Purchase order not found" });
-      }
-
-      const approvedPayments = await payRequestModells.find({
-        po_number: poNumber,
-        approved: "Approved",
-      });
-
-      const totalPaid = approvedPayments.reduce(
-        (sum, p) => sum + (parseFloat(p.amount_paid) || 0),
-        0
-      );
-
-      const newTotalPaid = totalPaid + (parseFloat(payment.amount_paid) || 0);
-      const poValue = parseFloat(purchaseOrder.po_value) || 0;
-
-      if (newTotalPaid > poValue) {
-        return res.status(400).json({
-          message: `Approval Denied: Total payments exceed PO limit of ₹${poValue.toLocaleString(
-            "en-IN"
-          )}`,
-        });
-      }
-    }
-
-    // Step 3: Update approval status
-    payment.approved = status;
-    await payment.save();
-
     return res
       .status(200)
-      .json({ message: "Approval status updated successfully", data: payment });
+      .json({ message: "Processed approval updates", results });
   } catch (error) {
     console.error("Error in accApproved:", error);
     return res.status(500).json({ message: "Server error" });
