@@ -339,7 +339,7 @@ const getallpodetail = async function (req, res) {
   try {
     const { po_number } = req.query;
 
-    // 🟢 Case 1: No po_number → return list of all PO numbers
+  
     if (!po_number) {
       const poList = await purchaseOrderModells
         .find({}, { po_number: 1, _id: 0 })
@@ -350,7 +350,6 @@ const getallpodetail = async function (req, res) {
       });
     }
 
-    // 🟢 Case 2: Specific po_number → return details
     const selectedPo = await purchaseOrderModells.findOne({ po_number }).lean();
 
     if (!selectedPo) {
@@ -369,7 +368,7 @@ const getallpodetail = async function (req, res) {
 
     const po_value = poAggregate.length > 0 ? poAggregate[0].total_po_value : 0;
 
-    // 🟢 Handle item field (string, ObjectId, or array of objects)
+ 
     let itemName = "";
     if (Array.isArray(selectedPo.item)) {
       itemName = selectedPo.item.map((i) => i.product_name).join(", ");
@@ -382,7 +381,7 @@ const getallpodetail = async function (req, res) {
       itemName = selectedPo.item;
     }
 
-    // 🟢 Vendor details
+ 
     let vendorDetails = {};
     if (selectedPo.vendor) {
       const matchedVendor = await vendorModells
@@ -400,7 +399,7 @@ const getallpodetail = async function (req, res) {
       }
     }
 
-    // 🟢 Approved payments
+
     const approvedPayments = await payRequestModells.aggregate([
       { $match: { po_number, approved: "Approved" } },
       {
@@ -416,6 +415,7 @@ const getallpodetail = async function (req, res) {
     const po_balance = po_value - totalAdvancePaid;
 
     return res.status(200).json({
+      p_id:selectedPo.p_id,
       po_number: selectedPo.po_number,
       po_value,
       vendor: selectedPo.vendor,
