@@ -11,6 +11,8 @@ const {
   getLowerPriorityStatus,
 } = require("../utils/updatePurchaseRequestStatus");
 const purchaseRequest = require("../Modells/PurchaseRequest/purchaseRequest");
+const payRequestModells = require("../Modells/payRequestModells");
+const vendorModells = require("../Modells/vendorModells");
 
 //Add-Purchase-Order
 const addPo = async function (req, res) {
@@ -335,142 +337,110 @@ const getallpo = async function (req, res) {
 
 const getallpodetail = async function (req, res) {
   try {
-    const pipeline = [
-      {
-        $lookup: {
-          from: "materialcategorymodells",
-          localField: "item",
-          foreignField: "_id",
-          as: "material",
-        },
-      },
-      {
-        $unwind: {
-          path: "$material",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $addFields: {
-          item: { $ifNull: ["$material.name", "$item"] },
-        },
-      },
-      {
-        $lookup: {
-          from: "payrequestmodells",
-          localField: "po_number",
-          foreignField: "po_number",
-          as: "payrequest",
-        },
-      },
-      {
-        $unwind: {
-          path: "$payrequest",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $addFields: {
-          total_Advance_Paid: {
-            $cond: [
-              { $eq: ["$payrequest.approved", "Approved"] },
-              "$payrequest.amount_paid",
-              0,
-            ],
-          },
-        },
-      },
+    const { po_number } = req.query;
+
+    // 🟢 Case 1: No po_number → return list of all PO numbers
+    if (!po_number) {
+      const poList = await purchaseOrderModells
+        .find({}, { po_number: 1, _id: 0 })
+        .lean();
+
+      return res.status(200).json({
+        po_numbers: poList.map((po) => po.po_number),
+      });
+    }
+
+    // 🟢 Case 2: Specific po_number → return details
+    const selectedPo = await purchaseOrderModells.findOne({ po_number }).lean();
+
+    if (!selectedPo) {
+      return res.status(404).json({ message: "PO not found" });
+    }
+
+    const poAggregate = await purchaseOrderModells.aggregate([
+      { $match: { po_number } },
       {
         $group: {
-          _id: "$_id",
-          po_number: { $first: "$po_number" },
-          po_value: { $first: "$po_value" },
-          vendor: { $first: "$vendor" },
-          item: { $first: "$item" },
-          date: { $first: "$date" },
-          p_id: { $first: "$p_id" },
-          total_Advance_Paid: { $sum: "$approved_amount" },
+          _id: "$po_number",
+          total_po_value: { $sum: { $toDouble: "$po_value" } },
         },
       },
-      {
-        $addFields: {
-          PO_Balance: { $subtract: ["$po_value", "$total_Advance_Paid"] },
-        },
-      },
-      {
-        $lookup: {
-          from: "vendermodells",
-          localField: "vendor",
-          foreignField: "vendor",
-          as: "vendordetail",
-        },
-      },
-      {
-        $unwind: {
-          path: "$vendordetail",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $lookup: {
-          from: "handoversheetmodells",
-          localField: "p_id",
-          foreignField: "p_id",
-          as: "handoverDocs",
-        },
-      },
-      {
-        $addFields: {
-          handover: { $gt: [{ $size: "$handoverDocs" }, 0] },
-        },
-      },
-      {
-        $lookup: {
-          from: "projectmodells",
-          localField: "p_id",
-          foreignField: "p_id",
-          as: "project_detail",
-        },
-      },
-      {
-        $unwind: {
-          path: "$project_detail",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $project: {
-          po_number: 1,
-          item: 1,
-          vendor: 1,
-          po_value: 1,
-          total_Advance_Paid: 1,
-          PO_Balance: 1,
-          handover: 1,
-          projectID: {
-            p_id: "$p_id",
-            code: "$project_detail.code",
-            name: "$project_detail.name",
-            customer: "$project_detail.customer",
-            p_group: "$project_detail.p_group",
-          },
-          vendorDetail: {
-            name: "$vendordetail.name",
-            accNo: "$vendordetail.acc_no",
-            ifsc: "$vendordetail.ifsc_code",
-            bankName: "$vendordetail.bank_name",
-          },
-        },
-      },
-    ];
+    ]);
 
-    const data = await purchaseOrderModells.aggregate(pipeline);
+    const po_value = poAggregate.length > 0 ? poAggregate[0].total_po_value : 0;
 
-    res.status(200).json({ message: "PO Detail successful", data });
+    // 🟢 Handle item field (string, ObjectId, or array of objects)
+    let itemName = "";
+    if (Array.isArray(selectedPo.item)) {
+      itemName = selectedPo.item.map((i) => i.product_name).join(", ");
+    } else if (mongoose.Types.ObjectId.isValid(selectedPo.item)) {
+      const itemDoc = await materialCategoryModells
+        .findById(selectedPo.item)
+        .lean();
+      itemName = itemDoc?.name || "";
+    } else if (typeof selectedPo.item === "string") {
+      itemName = selectedPo.item;
+    }
+
+    // 🟢 Vendor details
+    let vendorDetails = {};
+    if (selectedPo.vendor) {
+      const matchedVendor = await vendorModells
+        .findOne({
+          name: selectedPo.vendor,
+        })
+        .lean();
+      if (matchedVendor) {
+        vendorDetails = {
+          benificiary: matchedVendor.name,
+          acc_number: matchedVendor.Account_No,
+          ifsc: matchedVendor.IFSC_Code,
+          branch: matchedVendor.Bank_Name,
+        };
+      }
+    }
+
+    // 🟢 Approved payments
+    const approvedPayments = await payRequestModells.aggregate([
+      { $match: { po_number, approved: "Approved" } },
+      {
+        $group: {
+          _id: "$po_number",
+          totalAdvancePaid: { $sum: { $toDouble: "$amount_paid" } },
+        },
+      },
+    ]);
+    const totalAdvancePaid =
+      approvedPayments.length > 0 ? approvedPayments[0].totalAdvancePaid : 0;
+
+    const po_balance = po_value - totalAdvancePaid;
+
+    return res.status(200).json({
+      po_number: selectedPo.po_number,
+      po_value,
+      vendor: selectedPo.vendor,
+      item: itemName,
+      total_advance_paid: totalAdvancePaid,
+      po_balance,
+      ...vendorDetails,
+    });
+  } catch (err) {
+    console.error("Error fetching purchase order:", err);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
+  }
+};
+
+const getallpoNumber = async function (req, res) {
+  try {
+    const po_numbers = await purchaseOrderModells.find();
+
+    res.status(200).json({ msg: "All Po-Numbers", data: po_numbers });
   } catch (error) {
     res
       .status(500)
-      .json({ message: "Error Fetching Po Number", error: error.message });
+      .json({ msg: "Internal Server Error", error: error.message });
   }
 };
 
@@ -1322,6 +1292,7 @@ module.exports = {
   exportCSV,
   moverecovery,
   getPOByPONumber,
+  getallpoNumber,
   getPOById,
   getallpodetail,
   deletePO,

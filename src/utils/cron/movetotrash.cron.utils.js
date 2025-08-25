@@ -10,7 +10,7 @@ cron.schedule("* * * * *", async () => {
 
   try {
     const draftQuery = {
-      "approval_status.stage": ["Draft", "SCM", "CAM"],
+      "approval_status.stage": ["Draft", "CAM"],
       "timers.draft_started_at": { $lte: draftThreshold },
       "timers.draft_frozen_at": null,
       approved: { $nin: ["Approved", "Rejected"] },
