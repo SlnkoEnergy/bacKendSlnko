@@ -59,7 +59,7 @@ const payRequestschema = new mongoose.Schema(
     cr_id: { type: String },
     pay_type: { type: String },
     amount_paid: { type: String },
-    amt_for_customer: { type: String },
+    // amt_for_customer: { type: String },
     dbt_date: { type: String },
     paid_for: { type: String },
     vendor: { type: String },

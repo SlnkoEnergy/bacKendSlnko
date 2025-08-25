@@ -27,7 +27,10 @@ const paymentApproval = async function (req, res) {
     if (currentUser.department === "SCM" && currentUser.role === "manager") {
       accessFilter = {
         $or: [
-          { approved: "Pending" },
+          {
+            approved: "Pending",
+            "approval_status.stage": { $nin: ["CAM", "Account"] },
+          },
           { "approval_status.stage": "Draft" },
           { "approval_status.stage": "Credit Pending" },
         ],
@@ -38,8 +41,13 @@ const paymentApproval = async function (req, res) {
       currentUser.role === "visitor"
     ) {
       accessFilter = {
-        approved: "Pending",
-        "approval_status.stage": "CAM",
+        $or: [
+          {
+            approved: "Pending",
+            "approval_status.stage": { $nin: ["Account"] },
+          },
+          { "approval_status.stage": "CAM" },
+        ],
       };
     } else if (
       currentUser.department === "Accounts" &&
@@ -48,7 +56,7 @@ const paymentApproval = async function (req, res) {
       accessFilter = {
         $or: [
           { "approval_status.stage": "Account" },
-          { "approval_status.stage": "Credit Pending" },
+          // { "approval_status.stage": "Credit Pending" },
           { "approval_status.stage": "Initial Account" },
         ],
       };
@@ -230,7 +238,7 @@ const paymentApproval = async function (req, res) {
       },
       {
         $lookup: {
-          from: "subtract moneys", // ensure this matches your actual collection name
+          from: "subtract moneys",
           let: { pid: "$p_id" },
           pipeline: [
             { $match: { $expr: { $eq: ["$p_id", "$$pid"] } } },
@@ -311,27 +319,49 @@ const paymentApproval = async function (req, res) {
           as: "creditBalanceData",
         },
       },
+
       {
         $addFields: {
           creditBalance: {
-            $round: [
+            $cond: [
               {
-                $subtract: [
+                $and: [{ $ne: ["$pay_id", null] }, { $ne: ["$pay_id", ""] }],
+              },
+              0,
+              {
+                $cond: [
                   {
-                    $ifNull: [
-                      { $arrayElemAt: ["$creditData.totalCredit", 0] },
-                      0,
-                    ],
+                    $and: [{ $ne: ["$cr_id", null] }, { $ne: ["$cr_id", ""] }],
                   },
                   {
-                    $ifNull: [
-                      { $arrayElemAt: ["$creditBalanceData.totalPaid", 0] },
-                      0,
+                    $round: [
+                      {
+                        $subtract: [
+                          {
+                            $ifNull: [
+                              { $arrayElemAt: ["$creditData.totalCredit", 0] },
+                              0,
+                            ],
+                          },
+                          {
+                            $ifNull: [
+                              {
+                                $arrayElemAt: [
+                                  "$creditBalanceData.totalPaid",
+                                  0,
+                                ],
+                              },
+                              0,
+                            ],
+                          },
+                        ],
+                      },
+                      2,
                     ],
                   },
+                  0,
                 ],
               },
-              2,
             ],
           },
         },
@@ -460,7 +490,7 @@ const paymentApproval = async function (req, res) {
           request_date: "$dbt_date",
           request_for: "$paid_for",
           payment_description: "$comment",
-          amount_requested: "$amt_for_customer",
+          amount_requested: "$amount_paid",
           project_id: "$project.code",
           client_name: "$project.name",
           group_name: "$project.p_group",
@@ -658,7 +688,7 @@ const getPoApprovalPdf = async function (req, res) {
           vendor: 1,
           dbt_date: 1,
           comment: 1,
-          amt_for_customer: 1,
+          amt_for_customer: "$amount_paid",
         },
       },
     ];
