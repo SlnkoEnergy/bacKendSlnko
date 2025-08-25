@@ -28,10 +28,8 @@ const paymentApproval = async function (req, res) {
       accessFilter = {
         approved: "Pending",
         $or: [
-          { code: { $regex: search, $options: "i" } },
-          { pay_id: { $regex: search, $options: "i" } },
-          { name: { $regex: search, $options: "i" } },
-          { p_group: { $regex: search, $options: "i" } },
+          { "approval_status.stage": "Credit Pending" },
+          { "approval_status.stage": "Draft" },
         ],
       };
     } else if (
@@ -214,7 +212,6 @@ const paymentApproval = async function (req, res) {
         },
       },
 
-      // Calculate individual project balance
       {
         $lookup: {
           from: "addmoneys",
@@ -267,13 +264,10 @@ const paymentApproval = async function (req, res) {
                   },
                 ],
               },
+              2,
             ],
           },
-          trimmedGroup: {
-            $trim: {
-              input: "$project.p_group",
-            },
-          },
+          trimmedGroup: { $trim: { input: "$project.p_group" } },
         },
       },
 
@@ -371,8 +365,6 @@ const paymentApproval = async function (req, res) {
           },
         },
       },
-
-      // Conditionally lookup group project IDs
       {
         $lookup: {
           from: "projectdetails",
@@ -395,8 +387,6 @@ const paymentApproval = async function (req, res) {
           },
         },
       },
-
-      // Lookup group credits
       {
         $lookup: {
           from: "addmoneys",
@@ -429,7 +419,6 @@ const paymentApproval = async function (req, res) {
           as: "groupDebitData",
         },
       },
-
       {
         $addFields: {
           groupBalance: {
@@ -477,7 +466,9 @@ const paymentApproval = async function (req, res) {
           group_name: "$project.p_group",
           ClientBalance: "$Available_Amount",
           groupBalance: 1,
-          vendor: 1,
+          remainingDays: 1,
+          credit_deadline: "$credit.credit_deadline",
+          po_value: 1,
           po_number: 1,
           vendor: 1,
           credit_extension: "$credit.credit_extension",
