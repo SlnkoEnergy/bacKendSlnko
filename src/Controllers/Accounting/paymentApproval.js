@@ -27,7 +27,10 @@ const paymentApproval = async function (req, res) {
     if (currentUser.department === "SCM" && currentUser.role === "manager") {
       accessFilter = {
         $or: [
-          { approved: "Pending" },
+          {
+            approved: "Pending",
+            "approval_status.stage": { $nin: ["CAM", "Account"] },
+          },
           { "approval_status.stage": "Draft" },
           { "approval_status.stage": "Credit Pending" },
         ],
