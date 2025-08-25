@@ -298,32 +298,179 @@ const getPOHistoryById = async (req, res) => {
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
-    let data = await purchaseOrderModells.find().lean();
-
-    const updatedData = await Promise.all(
-      data.map(async (po) => {
-        let itemName = po.item;
-
-        const isObjectId = mongoose.Types.ObjectId.isValid(po.item);
-
-        if (isObjectId) {
-          const material = await materialCategoryModells
-            .findById(po.item)
-            .select("name")
-            .lean();
-          itemName = material?.name || null;
-        }
-
-        return {
-          ...po,
-          item: itemName,
-        };
-      })
-    );
+    const updatedData = await purchaseOrderModells.aggregate([
+      {
+        $lookup: {
+          from: "materialcategorymodells",
+          localField: "item",
+          foreignField: "_id",
+          as: "material",
+        },
+      },
+      {
+        $unwind: {
+          path: "$material",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          item: {
+            $ifNull: ["$material.name", "$item"],
+          },
+        },
+      },
+      {
+        $project: {
+          material: 0,
+        },
+      },
+    ]);
 
     res.status(200).json({ msg: "All PO", data: updatedData });
   } catch (error) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
+  }
+};
+
+const getallpodetail = async function (req, res) {
+  try {
+    const pipeline = [
+      {
+        $lookup: {
+          from: "materialcategorymodells",
+          localField: "item",
+          foreignField: "_id",
+          as: "material",
+        },
+      },
+      {
+        $unwind: {
+          path: "$material",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          item: { $ifNull: ["$material.name", "$item"] },
+        },
+      },
+      {
+        $lookup: {
+          from: "payrequestmodells",
+          localField: "po_number",
+          foreignField: "po_number",
+          as: "payrequest",
+        },
+      },
+      {
+        $unwind: {
+          path: "$payrequest",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          total_Advance_Paid: {
+            $cond: [
+              { $eq: ["$payrequest.approved", "Approved"] },
+              "$payrequest.amount_paid",
+              0,
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id",
+          po_number: { $first: "$po_number" },
+          po_value: { $first: "$po_value" },
+          vendor: { $first: "$vendor" },
+          item: { $first: "$item" },
+          date: { $first: "$date" },
+          p_id: { $first: "$p_id" },
+          total_Advance_Paid: { $sum: "$approved_amount" },
+        },
+      },
+      {
+        $addFields: {
+          PO_Balance: { $subtract: ["$po_value", "$total_Advance_Paid"] },
+        },
+      },
+      {
+        $lookup: {
+          from: "vendermodells",
+          localField: "vendor",
+          foreignField: "vendor",
+          as: "vendordetail",
+        },
+      },
+      {
+        $unwind: {
+          path: "$vendordetail",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "handoversheetmodells",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "handoverDocs",
+        },
+      },
+      {
+        $addFields: {
+          handover: { $gt: [{ $size: "$handoverDocs" }, 0] },
+        },
+      },
+      {
+        $lookup: {
+          from: "projectmodells",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "project_detail",
+        },
+      },
+      {
+        $unwind: {
+          path: "$project_detail",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          po_number: 1,
+          item: 1,
+          vendor: 1,
+          po_value: 1,
+          total_Advance_Paid: 1,
+          PO_Balance: 1,
+          handover: 1,
+          projectID: {
+            p_id: "$p_id",
+            code: "$project_detail.code",
+            name: "$project_detail.name",
+            customer: "$project_detail.customer",
+            p_group: "$project_detail.p_group",
+          },
+          vendorDetail: {
+            name: "$vendordetail.name",
+            accNo: "$vendordetail.acc_no",
+            ifsc: "$vendordetail.ifsc_code",
+            bankName: "$vendordetail.bank_name",
+          },
+        },
+      },
+    ];
+
+    const data = await purchaseOrderModells.aggregate(pipeline);
+
+    res.status(200).json({ message: "PO Detail successful", data });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error Fetching Po Number", error: error.message });
   }
 };
 
@@ -1036,42 +1183,15 @@ const deletePO = async function (req, res) {
       return res.status(404).json({ msg: "PO not found" });
     }
 
-    const poNumber = data.po_number?.toString()?.trim();
-    if (!poNumber) {
-      return res.status(200).json({
-        msg: "PO deleted from DB, but no po_number found for CSV removal.",
-        data,
-      });
-    }
-
-    const filePath = path.join(__dirname, "..", "data", "po_old.csv");
-    const rows = [];
-
-    fs.createReadStream(filePath)
-      .pipe(csvParser())
-      .on("data", (row) => {
-        if (row.po_number?.trim() !== poNumber) {
-          rows.push(row);
-        }
-      })
-      .on("end", () => {
-        const json2csv = new Parser({ fields: Object.keys(rows[0] || {}) });
-        const csv = json2csv.parse(rows);
-        fs.writeFileSync(filePath, csv, "utf8");
-
-        return res
-          .status(200)
-          .json({ msg: "PO deleted from DB and CSV", data });
-      })
-      .on("error", (err) => {
-        console.error("Error reading CSV:", err);
-        res.status(500).json({
-          msg: "PO deleted from DB, but error reading CSV",
-          error: err.message,
-        });
-      });
+    return res.status(200).json({
+      msg: "PO deleted successfully",
+      data,
+    });
   } catch (error) {
-    res.status(400).json({ msg: "Server error", error: error.message });
+    return res.status(500).json({
+      msg: "Server error while deleting PO",
+      error: error.message,
+    });
   }
 };
 
@@ -1203,6 +1323,7 @@ module.exports = {
   moverecovery,
   getPOByPONumber,
   getPOById,
+  getallpodetail,
   deletePO,
   getpohistory,
   getPOHistoryById,
