@@ -260,8 +260,18 @@ const requestCreditExtension = async (req, res) => {
 
 //get alll pay summary
 const getPaySummary = async (req, res) => {
-  let request = await payRequestModells.find();
-  res.status(200).json({ msg: "all-pay-summary", data: request });
+  try{
+
+    const data = await payRequestModells.aggregate([
+      { $match: {} }
+    ]);
+    
+
+    res.status(200).json({message: "Fetch Data Successfull", data: data})
+
+  } catch(error){
+    res.status(500).json({message: "Error in Fetching Data"})
+  }
 };
 
 //get all hold pay

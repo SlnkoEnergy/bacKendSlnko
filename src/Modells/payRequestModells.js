@@ -10,7 +10,6 @@ const StatusHistorySchema = new mongoose.Schema(
       enum: [
         "Credit Pending",
         "Draft",
-        "SCM",
         "CAM",
         "Account",
         "Initial Account",
@@ -103,7 +102,6 @@ const payRequestschema = new mongoose.Schema(
         enum: [
           "Credit Pending",
           "Draft",
-          "SCM",
           "CAM",
           "Account",
           "Initial Account",
