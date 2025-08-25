@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@novu/node": "^2.6.6",
     "@sentry/node": "^7.120.4",
     "@sentry/tracing": "^7.92.0",
     "axios": "^1.9.0",

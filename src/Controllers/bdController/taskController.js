@@ -5,6 +5,7 @@ const deadleadModells = require("../../Modells/deadleadModells");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
 const { default: mongoose } = require("mongoose");
 const { Parser } = require("json2csv");
+const { getnovuNotification } = require("../../utils/nouvnotification.utils");
 
 const createTask = async (req, res) => {
   try {
@@ -26,7 +27,7 @@ const createTask = async (req, res) => {
     if (!lead) {
       return res.status(400).json({ error: "Invalid lead_id" });
     }
-    
+
     const newTask = new BDtask({
       title,
       lead_id,
@@ -43,6 +44,20 @@ const createTask = async (req, res) => {
     await lead.save();
 
     await newTask.save();
+
+    // Notification functionality for Creating Task
+    try {
+      const workflow = 'task-create';
+      const senders = assigned_to;
+      const data = {
+        message: `New task created for Lead #${lead.id}`,
+        link: `leadProfile?id=${lead._id}`
+      }
+      await getnovuNotification(workflow, senders, data);
+
+    } catch (error) {
+      console.log(error);
+    }
 
     res.status(201).json({
       message: "Task created successfully",
@@ -75,12 +90,24 @@ const updateStatus = async (req, res) => {
       user_id,
       remarks,
     });
-    
+
     const lead = await bdleadsModells.findById(task.lead_id);
     lead.inactivedate = Date.now();
     await lead.save();
 
     await task.save();
+
+    try {
+      const workflow = 'task-status';
+      const senders = [task?.user_id];
+      const data = {
+        message: `Task ${task.title} for Lead ${lead?.id} updated to status: ${status}`,
+        link: `leadProfile?id=${lead._id}`
+      }
+      await getnovuNotification(workflow, senders, data);
+    } catch (error) {
+      console.log(error);
+    }
 
     res.status(200).json({
       message: "Task status updated successfully",
@@ -121,12 +148,12 @@ const getAllTask = async (req, res) => {
 
     const matchQuery = {};
 
-   if (!isPrivilegedUser) {
-  matchQuery.$or = [
-    { user_id: new mongoose.Types.ObjectId(userId) },
-    { assigned_to: new mongoose.Types.ObjectId(userId) },
-  ];
-}
+    if (!isPrivilegedUser) {
+      matchQuery.$or = [
+        { user_id: new mongoose.Types.ObjectId(userId) },
+        { assigned_to: new mongoose.Types.ObjectId(userId) },
+      ];
+    }
 
     if (status) {
       matchQuery["current_status"] = status;
@@ -232,7 +259,7 @@ const getAllTaskByAssigned = async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    const user = await userModells.findById(userId); 
+    const user = await userModells.findById(userId);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
@@ -265,7 +292,7 @@ const getAllTaskByAssigned = async (req, res) => {
 
     res.status(200).json({ success: true, data: tasks });
   } catch (error) {
-    res.status(500).json({ message:"Internal Server Error", error: error.message });
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 
@@ -453,79 +480,79 @@ const getexportToCsv = async (req, res) => {
   try {
     const { Ids } = req.body;
 
-  const pipeline = [
-    {
-      $match: {
-        _id: { $in: Ids.map((id) => new mongoose.Types.ObjectId(id)) },
+    const pipeline = [
+      {
+        $match: {
+          _id: { $in: Ids.map((id) => new mongoose.Types.ObjectId(id)) },
+        },
       },
-    },
-    {
-      $lookup: {
-        from: "bdleads",
-        localField: "lead_id",
-        foreignField: "_id",
-        as: "lead",
+      {
+        $lookup: {
+          from: "bdleads",
+          localField: "lead_id",
+          foreignField: "_id",
+          as: "lead",
+        },
       },
-    },
-    { $unwind: { path: "$lead", preserveNullAndEmptyArrays: true } },
-    {
-      $lookup: {
-        from: "users",
-        localField: "assigned_to",
-        foreignField: "_id",
-        as: "assigned_to",
+      { $unwind: { path: "$lead", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "assigned_to",
+          foreignField: "_id",
+          as: "assigned_to",
+        },
       },
-    },
-    { $unwind: { path: "$assigned_to", preserveNullAndEmptyArrays: true } },
-    {
-      $lookup: {
-        from: "users",
-        localField: "user_id",
-        foreignField: "_id",
-        as: "created_by",
+      { $unwind: { path: "$assigned_to", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user_id",
+          foreignField: "_id",
+          as: "created_by",
+        },
       },
-    },
-    { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
-    {
-      $project: {
-        title: 1,
-        type: 1,
-        current_status: 1,
-        priority: 1,
-        deadline: 1,
-        description: 1,
-        lead_name: "$lead.name",
-        created_By: "$created_by.name",
-        assigned_to_names: "$assigned_to.name",
+      { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          title: 1,
+          type: 1,
+          current_status: 1,
+          priority: 1,
+          deadline: 1,
+          description: 1,
+          lead_name: "$lead.name",
+          created_By: "$created_by.name",
+          assigned_to_names: "$assigned_to.name",
+        },
       },
-    },
-  ];
+    ];
 
-  const result = await BDtask.aggregate(pipeline);
+    const result = await BDtask.aggregate(pipeline);
 
-  const fields = [
-    { label: 'Title', value: 'title' },
-    { label: 'Type', value: 'type' },
-    { label: 'Current Status', value: 'current_status' },
-    { label: 'Priority', value: 'priority' },
-    { label: 'Deadline', value: 'deadline' },
-    { label: 'Lead Name', value: 'lead_name' },
-    { label: 'Created By', value: 'created_By' },
-    { label: 'Assigned Name', value: 'assigned_to_names' },
-  ]
+    const fields = [
+      { label: 'Title', value: 'title' },
+      { label: 'Type', value: 'type' },
+      { label: 'Current Status', value: 'current_status' },
+      { label: 'Priority', value: 'priority' },
+      { label: 'Deadline', value: 'deadline' },
+      { label: 'Lead Name', value: 'lead_name' },
+      { label: 'Created By', value: 'created_By' },
+      { label: 'Assigned Name', value: 'assigned_to_names' },
+    ]
 
-  const json2csvParser = new Parser({ fields });
+    const json2csvParser = new Parser({ fields });
 
-  const csv = json2csvParser.parse(result);
-  res.setHeader("Content-disposition", "attachment; filename=data.csv");
-  res.set("Content-Type", "text/csv");
-  res.status(200).send(csv);
+    const csv = json2csvParser.parse(result);
+    res.setHeader("Content-disposition", "attachment; filename=data.csv");
+    res.set("Content-Type", "text/csv");
+    res.status(200).send(csv);
 
   } catch (error) {
     res.status(500).json({
-      message:"Internal Server Error",
+      message: "Internal Server Error",
       error: error.message
-    })    
+    })
   }
 
 }
