@@ -9,7 +9,15 @@ const {
 const ErrorHandler = require("../middlewares/error.middleware");
 
 const addBill = catchAsyncError(async function (req, res) {
-  const { po_number, bill_number, bill_date, bill_value, bill_type, item, description } = req.body;
+  const {
+    po_number,
+    bill_number,
+    bill_date,
+    bill_value,
+    bill_type,
+    item,
+    description,
+  } = req.body;
 
   const userId = req.user.userId;
 
@@ -17,20 +25,25 @@ const addBill = catchAsyncError(async function (req, res) {
   if (!purchaseOrder) {
     return next(new ErrorHandler("Purchase Order not found.", 404));
   }
-
+  purchaseOrder.total_billed = String(
+    Number(purchaseOrder.total_billed ?? 0) + Number(bill_value ?? 0)
+  );
+ purchaseOrder.total_bills = Number(purchaseOrder.total_bills || 0) + 1;
+ purchaseOrder.save();
+ 
   const newBill = new billModel({
     po_number,
     bill_number,
     bill_date: moment(bill_date, "YYYY-MM-DD").toDate(),
     bill_value,
-    item, 
+    item,
     description,
     type: bill_type,
     submitted_by: userId,
   });
 
   const savedBill = await newBill.save();
-  
+
   if (bill_type === "Final") {
     await purchaseOrderModel.updateOne(
       { po_number },
@@ -212,135 +225,163 @@ const getPaginatedBill = catchAsyncError(async (req, res) => {
 });
 
 const getAllBill = catchAsyncError(async (req, res) => {
-    const page = Number.parseInt(req.query.page, 10) || 1;
-    const pageSize = Number.parseInt(req.query.pageSize, 10) || 2400;
-    const skip = (page - 1) * pageSize;
-    const pipeline = [
-      { $sort: { createdOn: -1 } },
-      {
-        $lookup: {
-          from: "purchaseorders", 
-          localField: "po_number",
-          foreignField: "po_number",
-          as: "po",
+  const page = Number.parseInt(req.query.page, 10) || 1;
+  const pageSize = Number.parseInt(req.query.pageSize, 10) || 10;
+  const skip = (page - 1) * pageSize;
+
+  const status = (req.query.status || "").trim();
+  const po_number = (req.query.po_number || "").trim();
+
+  const pipeline = [
+    {
+      $lookup: {
+        from: "purchaseorders",
+        localField: "po_number",
+        foreignField: "po_number",
+        as: "po",
+      },
+    },
+    { $unwind: { path: "$po", preserveNullAndEmptyArrays: true } },
+
+    {
+      $addFields: {
+        _wasItemArray: { $isArray: "$item" },
+        item: {
+          $cond: {
+            if: { $isArray: "$item" },
+            then: "$item",
+            else: [{ $ifNull: ["$item", null] }],
+          },
         },
       },
-      { $unwind: { path: "$po", preserveNullAndEmptyArrays: true } },
+    },
+    { $unwind: { path: "$item", preserveNullAndEmptyArrays: true } },
 
-      { $unwind: { path: "$item", preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: "materialcategories", 
-          let: { cid: "$item.category_id" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$_id", "$$cid"] } } },
-            { $project: { _id: 1, name: 1 } },
+    {
+      $lookup: {
+        from: "materialcategories",
+        let: { cid: "$item.category_id" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$_id", "$$cid"] } } },
+          { $project: { _id: 1, name: 1 } },
+        ],
+        as: "itemCat",
+      },
+    },
+    {
+      $addFields: {
+        "item.category_name": {
+          $ifNull: [{ $arrayElemAt: ["$itemCat.name", 0] }, null],
+        },
+      },
+    },
+
+    {
+      $group: {
+        _id: "$_id",
+        doc: { $first: "$$ROOT" },
+        items: { $push: "$item" },
+      },
+    },
+    {
+      $addFields: {
+        items: {
+          $filter: { input: "$items", as: "it", cond: { $ne: ["$$it", null] } },
+        },
+        "doc.item": {
+          $cond: [
+            "$doc._wasItemArray",
+            "$items",
+            { $arrayElemAt: ["$items", 0] },
           ],
-          as: "itemCat",
         },
       },
-      {
-        $addFields: {
-          "item.category_name": {
-            $ifNull: [{ $arrayElemAt: ["$itemCat.name", 0] }, null],
-          },
-        },
-      },
-      {
-        $group: {
-          _id: "$_id",
-          doc: { $first: "$$ROOT" },
-          items: { $push: "$item" },
-        },
-      },
-      {
-        $addFields: {
-          "doc.item": {
-            $filter: {
-              input: "$items",
-              as: "it",
-              cond: { $ne: ["$$it", null] },
-            },
-          },
-        },
-      },
-      { $replaceRoot: { newRoot: "$doc" } },
+    },
+    { $replaceRoot: { newRoot: "$doc" } },
 
-      {
-        $addFields: {
-          __po_value_num: { $toDouble: { $ifNull: ["$po.po_value", 0] } },
-          __total_billed_num: {
-            $toDouble: { $ifNull: ["$po.total_billed", 0] },
-          },
-        },
+    {
+      $addFields: {
+        __po_value_num: { $toDouble: { $ifNull: ["$po.po_value", 0] } },
+        __total_billed_num: { $toDouble: { $ifNull: ["$po.total_billed", 0] } },
       },
-      {
-        $addFields: {
-          project_id: "$po.p_id",
-          po_no: "$po_number", 
-          vendor: "$po.vendor", 
-          bill_no: "$bill_number",
-          bill_date: "$bill_date",
-          bill_value: "$bill_value",
-          po_value: "$__po_value_num",
-          total_billed: "$__total_billed_num",
-          po_status: {
-            $cond: [
-              { $eq: ["$__po_value_num", "$__total_billed_num"] },
-              "fully billed",
-              "waiting bills",
-            ],
-          },
-          received: "$status",
-          created_on: "$createdAt",
+    },
+    {
+      $addFields: {
+        project_id: "$po.p_id",
+        po_no: "$po_number",
+        vendor: "$po.vendor",
+        bill_no: "$bill_number",
+        bill_date: "$bill_date",
+        bill_value: "$bill_value",
+        po_value: "$__po_value_num",
+        total_billed: "$__total_billed_num",
+        po_status: {
+          $cond: [
+            { $eq: ["$__po_value_num", "$__total_billed_num"] },
+            "fully billed",
+            "waiting bills",
+          ],
         },
+        received: "$status",
+        created_on: "$createdAt",
       },
-      {
-        $project: {
-          _id: 0,
-          project_id: 1,
-          po_no: 1,
-          vendor: 1,
-          item: 1, 
-          bill_no: 1,
-          bill_date: 1,
-          bill_value: 1,
-          po_value: 1,
-          total_billed: 1,
-          po_status: 1,
-          received: 1,
-          created_on: 1,
-        },
+    },
+    {
+      $project: {
+        _id: 0,
+        project_id: 1,
+        po_no: 1,
+        vendor: 1,
+        item: 1,
+        bill_no: 1,
+        bill_date: 1,
+        bill_value: 1,
+        po_value: 1,
+        total_billed: 1,
+        po_status: 1,
+        received: 1,
+        created_on: 1,
       },
-      {
-        $facet: {
-          data: [{ $skip: skip }, { $limit: pageSize }],
-          totalCount: [{ $count: "count" }],
-        },
-      },
-      {
-        $addFields: {
-          total: {
-            $ifNull: [{ $arrayElemAt: ["$totalCount.count", 0] }, 0],
-          },
-        },
-      },
-      { $project: { totalCount: 0 } },
-    ];
+    },
+    {
+      $sort: { created_on: -1, _id: -1 },
+    },
+  ];
 
-    const result = await billModel.aggregate(pipeline);
-    const { data = [], total = 0 } = result[0] || {};
+  if (status) {
+    pipeline.push({ $match: { po_status: status } });
+  }
 
-    return res.status(200).json({
-      page,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize) || 0,
-      rows: data,
-    });
-  
+  if (po_number) {
+    pipeline.push({ $match: { po_no: po_number } });
+  }
+
+  pipeline.push(
+    {
+      $facet: {
+        data: [{ $skip: skip }, { $limit: pageSize }],
+        totalCount: [{ $count: "count" }],
+      },
+    },
+    {
+      $addFields: {
+        total: { $ifNull: [{ $arrayElemAt: ["$totalCount.count", 0] }, 0] },
+      },
+    },
+    { $project: { totalCount: 0 } }
+  );
+
+  const result = await billModel.aggregate(pipeline);
+  const { data = [], total = 0 } = result[0] || {};
+
+  return res.status(200).json({
+    page,
+    pageSize,
+    total,
+    totalPages: Math.ceil(total / pageSize) || 0,
+    data,
+  });
 });
-
 
 //Bills Exports
 const exportBills = catchAsyncError(async (req, res) => {
@@ -575,7 +616,7 @@ const bill_approved = catchAsyncError(async function (req, res) {
   }
   const approvedby = await billModel.findOneAndUpdate(
     { bill_number },
-    { $set: { approved_by:userId } },
+    { $set: { approved_by: userId } },
     { new: true }
   );
 
@@ -594,5 +635,5 @@ module.exports = {
   deleteBill,
   bill_approved,
   exportBills,
-  getAllBill
+  getAllBill,
 };

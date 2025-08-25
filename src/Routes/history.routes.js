@@ -1,17 +1,17 @@
 const router = require("express").Router();
 const {
-  listHistory,
-  createHistory,
-  updateHistory,
-  deleteHistory,
-  getHistory,
-} = require("../Controllers/history.controller");
+  listPoHistory,
+  createPoHistory,
+  updatePoHistory,
+  deletePoHistory,
+  getPoHistory,
+} = require("../Controllers/Pohistory.controller");
 const jwtMW = require("../middlewares/auth");
 
-router.get("/history", jwtMW.authentication, listHistory);
-router.get("/history/:id", jwtMW.authentication, getHistory);
-router.post("/history", jwtMW.authentication, createHistory);
-router.put("/history/:id", jwtMW.authentication, updateHistory);
-router.delete("/history/:id", jwtMW.authentication, deleteHistory);
+router.get("/Pohistory", jwtMW.authentication, listPoHistory);
+router.get("/PoHistory/:id", jwtMW.authentication, getPoHistory);
+router.post("/PoHistory", jwtMW.authentication, createPoHistory);
+router.put("/PoHistory/:id", jwtMW.authentication, updatePoHistory);
+router.delete("/PoHistory/:id", jwtMW.authentication, deletePoHistory);
 
 module.exports = router;

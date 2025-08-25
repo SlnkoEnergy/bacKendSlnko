@@ -1,11 +1,11 @@
 const {
   catchAsyncError,
 } = require("../middlewares/catchasyncerror.middleware");
-const History = require("../Modells/history.model");
+const PoHistory = require("../Modells/Pohistory.model");
 const mongoose = require("mongoose");
 const ErrorHandler = require("../middlewares/error.middleware");
 
-const createHistory = catchAsyncError(async (req, res) => {
+const createPoHistory = catchAsyncError(async (req, res) => {
   const payload = req.body;
 
   if (!payload.subject_type || !payload.subject_id || !payload.event_type) {
@@ -25,7 +25,7 @@ const createHistory = catchAsyncError(async (req, res) => {
     ? payload.attachments
     : [];
 
-  const doc = await History.create({
+  const doc = await PoHistory.create({
     subject_type: payload.subject_type,
     subject_id: payload.subject_id,
     event_type: payload.event_type,
@@ -36,12 +36,12 @@ const createHistory = catchAsyncError(async (req, res) => {
   });
 
   res.status(201).json({
-    message: "History created successfully",
+    message: "PoHistory created successfully",
     data: doc,
   });
 });
 
-const listHistory = catchAsyncError(async (req, res) => {
+const listPoHistory = catchAsyncError(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 20;
   const sort = req.query.sort || "-createdAt";
@@ -57,11 +57,11 @@ const listHistory = catchAsyncError(async (req, res) => {
     filter.event_type = { $in: events };
   }
 
-  const total = await History.countDocuments(filter);
-  const data = await History.find(filter).sort(sort).skip(skip).limit(pageSize);
+  const total = await PoHistory.countDocuments(filter);
+  const data = await PoHistory.find(filter).sort(sort).skip(skip).limit(pageSize);
 
   res.status(200).json({
-    message: "History retrieved successfully",
+    message: "PoHistory retrieved successfully",
     total,
     page,
     pageSize,
@@ -70,17 +70,17 @@ const listHistory = catchAsyncError(async (req, res) => {
   });
 });
 
-const getHistory = catchAsyncError(async (req, res) => {
+const getPoHistory = catchAsyncError(async (req, res) => {
   const { id } = req.params;
-  const doc = await History.findById(id);
-  if (!doc) return next(new ErrorHandler("History not found", 404));
+  const doc = await PoHistory.findById(id);
+  if (!doc) return next(new ErrorHandler("PoHistory not found", 404));
   res.status(200).json({
-    message: "History retrived successfully",
+    message: "PoHistory retrived successfully",
     data: doc,
   });
 });
 
-const updateHistory = catchAsyncError(async (req, res) => {
+const updatePoHistory = catchAsyncError(async (req, res) => {
   const { id } = req.params;
   const payload = req.body || {};
   if (
@@ -90,28 +90,28 @@ const updateHistory = catchAsyncError(async (req, res) => {
     return next(new ErrorHandler("Invalid subject_id", 400));
   }
 
-  const updated = await History.findByIdAndUpdate(id, payload, {
+  const updated = await PoHistory.findByIdAndUpdate(id, payload, {
     new: true,
   });
-  if (!updated) return next(new ErrorHandler("History not found", 404));
+  if (!updated) return next(new ErrorHandler("PoHistory not found", 404));
 
   res.status(200).json({
-    message: "History Updated Successfully",
+    message: "PoHistory Updated Successfully",
     data: updated,
   });
 });
 
-const deleteHistory = catchAsyncError(async (req, res) => {
+const deletePoHistory = catchAsyncError(async (req, res) => {
   const { id } = req.params;
-  const deleted = await History.findByIdAndDelete(id);
-  if (!deleted) return next(new ErrorHandler("History not found", 404));
+  const deleted = await PoHistory.findByIdAndDelete(id);
+  if (!deleted) return next(new ErrorHandler("PoHistory not found", 404));
   return ok(res, { _id: id });
 });
 
 module.exports = {
-  createHistory,
-  listHistory,
-  getHistory,
-  updateHistory,
-  deleteHistory,
+  createPoHistory,
+  listPoHistory,
+  getPoHistory,
+  updatePoHistory,
+  deletePoHistory,
 };

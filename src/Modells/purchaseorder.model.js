@@ -17,6 +17,10 @@ const purchaseOrderSchema = new mongoose.Schema(
     date: {
       type: String,
     },
+    total_bills:{
+      type: Number,
+      default: 0
+    },
     item: [
       {
         category: {
@@ -94,8 +98,9 @@ const purchaseOrderSchema = new mongoose.Schema(
     dispatch_date: {
       type: Date,
     },
-    total_billed:{
-      type: String
+    total_billed: {
+      type: String,
+      default: "0",
     },
     delivery_type: {
       type: String,

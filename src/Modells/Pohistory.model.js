@@ -9,6 +9,7 @@ const ChangeSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
 const attachementSchema = new mongoose.Schema(
   {
     name: String,
@@ -16,7 +17,8 @@ const attachementSchema = new mongoose.Schema(
   },
   { _id: false }
 );
-const historySchema = new mongoose.Schema(
+
+const PohistorySchema = new mongoose.Schema(
   {
     subject_type: { type: String, required: true },
     subject_id: { type: mongoose.Schema.Types.ObjectId, required: true },
@@ -43,4 +45,4 @@ const historySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("History", historySchema);
+module.exports = mongoose.model("Pohistory", PohistorySchema);
