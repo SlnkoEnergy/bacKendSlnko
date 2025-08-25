@@ -1,13 +1,16 @@
-const mongoose = require("mongoose"); 
+const mongoose = require("mongoose");
 const Logistic = require("../Modells/logistics.model");
 const { nextLogisticCode } = require("../utils/logisticscounter.utils");
 
-const getParamId = (req) => req.params.id || req.params._id;
+// helpers
+const getParamId = (req) => req.params.id || req.params._id || req.body.id;
+const isId = (v) => mongoose.Types.ObjectId.isValid(v);
+const ALLOWED_STATUS = ["ready_to_dispatch", "out_for_delivery", "delivered"];
 
+/* ---------------- create ---------------- */
 const createLogistic = async (req, res) => {
   try {
     const {
-      
       po_id = [],
       attachment_url = "",
       vehicle_number,
@@ -17,8 +20,8 @@ const createLogistic = async (req, res) => {
       description = "",
       items = [],
     } = req.body;
+
     const logistic_code = await nextLogisticCode();
-    const isId = (v) => mongoose.Types.ObjectId.isValid(v);
 
     // Basic required fields
     if (
@@ -62,11 +65,25 @@ const createLogistic = async (req, res) => {
       attachment_url,
       vehicle_number,
       driver_number,
-      total_ton: String(total_ton),                     
-      total_transport_po_value: String(total_transport_po_value), 
+      total_ton: String(total_ton),
+      total_transport_po_value: String(total_transport_po_value),
       description,
       items: mappedItems,
       created_by: req.user?.userId ?? null,
+
+      // Default status without touching the model
+      current_status: {
+        status: "ready_to_dispatch",
+        remarks: "",
+        user_id: req.user?.userId ?? null,
+      },
+      status_history: [
+        {
+          status: "ready_to_dispatch",
+          remarks: "",
+          user_id: req.user?.userId ?? null,
+        },
+      ],
     });
 
     res
@@ -79,10 +96,14 @@ const createLogistic = async (req, res) => {
   }
 };
 
+/* ---------------- list ---------------- */
 const getAllLogistics = async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const pageSize = Math.max(1, Math.min(200, parseInt(req.query.pageSize, 10) || 50));
+    const pageSize = Math.max(
+      1,
+      Math.min(200, parseInt(req.query.pageSize, 10) || 50)
+    );
     const search = (req.query.search || "").trim();
     const status = (req.query.status || "").trim();
     const poId = (req.query.po_id || "").trim();
@@ -96,30 +117,47 @@ const getAllLogistics = async (req, res) => {
         { description: { $regex: search, $options: "i" } },
       ];
     }
-    if (status) filter.status = status;
+    if (status) {
+      // your model stores it here:
+      filter["current_status.status"] = status;
+    }
     if (poId) filter.po_id = poId;
 
     const [total, raw] = await Promise.all([
       Logistic.countDocuments(filter),
       Logistic.find(filter)
-        .select("logistic_code po_id items vehicle_number total_transport_po_value total_ton status created_by createdAt")
+        .select(
+          [
+            "logistic_code",
+            "po_id",
+            "items",
+            "vehicle_number",
+            "driver_number",
+            "total_transport_po_value",
+            "total_ton",
+            "current_status",
+            "dispatch_date",
+            "delivery_date",
+            "created_by",
+            "createdAt",
+          ].join(" ")
+        )
         .populate("po_id", "po_number")
         .populate("items.material_po", "po_number")
-        // ⬇️ populate the category doc; select whichever field(s) exist in your schema
         .populate({ path: "items.category_id", select: "name category_name" })
         .populate("created_by", "_id name")
         .sort({ createdAt: -1 })
         .skip((page - 1) * pageSize)
         .limit(pageSize)
-        .lean()
+        .lean(),
     ]);
 
-    // ⬇️ If your category schema uses `name` (not `category_name`), expose a `category_name` alias on each item
-    const logistics = raw.map(doc => ({
+    const logistics = raw.map((doc) => ({
       ...doc,
-      items: (doc.items || []).map(it => ({
+      items: (doc.items || []).map((it) => ({
         ...it,
-        category_name: it?.category_id?.category_name ?? it?.category_id?.name ?? null,
+        category_name:
+          it?.category_id?.category_name ?? it?.category_id?.name ?? null,
       })),
     }));
 
@@ -130,12 +168,13 @@ const getAllLogistics = async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching logistics:", err);
-    return res.status(500).json({ message: "Failed to fetch logistics", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Failed to fetch logistics", error: err.message });
   }
 };
 
-
-
+/* ---------------- get by id ---------------- */
 const getLogisticById = async (req, res) => {
   try {
     const id = getParamId(req);
@@ -144,6 +183,22 @@ const getLogisticById = async (req, res) => {
     }
 
     const logistic = await Logistic.findById(id)
+      .select(
+        [
+          "logistic_code",
+          "po_id",
+          "items",
+          "vehicle_number",
+          "driver_number",
+          "total_transport_po_value",
+          "total_ton",
+          "current_status",
+          "dispatch_date",
+          "delivery_date",
+          "created_by",
+          "createdAt",
+        ].join(" ")
+      )
       .populate("po_id", "po_number")
       .populate("items.material_po", "po_number")
       .populate("items.category_id", "name")
@@ -165,6 +220,7 @@ const getLogisticById = async (req, res) => {
   }
 };
 
+/* ---------------- update fields ---------------- */
 const updateLogistic = async (req, res) => {
   try {
     const id = getParamId(req);
@@ -181,9 +237,10 @@ const updateLogistic = async (req, res) => {
       return res.status(404).json({ message: "Logistic not found" });
     }
 
-    res
-      .status(200)
-      .json({ message: "Logistic updated successfully", data: updatedLogistic });
+    res.status(200).json({
+      message: "Logistic updated successfully",
+      data: updatedLogistic,
+    });
   } catch (err) {
     console.error("Error updating logistic:", err);
     res
@@ -192,6 +249,7 @@ const updateLogistic = async (req, res) => {
   }
 };
 
+/* ---------------- delete ---------------- */
 const deleteLogistic = async (req, res) => {
   try {
     const id = getParamId(req);
@@ -213,10 +271,77 @@ const deleteLogistic = async (req, res) => {
   }
 };
 
+/* ---------------- status update ---------------- */
+const updateLogisticStatus = async (req, res) => {
+  try {
+    const id = getParamId(req);
+    const { status, remarks, dispatch_date } = req.body; // optional remarks/date
+    const userId = req.user?.userId || null;
+
+    if (!id || !isId(id)) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
+    if (!status) {
+      return res.status(400).json({ message: "Status is required" });
+    }
+    if (!ALLOWED_STATUS.includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+
+    // Read current doc lean for conditional date logic (no validation here)
+    const doc = await Logistic.findById(id).lean();
+    if (!doc) return res.status(404).json({ message: "Logistic not found" });
+
+    const now = new Date();
+    const $set = {
+      current_status: { status, remarks, user_id: userId },
+    };
+    const $push = {
+      status_history: { status, remarks, user_id: userId },
+    };
+
+    // Auto-date stamping logic
+    if (status === "ready_to_dispatch") {
+      if (dispatch_date) $set.dispatch_date = new Date(dispatch_date);
+      else if (!doc.dispatch_date) $set.dispatch_date = now;
+    }
+
+    if (status === "out_for_delivery") {
+      if (!doc.dispatch_date) $set.dispatch_date = now;
+    }
+
+    if (status === "delivered") {
+      if (!doc.dispatch_date) $set.dispatch_date = now;
+      if (!doc.delivery_date) $set.delivery_date = now;
+    }
+
+    // Atomic update without triggering full doc validation on required fields
+    await Logistic.updateOne({ _id: id }, { $set, $push });
+
+    // Return fresh version (select only fields the UI needs)
+    const fresh = await Logistic.findById(id)
+      .select(
+        "logistic_code total_transport_po_value vehicle_number driver_number total_ton current_status status_history dispatch_date delivery_date"
+      )
+      .populate("po_id", "po_number")
+      .populate("items.material_po", "po_number")
+      .lean();
+
+    return res.status(200).json({ message: "Status updated", data: fresh });
+  } catch (err) {
+    console.error("updateLogisticStatus error:", err);
+    return res
+      .status(500)
+      .json({ message: "Failed to update status", error: err.message });
+  }
+};
+
+
 module.exports = {
   createLogistic,
   getAllLogistics,
   getLogisticById,
   updateLogistic,
+  updateLogisticStatus,
   deleteLogistic,
 };

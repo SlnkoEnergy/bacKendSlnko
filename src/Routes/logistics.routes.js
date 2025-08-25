@@ -5,6 +5,7 @@ const {
   createLogistic,
   updateLogistic,
   deleteLogistic,
+  updateLogisticStatus,
 } = require("../Controllers/logistics.controller");
 
 const jwtMW = require("../middlewares/auth");
@@ -43,6 +44,14 @@ router.delete(
   jwtMW.authentication,
   jwtMW.authorization,
   deleteLogistic
+);
+
+
+router.put(
+  "/logistic/:id/status",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  updateLogisticStatus
 );
 
 module.exports = router;

@@ -11,7 +11,7 @@ const logisticSchema = new mongoose.Schema(
     ],
     logistic_code: {
       type: String,
-      uniuqe: true,
+      unique: true,
       index: true,
       required: true,
     },
@@ -21,6 +21,48 @@ const logisticSchema = new mongoose.Schema(
     total_ton: { type: String, required: true },
     total_transport_po_value: { type: String, required: true },
     description: { type: String },
+  delivery_date: {
+      type: Date,
+    },
+    dispatch_date: {
+      type: Date,
+    },
+    status_history: [
+          {
+            status: {
+              type: String,
+              enum: [
+                "out_for_delivery",
+                "ready_to_dispatch",
+                "delivered",
+              ],
+            },
+            remarks: {
+              type: String,
+            },
+            user_id: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "User",
+            },
+          },
+        ],
+        current_status: {
+          status: {
+            type: String,
+            enum: [
+              "out_for_delivery",
+              "ready_to_dispatch",
+              "delivered",
+            ],
+          },
+          remarks: {
+            type: String,
+          },
+          user_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+        },
     items: [
       {
         material_po: {
