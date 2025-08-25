@@ -456,7 +456,7 @@ const getallpodetail = async function (req, res) {
           },
           vendorDetail: {
             name: "$vendordetail.name",
-            accNo: "$vendordetail.acc_no", 
+            accNo: "$vendordetail.acc_no",
             ifsc: "$vendordetail.ifsc_code",
             bankName: "$vendordetail.bank_name",
           },
@@ -473,7 +473,6 @@ const getallpodetail = async function (req, res) {
       .json({ message: "Error Fetching Po Number", error: error.message });
   }
 };
-
 
 const getPaginatedPo = async (req, res) => {
   try {
@@ -1184,42 +1183,15 @@ const deletePO = async function (req, res) {
       return res.status(404).json({ msg: "PO not found" });
     }
 
-    const poNumber = data.po_number?.toString()?.trim();
-    if (!poNumber) {
-      return res.status(200).json({
-        msg: "PO deleted from DB, but no po_number found for CSV removal.",
-        data,
-      });
-    }
-
-    const filePath = path.join(__dirname, "..", "data", "po_old.csv");
-    const rows = [];
-
-    fs.createReadStream(filePath)
-      .pipe(csvParser())
-      .on("data", (row) => {
-        if (row.po_number?.trim() !== poNumber) {
-          rows.push(row);
-        }
-      })
-      .on("end", () => {
-        const json2csv = new Parser({ fields: Object.keys(rows[0] || {}) });
-        const csv = json2csv.parse(rows);
-        fs.writeFileSync(filePath, csv, "utf8");
-
-        return res
-          .status(200)
-          .json({ msg: "PO deleted from DB and CSV", data });
-      })
-      .on("error", (err) => {
-        console.error("Error reading CSV:", err);
-        res.status(500).json({
-          msg: "PO deleted from DB, but error reading CSV",
-          error: err.message,
-        });
-      });
+    return res.status(200).json({
+      msg: "PO deleted successfully",
+      data,
+    });
   } catch (error) {
-    res.status(400).json({ msg: "Server error", error: error.message });
+    return res.status(500).json({
+      msg: "Server error while deleting PO",
+      error: error.message,
+    });
   }
 };
 
