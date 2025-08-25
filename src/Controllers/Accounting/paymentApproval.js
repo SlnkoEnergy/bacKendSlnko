@@ -50,8 +50,10 @@ const paymentApproval = async function (req, res) {
         ],
       };
     } else if (
-      currentUser.department === "Accounts" &&
-      currentUser.role === "manager"
+      (currentUser.department === "Accounts" &&
+        currentUser.role === "manager") ||
+      currentUser.department === "admin" ||
+      currentUser.department === "superadmin"
     ) {
       accessFilter = {
         $or: [
@@ -78,7 +80,10 @@ const paymentApproval = async function (req, res) {
     const PAY_PRESENT = { pay_id: { $nin: [null, ""] } };
 
     let tabFilter = {};
-    if (currentUser.department === "Accounts") {
+    if ((currentUser.department === "Accounts" &&
+        currentUser.role === "manager") ||
+      currentUser.department === "admin" ||
+      currentUser.department === "superadmin") {
       if (tab === "finalApprovalPayments") {
         tabFilter = { "approval_status.stage": "Initial Account" };
       } else {
@@ -238,7 +243,7 @@ const paymentApproval = async function (req, res) {
       },
       {
         $lookup: {
-          from: "subtract moneys", // ensure this matches your actual collection name
+          from: "subtract moneys",
           let: { pid: "$p_id" },
           pipeline: [
             { $match: { $expr: { $eq: ["$p_id", "$$pid"] } } },
@@ -319,27 +324,49 @@ const paymentApproval = async function (req, res) {
           as: "creditBalanceData",
         },
       },
+
       {
         $addFields: {
           creditBalance: {
-            $round: [
+            $cond: [
               {
-                $subtract: [
+                $and: [{ $ne: ["$pay_id", null] }, { $ne: ["$pay_id", ""] }],
+              },
+              0,
+              {
+                $cond: [
                   {
-                    $ifNull: [
-                      { $arrayElemAt: ["$creditData.totalCredit", 0] },
-                      0,
-                    ],
+                    $and: [{ $ne: ["$cr_id", null] }, { $ne: ["$cr_id", ""] }],
                   },
                   {
-                    $ifNull: [
-                      { $arrayElemAt: ["$creditBalanceData.totalPaid", 0] },
-                      0,
+                    $round: [
+                      {
+                        $subtract: [
+                          {
+                            $ifNull: [
+                              { $arrayElemAt: ["$creditData.totalCredit", 0] },
+                              0,
+                            ],
+                          },
+                          {
+                            $ifNull: [
+                              {
+                                $arrayElemAt: [
+                                  "$creditBalanceData.totalPaid",
+                                  0,
+                                ],
+                              },
+                              0,
+                            ],
+                          },
+                        ],
+                      },
+                      2,
                     ],
                   },
+                  0,
                 ],
               },
-              2,
             ],
           },
         },
@@ -468,7 +495,7 @@ const paymentApproval = async function (req, res) {
           request_date: "$dbt_date",
           request_for: "$paid_for",
           payment_description: "$comment",
-          amount_requested: "$amt_for_customer",
+          amount_requested: "$amount_paid",
           project_id: "$project.code",
           client_name: "$project.name",
           group_name: "$project.p_group",
@@ -510,7 +537,10 @@ const paymentApproval = async function (req, res) {
     ];
 
     const sortStage =
-      currentUser.department === "Accounts" && tab === "finalApprovalPayments"
+      (currentUser.department === "Accounts" &&
+        currentUser.role === "manager") ||
+      currentUser.department === "admin" ||
+      currentUser.department === "superadmin" && tab === "finalApprovalPayments"
         ? { $sort: { remainingDays: 1, _id: -1 } }
         : { $sort: { _id: -1 } };
 
@@ -533,7 +563,10 @@ const paymentApproval = async function (req, res) {
     let paymentsCount;
     let finalApprovalPaymentsCount;
 
-    if (currentUser.department === "Accounts") {
+    if ((currentUser.department === "Accounts" &&
+        currentUser.role === "manager") ||
+      currentUser.department === "admin" ||
+      currentUser.department === "superadmin") {
       const baseMatch = {
         $or: [
           { "approval_status.stage": "Account" },
@@ -605,7 +638,10 @@ const paymentApproval = async function (req, res) {
         delaydays,
         count: data.length,
         tab,
-        ...(currentUser.department === "Accounts" && {
+        ...((currentUser.department === "Accounts" &&
+        currentUser.role === "manager") ||
+      currentUser.department === "admin" ||
+      currentUser.department === "superadmin" && {
           paymentsCount,
           finalApprovalPaymentsCount,
         }),
@@ -666,7 +702,7 @@ const getPoApprovalPdf = async function (req, res) {
           vendor: 1,
           dbt_date: 1,
           comment: 1,
-          amt_for_customer: 1,
+          amt_for_customer: "$amount_paid",
         },
       },
     ];
