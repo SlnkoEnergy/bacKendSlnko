@@ -41,8 +41,13 @@ const paymentApproval = async function (req, res) {
       currentUser.role === "visitor"
     ) {
       accessFilter = {
-        approved: "Pending",
-        "approval_status.stage": "CAM",
+        $or: [
+          {
+            approved: "Pending",
+            "approval_status.stage": { $nin: ["Account"] },
+          },
+          { "approval_status.stage": "CAM" },
+        ],
       };
     } else if (
       currentUser.department === "Accounts" &&
@@ -51,7 +56,7 @@ const paymentApproval = async function (req, res) {
       accessFilter = {
         $or: [
           { "approval_status.stage": "Account" },
-          { "approval_status.stage": "Credit Pending" },
+          // { "approval_status.stage": "Credit Pending" },
           { "approval_status.stage": "Initial Account" },
         ],
       };
