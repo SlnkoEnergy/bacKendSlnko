@@ -21,48 +21,40 @@ const logisticSchema = new mongoose.Schema(
     total_ton: { type: String, required: true },
     total_transport_po_value: { type: String, required: true },
     description: { type: String },
-  delivery_date: {
+    delivery_date: {
       type: Date,
     },
     dispatch_date: {
       type: Date,
     },
     status_history: [
-          {
-            status: {
-              type: String,
-              enum: [
-                "out_for_delivery",
-                "ready_to_dispatch",
-                "delivered",
-              ],
-            },
-            remarks: {
-              type: String,
-            },
-            user_id: {
-              type: mongoose.Schema.Types.ObjectId,
-              ref: "User",
-            },
-          },
-        ],
-        current_status: {
-          status: {
-            type: String,
-            enum: [
-              "out_for_delivery",
-              "ready_to_dispatch",
-              "delivered",
-            ],
-          },
-          remarks: {
-            type: String,
-          },
-          user_id: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-          },
+      {
+        status: {
+          type: String,
+          enum: ["out_for_delivery", "ready_to_dispatch", "delivered"],
         },
+        remarks: {
+          type: String,
+        },
+        user_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      },
+    ],
+    current_status: {
+      status: {
+        type: String,
+        enum: ["out_for_delivery", "ready_to_dispatch", "delivered"],
+      },
+      remarks: {
+        type: String,
+      },
+      user_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    },
     items: [
       {
         material_po: {
@@ -77,6 +69,7 @@ const logisticSchema = new mongoose.Schema(
         product_make: { type: String },
         quantity_requested: { type: String },
         quantity_po: { type: String },
+        received_qty: { type: String },
         weight: { type: String },
       },
     ],

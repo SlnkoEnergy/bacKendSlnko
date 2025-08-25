@@ -55,7 +55,8 @@ const createLogistic = async (req, res) => {
         product_make: it.product_make ?? "",
         quantity_requested: String(it.quantity_requested ?? ""),
         quantity_po: String(it.quantity_po ?? ""),
-        weight: String(it.weight ?? ""),
+        received_qty: String(it.received_qty ?? ""),
+        weight: String(it.weight ?? it.ton ?? ""),
       };
     });
 
@@ -138,6 +139,7 @@ const getAllLogistics = async (req, res) => {
             "current_status",
             "dispatch_date",
             "delivery_date",
+            "description",
             "created_by",
             "createdAt",
           ].join(" ")
@@ -195,6 +197,7 @@ const getLogisticById = async (req, res) => {
           "current_status",
           "dispatch_date",
           "delivery_date",
+          "description",
           "created_by",
           "createdAt",
         ].join(" ")
