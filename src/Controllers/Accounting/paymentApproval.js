@@ -50,8 +50,10 @@ const paymentApproval = async function (req, res) {
         ],
       };
     } else if (
-      currentUser.department === "Accounts" &&
-      currentUser.role === "manager"
+      (currentUser.department === "Accounts" &&
+        currentUser.role === "manager") ||
+      currentUser.department === "admin" ||
+      currentUser.department === "superadmin"
     ) {
       accessFilter = {
         $or: [
@@ -78,7 +80,10 @@ const paymentApproval = async function (req, res) {
     const PAY_PRESENT = { pay_id: { $nin: [null, ""] } };
 
     let tabFilter = {};
-    if (currentUser.department === "Accounts") {
+    if ((currentUser.department === "Accounts" &&
+        currentUser.role === "manager") ||
+      currentUser.department === "admin" ||
+      currentUser.department === "superadmin") {
       if (tab === "finalApprovalPayments") {
         tabFilter = { "approval_status.stage": "Initial Account" };
       } else {
@@ -532,7 +537,10 @@ const paymentApproval = async function (req, res) {
     ];
 
     const sortStage =
-      currentUser.department === "Accounts" && tab === "finalApprovalPayments"
+      (currentUser.department === "Accounts" &&
+        currentUser.role === "manager") ||
+      currentUser.department === "admin" ||
+      currentUser.department === "superadmin" && tab === "finalApprovalPayments"
         ? { $sort: { remainingDays: 1, _id: -1 } }
         : { $sort: { _id: -1 } };
 
@@ -555,7 +563,10 @@ const paymentApproval = async function (req, res) {
     let paymentsCount;
     let finalApprovalPaymentsCount;
 
-    if (currentUser.department === "Accounts") {
+    if ((currentUser.department === "Accounts" &&
+        currentUser.role === "manager") ||
+      currentUser.department === "admin" ||
+      currentUser.department === "superadmin") {
       const baseMatch = {
         $or: [
           { "approval_status.stage": "Account" },
@@ -627,7 +638,10 @@ const paymentApproval = async function (req, res) {
         delaydays,
         count: data.length,
         tab,
-        ...(currentUser.department === "Accounts" && {
+        ...((currentUser.department === "Accounts" &&
+        currentUser.role === "manager") ||
+      currentUser.department === "admin" ||
+      currentUser.department === "superadmin" && {
           paymentsCount,
           finalApprovalPaymentsCount,
         }),
