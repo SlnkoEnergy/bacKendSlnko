@@ -13,10 +13,10 @@ const ORG_NAMES = [
   ["Deepak Manodi", null],
 
   ["Shiv Ram Tathagat", "Deepak Manodi"],
-  ["Gourav Upadhyay", "Deepak Manodi"],
+  ["Gaurav Upadhyay", "Deepak Manodi"],
 
   ["Abhishek Sawhney", "Shiv Ram Tathagat"],
-  ["Vaibhav Upadhyay", "Shiv Ram Tathagat"],
+  ["Vibhav Upadhyay", "Shiv Ram Tathagat"],
   ["Navin Kumar Gautam", "Shiv Ram Tathagat"],
 
   ["Mohit Soni", "Abhishek Sawhney"],
@@ -25,11 +25,11 @@ const ORG_NAMES = [
   ["Shambhavi Gupta", "Vibhav Upadhyay"],
   ["Sankalp Choudhary", "Vibhav Upadhyay"],
 
-  ["Kunal Jha", "Naveen Gautam"],
+  ["Kunal Kumar", "Navin Kumar Gautam"],
 
 
-  ["Ketan Jha", "Gaurav Upadhya"],
-  ["Abhishek Sondhiya", "Gaurav Upadhya"],
+  ["Ketan Kumar Jha", "Gaurav Upadhyay"],
+  ["Abhishek Sondhiya", "Gaurav Upadhyay"],
 ];
 
 function buildChildrenMap(pairs) {
