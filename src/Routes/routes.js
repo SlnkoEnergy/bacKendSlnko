@@ -51,6 +51,7 @@ const {
   getPOHistoryById,
   updateEditandDeliveryDate,
   updateStatusPO,
+  getPoBasic,
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -398,6 +399,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getPaginatedPo
+);
+router.get(
+  "/get-po-basic",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getPoBasic
 );
 router.get(
   "/get-export-po",

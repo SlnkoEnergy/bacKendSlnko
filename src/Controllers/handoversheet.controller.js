@@ -5,7 +5,6 @@ const projectmodells = require("../Modells/project.model");
 const { Parser } = require("json2csv");
 const handoversheetModells = require("../Modells/handoversheet.model");
 const userModells = require("../Modells/users/userModells");
-const { getNotification, getnovuNotification } = require("../utils/nouvnotificationutils");
 const materialCategoryModells = require("../Modells/materialcategory.model");
 const scopeModel = require("../Modells/scope.model");
 const bdleadsModells = require("../Modells/bdleads/bdleadsModells");
@@ -110,8 +109,6 @@ const createhandoversheet = async function (req, res) {
       submitted_by,
     } = req.body;
     
-    const userId = req.user.userId;
-    const user = await userModells.findById(userId);
 
     const handoversheet = new hanoversheetmodells({
       id,

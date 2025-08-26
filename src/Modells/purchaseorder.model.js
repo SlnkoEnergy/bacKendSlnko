@@ -117,9 +117,11 @@ const purchaseOrderSchema = new mongoose.Schema(
             "approval_rejected",
             "po_created",
             "out_for_delivery",
+            "partially_out_for_delivery",
             "ready_to_dispatch",
+            "material_ready",
             "delivered",
-            "partially_delivered"
+            "partially_delivered",
           ],
         },
         remarks: {
@@ -141,9 +143,11 @@ const purchaseOrderSchema = new mongoose.Schema(
           "approval_rejected",
           "po_created",
           "out_for_delivery",
+          "partially_out_for_delivery",
           "ready_to_dispatch",
+          "material_ready",
           "delivered",
-          "partially_delivered"
+          "partially_delivered",
         ],
       },
       remarks: {

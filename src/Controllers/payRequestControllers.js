@@ -12,8 +12,6 @@ const materialCategoryModells = require("../Modells/materialcategory.model");
 const userModells = require("../Modells/users/userModells");
 const utrCounter = require("../Modells/utrCounter");
 
-const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
-const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
 
 const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
 const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
