@@ -7,46 +7,8 @@ const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
+const getexpensehirearchyarray = require("../../utils/expensehirearchy.utils");
 
-const ORG_NAMES = [
-  // Root
-  ["Deepak Manodi", null],
-
-  ["Shiv Ram Tathagat", "Deepak Manodi"],
-  ["Gaurav Upadhyay", "Deepak Manodi"],
-
-  ["Abhishek Sawhney", "Shiv Ram Tathagat"],
-  ["Vibhav Upadhyay", "Shiv Ram Tathagat"],
-  ["Navin Kumar Gautam", "Shiv Ram Tathagat"],
-  ["Shambhavi Gupta", "Shiv Ram Tathagat"],
-  ["Sankalp Choudhary", "Shiv Ram Tathagat"],
-
-  ["Mohit Soni", "Abhishek Sawhney"],
-
-  ["Kunal Kumar", "Navin Kumar Gautam"],
-
-  ["Ketan Kumar Jha", "Gaurav Upadhyay"],
-  ["Abhishek Sondhiya", "Gaurav Upadhyay"],
-
-
-
-];
-
-function buildChildrenMap(pairs) {
-  const children = new Map();
-  for (const [child, parent] of pairs) {
-    if (!children.has(parent)) children.set(parent, []);
-    children.get(parent).push(child);
-  }
-  return children;
-}
-const ORG_CHILDREN_BY_NAME = buildChildrenMap(ORG_NAMES);
-
-function getDirectReportsInclusive(rootName) {
-  if (!rootName) return [];
-  const direct = ORG_CHILDREN_BY_NAME.get(rootName) || [];
-  return Array.from(new Set([rootName, ...direct]));
-}
 
 const getAllExpense = async (req, res) => {
   try {
@@ -163,10 +125,9 @@ const getAllExpense = async (req, res) => {
       currentUser.department === "BD"
     ) {
 
-      const viewerName =
-        currentUser.emp_name || currentUser.name || currentUser.full_name;
-      const visibleNames = getDirectReportsInclusive(viewerName);
+      const viewerName = currentUser.name;
 
+      const visibleNames = getexpensehirearchyarray(viewerName);   
 
       if (visibleNames.length > 0) {
 
