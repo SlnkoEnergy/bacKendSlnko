@@ -46,6 +46,7 @@ const {
   getPOByPONumber,
   getPOById,
   deletePO,
+  getallpodetail,
   getpohistory,
   getPOHistoryById,
   updateEditandDeliveryDate,
@@ -425,6 +426,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getPOById
+);
+router.get(
+  "/get-po-detail",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getallpodetail
 );
 router.delete(
   "/delete-pO-IT/:_id",
