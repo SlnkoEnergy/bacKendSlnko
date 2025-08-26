@@ -7,6 +7,7 @@ const mongoose = require("mongoose");
 const handoversheetModells = require("../Modells/handoversheet.model");
 const projectModells = require("../Modells/project.model");
 const userModells = require("../Modells/users/userModells");
+const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const createModuleCategory = async (req, res) => {
   try {
@@ -82,9 +83,9 @@ const createModuleCategory = async (req, res) => {
             Array.isArray(respData) && respData.length > 0
               ? respData[0]
               : respData.url ||
-                respData.fileUrl ||
-                (respData.data && respData.data.url) ||
-                null;
+              respData.fileUrl ||
+              (respData.data && respData.data.url) ||
+              null;
 
           if (url) {
             urlsForAttachment.push(url);
@@ -169,12 +170,12 @@ const getModuleCategoryById = async (req, res) => {
     const pipeline = [
       ...(engineering
         ? [
-            {
-              $match: {
-                engineering_category: engineering,
-              },
+          {
+            $match: {
+              engineering_category: engineering,
             },
-          ]
+          },
+        ]
         : []),
       {
         $lookup: {
@@ -366,6 +367,28 @@ const updateModuleCategory = async (req, res) => {
 
     await moduleData.save();
 
+    // Notification on File submit to Engineering and CAM
+
+    try {
+      const workflow = 'all-notification';
+      const senders = await userModells.find({
+        $or: [
+          { department: 'Engineering' },
+        ]
+      }).select('_id')
+        .lean()
+        .then(users => users.map(u => u._id));
+
+      const data = {
+        message: `document uploded For Project ID: ${projectCodeData.code} and Project Name: ${projectCodeData.name}`
+      }
+
+      await getnovuNotification(workflow, senders, data);
+
+    } catch (error) {
+      console.log(error);
+    }
+
     return res.status(200).json({
       message: "Module Category Updated Successfully",
       data: moduleData,
@@ -434,6 +457,35 @@ const updateModuleCategoryStatus = async (req, res) => {
     }
 
     await moduleCategoryData.save();
+
+    const project_detail = await projectDetail.findById(projectId).select('code name').lean();
+
+
+    try {
+      const workflow = 'all-notification';
+      const senders = await userModells.find({
+        $or: [
+          { department: 'Engineering' },
+          { department: 'SCM', role: 'excutive' },
+        ]
+      }).select('_id')
+        .lean()
+        .then(users => users.map(u => u._id));
+      let data = {};
+      if (text) {
+        data = {
+          message: `project ID : ${project_detail.code} project name: ${project_detail.name} file has been on ${status} with this message: ${text}`
+        }
+      } else {
+        data = {
+          message: `project ID : ${project_detail.code} project name: ${project_detail.name} file has been ${status} `
+        }
+      }
+
+      await getnovuNotification(workflow, senders, data);
+    } catch (error) {
+      console.log(error);
+    }
 
     res.status(200).json({
       message: "Status and remark pushed successfully",

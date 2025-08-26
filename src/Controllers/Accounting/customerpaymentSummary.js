@@ -337,9 +337,30 @@ const getCustomerPaymentSummary = async (req, res) => {
                 $expr: {
                   $and: [
                     { $eq: [{ $toString: "$po_number" }, "$$po_numberStr"] },
-                    { $eq: ["$approved", "Approved"] },
-                    { $eq: ["$acc_match", "matched"] },
-                    { $ne: ["$utr", ""] },
+                    {
+                      $or: [
+                   
+                        {
+                          $and: [
+                            { $eq: ["$approved", "Approved"] },
+                            { $eq: ["$acc_match", "matched"] },
+                            { $ne: ["$utr", ""] },
+                          ],
+                        },
+                        {
+                          $and: [
+                            { $eq: ["$approved", "Approved"] },
+                            { $ne: ["$utr", ""] },
+                            {
+                              $eq: [
+                                "$approval_status.stage",
+                                "Initial Account",
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
                   ],
                 },
               },
@@ -354,6 +375,7 @@ const getCustomerPaymentSummary = async (req, res) => {
           as: "approved_payment",
         },
       },
+
       {
         $addFields: {
           itemObjectId: {

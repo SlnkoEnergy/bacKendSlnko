@@ -46,6 +46,7 @@ const {
   getPOByPONumber,
   getPOById,
   deletePO,
+  getallpodetail,
   getpohistory,
   getPOHistoryById,
   updateEditandDeliveryDate,
@@ -62,7 +63,6 @@ const {
 const { additem, getItem } = require("../Controllers/itemController");
 const {
   payRrequest,
-  holdpay,
   getPaySummary,
   account_matched,
   utrUpdate,
@@ -429,6 +429,12 @@ router.get(
   jwtMW.authorization,
   getPOById
 );
+router.get(
+  "/get-po-detail",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getallpodetail
+);
 router.delete(
   "/delete-pO-IT/:_id",
   jwtMW.authentication,
@@ -510,12 +516,6 @@ router.post(
   jwtMW.authentication,
   jwtMW.authorization,
   payRrequest
-);
-router.post(
-  "/hold-paymenT-IT",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  holdpay
 );
 router.get(
   "/get-pay-summarY-IT",

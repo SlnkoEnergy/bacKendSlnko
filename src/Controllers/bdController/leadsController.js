@@ -8,10 +8,14 @@ const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
 const group = require("../../Modells/bdleads/group");
 const task = require("../../Modells/bdleads/task");
 const groupModells = require("../../Modells/bdleads/group");
+const { Novu } = require('@novu/node');
+const { getnovuNotification } = require("../../utils/nouvnotificationutils");
 const handoversheetModells = require("../../Modells/handoversheet.model");
+const { getnovuNotification } = require("../../utils/nouvnotification.utils");
 
 const createBDlead = async function (req, res) {
   try {
+    const novu = new Novu(process.env.NOVU_SECRET_KEY);
     const body = req.body;
     const requiredFields = [
       "name",
@@ -131,6 +135,8 @@ const createBDlead = async function (req, res) {
     };
 
     const bdLead = new bdleadsModells(payload);
+
+
     await bdLead.save();
 
     res.status(200).json({
@@ -158,8 +164,8 @@ const getAllLeads = async (req, res) => {
       group_id,
       inactiveFilter,
       leadAgingFilter,
+      ClosingDateFilter,
     } = req.query;
-
     const userId = req.user.userId;
     const user = await userModells.findById(userId).lean();
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -172,25 +178,25 @@ const getAllLeads = async (req, res) => {
     const query = {};
 
     const regionalAccessMap = {
-  "Shambhavi Gupta": ["rajasthan"],
-  "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
-  "Navin Kumar Gautam": ["rajasthan"],
-  "Ketan Kumar Jha": ["madhya pradesh"],
-  "Gaurav Kumar Upadhyay": ["madhya pradesh"],
-  "Om Utkarsh": ["rajasthan"]
-};
+      "Shambhavi Gupta": ["rajasthan"],
+      "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
+      "Navin Kumar Gautam": ["rajasthan"],
+      "Ketan Kumar Jha": ["madhya pradesh"],
+      "Gaurav Kumar Upadhyay": ["madhya pradesh"],
+      "Om Utkarsh": ["rajasthan"]
+    };
 
 
     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
-       query["current_assigned.user_id"]= new mongoose.Types.ObjectId(userId) 
+      query["current_assigned.user_id"] = new mongoose.Types.ObjectId(userId)
     }
 
     if (regionalAccessMap[user.name] && !isPrivilegedUser) {
       const regions = regionalAccessMap[user.name];
-query.$or = [
-  { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
-  { "address.state": { $in: regions.map(r => new RegExp(`^${r}$`, "i")) } }
-];
+      query.$or = [
+        { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
+        { "address.state": { $in: regions.map(r => new RegExp(`^${r}$`, "i")) } }
+      ];
 
     }
 
@@ -257,6 +263,22 @@ query.$or = [
       query.leadAging = { $lte: Number(leadAgingFilter) };
     }
 
+    if (ClosingDateFilter && ClosingDateFilter.length > 0) {
+      const year = new Date().getFullYear();
+
+      const months = ClosingDateFilter.split(",").map(m => Number(m));
+
+      const monthQueries = months.map(month => {
+        const start = new Date(year, month - 1, 1);
+        const end = new Date(year, month, 0);
+        end.setHours(23, 59, 59, 999);
+
+        return { expected_closing_date: { $gte: start, $lte: end } };
+      });
+
+      query.$or = monthQueries;
+    }
+
     if (name) {
       const userObjectId = new mongoose.Types.ObjectId(name);
       query["current_assigned.user_id"] = userObjectId;
@@ -310,6 +332,7 @@ const getLeadCounts = async (req, res) => {
       group_id,
       inactiveFilter,
       leadAgingFilter,
+      ClosingDateFilter,
     } = req.query;
 
     const userId = req.user.userId;
@@ -324,30 +347,30 @@ const getLeadCounts = async (req, res) => {
       (user.department === "BD" && user.role === "manager");
 
     const regionalAccessMap = {
-  "Shambhavi Gupta": ["rajasthan"],
-  "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"], 
-  "Navin Kumar Gautam": ["rajasthan"],
-  "Ketan Kumar Jha": ["madhya pradesh"],
-  "Gaurav Kumar Upadhyay": ["madhya pradesh"],
-  "Om Utkarsh": ["rajasthan"]
-};
+      "Shambhavi Gupta": ["rajasthan"],
+      "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
+      "Navin Kumar Gautam": ["rajasthan"],
+      "Ketan Kumar Jha": ["madhya pradesh"],
+      "Gaurav Kumar Upadhyay": ["madhya pradesh"],
+      "Om Utkarsh": ["rajasthan"]
+    };
 
-    
-     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
+
+    if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
       const userObjectId = new mongoose.Types.ObjectId(userId);
       andConditions.push({
         "current_assigned.user_id": userObjectId,
-      }); 
+      });
     }
 
     if (!isPrivilegedUser && regionalAccessMap[user.name]) {
       const regions = regionalAccessMap[user.name];
-andConditions.push({
-  $or: [
-    { "address.state": { $in: regions.map(r => new RegExp(`^${r.trim()}$`, "i")) } },
-    { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) }
-  ]
-});
+      andConditions.push({
+        $or: [
+          { "address.state": { $in: regions.map(r => new RegExp(`^${r.trim()}$`, "i")) } },
+          { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) }
+        ]
+      });
 
     }
 
@@ -418,6 +441,23 @@ andConditions.push({
     if (leadAgingFilter) {
       andConditions.push({ leadAging: { $lte: Number(leadAgingFilter) } });
     }
+
+    if (ClosingDateFilter && ClosingDateFilter.length > 0) {
+      const year = new Date().getFullYear();
+
+      const months = ClosingDateFilter.split(",").map(m => Number(m));
+
+      const monthQueries = months.map(month => {
+        const start = new Date(year, month - 1, 1);
+        const end = new Date(year, month, 0);
+        end.setHours(23, 59, 59, 999);
+
+        return { expected_closing_date: { $gte: start, $lte: end } };
+      });
+
+      andConditions.push({ $or: monthQueries });
+    }
+
 
     if (name) {
       const userObjectId = new mongoose.Types.ObjectId(name);
@@ -524,6 +564,31 @@ const deleteLead = async (req, res) => {
       return res.status(404).json({ message: "Lead not found" });
     }
 
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
+
+    // Notification fuctionality on Delete Lead
+
+    try {
+      const workflow = 'delete-notification';
+
+      const senders = await userModells.find({
+        $or: [
+          { department: 'admin' },
+          { department: 'BD', role: '' },
+        ]
+      }).select('_id')
+        .lean()
+        .then(users => users.map(u => u._id));
+      const data = {
+        message: `Lead ${deletedLead.name} (ID: ${deletedLead.id}) was deleted by ${user}`
+      }
+      await getnovuNotification(workflow, senders, data);
+    } catch (error) {
+      console.log(error);
+    }
+
+
     res
       .status(200)
       .json({ message: "Lead deleted successfully", data: deletedLead });
@@ -567,6 +632,42 @@ const updateAssignedTo = async (req, res) => {
       await lead.save();
       updatedLeads.push(lead);
     }
+
+    // Notification Functionality for Transfer Lead 
+
+    const Ids = leadIds.map(id => new mongoose.Types.ObjectId(id));
+
+    const leads = await bdleadsModells.find({ _id: { $in: Ids } }).select('id')
+
+    const assign = await userModells.findById(assigned).select('name');
+
+    try {
+      for (const lead of leads) {
+
+        const workflow = 'all-notification';
+        const alluser = await userModells.find({
+          $or: [
+            { department: 'admin' },
+            { department: 'BD', role: 'manager' }
+          ]
+        }).select('_id')
+          .lean()
+          .then(users => users.map(u => u._id));
+
+        const senders = [...new Set([...alluser, assigned])];
+        const data = {
+          message: `Lead ${lead.id} transferred to ${assign.name}`,
+          link: 'leads'
+        }
+
+        await getnovuNotification(workflow, senders, data);
+
+      }
+    } catch (error) {
+      console.log(error);
+    }
+
+
 
     return res.status(200).json({
       success: true,
@@ -973,12 +1074,11 @@ const getLeadByLeadIdorId = async (req, res) => {
   }
 };
 
-
 const updateLeadStatus = async function (req, res) {
   try {
     const leads = await bdleadsModells.findById(req.params._id);
-    if (!leads) return res.status(404).json({ error: "Lead not found" });
 
+    if (!leads) return res.status(404).json({ error: "Lead not found" });
     const user_id = req.user.userId;
 
     leads.status_history.push({
@@ -999,6 +1099,48 @@ const updateLeadStatus = async function (req, res) {
     res.status(400).json({ error: err.message });
   }
 };
+
+
+const updateLeadStatusBulk = async function (req, res) {
+  try {
+    const { ids, name, stage, remarks, expected_closing_date } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No lead IDs provided" });
+    }
+
+    const user_id = req.user.userId;
+
+    const results = await Promise.all(
+      ids.map(async (id) => {
+        const lead = await bdleadsModells.findById(id);
+        if (!lead) return null;
+
+        lead.status_history.push({
+          name,
+          stage,
+          remarks,
+          user_id,
+          updatedAt: new Date(),
+        });
+
+        await lead.save();
+        return lead;
+      })
+    );
+
+    const updatedLeads = results.filter((lead) => lead !== null);
+
+    return res.status(200).json({
+      message: "Leads updated successfully",
+      updatedLeads,
+      notFound: ids.filter((id, i) => results[i] === null),
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+};
+
 
 const getAllLeadDropdown = async (req, res) => {
   try {
@@ -1068,9 +1210,9 @@ const uploadDocuments = async (req, res) => {
         Array.isArray(respData) && respData.length > 0
           ? respData[0]
           : respData.url ||
-            respData.fileUrl ||
-            (respData.data && respData.data.url) ||
-            null;
+          respData.fileUrl ||
+          (respData.data && respData.data.url) ||
+          null;
 
       if (url) {
         uploadedFileMap[index] = url;
@@ -1262,4 +1404,5 @@ module.exports = {
   attachToGroup,
   fixBdLeadsFields,
   getLeadCounts,
+  updateLeadStatusBulk
 };

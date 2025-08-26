@@ -10,6 +10,9 @@ const {
   getLowerPriorityStatus,
 } = require("../utils/updatePurchaseRequestStatus");
 const purchaseRequest = require("../Modells/purchaserequest.model");
+// const purchaseRequest = require("../Modells/PurchaseRequest/purchaseRequest");
+const payRequestModells = require("../Modells/payRequestModells");
+const vendorModells = require("../Modells/vendorModells");
 
 const addPo = async function (req, res) {
   try {
@@ -424,32 +427,147 @@ const getPOHistoryById = async (req, res) => {
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
-    let data = await purchaseOrderModells.find().lean();
-
-    const updatedData = await Promise.all(
-      data.map(async (po) => {
-        let itemName = po.item;
-
-        const isObjectId = mongoose.Types.ObjectId.isValid(po.item);
-
-        if (isObjectId) {
-          const material = await materialCategoryModells
-            .findById(po.item)
-            .select("name")
-            .lean();
-          itemName = material?.name || null;
-        }
-
-        return {
-          ...po,
-          item: itemName,
-        };
-      })
-    );
+    const updatedData = await purchaseOrderModells.aggregate([
+      {
+        $lookup: {
+          from: "materialcategorymodells",
+          localField: "item",
+          foreignField: "_id",
+          as: "material",
+        },
+      },
+      {
+        $unwind: {
+          path: "$material",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          item: {
+            $ifNull: ["$material.name", "$item"],
+          },
+        },
+      },
+      {
+        $project: {
+          material: 0,
+        },
+      },
+    ]);
 
     res.status(200).json({ msg: "All PO", data: updatedData });
   } catch (error) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
+  }
+};
+
+const getallpodetail = async function (req, res) {
+  try {
+    const { po_number } = req.query;
+
+  
+    if (!po_number) {
+      const poList = await purchaseOrderModells
+        .find({}, { po_number: 1, _id: 0 })
+        .lean();
+
+      return res.status(200).json({
+        po_numbers: poList.map((po) => po.po_number),
+      });
+    }
+
+    const selectedPo = await purchaseOrderModells.findOne({ po_number }).lean();
+
+    if (!selectedPo) {
+      return res.status(404).json({ message: "PO not found" });
+    }
+
+    const poAggregate = await purchaseOrderModells.aggregate([
+      { $match: { po_number } },
+      {
+        $group: {
+          _id: "$po_number",
+          total_po_value: { $sum: { $toDouble: "$po_value" } },
+        },
+      },
+    ]);
+
+    const po_value = poAggregate.length > 0 ? poAggregate[0].total_po_value : 0;
+
+ 
+    let itemName = "";
+    if (Array.isArray(selectedPo.item)) {
+      itemName = selectedPo.item.map((i) => i.product_name).join(", ");
+    } else if (mongoose.Types.ObjectId.isValid(selectedPo.item)) {
+      const itemDoc = await materialCategoryModells
+        .findById(selectedPo.item)
+        .lean();
+      itemName = itemDoc?.name || "";
+    } else if (typeof selectedPo.item === "string") {
+      itemName = selectedPo.item;
+    }
+
+ 
+    let vendorDetails = {};
+    if (selectedPo.vendor) {
+      const matchedVendor = await vendorModells
+        .findOne({
+          name: selectedPo.vendor,
+        })
+        .lean();
+      if (matchedVendor) {
+        vendorDetails = {
+          benificiary: matchedVendor.name,
+          acc_number: matchedVendor.Account_No,
+          ifsc: matchedVendor.IFSC_Code,
+          branch: matchedVendor.Bank_Name,
+        };
+      }
+    }
+
+
+    const approvedPayments = await payRequestModells.aggregate([
+      { $match: { po_number, approved: "Approved" } },
+      {
+        $group: {
+          _id: "$po_number",
+          totalAdvancePaid: { $sum: { $toDouble: "$amount_paid" } },
+        },
+      },
+    ]);
+    const totalAdvancePaid =
+      approvedPayments.length > 0 ? approvedPayments[0].totalAdvancePaid : 0;
+
+    const po_balance = po_value - totalAdvancePaid;
+
+    return res.status(200).json({
+      p_id:selectedPo.p_id,
+      po_number: selectedPo.po_number,
+      po_value,
+      vendor: selectedPo.vendor,
+      item: itemName,
+      total_advance_paid: totalAdvancePaid,
+      po_balance,
+      ...vendorDetails,
+    });
+  } catch (err) {
+    console.error("Error fetching purchase order:", err);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
+  }
+};
+
+const getallpoNumber = async function (req, res) {
+  try {
+    const po_numbers = await purchaseOrderModells.find();
+
+    res.status(200).json({ msg: "All Po-Numbers", data: po_numbers });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ msg: "Internal Server Error", error: error.message });
   }
 };
 
@@ -1382,42 +1500,15 @@ const deletePO = async function (req, res) {
       return res.status(404).json({ msg: "PO not found" });
     }
 
-    const poNumber = data.po_number?.toString()?.trim();
-    if (!poNumber) {
-      return res.status(200).json({
-        msg: "PO deleted from DB, but no po_number found for CSV removal.",
-        data,
-      });
-    }
-
-    const filePath = path.join(__dirname, "..", "data", "po_old.csv");
-    const rows = [];
-
-    fs.createReadStream(filePath)
-      .pipe(csvParser())
-      .on("data", (row) => {
-        if (row.po_number?.trim() !== poNumber) {
-          rows.push(row);
-        }
-      })
-      .on("end", () => {
-        const json2csv = new Parser({ fields: Object.keys(rows[0] || {}) });
-        const csv = json2csv.parse(rows);
-        fs.writeFileSync(filePath, csv, "utf8");
-
-        return res
-          .status(200)
-          .json({ msg: "PO deleted from DB and CSV", data });
-      })
-      .on("error", (err) => {
-        console.error("Error reading CSV:", err);
-        res.status(500).json({
-          msg: "PO deleted from DB, but error reading CSV",
-          error: err.message,
-        });
-      });
+    return res.status(200).json({
+      msg: "PO deleted successfully",
+      data,
+    });
   } catch (error) {
-    res.status(400).json({ msg: "Server error", error: error.message });
+    return res.status(500).json({
+      msg: "Server error while deleting PO",
+      error: error.message,
+    });
   }
 };
 
@@ -1555,7 +1646,9 @@ module.exports = {
   exportCSV,
   moverecovery,
   getPOByPONumber,
+  getallpoNumber,
   getPOById,
+  getallpodetail,
   deletePO,
   getpohistory,
   getPOHistoryById,

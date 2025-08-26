@@ -5,9 +5,12 @@ const projectmodells = require("../Modells/project.model");
 const { Parser } = require("json2csv");
 const handoversheetModells = require("../Modells/handoversheet.model");
 const userModells = require("../Modells/users/userModells");
+const { getNotification, getnovuNotification } = require("../utils/nouvnotificationutils");
 const materialCategoryModells = require("../Modells/materialcategory.model");
 const scopeModel = require("../Modells/scope.model");
 const bdleadsModells = require("../Modells/bdleads/bdleadsModells");
+const { getnovuNotification } = require("../utils/nouvnotification.utils");
+
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -106,6 +109,9 @@ const createhandoversheet = async function (req, res) {
       invoice_detail,
       submitted_by,
     } = req.body;
+    
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -119,6 +125,9 @@ const createhandoversheet = async function (req, res) {
       status_of_handoversheet: req.body.status_of_handoversheet || "draft",
       submitted_by,
     });
+
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
 
     cheched_id = await hanoversheetmodells.findOne({ id: id });
     if (cheched_id) {
@@ -147,6 +156,19 @@ const createhandoversheet = async function (req, res) {
     await lead.save();
     await handoversheet.save();
 
+
+    // Notification for Creating Handover
+
+    try {
+      const workflow = 'handover-submit';
+      const Ids = await userModells.find({ department: 'Internal', role: 'manager' }).select('_id').lean().then(users => users.map(u => u._id));
+      const data = {
+        message: `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`
+      }
+      await getnovuNotification(workflow, Ids, data);
+    } catch (error) {
+      console.log(error);
+    }
     res.status(200).json({
       message: "Data saved successfully",
       handoversheet,
@@ -194,19 +216,17 @@ const gethandoversheetdata = async function (req, res) {
       });
     }
 
-    const statuses =
-      statusFilter
-        ?.split(",")
-        .map((s) => s.trim())
-        .filter(Boolean) || [];
+    const statuses = statusFilter
+      ?.split(",")
+      .map((s) => s.trim())
+      .filter(Boolean) || [];
 
     const hasHandoverPending = statuses.includes("handoverpending");
     const hasScopePending = statuses.includes("scopepending");
     const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
 
     const actualStatuses = statuses.filter(
-      (s) =>
-        s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
+      (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
     );
 
     if (actualStatuses.length === 1) {
@@ -219,6 +239,10 @@ const gethandoversheetdata = async function (req, res) {
 
     if (hasHandoverPending) {
       matchConditions.$and.push({ status_of_handoversheet: "submitted" });
+    }
+
+    if (hasScopeOpen) {
+      matchConditions.$and.push({ scope_status: "open" });
     }
 
     if (hasScopeOpen) {
@@ -569,6 +593,21 @@ const updatestatus = async function (req, res) {
       }
     }
 
+    // Notification Functionality on Status Update 
+
+    try {
+      const owner = await userModells.find({ name: submitted_by })
+
+      senders = [owner._id];
+      workflow = 'handover-submit';
+      data = {
+        message: `Handover Sheet status updated for Lead #${updatedHandoversheet.id}`,
+      }
+
+      await getnovuNotification(workflow, senders, data);
+    } catch (error) {
+      console.log(error);
+    }
     return res.status(200).json({
       message: "Status updated",
       handoverSheet: updatedHandoversheet,
