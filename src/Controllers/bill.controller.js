@@ -28,9 +28,9 @@ const addBill = catchAsyncError(async function (req, res) {
   purchaseOrder.total_billed = String(
     Number(purchaseOrder.total_billed ?? 0) + Number(bill_value ?? 0)
   );
- purchaseOrder.total_bills = Number(purchaseOrder.total_bills || 0) + 1;
- purchaseOrder.save();
- 
+  purchaseOrder.total_bills = Number(purchaseOrder.total_bills || 0) + 1;
+  purchaseOrder.save();
+
   const newBill = new billModel({
     po_number,
     bill_number,
@@ -230,8 +230,15 @@ const getAllBill = catchAsyncError(async (req, res) => {
   const skip = (page - 1) * pageSize;
 
   const status = (req.query.status || "").trim();
-  const po_number = (req.query.po_number || "").trim();
 
+  let po_number = req.query.po_number;
+  if (po_number === null || po_number === undefined || po_number === "null") {
+    po_number = "";
+  } else {
+    po_number = String(po_number).trim();
+  }
+
+  // Base aggregation
   const pipeline = [
     {
       $lookup: {
@@ -242,7 +249,6 @@ const getAllBill = catchAsyncError(async (req, res) => {
       },
     },
     { $unwind: { path: "$po", preserveNullAndEmptyArrays: true } },
-
     {
       $addFields: {
         _wasItemArray: { $isArray: "$item" },
@@ -257,6 +263,7 @@ const getAllBill = catchAsyncError(async (req, res) => {
     },
     { $unwind: { path: "$item", preserveNullAndEmptyArrays: true } },
 
+    // Category name lookup for each item
     {
       $lookup: {
         from: "materialcategories",
@@ -276,6 +283,7 @@ const getAllBill = catchAsyncError(async (req, res) => {
       },
     },
 
+    // Re-group items back
     {
       $group: {
         _id: "$_id",
@@ -305,6 +313,7 @@ const getAllBill = catchAsyncError(async (req, res) => {
         __total_billed_num: { $toDouble: { $ifNull: ["$po.total_billed", 0] } },
       },
     },
+
     {
       $addFields: {
         project_id: "$po.p_id",
@@ -328,7 +337,7 @@ const getAllBill = catchAsyncError(async (req, res) => {
     },
     {
       $project: {
-        _id: 0,
+        _id: 1,
         project_id: 1,
         po_no: 1,
         vendor: 1,
@@ -343,20 +352,25 @@ const getAllBill = catchAsyncError(async (req, res) => {
         created_on: 1,
       },
     },
-    {
-      $sort: { created_on: -1, _id: -1 },
-    },
   ];
 
+  // ---- Optional filters (only when truly provided) ----
+  const filters = [];
   if (status) {
-    pipeline.push({ $match: { po_status: status } });
+    filters.push({ po_status: status });
+  }
+  if (po_number && po_number.length > 0) {
+    filters.push({ po_no: po_number }); // exact match
+    // If you want partial search:
+    // filters.push({ po_no: { $regex: po_number, $options: "i" } });
+  }
+  if (filters.length) {
+    pipeline.push({ $match: { $and: filters } });
   }
 
-  if (po_number) {
-    pipeline.push({ $match: { po_no: po_number } });
-  }
-
+  // Sort + paginate
   pipeline.push(
+    { $sort: { created_on: -1, _id: -1 } },
     {
       $facet: {
         data: [{ $skip: skip }, { $limit: pageSize }],
@@ -486,7 +500,6 @@ const GetBillByID = catchAsyncError(async (req, res) => {
 
   const pipeline = [
     { $match: matchStage },
-
     {
       $lookup: {
         from: "purchaseorders",
@@ -496,57 +509,48 @@ const GetBillByID = catchAsyncError(async (req, res) => {
       },
     },
     { $unwind: { path: "$poData", preserveNullAndEmptyArrays: true } },
-
-    {
-      $addFields: {
-        itemId: {
-          $cond: [{ $eq: [{ $type: "$item" }, "objectId"] }, "$item", null],
-        },
-      },
-    },
+    { $unwind: { path: "$item", preserveNullAndEmptyArrays: true } },
     {
       $lookup: {
         from: "materialcategories",
-        localField: "itemId",
+        localField: "item.category_id",
         foreignField: "_id",
-        as: "itemDoc",
+        as: "categoryDoc",
       },
     },
-    { $unwind: { path: "$itemDoc", preserveNullAndEmptyArrays: true } },
+    { $unwind: { path: "$categoryDoc", preserveNullAndEmptyArrays: true } },
     {
       $addFields: {
-        itemName: { $ifNull: ["$itemDoc.name", "$item"] },
+        "item.category_name": { $ifNull: ["$categoryDoc.name", null] },
       },
     },
-
     {
-      $addFields: {
-        poItemId: {
-          $cond: [
-            { $eq: [{ $type: "$poData.item" }, "objectId"] },
-            "$poData.item",
-            null,
-          ],
+      $group: {
+        _id: "$_id",
+        po_number: { $first: "$po_number" },
+        bill_number: { $first: "$bill_number" },
+        bill_date: { $first: "$bill_date" },
+        bill_value: { $first: "$bill_value" },
+        submitted_by: { $first: "$submitted_by" },
+        type: { $first: "$type" },
+        status: { $first: "$status" },
+        description: { $first: "$description" },
+        created_on: { $first: "$created_on" },
+        poData: { $first: "$poData" },
+        items: {
+          $push: {
+            category_id: "$item.category_id",
+            category_name: "$item.category_name",
+            product_name: "$item.product_name",
+            product_make: "$item.product_make",
+            uom: "$item.uom",
+            quantity: "$item.quantity",
+            bill_value: "$item.bill_value",
+            gst_percent: "$item.gst_percent",
+          },
         },
       },
     },
-    {
-      $lookup: {
-        from: "materialcategories",
-        localField: "poItemId",
-        foreignField: "_id",
-        as: "poItemDoc",
-      },
-    },
-    { $unwind: { path: "$poItemDoc", preserveNullAndEmptyArrays: true } },
-    {
-      $addFields: {
-        "poData.item": {
-          $ifNull: ["$poItemDoc.name", "$poData.item"],
-        },
-      },
-    },
-
     {
       $project: {
         _id: 1,
@@ -554,15 +558,17 @@ const GetBillByID = catchAsyncError(async (req, res) => {
         bill_number: 1,
         bill_date: 1,
         bill_value: 1,
-        submitted_by: 1,
         type: 1,
-        item: "$itemName",
+        status: 1,
+        description: 1,
+        submitted_by: 1,
+        created_on: 1,
+        items: 1,
         poData: {
           p_id: "$poData.p_id",
           date: "$poData.date",
           po_value: "$poData.po_value",
           vendor: "$poData.vendor",
-          item: "$poData.item",
         },
       },
     },

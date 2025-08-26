@@ -1,11 +1,13 @@
 const {
   catchAsyncError,
 } = require("../middlewares/catchasyncerror.middleware");
-const PoHistory = require("../Modells/Pohistory.model");
+const BillHistory = require("../Modells/billHistory.model");
 const mongoose = require("mongoose");
 const ErrorHandler = require("../middlewares/error.middleware");
 const usermodel = require("../Modells/users/userModells");
-const createPoHistory = catchAsyncError(async (req, res) => {
+
+
+const createBillHistory = catchAsyncError(async (req, res) => {
   const payload = req.body;
   const userId = req.user.userId;
   const user = await usermodel.findById(userId);
@@ -27,7 +29,7 @@ const createPoHistory = catchAsyncError(async (req, res) => {
     ? payload.attachments
     : [];
 
-  const doc = await PoHistory.create({
+  const doc = await BillHistory.create({
     subject_type: payload.subject_type,
     subject_id: payload.subject_id,
     event_type: payload.event_type,
@@ -41,12 +43,12 @@ const createPoHistory = catchAsyncError(async (req, res) => {
   });
 
   res.status(201).json({
-    message: "PoHistory created successfully",
+    message: "BillHistory created successfully",
     data: doc,
   });
 });
 
-const listPoHistory = catchAsyncError(async (req, res) => {
+const listBillHistory = catchAsyncError(async (req, res) => {
   const filter = {};
   if (req.query.subject_type) {
     filter.subject_type = req.query.subject_type;
@@ -59,25 +61,25 @@ const listPoHistory = catchAsyncError(async (req, res) => {
     filter.event_type = { $in: events };
   }
 
-  const data = await PoHistory.find(filter);
+  const data = await BillHistory.find(filter);
 
   res.status(200).json({
-    message: "PoHistory retrieved successfully",
+    message: "BillHistory retrieved successfully",
     data,
   });
 });
 
-const getPoHistory = catchAsyncError(async (req, res) => {
+const getBillHistory = catchAsyncError(async (req, res) => {
   const { id } = req.params;
-  const doc = await PoHistory.findById(id);
-  if (!doc) return next(new ErrorHandler("PoHistory not found", 404));
+  const doc = await BillHistory.findById(id);
+  if (!doc) return next(new ErrorHandler("BillHistory not found", 404));
   res.status(200).json({
-    message: "PoHistory retrived successfully",
+    message: "BillHistory retrived successfully",
     data: doc,
   });
 });
 
-const updatePoHistory = catchAsyncError(async (req, res) => {
+const updateBillHistory = catchAsyncError(async (req, res) => {
   const { id } = req.params;
   const payload = req.body || {};
   if (
@@ -87,28 +89,28 @@ const updatePoHistory = catchAsyncError(async (req, res) => {
     return next(new ErrorHandler("Invalid subject_id", 400));
   }
 
-  const updated = await PoHistory.findByIdAndUpdate(id, payload, {
+  const updated = await BillHistory.findByIdAndUpdate(id, payload, {
     new: true,
   });
-  if (!updated) return next(new ErrorHandler("PoHistory not found", 404));
+  if (!updated) return next(new ErrorHandler("BillHistory not found", 404));
 
   res.status(200).json({
-    message: "PoHistory Updated Successfully",
+    message: "BillHistory Updated Successfully",
     data: updated,
   });
 });
 
-const deletePoHistory = catchAsyncError(async (req, res) => {
+const deleteBillHistory = catchAsyncError(async (req, res) => {
   const { id } = req.params;
-  const deleted = await PoHistory.findByIdAndDelete(id);
-  if (!deleted) return next(new ErrorHandler("PoHistory not found", 404));
+  const deleted = await BillHistory.findByIdAndDelete(id);
+  if (!deleted) return next(new ErrorHandler("BillHistory not found", 404));
   return ok(res, { _id: id });
 });
 
 module.exports = {
-  createPoHistory,
-  listPoHistory,
-  getPoHistory,
-  updatePoHistory,
-  deletePoHistory,
+  createBillHistory,
+  listBillHistory,
+  getBillHistory,
+  updateBillHistory,
+  deleteBillHistory,
 };
