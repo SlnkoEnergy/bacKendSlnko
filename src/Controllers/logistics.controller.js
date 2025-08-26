@@ -2,12 +2,52 @@ const mongoose = require("mongoose");
 const Logistic = require("../Modells/logistics.model");
 const { nextLogisticCode } = require("../utils/logisticscounter.utils");
 
-// helpers
 const getParamId = (req) => req.params.id || req.params._id || req.body.id;
 const isId = (v) => mongoose.Types.ObjectId.isValid(v);
+const toObjectId = (v) => (isId(v) ? new mongoose.Types.ObjectId(v) : null);
+const eqId = (a, b) => a && b && String(a) === String(b);
+
 const ALLOWED_STATUS = ["ready_to_dispatch", "out_for_delivery", "delivered"];
 
-/* ---------------- create ---------------- */
+function resolveUomFromPO(it) {
+  const mpo = it?.material_po;
+  if (!mpo || typeof mpo !== "object") return it.uom ?? null;
+
+  const lines = Array.isArray(mpo.items) ? mpo.items : [];
+  if (!lines.length) return it.uom ?? null;
+
+  if (isId(it.po_item_id)) {
+    const exact = lines.find((l) => eqId(l?._id, it.po_item_id));
+    if (exact?.uom) return exact.uom;
+  }
+
+  // Helpers for fallbacks
+  const matchByCategory = (l) => {
+    const lineCat =
+      l?.category?._id || l?.category || l?.category_id?._id || l?.category_id;
+    return it.category_id ? eqId(lineCat, it.category_id) : true;
+  };
+  const matchByProduct = (l) =>
+    it.product_name ? l?.product_name === it.product_name : true;
+  const matchByMake = (l) =>
+    it.product_make ? l?.make === it.product_make : true;
+
+  let guess = lines.find(
+    (l) => matchByCategory(l) && matchByProduct(l) && matchByMake(l)
+  );
+  if (guess?.uom) return guess.uom;
+
+  guess = lines.find((l) => matchByProduct(l) && matchByMake(l));
+  if (guess?.uom) return guess.uom;
+
+  guess = lines.find((l) => matchByCategory(l));
+  if (guess?.uom) return guess.uom;
+
+  if (lines.length === 1 && lines[0]?.uom) return lines[0].uom;
+
+  return it.uom ?? null;
+}
+
 const createLogistic = async (req, res) => {
   try {
     const {
@@ -23,7 +63,6 @@ const createLogistic = async (req, res) => {
 
     const logistic_code = await nextLogisticCode();
 
-    // Basic required fields
     if (
       !po_id.length ||
       !vehicle_number ||
@@ -50,8 +89,11 @@ const createLogistic = async (req, res) => {
       }
       return {
         material_po: it.material_po,
+
+        po_item_id: isId(it.po_item_id) ? it.po_item_id : undefined,
         category_id: it.category_id || undefined,
         product_name: it.product_name ?? "",
+        uom: typeof it.uom === "string" ? it.uom : "",
         product_make: it.product_make ?? "",
         quantity_requested: String(it.quantity_requested ?? ""),
         quantity_po: String(it.quantity_po ?? ""),
@@ -72,7 +114,6 @@ const createLogistic = async (req, res) => {
       items: mappedItems,
       created_by: req.user?.userId ?? null,
 
-      // Default status without touching the model
       current_status: {
         status: "ready_to_dispatch",
         remarks: "",
@@ -97,7 +138,6 @@ const createLogistic = async (req, res) => {
   }
 };
 
-/* ---------------- list ---------------- */
 const getAllLogistics = async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -119,10 +159,11 @@ const getAllLogistics = async (req, res) => {
       ];
     }
     if (status) {
-      // your model stores it here:
       filter["current_status.status"] = status;
     }
-    if (poId) filter.po_id = poId;
+    if (poId && isId(poId)) {
+      filter.po_id = toObjectId(poId);
+    }
 
     const [total, raw] = await Promise.all([
       Logistic.countDocuments(filter),
@@ -144,8 +185,11 @@ const getAllLogistics = async (req, res) => {
             "createdAt",
           ].join(" ")
         )
-        .populate("po_id", "po_number")
-        .populate("items.material_po", "po_number")
+
+        .populate("po_id", "po_number vendor po_value p_id")
+
+        .populate("items.material_po", "po_number vendor p_id items")
+
         .populate({ path: "items.category_id", select: "name category_name" })
         .populate("created_by", "_id name")
         .sort({ createdAt: -1 })
@@ -154,14 +198,51 @@ const getAllLogistics = async (req, res) => {
         .lean(),
     ]);
 
-    const logistics = raw.map((doc) => ({
-      ...doc,
-      items: (doc.items || []).map((it) => ({
-        ...it,
-        category_name:
-          it?.category_id?.category_name ?? it?.category_id?.name ?? null,
-      })),
-    }));
+    const logistics = raw.map((doc) => {
+      const vendorList = Array.from(
+        new Set(
+          (Array.isArray(doc.po_id) ? doc.po_id : [])
+            .map((p) => (p && typeof p === "object" ? p.vendor : null))
+            .filter(Boolean)
+        )
+      );
+
+      const transportValueSum = (
+        Array.isArray(doc.po_id) ? doc.po_id : []
+      ).reduce((acc, p) => acc + (parseFloat(p?.po_value) || 0), 0);
+
+      return {
+        ...doc,
+        vendor: vendorList[0] || null,
+        transport_vendors: vendorList,
+        transport_po_value_sum: Number.isFinite(transportValueSum)
+          ? transportValueSum
+          : null,
+
+        items: (doc.items || []).map((it) => ({
+          ...it,
+          category_name:
+            it?.category_id?.category_name ?? it?.category_id?.name ?? null,
+          vendor:
+            (it?.material_po && typeof it.material_po === "object"
+              ? it.material_po.vendor
+              : null) ||
+            vendorList[0] ||
+            null,
+
+          uom: resolveUomFromPO(it),
+
+          po_number:
+            (it?.material_po && typeof it.material_po === "object"
+              ? it.material_po.po_number
+              : it?.po_number) || null,
+          project_id:
+            (it?.material_po && typeof it.material_po === "object"
+              ? it.material_po.p_id
+              : it?.project_id) || null,
+        })),
+      };
+    });
 
     return res.status(200).json({
       message: "Logistics fetched successfully",
@@ -184,7 +265,7 @@ const getLogisticById = async (req, res) => {
       return res.status(400).json({ message: "Invalid id" });
     }
 
-    const logistic = await Logistic.findById(id)
+    let logistic = await Logistic.findById(id)
       .select(
         [
           "logistic_code",
@@ -202,15 +283,59 @@ const getLogisticById = async (req, res) => {
           "createdAt",
         ].join(" ")
       )
-      .populate("po_id", "po_number")
-      .populate("items.material_po", "po_number")
-      .populate("items.category_id", "name")
+      .populate("po_id", "po_number vendor po_value p_id")
+      .populate("items.material_po", "po_number vendor p_id items")
+      .populate("items.category_id", "name category_name")
       .populate("created_by", "_id name")
       .lean();
 
     if (!logistic) {
       return res.status(404).json({ message: "Logistic not found" });
     }
+
+    const vendorList = Array.from(
+      new Set(
+        (Array.isArray(logistic.po_id) ? logistic.po_id : [])
+          .map((p) => (p && typeof p === "object" ? p.vendor : null))
+          .filter(Boolean)
+      )
+    );
+
+    const transportValueSum = (
+      Array.isArray(logistic.po_id) ? logistic.po_id : []
+    ).reduce((acc, p) => acc + (parseFloat(p?.po_value) || 0), 0);
+
+    logistic = {
+      ...logistic,
+      vendor: vendorList[0] || null,
+      transport_vendors: vendorList,
+      transport_po_value_sum: Number.isFinite(transportValueSum)
+        ? transportValueSum
+        : null,
+
+      items: (logistic.items || []).map((it) => ({
+        ...it,
+        category_name:
+          it?.category_id?.category_name ?? it?.category_id?.name ?? null,
+        vendor:
+          (it?.material_po && typeof it.material_po === "object"
+            ? it.material_po.vendor
+            : null) ||
+          vendorList[0] ||
+          null,
+
+        uom: it.uom ?? "",
+
+        po_number:
+          (it?.material_po && typeof it.material_po === "object"
+            ? it.material_po.po_number
+            : it?.po_number) || null,
+        project_id:
+          (it?.material_po && typeof it.material_po === "object"
+            ? it.material_po.p_id
+            : it?.project_id) || null,
+      })),
+    };
 
     res
       .status(200)
@@ -223,7 +348,6 @@ const getLogisticById = async (req, res) => {
   }
 };
 
-/* ---------------- update fields ---------------- */
 const updateLogistic = async (req, res) => {
   try {
     const id = getParamId(req);
@@ -252,7 +376,6 @@ const updateLogistic = async (req, res) => {
   }
 };
 
-/* ---------------- delete ---------------- */
 const deleteLogistic = async (req, res) => {
   try {
     const id = getParamId(req);
@@ -274,11 +397,10 @@ const deleteLogistic = async (req, res) => {
   }
 };
 
-/* ---------------- status update ---------------- */
 const updateLogisticStatus = async (req, res) => {
   try {
     const id = getParamId(req);
-    const { status, remarks, dispatch_date } = req.body; // optional remarks/date
+    const { status, remarks, dispatch_date } = req.body;
     const userId = req.user?.userId || null;
 
     if (!id || !isId(id)) {
@@ -291,7 +413,6 @@ const updateLogisticStatus = async (req, res) => {
       return res.status(400).json({ message: "Invalid status" });
     }
 
-    // Read current doc lean for conditional date logic (no validation here)
     const doc = await Logistic.findById(id).lean();
     if (!doc) return res.status(404).json({ message: "Logistic not found" });
 
@@ -303,34 +424,68 @@ const updateLogisticStatus = async (req, res) => {
       status_history: { status, remarks, user_id: userId },
     };
 
-    // Auto-date stamping logic
     if (status === "ready_to_dispatch") {
       if (dispatch_date) $set.dispatch_date = new Date(dispatch_date);
       else if (!doc.dispatch_date) $set.dispatch_date = now;
     }
-
     if (status === "out_for_delivery") {
       if (!doc.dispatch_date) $set.dispatch_date = now;
     }
-
     if (status === "delivered") {
       if (!doc.dispatch_date) $set.dispatch_date = now;
       if (!doc.delivery_date) $set.delivery_date = now;
     }
 
-    // Atomic update without triggering full doc validation on required fields
     await Logistic.updateOne({ _id: id }, { $set, $push });
 
-    // Return fresh version (select only fields the UI needs)
     const fresh = await Logistic.findById(id)
       .select(
-        "logistic_code total_transport_po_value vehicle_number driver_number total_ton current_status status_history dispatch_date delivery_date"
+        "logistic_code total_transport_po_value vehicle_number driver_number total_ton current_status status_history dispatch_date delivery_date po_id items"
       )
-      .populate("po_id", "po_number")
-      .populate("items.material_po", "po_number")
+      .populate("po_id", "po_number vendor po_value p_id")
+      .populate("items.material_po", "po_number vendor p_id items")
+      .populate({ path: "items.category_id", select: "name category_name" })
       .lean();
 
-    return res.status(200).json({ message: "Status updated", data: fresh });
+    const vendorList = Array.from(
+      new Set(
+        (Array.isArray(fresh?.po_id) ? fresh.po_id : [])
+          .map((p) => (p && typeof p === "object" ? p.vendor : null))
+          .filter(Boolean)
+      )
+    );
+
+    const enrichedItems = (fresh.items || []).map((it) => ({
+      ...it,
+      category_name:
+        it?.category_id?.category_name ?? it?.category_id?.name ?? null,
+      uom: resolveUomFromPO(it),
+      vendor:
+        (it?.material_po && typeof it.material_po === "object"
+          ? it.material_po.vendor
+          : null) ||
+        vendorList[0] ||
+        null,
+      po_number:
+        it?.material_po && typeof it.material_po === "object"
+          ? it.material_po.po_number
+          : null,
+      project_id:
+        it?.material_po && typeof it.material_po === "object"
+          ? it.material_po.p_id
+          : null,
+    }));
+
+    const responseData = {
+      ...fresh,
+      vendor: vendorList[0] || null,
+      transport_vendors: vendorList,
+      items: enrichedItems,
+    };
+
+    return res
+      .status(200)
+      .json({ message: "Status updated", data: responseData });
   } catch (err) {
     console.error("updateLogisticStatus error:", err);
     return res
@@ -338,7 +493,6 @@ const updateLogisticStatus = async (req, res) => {
       .json({ message: "Failed to update status", error: err.message });
   }
 };
-
 
 module.exports = {
   createLogistic,

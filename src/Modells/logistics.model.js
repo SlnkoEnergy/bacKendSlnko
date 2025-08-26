@@ -21,25 +21,18 @@ const logisticSchema = new mongoose.Schema(
     total_ton: { type: String, required: true },
     total_transport_po_value: { type: String, required: true },
     description: { type: String },
-    delivery_date: {
-      type: Date,
-    },
-    dispatch_date: {
-      type: Date,
-    },
+
+    delivery_date: { type: Date },
+    dispatch_date: { type: Date },
+
     status_history: [
       {
         status: {
           type: String,
           enum: ["out_for_delivery", "ready_to_dispatch", "delivered"],
         },
-        remarks: {
-          type: String,
-        },
-        user_id: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
+        remarks: { type: String },
+        user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       },
     ],
     current_status: {
@@ -47,19 +40,20 @@ const logisticSchema = new mongoose.Schema(
         type: String,
         enum: ["out_for_delivery", "ready_to_dispatch", "delivered"],
       },
-      remarks: {
-        type: String,
-      },
-      user_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
+      remarks: { type: String },
+      user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     },
+
     items: [
       {
         material_po: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "purchaseOrder",
+          required: true,
+        },
+
+        po_item_id: {
+          type: mongoose.Schema.Types.ObjectId,
         },
         category_id: {
           type: mongoose.Schema.Types.ObjectId,
@@ -67,16 +61,15 @@ const logisticSchema = new mongoose.Schema(
         },
         product_name: { type: String },
         product_make: { type: String },
+        uom: { type: String },
         quantity_requested: { type: String },
         quantity_po: { type: String },
         received_qty: { type: String },
         weight: { type: String },
       },
     ],
-    created_by: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
+
+    created_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
 );
