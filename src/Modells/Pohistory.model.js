@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const ChangeSchema = new mongoose.Schema(
   {
-    path: { type: String, required: true },
+    path: { type: String },
     label: String,
     from: mongoose.Schema.Types.Mixed,
     to: mongoose.Schema.Types.Mixed,
@@ -18,7 +18,7 @@ const attachementSchema = new mongoose.Schema(
   { _id: false }
 );
 
-const PohistorySchema = new mongoose.Schema(
+const pologSchema = new mongoose.Schema(
   {
     subject_type: { type: String, required: true },
     subject_id: { type: mongoose.Schema.Types.ObjectId, required: true },
@@ -31,6 +31,7 @@ const PohistorySchema = new mongoose.Schema(
         "status_change",
         "assign",
         "attachment",
+        "amount_change"
       ],
       required: true,
     },
@@ -45,4 +46,4 @@ const PohistorySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Pohistory", PohistorySchema);
+module.exports = mongoose.model("pologs", pologSchema);

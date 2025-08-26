@@ -4,10 +4,12 @@ const {
 const PoHistory = require("../Modells/Pohistory.model");
 const mongoose = require("mongoose");
 const ErrorHandler = require("../middlewares/error.middleware");
-
+const usermodel = require("../Modells/users/userModells");
 const createPoHistory = catchAsyncError(async (req, res) => {
   const payload = req.body;
-
+  const userId = req.user.userId;
+  const user = await usermodel.findById(userId);
+  
   if (!payload.subject_type || !payload.subject_id || !payload.event_type) {
     return next(
       new ErrorHandler(
@@ -32,7 +34,10 @@ const createPoHistory = catchAsyncError(async (req, res) => {
     message: payload.message ?? "",
     changes: payload.changes,
     attachments: payload.attachments,
-    createdBy: payload.createdBy || undefined,
+    createdBy: {
+      user_id: userId,
+      name: user?.name
+    },
   });
 
   res.status(201).json({
