@@ -8,6 +8,46 @@ const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
 
+const ORG_NAMES = [
+  // Root
+  ["Deepak Manodi", null],
+
+  ["Shiv Ram Tathagat", "Deepak Manodi"],
+  ["Gourav Upadhyay", "Deepak Manodi"],
+
+  ["Abhishek Sawhney", "Shiv Ram Tathagat"],
+  ["Vaibhav Upadhyay", "Shiv Ram Tathagat"],
+  ["Navin Kumar Gautam", "Shiv Ram Tathagat"],
+
+  ["Mohit Soni", "Abhishek Sawhney"],
+
+
+  ["Shambhavi Gupta", "Vibhav Upadhyay"],
+  ["Sankalp Choudhary", "Vibhav Upadhyay"],
+
+  ["Kunal Jha", "Naveen Gautam"],
+
+
+  ["Ketan Jha", "Gaurav Upadhya"],
+  ["Abhishek Sondhiya", "Gaurav Upadhya"],
+];
+
+function buildChildrenMap(pairs) {
+  const children = new Map();
+  for (const [child, parent] of pairs) {
+    if (!children.has(parent)) children.set(parent, []);
+    children.get(parent).push(child);
+  }
+  return children;
+}
+const ORG_CHILDREN_BY_NAME = buildChildrenMap(ORG_NAMES);
+
+function getDirectReportsInclusive(rootName) {
+  if (!rootName) return [];
+  const direct = ORG_CHILDREN_BY_NAME.get(rootName) || [];
+  return Array.from(new Set([rootName, ...direct]));
+}
+
 const getAllExpense = async (req, res) => {
   try {
     const {
@@ -93,6 +133,7 @@ const getAllExpense = async (req, res) => {
         },
       });
     } else if (currentUser.department === "Accounts") {
+
       pipeline.push({
         $match: {
           $or: [
@@ -109,11 +150,34 @@ const getAllExpense = async (req, res) => {
       currentUser.department !== "Accounts" &&
       (currentUser.role === "manager" || currentUser.role === "visitor")
     ) {
+      // --- keep your original manager rule (department) ---
       pipeline.push({
         $match: {
           "user_info.department": currentUser.department,
         },
       });
+
+
+    }
+    else if (
+      currentUser.department === "BD"
+    ) {
+
+      const viewerName =
+        currentUser.emp_name || currentUser.name || currentUser.full_name;
+      const visibleNames = getDirectReportsInclusive(viewerName);
+
+
+      if (visibleNames.length > 0) {
+
+        pipeline.push({
+          $match: {
+
+            emp_name: { $in: visibleNames },
+          },
+        });
+      }
+
     } else {
       pipeline.push({
         $match: {
@@ -154,6 +218,7 @@ const getAllExpense = async (req, res) => {
     });
   }
 };
+
 
 const getExpenseById = async (req, res) => {
   try {
@@ -248,9 +313,9 @@ const createExpense = async (req, res) => {
         Array.isArray(respData) && respData.length > 0
           ? respData[0]
           : respData.url ||
-            respData.fileUrl ||
-            (respData.data && respData.data.url) ||
-            null;
+          respData.fileUrl ||
+          (respData.data && respData.data.url) ||
+          null;
 
       if (url) {
         uploadedFileMap[index] = url;
@@ -503,13 +568,13 @@ const exportExpenseSheetsCSV = async (req, res) => {
           $group: {
             _id: "$_id",
             expense_code: { $first: "$expense_code" },
-            emp_name:     { $first: "$emp_name" },
-            emp_code:     { $first: "$emp_id" },
-            createdAt:    { $first: "$createdAt" },
+            emp_name: { $first: "$emp_name" },
+            emp_code: { $first: "$emp_id" },
+            createdAt: { $first: "$createdAt" },
             status: {
               $first: { $ifNull: ["$current_status.status", "$current_status"] },
             },
-            disb_date:    { $first: "$disbursement_date" },
+            disb_date: { $first: "$disbursement_date" },
             requested: {
               $sum: {
                 $convert: {
@@ -545,8 +610,8 @@ const exportExpenseSheetsCSV = async (req, res) => {
             "Expense Code": "$expense_code",
             "Employee Name": "$emp_name",
             "Requested Amount": { $round: ["$requested", 2] },
-            "Approval Amount":  { $round: ["$approved", 2] },
-            "Rejected Amount":  { $round: ["$rejected", 2] },
+            "Approval Amount": { $round: ["$approved", 2] },
+            "Rejected Amount": { $round: ["$rejected", 2] },
             "Disbursement Date": {
               $cond: [
                 {
@@ -610,7 +675,7 @@ const exportExpenseSheetsCSV = async (req, res) => {
             "Project Code": { $toString: "$items.project_code" },
             "Sheet Current Status": { $ifNull: ["$current_status.status", "$current_status"] },
             From: { $dateToString: { format: "%d/%m/%Y", date: "$expense_term.from" } },
-            To:   { $dateToString: { format: "%d/%m/%Y", date: "$expense_term.to"   } },
+            To: { $dateToString: { format: "%d/%m/%Y", date: "$expense_term.to" } },
             "Sheet Remarks": "$comments",
             Category: "$items.category",
             Description: "$items.description",
@@ -701,12 +766,12 @@ const exportExpenseSheetsCSV = async (req, res) => {
 
       for (const row of expenseSheets) {
         const category = row["Category"] || "Uncategorized";
-        const invoice  = parseFloat(row["Invoice Amount"] || 0);
+        const invoice = parseFloat(row["Invoice Amount"] || 0);
         const approved = parseFloat(row["Approved Amount"] || 0);
 
         if (!summaryMap[category]) summaryMap[category] = { requested: 0, approved: 0 };
         summaryMap[category].requested += invoice;
-        summaryMap[category].approved  += approved;
+        summaryMap[category].approved += approved;
 
         totalRequested += invoice;
         totalApproved += approved;
