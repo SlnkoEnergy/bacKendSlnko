@@ -9,7 +9,7 @@ const {
 } = require("../Controllers/logistics.controller");
 
 const jwtMW = require("../middlewares/auth");
-
+const upload = require("../middlewares/multer");
 // Logistic Routes
 router.get(
   "/logistic",
@@ -36,6 +36,7 @@ router.put(
   "/logistic/:_id",
   jwtMW.authentication,
   jwtMW.authorization,
+  upload,
   updateLogistic
 );
 

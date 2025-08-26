@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 const Logistic = require("../Modells/logistics.model");
 const { nextLogisticCode } = require("../utils/logisticscounter.utils");
 const purchaseOrderModells = require("../Modells/purchaseorder.model");
+const axios = require("axios");
+const FormData = require("form-data");
+const sharp = require("sharp");
+const mime = require("mime-types");
 
 const getParamId = (req) => req.params.id || req.params._id || req.body.id;
 const isId = (v) => mongoose.Types.ObjectId.isValid(v);
@@ -75,7 +79,12 @@ async function fetchLogItemsForPO(poId) {
         product_name: "$items.product_name",
         product_make: "$items.product_make",
         received_qty: {
-          $convert: { input: "$items.received_qty", to: "double", onError: 0, onNull: 0 }
+          $convert: {
+            input: "$items.received_qty",
+            to: "double",
+            onError: 0,
+            onNull: 0,
+          },
         },
       },
     },
@@ -84,11 +93,12 @@ async function fetchLogItemsForPO(poId) {
 }
 
 function matchesPOLine(poLine, logRow) {
-  if (logRow.po_item_id && poLine._id && eqId(logRow.po_item_id, poLine._id)) return true;
+  if (logRow.po_item_id && poLine._id && eqId(logRow.po_item_id, poLine._id))
+    return true;
 
   const poCat = normalizeCatId(poLine.category);
   const liCat = logRow.category_id ? String(logRow.category_id) : null;
-  const catOk = poCat && liCat ? poCat === liCat : true; 
+  const catOk = poCat && liCat ? poCat === liCat : true;
 
   const prodOk = poLine.product_name
     ? String(poLine.product_name) === String(logRow.product_name || "")
@@ -115,7 +125,7 @@ async function recalcPOFromReceipts(poId, userId, baseRemarks = "") {
 
   for (const line of poLines) {
     const ordered = toNum(line.quantity);
-    if (ordered <= 0) continue; 
+    if (ordered <= 0) continue;
 
     let sumReceived = 0;
     for (const r of logRows) {
@@ -144,7 +154,9 @@ async function recalcPOFromReceipts(poId, userId, baseRemarks = "") {
       : "PARTIALLY DELIVERED (no receipts yet)";
   }
 
-  const combinedRemarks = [baseRemarks, scopeRemark].filter(Boolean).join(" | ");
+  const combinedRemarks = [baseRemarks, scopeRemark]
+    .filter(Boolean)
+    .join(" | ");
 
   const sameStatus = po.current_status?.status === finalStatus;
   const sameRemarks = (po.current_status?.remarks || "") === combinedRemarks;
@@ -470,14 +482,81 @@ const updateLogistic = async (req, res) => {
       return res.status(400).json({ message: "Invalid id" });
     }
 
-    const updatedLogistic = await Logistic.findByIdAndUpdate(id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-
-    if (!updatedLogistic) {
+    const logisticDoc = await Logistic.findById(id);
+    if (!logisticDoc) {
       return res.status(404).json({ message: "Logistic not found" });
     }
+    const rawCode = String(logisticDoc.logistic_code || "").trim();
+
+    const safeCode = rawCode
+      .replace(/[\/\\]+/g, "_")
+      .replace(/[:*?"<>|]+/g, "-")
+      .replace(/\s+/g, "_")
+      .replace(/_+/g, "_");
+
+    const folderPath = `Logistics/${safeCode}`;
+
+    const uploadedFileUrls = [];
+
+    for (const file of req.files || []) {
+      const mimeType = mime.lookup(file.originalname) || file.mimetype;
+      let buffer = file.buffer;
+
+      if (mimeType.startsWith("image/")) {
+        const extension = mime.extension(mimeType);
+        if (extension === "jpeg" || extension === "jpg") {
+          buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+        } else if (extension === "png") {
+          buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
+        } else if (extension === "webp") {
+          buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
+        } else {
+          buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+        }
+      }
+
+      const form = new FormData();
+      form.append("file", buffer, {
+        filename: file.originalname,
+        contentType: mimeType,
+      });
+
+      const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${folderPath}`;
+      const response = await axios.post(uploadUrl, form, {
+        headers: form.getHeaders(),
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+
+      const respData = response.data;
+      const url =
+        Array.isArray(respData) && respData.length > 0
+          ? respData[0]
+          : respData.url ||
+            respData.fileUrl ||
+            (respData.data && respData.data.url) ||
+            null;
+
+      if (url) {
+        uploadedFileUrls.push(url);
+      } else {
+        console.warn(`No URL found for uploaded file ${file.originalname}`);
+      }
+    }
+
+    const bodyData = {
+      ...req.body,
+    };
+    if (uploadedFileUrls.length > 0) {
+      bodyData.attachment_url = [
+        ...(logisticDoc.attachment_url || []),
+        ...uploadedFileUrls,
+      ];
+    }
+
+    const updatedLogistic = await Logistic.findByIdAndUpdate(id, bodyData, {
+      new: true,
+    });
 
     res.status(200).json({
       message: "Logistic updated successfully",
@@ -567,7 +646,7 @@ const updateLogisticStatus = async (req, res) => {
         (fresh.items || [])
           .map((it) => {
             const v = it?.material_po;
-            return (v && typeof v === "object") ? v._id : v;
+            return v && typeof v === "object" ? v._id : v;
           })
           .filter(Boolean)
           .map(String)
@@ -575,7 +654,11 @@ const updateLogisticStatus = async (req, res) => {
 
       await Promise.all(
         Array.from(affectedPoIds).map((poId) =>
-          recalcPOFromReceipts(poId, userId, `Auto from Logistics ${fresh.logistic_code}: delivered`)
+          recalcPOFromReceipts(
+            poId,
+            userId,
+            `Auto from Logistics ${fresh.logistic_code}: delivered`
+          )
         )
       );
     }
@@ -616,7 +699,9 @@ const updateLogisticStatus = async (req, res) => {
       items: enrichedItems,
     };
 
-    return res.status(200).json({ message: "Status updated", data: responseData });
+    return res
+      .status(200)
+      .json({ message: "Status updated", data: responseData });
   } catch (err) {
     console.error("updateLogisticStatus error:", err);
     return res
@@ -624,7 +709,6 @@ const updateLogisticStatus = async (req, res) => {
       .json({ message: "Failed to update status", error: err.message });
   }
 };
-
 
 module.exports = {
   createLogistic,

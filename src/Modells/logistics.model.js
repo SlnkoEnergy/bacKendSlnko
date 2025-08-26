@@ -15,13 +15,13 @@ const logisticSchema = new mongoose.Schema(
       index: true,
       required: true,
     },
-    attachment_url: { type: String },
+    attachment_url: [{ type: String }],
     vehicle_number: { type: String, required: true },
     driver_number: { type: String, required: true },
     total_ton: { type: String, required: true },
     total_transport_po_value: { type: String, required: true },
     description: { type: String },
-
+   
     delivery_date: { type: Date },
     dispatch_date: { type: Date },
 
