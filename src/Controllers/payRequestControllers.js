@@ -15,6 +15,9 @@ const utrCounter = require("../Modells/utrCounter");
 const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
 const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
 
+const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
+const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
+
 const payRrequest = async (req, res) => {
   try {
     const userId = req.user?.userId || null;
@@ -23,7 +26,7 @@ const payRrequest = async (req, res) => {
       p_id,
       pay_type,
       amount_paid,
-      amt_for_customer,
+      // amt_for_customer,
       dbt_date,
       paid_for,
       vendor,
@@ -111,7 +114,6 @@ const payRrequest = async (req, res) => {
       } while (await payRequestModells.exists({ pay_id }));
     }
 
-    // ---------- initial stage & histories ----------
     const initialStage = credit?.credit_status ? "Credit Pending" : "Draft";
 
     const newPayment = new payRequestModells({
@@ -122,7 +124,7 @@ const payRrequest = async (req, res) => {
       // payment body
       pay_type,
       amount_paid,
-      amt_for_customer,
+      // amt_for_customer,
       dbt_date,
       paid_for,
       vendor,
@@ -261,12 +263,20 @@ const requestCreditExtension = async (req, res) => {
   }
 };
 
-
-
 //get alll pay summary
 const getPaySummary = async (req, res) => {
-  let request = await payRequestModells.find();
-  res.status(200).json({ msg: "all-pay-summary", data: request });
+  try{
+
+    const data = await payRequestModells.aggregate([
+      { $match: {} }
+    ]);
+    
+
+    res.status(200).json({message: "Fetch Data Successfull", data: data})
+
+  } catch(error){
+    res.status(500).json({message: "Error in Fetching Data"})
+  }
 };
 
 //get all hold pay
@@ -359,13 +369,11 @@ const accApproved = async function (req, res) {
     if (!currentUser) return res.status(401).json({ message: "Unauthorized" });
 
     const { department, role, _id: actorId } = currentUser;
-    if (role !== "manager") {
+    if (role !== "manager" && role !== "visitor") {
       return res
         .status(403)
-        .json({ message: "Only managers can approve or reject" });
+        .json({ message: "Only managers or visitors can approve or reject" });
     }
-
-    // -------- Resolve target payment _ids from _id | pay_id | cr_id --------
     let ids = [];
 
     if (_id) {
@@ -423,7 +431,6 @@ const accApproved = async function (req, res) {
       });
     };
 
-    // --- MODIFIED: computeTransition needs payment to decide pay_id fast path ---
     const computeTransition = (payment, currentStage) => {
       if (
         (currentStage === "Draft" || currentStage === "Credit Pending") &&
@@ -431,15 +438,18 @@ const accApproved = async function (req, res) {
       ) {
         return { nextStage: "CAM", approvedValue: "Pending" };
       }
-      if (currentStage === "CAM" && department === "Internal") {
+      if (
+        currentStage === "CAM" &&
+        role === "visitor" &&
+        (department === "Projects" || department === "Infra")
+      ) {
         return { nextStage: "Account", approvedValue: "Pending" };
       }
       if (currentStage === "Account" && department === "Accounts") {
-        // NEW RULE: if pay_id exists, go directly to Final (skip Initial Account)
         if (payment?.pay_id && String(payment.pay_id).trim().length > 0) {
           return { nextStage: "Final", approvedValue: "Approved" };
         }
-        // Otherwise (CR flow), keep existing behavior
+
         return { nextStage: "Initial Account", approvedValue: "Approved" };
       }
       if (currentStage === "Initial Account" && department === "Accounts") {
@@ -471,7 +481,6 @@ const accApproved = async function (req, res) {
 
         const currentStage = payment.approval_status?.stage || "Draft";
 
-        // ---------- REJECTION: allowed at ANY stage; sets stage="Rejected" ----------
         if (status === "Rejected") {
           const now = new Date();
           payment.approved = "Rejected";
@@ -499,7 +508,6 @@ const accApproved = async function (req, res) {
           continue;
         }
 
-        // ---------- SCM validations for PO/value (non-reject) ----------
         if (department === "SCM") {
           const paidFor = payment.paid_for?.trim();
           const poNumber = payment.po_number?.trim();
@@ -553,7 +561,6 @@ const accApproved = async function (req, res) {
           }
         }
 
-        // ---------- transition (non-reject) ----------
         const transition = computeTransition(payment, currentStage);
         if (!transition) {
           results.push({
@@ -568,7 +575,6 @@ const accApproved = async function (req, res) {
 
         let generatedUtr = null;
 
-        // UTR is ONLY for CR flow (unchanged): happens at Initial Account
         if (nextStage === "Initial Account") {
           const projectIdNum = Number(payment?.p_id);
           if (!Number.isFinite(projectIdNum)) {
@@ -588,8 +594,6 @@ const accApproved = async function (req, res) {
             payment.pay_id.trim().length > 0;
 
           if (isPayIdFlow) {
-            // Should not reach here anymore for pay_id due to new rule,
-            // but keep the guard to be safe.
             generatedUtr = payment.utr || null;
           } else if (isCRFlow) {
             if (!payment.utr) {
@@ -616,7 +620,7 @@ const accApproved = async function (req, res) {
                   pay_id: payment._id,
                   pay_type: payment.pay_type,
                   amount_paid: payment.amount_paid,
-                  amt_for_customer: payment.amt_for_customer,
+                  // amt_for_customer: payment.amt_for_customer,
                   dbt_date: payment.dbt_date,
                   paid_for: payment.paid_for,
                   vendor: payment.vendor,
@@ -644,7 +648,6 @@ const accApproved = async function (req, res) {
           }
         }
 
-        // Final stage: stamp timer once
         if (nextStage === "Final") {
           payment.timers = payment.timers || {};
           if (!payment.timers.draft_frozen_at) {
@@ -652,7 +655,6 @@ const accApproved = async function (req, res) {
           }
         }
 
-        // Persist approval state & status history
         payment.approved = approvedValue;
         payment.approval_status = {
           stage: nextStage,
@@ -719,7 +721,7 @@ const utrUpdate = async function (req, res) {
     p_id: p.p_id,
     pay_type: p.pay_type,
     amount_paid: p.amount_paid,
-    amt_for_customer: p.amt_for_customer,
+    // amt_for_customer: p.amt_for_customer,
     dbt_date: p.dbt_date,
     paid_for: p.paid_for,
     vendor: p.vendor,
@@ -849,70 +851,61 @@ const utrUpdate = async function (req, res) {
 const restoreTrashToDraft = async (req, res) => {
   try {
     const { id } = req.params;
-    const { action, remarks } = req.body;
-    const user_id = req.user.userId;
+    const { remarks } = req.body;
+    const user_id = req.user?.userId;
 
-    if (!remarks || typeof remarks !== "string" || remarks.trim() === "") {
-      return res
-        .status(400)
-        .json({ message: "Remarks are required for this action" });
+    if (!user_id) {
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (!["restore", "reject"].includes(action)) {
-      return res
-        .status(400)
-        .json({ message: "Invalid action. Must be 'restore' or 'reject'" });
+    if (!remarks || typeof remarks !== "string" || remarks.trim() === "") {
+      return res.status(400).json({ message: "Remarks are required" });
     }
 
     const request = await payRequestModells.findById(id);
-    if (!request) return res.status(404).json({ message: "Request not found" });
+    if (!request) {
+      return res.status(404).json({ message: "Request not found" });
+    }
 
-    if (request.approval_status.stage !== "Trash Pending") {
+    if (request?.approval_status?.stage !== "Trash Pending") {
       return res
         .status(400)
         .json({ message: "Request is not in Trash Pending stage" });
     }
 
-    if (action === "restore") {
-      request.approval_status = {
-        stage: "SCM",
-        user_id,
-        remarks,
-      };
+    request.timers = request.timers || {};
+    request.status_history = Array.isArray(request.status_history)
+      ? request.status_history
+      : [];
 
-      request.status_history.push({
-        stage: "SCM",
-        user_id,
-        remarks,
-      });
+    const now = new Date();
 
-      request.timers.trash_started_at = null;
-      request.timers.draft_started_at = new Date();
-    } else if (action === "reject") {
-      request.approval_status = {
-        stage: "Rejected",
-        user_id,
-        remarks,
-      };
+    request.approval_status = {
+      stage: "Draft",
+      user_id,
+      remarks,
+    };
 
-      request.status_history.push({
-        stage: "Rejected",
-        user_id,
-        remarks,
-      });
+    request.status_history.push({
+      stage: "Draft",
+      user_id,
+      remarks,
+      event: "restore_from_trash",
+      timestamp: now,
+    });
 
-      request.timers.trash_started_at = null;
-    }
+    request.timers.trash_started_at = null;
+    request.timers.draft_started_at = now;
 
     await request.save();
 
     return res.status(200).json({
-      message: `Request successfully moved to ${request.approval_status.stage}`,
+      message: "Request successfully restored to Draft",
       data: request,
     });
   } catch (error) {
-    console.error("Error in restoring from trash:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("Error in restoreTrashToDraft:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -978,7 +971,7 @@ const restorepayrequest = async function (req, res) {
       pay_id: data.pay_id,
       pay_type: data.pay_type,
       amount_paid: data.amount_paid,
-      amt_for_customer: data.amt_for_customer,
+      // amt_for_customer: data.amt_for_customer,
       dbt_date: data.dbt_date,
       paid_for: data.paid_for,
       vendor: data.vendor,
@@ -1177,14 +1170,17 @@ const getPay = async (req, res) => {
     const pageSize = parseInt(req.query.pageSize) || 50;
     const skip = (page - 1) * pageSize;
 
-    const search = req.query.search?.trim() || "";
-    const status = req.query.status?.trim();
-    const tab = req.query.tab?.trim();
+    const search = (req.query.search || "").trim();
+    const status = (req.query.status || "").trim();
+    const tab = (req.query.tab || "").trim();
 
-    const searchRegex = new RegExp(search, "i");
-    const statusRegex = new RegExp(`^${status}$`, "i");
+    const searchRegex = search ? new RegExp(search, "i") : null;
+    const shouldFilterStatus = status && status.toLowerCase() !== "all";
+    const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const statusRegex = shouldFilterStatus
+      ? new RegExp(`^${escapeRegex(status)}$`, "i")
+      : null;
 
-    // Lookup project details
     const lookupStage = {
       $lookup: {
         from: "projectdetails",
@@ -1197,10 +1193,9 @@ const getPay = async (req, res) => {
       $unwind: { path: "$project", preserveNullAndEmptyArrays: true },
     };
 
-    // Build base match conditions
-    const matchConditions = [];
-    if (search) {
-      matchConditions.push({
+    const commonMatch = [];
+    if (searchRegex) {
+      commonMatch.push({
         $or: [
           { pay_id: { $regex: searchRegex } },
           { cr_id: { $regex: searchRegex } },
@@ -1213,52 +1208,47 @@ const getPay = async (req, res) => {
       });
     }
 
-    // --- NEW LOGIC FOR INSTANT TAB ---
-    if (tab === "instant") {
-      // Exclude Trash Pending stage, show all approved statuses
-      matchConditions.push({
-        "approval_status.stage": { $ne: "Trash Pending" },
-      });
-    } else if (status) {
-      // For other tabs, filter by approved status if provided
-      matchConditions.push({ approved: status });
-    }
+    const instantStageExclusion =
+      tab === "instant"
+        ? [{ $match: { "approval_status.stage": { $ne: "Trash Pending" } } }]
+        : [];
 
-    const baseMatch = matchConditions.length ? { $and: matchConditions } : {};
+    const statusMatchStage = statusRegex
+      ? [{ $match: { approved: { $regex: statusRegex } } }]
+      : [];
 
-    // Base aggregation pipeline
-    const basePipeline = [
-      lookupStage,
-      unwindStage,
-      ...(Object.keys(baseMatch).length ? [{ $match: baseMatch }] : []),
-      {
-        $addFields: {
-          customer_name: "$project.customer",
-          type: {
-            $switch: {
-              branches: [
-                { case: { $ifNull: ["$pay_id", false] }, then: "instant" },
-                {
-                  case: {
-                    $and: [
-                      { $eq: ["$credit.credit_status", true] },
-                      { $ifNull: ["$cr_id", false] },
-                    ],
-                  },
-                  then: "credit",
+    const addTypeStage = {
+      $addFields: {
+        customer_name: "$project.customer",
+        type: {
+          $switch: {
+            branches: [
+              { case: { $ifNull: ["$pay_id", false] }, then: "instant" },
+              {
+                case: {
+                  $and: [
+                    { $eq: ["$credit.credit_status", true] },
+                    { $ifNull: ["$cr_id", false] },
+                  ],
                 },
-              ],
-              default: "instant",
-            },
+                then: "credit",
+              },
+            ],
+            default: "instant",
           },
         },
       },
+    };
+
+    const baseCommon = [
+      lookupStage,
+      unwindStage,
+      ...(commonMatch.length ? [{ $match: { $and: commonMatch } }] : []),
+      addTypeStage,
     ];
 
-    // Tab filtering
     const tabMatchStage = tab ? [{ $match: { type: tab } }] : [];
 
-    // Calculate remaining days
     const remainingDaysStage = [
       {
         $addFields: {
@@ -1308,10 +1298,11 @@ const getPay = async (req, res) => {
       },
     ];
 
-    // Fetch paginated data
-    const [paginatedData, totalData] = await Promise.all([
+    const [paginatedData, totalData, tabWiseCounts] = await Promise.all([
       payRequestModells.aggregate([
-        ...basePipeline,
+        ...baseCommon,
+        ...instantStageExclusion,
+        ...statusMatchStage,
         ...tabMatchStage,
         ...remainingDaysStage,
         { $project: { project: 0 } },
@@ -1319,44 +1310,27 @@ const getPay = async (req, res) => {
         { $skip: skip },
         { $limit: pageSize },
       ]),
+
       payRequestModells.aggregate([
-        ...basePipeline,
+        ...baseCommon,
+        ...instantStageExclusion,
+        ...statusMatchStage,
         ...tabMatchStage,
         { $count: "total" },
       ]),
-    ]);
-
-    // Tab-wise counts
-    const tabWiseCounts = await payRequestModells.aggregate([
-      lookupStage,
-      unwindStage,
-      {
-        $addFields: {
-          type: {
-            $switch: {
-              branches: [
-                { case: { $ifNull: ["$pay_id", false] }, then: "instant" },
-                {
-                  case: {
-                    $and: [
-                      { $eq: ["$credit.credit_status", true] },
-                      { $ifNull: ["$cr_id", false] },
-                    ],
-                  },
-                  then: "credit",
-                },
-              ],
-              default: "instant",
-            },
-          },
+      payRequestModells.aggregate([
+        ...baseCommon,
+        ...statusMatchStage,
+        {
+          $group: { _id: "$type", count: { $sum: 1 } },
         },
-      },
-      { $group: { _id: "$type", count: { $sum: 1 } } },
+      ]),
     ]);
 
-    const counts = { instant: 0, credit: 0 };
-    tabWiseCounts.forEach((item) => {
-      counts[item._id] = item.count;
+    const countsByType = { instant: 0, credit: 0 };
+    tabWiseCounts.forEach((t) => {
+      if (t?._id === "instant") countsByType.instant = t.count;
+      if (t?._id === "credit") countsByType.credit = t.count;
     });
 
     res.status(200).json({
@@ -1365,8 +1339,8 @@ const getPay = async (req, res) => {
         total: totalData[0]?.total || 0,
         page,
         count: paginatedData.length,
-        instantTotal: counts.instant || 0,
-        creditTotal: counts.credit || 0,
+        instantTotal: countsByType.instant,
+        creditTotal: countsByType.credit,
       },
       data: paginatedData,
     });
@@ -1375,7 +1349,6 @@ const getPay = async (req, res) => {
     res.status(500).json({ msg: "Error retrieving data", error: err.message });
   }
 };
-
 const getTrashPayment = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -1500,6 +1473,7 @@ const getTrashPayment = async (req, res) => {
   }
 };
 
+
 const approve_pending = async function (req, res) {
   try {
     const { pay_id, approved } = req.body;
@@ -1519,7 +1493,7 @@ const approve_pending = async function (req, res) {
         pay_id: data.pay_id,
         pay_type: data.pay_type,
         amount_paid: data.amount_paid,
-        amt_for_customer: data.amt_for_customer,
+        // amt_for_customer: data.amt_for_customer,
         dbt_date: data.dbt_date,
         paid_for: data.paid_for,
         vendor: data.vendor,
@@ -1579,7 +1553,7 @@ const hold_approve_pending = async function (req, res) {
         pay_id: data.pay_id,
         pay_type: data.pay_type,
         amount_paid: data.amount_paid,
-        amt_for_customer: data.amt_for_customer,
+        // amt_for_customer: data.amt_for_customer,
         dbt_date: data.dbt_date,
         paid_for: data.paid_for,
         vendor: data.vendor,

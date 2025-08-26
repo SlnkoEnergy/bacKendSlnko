@@ -1,7 +1,6 @@
 function updateCurrentStatus(doc) {
   if (!doc) return;
 
-  // ---------- approval_status sync ----------
   const history = Array.isArray(doc.status_history) ? doc.status_history : [];
   const lastStatus = history[history.length - 1];
 
@@ -24,7 +23,6 @@ function updateCurrentStatus(doc) {
     };
   }
 
-  // ---------- UTR history logic ----------
   if (!Array.isArray(doc.utr_history)) doc.utr_history = [];
 
   const newUtr = doc.utr || "";
@@ -33,7 +31,6 @@ function updateCurrentStatus(doc) {
       ? doc.utr_history[doc.utr_history.length - 1].utr || ""
       : "";
 
-  // A) New document
   if (doc.isNew) {
     if (newUtr) {
       doc.utr_history.push({
@@ -49,11 +46,9 @@ function updateCurrentStatus(doc) {
     return;
   }
 
-
   const utrChanged =
     typeof doc.isModified === "function" ? doc.isModified("utr") : false;
 
-  
   if (!utrChanged && newUtr && !prevUtr) {
     doc.utr_history.push({
       utr: newUtr,

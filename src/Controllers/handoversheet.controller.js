@@ -9,6 +9,8 @@ const { getNotification, getnovuNotification } = require("../utils/nouvnotificat
 const materialCategoryModells = require("../Modells/materialcategory.model");
 const scopeModel = require("../Modells/scope.model");
 const bdleadsModells = require("../Modells/bdleads/bdleadsModells");
+const { getnovuNotification } = require("../utils/nouvnotification.utils");
+
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -124,6 +126,9 @@ const createhandoversheet = async function (req, res) {
       submitted_by,
     });
 
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
+
     cheched_id = await hanoversheetmodells.findOne({ id: id });
     if (cheched_id) {
       return res.status(400).json({ message: "Handoversheet already exists" });
@@ -156,17 +161,14 @@ const createhandoversheet = async function (req, res) {
 
     try {
       const workflow = 'handover-submit';
-      const Ids = await userModells.find({ department: 'Internal', role : 'manager' }).select('_id').lean().then(users => users.map(u => u._id));
+      const Ids = await userModells.find({ department: 'Internal', role: 'manager' }).select('_id').lean().then(users => users.map(u => u._id));
       const data = {
-        message : `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`
+        message: `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`
       }
       await getnovuNotification(workflow, Ids, data);
     } catch (error) {
       console.log(error);
     }
-
-
-
     res.status(200).json({
       message: "Data saved successfully",
       handoversheet,
@@ -214,19 +216,17 @@ const gethandoversheetdata = async function (req, res) {
       });
     }
 
-    const statuses =
-      statusFilter
-        ?.split(",")
-        .map((s) => s.trim())
-        .filter(Boolean) || [];
+    const statuses = statusFilter
+      ?.split(",")
+      .map((s) => s.trim())
+      .filter(Boolean) || [];
 
     const hasHandoverPending = statuses.includes("handoverpending");
     const hasScopePending = statuses.includes("scopepending");
     const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
 
     const actualStatuses = statuses.filter(
-      (s) =>
-        s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
+      (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
     );
 
     if (actualStatuses.length === 1) {
@@ -239,6 +239,10 @@ const gethandoversheetdata = async function (req, res) {
 
     if (hasHandoverPending) {
       matchConditions.$and.push({ status_of_handoversheet: "submitted" });
+    }
+
+    if (hasScopeOpen) {
+      matchConditions.$and.push({ scope_status: "open" });
     }
 
     if (hasScopeOpen) {
@@ -604,22 +608,6 @@ const updatestatus = async function (req, res) {
     } catch (error) {
       console.log(error);
     }
-
-    // Notification for Engineering and Accounts  After Approved handoversheet 
-
-    // if( updatedHandoversheet.status_of_handoversheet === "Approved" ){
-
-    //   try {
-    //     senders = "all person from Engineering and Accounts ";
-    //     workflow = 'handover-submit';
-    //     data ={
-    //       message: `Handover Sheet Status Updated Of Lead ${updatedHandoversheet.id}`
-    //     }
-    //   } catch (error) {
-        
-    //   }
-
-    // }
     return res.status(200).json({
       message: "Status updated",
       handoverSheet: updatedHandoversheet,

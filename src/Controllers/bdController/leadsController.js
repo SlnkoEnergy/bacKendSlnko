@@ -11,6 +11,7 @@ const groupModells = require("../../Modells/bdleads/group");
 const { Novu } = require('@novu/node');
 const { getnovuNotification } = require("../../utils/nouvnotificationutils");
 const handoversheetModells = require("../../Modells/handoversheet.model");
+const { getnovuNotification } = require("../../utils/nouvnotification.utils");
 
 const createBDlead = async function (req, res) {
   try {
@@ -163,8 +164,8 @@ const getAllLeads = async (req, res) => {
       group_id,
       inactiveFilter,
       leadAgingFilter,
+      ClosingDateFilter,
     } = req.query;
-
     const userId = req.user.userId;
     const user = await userModells.findById(userId).lean();
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -262,6 +263,22 @@ const getAllLeads = async (req, res) => {
       query.leadAging = { $lte: Number(leadAgingFilter) };
     }
 
+    if (ClosingDateFilter && ClosingDateFilter.length > 0) {
+      const year = new Date().getFullYear();
+
+      const months = ClosingDateFilter.split(",").map(m => Number(m));
+
+      const monthQueries = months.map(month => {
+        const start = new Date(year, month - 1, 1);
+        const end = new Date(year, month, 0);
+        end.setHours(23, 59, 59, 999);
+
+        return { expected_closing_date: { $gte: start, $lte: end } };
+      });
+
+      query.$or = monthQueries;
+    }
+
     if (name) {
       const userObjectId = new mongoose.Types.ObjectId(name);
       query["current_assigned.user_id"] = userObjectId;
@@ -315,6 +332,7 @@ const getLeadCounts = async (req, res) => {
       group_id,
       inactiveFilter,
       leadAgingFilter,
+      ClosingDateFilter,
     } = req.query;
 
     const userId = req.user.userId;
@@ -423,6 +441,23 @@ const getLeadCounts = async (req, res) => {
     if (leadAgingFilter) {
       andConditions.push({ leadAging: { $lte: Number(leadAgingFilter) } });
     }
+
+    if (ClosingDateFilter && ClosingDateFilter.length > 0) {
+      const year = new Date().getFullYear();
+
+      const months = ClosingDateFilter.split(",").map(m => Number(m));
+
+      const monthQueries = months.map(month => {
+        const start = new Date(year, month - 1, 1);
+        const end = new Date(year, month, 0);
+        end.setHours(23, 59, 59, 999);
+
+        return { expected_closing_date: { $gte: start, $lte: end } };
+      });
+
+      andConditions.push({ $or: monthQueries });
+    }
+
 
     if (name) {
       const userObjectId = new mongoose.Types.ObjectId(name);
@@ -540,7 +575,7 @@ const deleteLead = async (req, res) => {
       const senders = await userModells.find({
         $or: [
           { department: 'admin' },
-          { department: 'BD', role: 'manager' },
+          { department: 'BD', role: '' },
         ]
       }).select('_id')
         .lean()
@@ -552,6 +587,7 @@ const deleteLead = async (req, res) => {
     } catch (error) {
       console.log(error);
     }
+
 
     res
       .status(200)
@@ -605,8 +641,9 @@ const updateAssignedTo = async (req, res) => {
 
     const assign = await userModells.findById(assigned).select('name');
 
-    for (const lead of leads) {
-      try {
+    try {
+      for (const lead of leads) {
+
         const workflow = 'all-notification';
         const alluser = await userModells.find({
           $or: [
@@ -624,9 +661,10 @@ const updateAssignedTo = async (req, res) => {
         }
 
         await getnovuNotification(workflow, senders, data);
-      } catch (error) {
-        console.log(error);
+
       }
+    } catch (error) {
+      console.log(error);
     }
 
 
@@ -1036,12 +1074,11 @@ const getLeadByLeadIdorId = async (req, res) => {
   }
 };
 
-
 const updateLeadStatus = async function (req, res) {
   try {
     const leads = await bdleadsModells.findById(req.params._id);
-    if (!leads) return res.status(404).json({ error: "Lead not found" });
 
+    if (!leads) return res.status(404).json({ error: "Lead not found" });
     const user_id = req.user.userId;
 
     leads.status_history.push({
@@ -1062,6 +1099,48 @@ const updateLeadStatus = async function (req, res) {
     res.status(400).json({ error: err.message });
   }
 };
+
+
+const updateLeadStatusBulk = async function (req, res) {
+  try {
+    const { ids, name, stage, remarks, expected_closing_date } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No lead IDs provided" });
+    }
+
+    const user_id = req.user.userId;
+
+    const results = await Promise.all(
+      ids.map(async (id) => {
+        const lead = await bdleadsModells.findById(id);
+        if (!lead) return null;
+
+        lead.status_history.push({
+          name,
+          stage,
+          remarks,
+          user_id,
+          updatedAt: new Date(),
+        });
+
+        await lead.save();
+        return lead;
+      })
+    );
+
+    const updatedLeads = results.filter((lead) => lead !== null);
+
+    return res.status(200).json({
+      message: "Leads updated successfully",
+      updatedLeads,
+      notFound: ids.filter((id, i) => results[i] === null),
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+};
+
 
 const getAllLeadDropdown = async (req, res) => {
   try {
@@ -1325,4 +1404,5 @@ module.exports = {
   attachToGroup,
   fixBdLeadsFields,
   getLeadCounts,
+  updateLeadStatusBulk
 };
