@@ -11,7 +11,6 @@ const groupModells = require("../../Modells/bdleads/group");
 const { Novu } = require('@novu/node');
 const { getnovuNotification } = require("../../utils/nouvnotificationutils");
 const handoversheetModells = require("../../Modells/handoversheet.model");
-const { getnovuNotification } = require("../../utils/nouvnotification.utils");
 
 const createBDlead = async function (req, res) {
   try {

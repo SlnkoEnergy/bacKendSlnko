@@ -12,7 +12,7 @@ const {
 const purchaseRequest = require("../Modells/purchaserequest.model");
 // const purchaseRequest = require("../Modells/PurchaseRequest/purchaseRequest");
 const payRequestModells = require("../Modells/payRequestModells");
-const vendorModells = require("../Modells/vendorModells");
+const vendorModells = require("../Modells/vendor.model");
 
 const addPo = async function (req, res) {
   try {
