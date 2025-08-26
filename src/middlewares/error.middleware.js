@@ -1,12 +1,9 @@
-const Errormiddleware = (err, req, res, next) => {
-  err.statusCode = err.statusCode || 500;
-  err.message = err.message || "Internal Server Error";
+class ErrorHandler extends Error {
+  constructor(message, statusCode = 500) {
+    super(message);
+    this.statusCode = statusCode;
+    Error.captureStackTrace?.(this, this.constructor);
+  }
+}
 
-  res.status(err.statusCode).json({
-    success: false,
-    message: err.message,
-  });
-};
-
-
-export default Errormiddleware
+module.exports = ErrorHandler;

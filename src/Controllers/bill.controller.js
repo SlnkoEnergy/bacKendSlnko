@@ -8,7 +8,7 @@ const {
 } = require("../middlewares/catchasyncerror.middleware");
 const ErrorHandler = require("../middlewares/error.middleware");
 
-const addBill = catchAsyncError(async function (req, res) {
+const addBill = catchAsyncError(async function (req, res, next) {
   const {
     po_number,
     bill_number,
@@ -57,12 +57,12 @@ const addBill = catchAsyncError(async function (req, res) {
   });
 });
 
-const getBill = catchAsyncError(async (req, res) => {
+const getBill = catchAsyncError(async (req, res, next) => {
   const data = await billModel.find();
   res.status(200).json({ msg: "All Bill Details", data });
 });
 
-const getPaginatedBill = catchAsyncError(async (req, res) => {
+const getPaginatedBill = catchAsyncError(async (req, res, next) => {
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 10;
   const skip = (page - 1) * pageSize;
@@ -224,7 +224,7 @@ const getPaginatedBill = catchAsyncError(async (req, res) => {
   });
 });
 
-const getAllBill = catchAsyncError(async (req, res) => {
+const getAllBill = catchAsyncError(async (req, res, next) => {
   const page = Number.parseInt(req.query.page, 10) || 1;
   const pageSize = Number.parseInt(req.query.pageSize, 10) || 10;
   const skip = (page - 1) * pageSize;
@@ -398,7 +398,7 @@ const getAllBill = catchAsyncError(async (req, res) => {
 });
 
 //Bills Exports
-const exportBills = catchAsyncError(async (req, res) => {
+const exportBills = catchAsyncError(async (req, res, next) => {
   const { from, to, export: exportAll } = req.query;
 
   let matchStage = {};
@@ -491,7 +491,7 @@ const exportBills = catchAsyncError(async (req, res) => {
   return res.send(csv);
 });
 
-const GetBillByID = catchAsyncError(async (req, res) => {
+const GetBillByID = catchAsyncError(async (req, res, next) => {
   const { po_number, _id } = req.query;
 
   const matchStage = {};
@@ -569,6 +569,7 @@ const GetBillByID = catchAsyncError(async (req, res) => {
           date: "$poData.date",
           po_value: "$poData.po_value",
           vendor: "$poData.vendor",
+          total_billed: "$poData.total_billed"
         },
       },
     },
@@ -579,7 +580,7 @@ const GetBillByID = catchAsyncError(async (req, res) => {
 });
 
 //update-bill
-const updatebill = catchAsyncError(async function (req, res) {
+const updatebill = catchAsyncError(async function (req, res, next) {
   let id = req.params._id;
   let updatedata = req.body;
   let data = await billModel.findByIdAndUpdate(id, updatedata, {
@@ -592,7 +593,7 @@ const updatebill = catchAsyncError(async function (req, res) {
 });
 
 //delete-bill
-const deleteBill = catchAsyncError(async function (req, res) {
+const deleteBill = catchAsyncError(async function (req, res, next) {
   let id = req.params._id;
   let data = await billModel.findByIdAndDelete(id);
   if (!data) {
@@ -602,7 +603,7 @@ const deleteBill = catchAsyncError(async function (req, res) {
 });
 
 // bill_appoved
-const bill_approved = catchAsyncError(async function (req, res) {
+const bill_approved = catchAsyncError(async function (req, res, next) {
   const { bill_number } = req.body;
   const userId = req.user.userId;
   const existingBill = await billModel.findOne({
@@ -612,7 +613,7 @@ const bill_approved = catchAsyncError(async function (req, res) {
     return next(new ErrorHandler("No bill found", 404));
   }
 
-  if (existingBill.approved_by.trim() !== "") {
+  if (existingBill.approved_by !== undefined && existingBill.approved_by !== null) {
     return next(
       new ErrorHandler(
         "Bill is already approved and cannot be updated to an empty string.",
