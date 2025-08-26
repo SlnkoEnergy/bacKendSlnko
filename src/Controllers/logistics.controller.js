@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Logistic = require("../Modells/logistics.model");
 const { nextLogisticCode } = require("../utils/logisticscounter.utils");
+const purchaseOrderModells = require("../Modells/purchaseorder.model");
 
 const getParamId = (req) => req.params.id || req.params._id || req.body.id;
 const isId = (v) => mongoose.Types.ObjectId.isValid(v);
@@ -46,6 +47,120 @@ function resolveUomFromPO(it) {
   if (lines.length === 1 && lines[0]?.uom) return lines[0].uom;
 
   return it.uom ?? null;
+}
+const toNum = (v) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const approxEq = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
+
+const normalizeCatId = (cat) => {
+  if (!cat) return null;
+  if (typeof cat === "object" && cat._id) return String(cat._id);
+  if (isId(cat)) return String(cat);
+  return null;
+};
+
+/** Get all logistics item rows for one PO (material_po == poId) */
+async function fetchLogItemsForPO(poId) {
+  const _poId = toObjectId(poId);
+  if (!_poId) return [];
+  const rows = await Logistic.aggregate([
+    { $unwind: "$items" },
+    { $match: { "items.material_po": _poId } },
+    {
+      $project: {
+        po_item_id: "$items.po_item_id",
+        category_id: "$items.category_id",
+        product_name: "$items.product_name",
+        product_make: "$items.product_make",
+        received_qty: {
+          $convert: { input: "$items.received_qty", to: "double", onError: 0, onNull: 0 }
+        },
+      },
+    },
+  ]);
+  return rows || [];
+}
+
+function matchesPOLine(poLine, logRow) {
+  if (logRow.po_item_id && poLine._id && eqId(logRow.po_item_id, poLine._id)) return true;
+
+  const poCat = normalizeCatId(poLine.category);
+  const liCat = logRow.category_id ? String(logRow.category_id) : null;
+  const catOk = poCat && liCat ? poCat === liCat : true; 
+
+  const prodOk = poLine.product_name
+    ? String(poLine.product_name) === String(logRow.product_name || "")
+    : true;
+
+  const makeOk = poLine.product_make
+    ? String(poLine.product_make) === String(logRow.product_make || "")
+    : true;
+
+  return catOk && prodOk && makeOk;
+}
+
+async function recalcPOFromReceipts(poId, userId, baseRemarks = "") {
+  const po = await purchaseOrderModells.findById(poId);
+  if (!po) return;
+
+  const poLines = Array.isArray(po.item) ? po.item : [];
+  if (poLines.length === 0) return;
+
+  const logRows = await fetchLogItemsForPO(poId);
+
+  let allFullyReceived = true;
+  let anyReceived = false;
+
+  for (const line of poLines) {
+    const ordered = toNum(line.quantity);
+    if (ordered <= 0) continue; 
+
+    let sumReceived = 0;
+    for (const r of logRows) {
+      if (matchesPOLine(line, r)) {
+        sumReceived += toNum(r.received_qty);
+      }
+    }
+
+    if (sumReceived > 0) anyReceived = true;
+    if (!approxEq(sumReceived, ordered)) {
+      allFullyReceived = false;
+    }
+  }
+
+  let finalStatus = po.current_status?.status || "po_created";
+  let scopeRemark = "";
+
+  if (allFullyReceived) {
+    finalStatus = "delivered";
+    scopeRemark = "FULLY DELIVERED (all items received)";
+    if (!po.delivery_date) po.delivery_date = new Date();
+  } else {
+    finalStatus = "partially_delivered";
+    scopeRemark = anyReceived
+      ? "PARTIALLY DELIVERED (some items not fully received)"
+      : "PARTIALLY DELIVERED (no receipts yet)";
+  }
+
+  const combinedRemarks = [baseRemarks, scopeRemark].filter(Boolean).join(" | ");
+
+  const sameStatus = po.current_status?.status === finalStatus;
+  const sameRemarks = (po.current_status?.remarks || "") === combinedRemarks;
+  if (!sameStatus || !sameRemarks) {
+    po.status_history.push({
+      status: finalStatus,
+      remarks: combinedRemarks,
+      user_id: userId || null,
+    });
+    po.current_status = {
+      status: finalStatus,
+      remarks: combinedRemarks,
+      user_id: userId || null,
+    };
+    await po.save();
+  }
 }
 
 const createLogistic = async (req, res) => {
@@ -447,6 +562,24 @@ const updateLogisticStatus = async (req, res) => {
       .populate({ path: "items.category_id", select: "name category_name" })
       .lean();
 
+    if (status === "delivered") {
+      const affectedPoIds = new Set(
+        (fresh.items || [])
+          .map((it) => {
+            const v = it?.material_po;
+            return (v && typeof v === "object") ? v._id : v;
+          })
+          .filter(Boolean)
+          .map(String)
+      );
+
+      await Promise.all(
+        Array.from(affectedPoIds).map((poId) =>
+          recalcPOFromReceipts(poId, userId, `Auto from Logistics ${fresh.logistic_code}: delivered`)
+        )
+      );
+    }
+
     const vendorList = Array.from(
       new Set(
         (Array.isArray(fresh?.po_id) ? fresh.po_id : [])
@@ -483,9 +616,7 @@ const updateLogisticStatus = async (req, res) => {
       items: enrichedItems,
     };
 
-    return res
-      .status(200)
-      .json({ message: "Status updated", data: responseData });
+    return res.status(200).json({ message: "Status updated", data: responseData });
   } catch (err) {
     console.error("updateLogisticStatus error:", err);
     return res
@@ -493,6 +624,7 @@ const updateLogisticStatus = async (req, res) => {
       .json({ message: "Failed to update status", error: err.message });
   }
 };
+
 
 module.exports = {
   createLogistic,
