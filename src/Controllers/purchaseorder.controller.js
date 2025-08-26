@@ -23,7 +23,7 @@ const addPo = async function (req, res) {
       vendor,
       submitted_By,
       pr_id,
-      items,
+      item,
       other = "",
       partial_billing,
       po_basic,
@@ -33,13 +33,14 @@ const addPo = async function (req, res) {
       comment,
       updated_on,
       initial_status,
+      delivery_type
     } = req.body;
 
     const userId = req.user.userId;
 
     if (!po_number && initial_status !== "approval_pending")
       return res.status(400).send({ message: "po_number is required." });
-    if (!Array.isArray(items) || items.length === 0)
+    if (!Array.isArray(item) || item.length === 0)
       return res
         .status(400)
         .send({ message: "items array is required and cannot be empty." });
@@ -48,14 +49,15 @@ const addPo = async function (req, res) {
     if (exists && initial_status !== "approval_pending")
       return res.status(400).send({ message: "PO Number already used!" });
 
-    const itemsSanitized = items.map((it) => ({
+    const itemsSanitized = item.map((it) => ({
       category: it.category ?? null,
       product_name: String(it.product_name ?? ""),
+      gst_percent: String(it.gst_percent ?? ""),
       product_make: String(it.product_make ?? ""),
+      description: String(it.description ?? ""),
       uom: String(it.uom ?? ""),
       quantity: String(it.quantity ?? "0"),
       cost: String(it.cost ?? "0"),
-      gst_percent: String(it.gst ?? "0"),
     }));
 
     const toNum = (v) => {
@@ -102,6 +104,7 @@ const addPo = async function (req, res) {
       etd: null,
       delivery_date: null,
       dispatch_date: null,
+      delivery_type
     });
 
     newPO.status_history.push({
@@ -138,24 +141,49 @@ const editPO = async function (req, res) {
     }
 
     const currStatus = existing?.current_status?.status;
-    if (currStatus !== "approval_pending") {
+    
+    const canEdit =
+      currStatus === "approval_pending" || currStatus === "approval_rejected";
+
+    if (!canEdit) {
       return res.status(409).json({
-        msg: "Editing not allowed unless status is approval_pending",
+        msg: "Editing not allowed unless status is approval_pending or approval_rejected",
         current_status: currStatus,
       });
     }
 
     const payload = { ...req.body };
 
+    // normalize items -> item (your schema expects item)
     if (Array.isArray(payload.items) && !Array.isArray(payload.item)) {
       payload.item = payload.items;
       delete payload.items;
     }
 
+    // Build atomic update
+    const updateOps = {
+      $set: { ...payload },
+    };
+
+    if (currStatus === "approval_rejected") {
+      updateOps.$push = {
+        status_history: {
+          status: "approval_pending",
+          remarks: "",
+          user_id: req.user.userId
+        },
+      };
+
+      updateOps.$set["current_status.status"] = "approval_pending";
+      updateOps.$set["current_status.remarks"] = "";
+      updateOps.$set["current_status.user_id"] = req.user.userId;
+    }
+
     const update = await purchaseOrderModells
-      .findByIdAndUpdate(id, { $set: payload }, { new: true })
+      .findByIdAndUpdate(id, updateOps, { new: true })
       .lean();
 
+    // PO history snapshot
     const pohistory = {
       po_number: update.po_number,
       offer_Id: update.offer_Id,
@@ -173,7 +201,9 @@ const editPO = async function (req, res) {
       gst: update.gst,
       updated_on: new Date().toISOString(),
       submitted_By: update.submitted_By,
+      delivery_type: update.delivery_type,
     };
+
     await pohisttoryModells.create(pohistory);
 
     return res.status(200).json({
@@ -186,6 +216,8 @@ const editPO = async function (req, res) {
       .json({ msg: "Internal Server error", error: error.message });
   }
 };
+
+
 
 //Get-Purchase-Order
 const getPO = async function (req, res) {
@@ -294,13 +326,12 @@ const getPOByPONumber = async (req, res) => {
       });
     }
 
-    // Collect category IDs that need names
     const catIdSet = new Set();
     for (const it of itemsArr) {
       const cat = it?.category;
       if (!cat) continue;
 
-      // category can be ObjectId string or populated object
+
       if (
         typeof cat === "object" &&
         cat?._id &&
@@ -1524,7 +1555,7 @@ const updateEditandDeliveryDate = async (req, res) => {
 
 const updateStatusPO = async (req, res) => {
   try {
-    const { status, remarks, id } = req.body;
+    const { status, remarks, id, new_po_number } = req.body;
     if (!id) return res.status(404).json({ message: "ID is required" });
     if (!status && !remarks)
       return res
@@ -1539,12 +1570,16 @@ const updateStatusPO = async (req, res) => {
     const purchaseOrder = await purchaseOrderModells.findOne({ $or: query });
     if (!purchaseOrder)
       return res.status(404).json({ message: "Purchase Order not found" });
-
+    
     purchaseOrder.status_history.push({
       status,
       remarks,
       user_id: req.user.userId,
     });
+
+    if(new_po_number){
+      purchaseOrder.po_number = new_po_number;
+    }
 
     if (status === "ready_to_dispatch") {
       purchaseOrder.dispatch_date = new Date();

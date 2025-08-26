@@ -37,6 +37,9 @@ const pohistoryschema = new mongoose.Schema({
       gst_percent: {
         type: String,
       },
+      description:{
+          type: String,
+        }
     },
   ],
   other: {
@@ -74,6 +77,10 @@ const pohistoryschema = new mongoose.Schema({
   po_basic: {
     type: String,
   },
+  delivery_type: {
+      type: String,
+      enum: ["afor", "slnko", "client"],
+    },
   gst: { type: String },
 });
 module.exports = mongoose.model("pohistory", pohistoryschema);

@@ -3,7 +3,6 @@ const jwtMW = require("../middlewares/auth");
 const {
   addMoney,
   getCreditAmount,
-  getAllBill,
   allbill,
   credit_amount,
   deletecredit,
@@ -103,7 +102,8 @@ const {
   deleteBill,
   bill_approved,
   exportBills,
-} = require("../Controllers/billController");
+  getAllBill,
+} = require("../Controllers/bill.controller");
 const {
   subtractmoney,
   getsubtractMoney,
@@ -662,6 +662,7 @@ router.get(
   jwtMW.authorization,
   getPaginatedBill
 );
+router.get('/bill', jwtMW.authentication, getAllBill);
 router.get(
   "/get-bill-by-id",
   jwtMW.authentication,

@@ -17,6 +17,10 @@ const purchaseOrderSchema = new mongoose.Schema(
     date: {
       type: String,
     },
+    total_bills:{
+      type: Number,
+      default: 0
+    },
     item: [
       {
         category: {
@@ -39,6 +43,9 @@ const purchaseOrderSchema = new mongoose.Schema(
           type: String,
         },
         gst_percent: {
+          type: String,
+        },
+        description: {
           type: String,
         },
       },
@@ -91,6 +98,10 @@ const purchaseOrderSchema = new mongoose.Schema(
     dispatch_date: {
       type: Date,
     },
+    total_billed: {
+      type: String,
+      default: "0",
+    },
     delivery_type: {
       type: String,
       enum: ["afor", "slnko", "client"],
@@ -108,6 +119,7 @@ const purchaseOrderSchema = new mongoose.Schema(
             "out_for_delivery",
             "ready_to_dispatch",
             "delivered",
+            "partially_delivered"
           ],
         },
         remarks: {
@@ -131,6 +143,7 @@ const purchaseOrderSchema = new mongoose.Schema(
           "out_for_delivery",
           "ready_to_dispatch",
           "delivered",
+          "partially_delivered"
         ],
       },
       remarks: {

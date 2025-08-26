@@ -44,7 +44,6 @@ const CreatePurchaseRequest = async (req, res) => {
 
     const itemIds = purchaseRequestData.items.map((item) => item.item_id);
 
-    // 🔹 Update pr_status for all matching items in the Scope
     await scopeModel.updateOne(
       { project_id: purchaseRequestData.project_id },
       { $set: { "items.$[elem].pr_status": true } },
@@ -231,7 +230,7 @@ const getAllPurchaseRequest = async (req, res) => {
           createdAt: { $first: "$createdAt" },
           project_id: { $first: "$project_id" },
           created_by: { $first: "$created_by" },
-          items: { $push: "$item" }, 
+          items: { $push: "$item" },
         },
       },
       {
@@ -244,7 +243,12 @@ const getAllPurchaseRequest = async (req, res) => {
             $filter: {
               input: "$items",
               as: "it",
-              cond: { $and: [{ $ne: ["$$it", null] }, { $ne: ["$$it._id", null] }] },
+              cond: {
+                $and: [
+                  { $ne: ["$$it", null] },
+                  { $ne: ["$$it._id", null] },
+                ],
+              },
             },
           },
         },
@@ -265,27 +269,13 @@ const getAllPurchaseRequest = async (req, res) => {
     ]);
 
     let totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
+
     requests = await Promise.all(
       requests.map(async (request) => {
+        // fetch all POs linked to this PR
         const pos = await purchaseOrderModells.find({ pr_id: request._id });
 
-        const prItemIds = new Set(
-          (request.items || [])
-            .map((it) => it?.item_id?._id?.toString?.())
-            .filter(Boolean)
-        );
-        const prItemNames = new Set(
-          (request.items || [])
-            .map((it) => it?.item_id?.name)
-            .filter(Boolean)
-        );
-
-        const filteredPOs = pos.filter((po) => {
-          const poItemStr = po?.item?.toString?.();
-          return prItemIds.has(poItemStr) || prItemNames.has(po.item);
-        });
-
-        const poDetails = filteredPOs.map((po) => ({
+        const poDetails = pos.map((po) => ({
           po_number: po.po_number,
           po_value: Number(po.po_value || 0),
           etd: po.etd ? new Date(po.etd) : null,
@@ -295,14 +285,17 @@ const getAllPurchaseRequest = async (req, res) => {
           (acc, po) => acc + po.po_value,
           0
         );
-        const singleItem = itemSearch ? (request.items?.[0] || null) : undefined;
+
+        const singleItem = itemSearch
+          ? request.items?.[0] || null
+          : undefined;
 
         return {
           ...request,
           ...(singleItem !== undefined ? { item: singleItem } : {}),
           po_value: totalPoValueWithGst,
-          po_numbers: poDetails.map((p) => p.po_number),
-          po_details: poDetails,
+          po_numbers: poDetails.map((p) => p.po_number) || [], // always present
+          po_details: poDetails || [], // always present
         };
       })
     );
@@ -343,6 +336,7 @@ const getAllPurchaseRequest = async (req, res) => {
     });
   }
 };
+
 
 const getPurchaseRequestById = async (req, res) => {
   try {
@@ -688,21 +682,95 @@ const getMaterialScope = async (req, res) => {
   }
 };
 
-const fetchExcelFromBOQ = async (req, res) => {
+
+async function fetchExcelFromBOQ(req, res) {
   try {
     const {
       project_id,
-      template_name,
-      category,            
-      category_column,     
-      sheet,
-      category_mode,        
-      category_logic,     
+      template_name,           
+      category,                 
+      category_column,          
+      sheet,                    
+      category_mode,           
+      category_logic,          
     } = req.query;
 
     if (!project_id || !mongoose.isValidObjectId(project_id)) {
       return res.status(400).json({ message: "Valid project_id is required" });
     }
+
+    // ---- helpers -----------------------------------------------------------
+    const norm = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
+
+    const splitList = (val) =>
+      Array.isArray(val)
+        ? val
+        : typeof val === "string"
+        ? val
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
+
+    // tokenize a cell by common separators: "/", ",", "&" (with spaces)
+    const tokenizeCell = (cell) =>
+      String(cell)
+        .split(/\s*[\/|,]\s*|\s+&\s+/)
+        .map(norm)
+        .filter(Boolean);
+
+    // case-insensitive column accessor: "Category" === "category"
+    const getCell = (row, key) => {
+      if (row == null) return "";
+      if (key in row) return row[key];
+      const want = norm(key);
+      const foundKey = Object.keys(row).find((k) => norm(k) === want);
+      return foundKey ? row[foundKey] : "";
+    };
+
+    // ---- category synonyms -------------------------------------------------
+    // Canonical → aliases (all compared in normalized form)
+    const EXPAND = {
+      "rms": ["rms", "wms"],
+      "lt panel": ["acdb"],
+      "ht panel": ["vcb"],
+      "earthing & la": ["earthing", "la"],
+      "meter box": ["ldb"],
+      "class c": ["bos"],
+      "gss": ["pss end", "bay end ext.", "bay end ext"],
+      "i&c": ["i&c", "cleaning", "civil"],
+    };
+
+    // alias → canonical (normalized)
+    const REVERSE_EXPAND = (() => {
+      const m = {};
+      for (const [canon, alts] of Object.entries(EXPAND)) {
+        const c = norm(canon);
+        m[c] = canon; // identity
+        (alts || []).forEach((a) => {
+          m[norm(a)] = canon;
+        });
+      }
+      return m;
+    })();
+
+    const CANON_DISPLAY = {
+      "class c": "Class C",
+      "lt panel": "LT Panel",
+      "ht panel": "HT Panel",
+      "earthing & la": "Earthing & LA",
+      "meter box": "Meter Box",
+      "gss": "GSS",
+      "i&c": "I&C",
+      "rms": "RMS",
+    };
+
+    const buildGroups = (inputs) =>
+      inputs.map((c) => {
+        const key = norm(c);
+        const alts = EXPAND[key];
+        return (alts ? alts : [key]).map(norm);
+      });
 
     const doc = await modulecategory
       .findOne({ project_id })
@@ -717,23 +785,10 @@ const fetchExcelFromBOQ = async (req, res) => {
 
     const items = Array.isArray(doc.items) ? doc.items : [];
     if (!items.length) {
-      return res.status(404).json({ message: "No items available for this project" });
+      return res
+        .status(404)
+        .json({ message: "No items available for this project" });
     }
-
-    // util
-    const norm = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
-    const splitList = (val) =>
-      Array.isArray(val)
-        ? val
-        : typeof val === "string"
-          ? val.split(",").map((s) => s.trim()).filter(Boolean)
-          : [];
-
-    const matchesTemplateName = (it) => {
-      if (!template_name) return false;
-      const tname = it?.template_id?.name;
-      return tname && norm(tname).includes(norm(template_name));
-    };
 
     let boqItem = items.find((it) => {
       const tname = it?.template_id?.name;
@@ -756,20 +811,16 @@ const fetchExcelFromBOQ = async (req, res) => {
     if (!fileUrl) {
       return res.status(404).json({
         message: "No current_attachment URL found for the matched BOQ item.",
-        hint: "Ensure current_attachment is an array of file URLs and at least one exists.",
+        hint:
+          "Ensure current_attachment is an array of file URLs and at least one exists.",
       });
     }
 
-    // Download Excel
     const excelResp = await axios.get(fileUrl, { responseType: "arraybuffer" });
-
-    // Parse workbook
     const wb = XLSX.read(excelResp.data, { type: "buffer" });
     if (!wb.SheetNames.length) {
       return res.status(400).json({ message: "Workbook has no sheets." });
     }
-
-    // Resolve target sheet
     let targetSheetName;
     if (sheet !== undefined) {
       const asNum = Number(sheet);
@@ -799,39 +850,65 @@ const fetchExcelFromBOQ = async (req, res) => {
       return res.status(404).json({ message: "Target worksheet not found." });
     }
 
-
-    const allRows = XLSX.utils.sheet_to_json(ws, { defval: "", raw: true });
-
+    const allRows = XLSX.utils.sheet_to_json(ws, {
+      defval: "",
+      raw: true,
+      range: 2,
+    });
 
     const col = category_column || "Category";
-    const categories = splitList(category).map(norm); 
-    const matchMode = (category_mode || "exact").toLowerCase(); 
-    const logic = (category_logic || "or").toLowerCase();
+    const selectedInputs = splitList(category);
+    const groups = buildGroups(selectedInputs);
 
-    const tokenizeCell = (cell) =>
-      String(cell)
-        .split(/[,/|]/)   
-        .map(norm)
-        .filter(Boolean);
+    const matchMode = (category_mode || "exact").toLowerCase();
+    const logic = (category_logic || "or").toLowerCase();        
 
     let rows = allRows;
-    if (categories.length > 0) {
+    if (groups.length > 0) {
       rows = allRows.filter((r) => {
-        const cellRaw = r[col] ?? "";
-        const cellNorm = norm(String(cellRaw));
+        const cellRaw = getCell(r, col) ?? "";
 
         if (matchMode === "contains") {
-          // Check substring contains for each category
-          const matches = categories.map((c) => cellNorm.includes(c));
-          return logic === "and" ? matches.every(Boolean) : matches.some(Boolean);
-        } else {
-          // "exact" token match (handles cells like "MMS, AC Cable")
-          const tokens = tokenizeCell(cellRaw);
-          const matches = categories.map((c) => tokens.includes(c));
-          return logic === "and" ? matches.every(Boolean) : matches.some(Boolean);
+          const cellNorm = norm(String(cellRaw));
+          const groupOk = groups.map((alts) =>
+            alts.some((a) => cellNorm.includes(a))
+          );
+          return logic === "and" ? groupOk.every(Boolean) : groupOk.some(Boolean);
         }
+        const tokens = tokenizeCell(cellRaw);
+        const groupOk = groups.map((alts) =>
+          alts.some((a) => tokens.includes(a))
+        );
+        return logic === "and" ? groupOk.every(Boolean) : groupOk.some(Boolean);
       });
     }
+
+    rows = rows.map((r) => {
+      const raw = getCell(r, col) ?? "";
+      const tokens = tokenizeCell(raw);
+      let canon = null;
+      for (const t of tokens) {
+        const c = REVERSE_EXPAND[norm(t)];
+        if (c) { canon = c; break; }
+      }
+      if (!canon && matchMode === "contains") {
+        const cellNorm = norm(String(raw));
+        for (const [aliasNorm, canonical] of Object.entries(REVERSE_EXPAND)) {
+          if (cellNorm.includes(aliasNorm)) {
+            canon = canonical;
+            break;
+          }
+        }
+      }
+      const display = canon
+        ? (CANON_DISPLAY[norm(canon)] || canon)
+        : raw;
+
+      return {
+        ...r,
+        Category: display,
+      };
+    });
 
     return res.status(200).json({
       message: "BOQ Excel parsed successfully",
@@ -841,12 +918,14 @@ const fetchExcelFromBOQ = async (req, res) => {
         template_name: boqItem?.template_id?.name || null,
         boq_enabled: !!boqItem?.template_id?.boq?.enabled,
         sheet: targetSheetName,
+        header_from_row: "A3",
         total_rows: allRows.length,
         filtered_rows: rows.length,
         available_sheets: wb.SheetNames,
         filter: {
           column: col,
-          categories,
+          user_selected: selectedInputs,
+          expanded_groups: groups,
           mode: matchMode,
           logic,
         },
@@ -870,7 +949,7 @@ const fetchExcelFromBOQ = async (req, res) => {
       error: error?.message || "Unknown error",
     });
   }
-};
+}
 
 
 module.exports = {
