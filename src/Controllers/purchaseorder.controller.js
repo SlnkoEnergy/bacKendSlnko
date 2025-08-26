@@ -10,6 +10,9 @@ const {
   getLowerPriorityStatus,
 } = require("../utils/updatePurchaseRequestStatus");
 const purchaseRequest = require("../Modells/purchaserequest.model");
+// const purchaseRequest = require("../Modells/PurchaseRequest/purchaseRequest");
+const payRequestModells = require("../Modells/payRequestModells");
+const vendorModells = require("../Modells/vendorModells");
 
 const addPo = async function (req, res) {
   try {
@@ -20,7 +23,7 @@ const addPo = async function (req, res) {
       vendor,
       submitted_By,
       pr_id,
-      items,
+      item,
       other = "",
       partial_billing,
       po_basic,
@@ -30,13 +33,14 @@ const addPo = async function (req, res) {
       comment,
       updated_on,
       initial_status,
+      delivery_type
     } = req.body;
 
     const userId = req.user.userId;
 
     if (!po_number && initial_status !== "approval_pending")
       return res.status(400).send({ message: "po_number is required." });
-    if (!Array.isArray(items) || items.length === 0)
+    if (!Array.isArray(item) || item.length === 0)
       return res
         .status(400)
         .send({ message: "items array is required and cannot be empty." });
@@ -45,14 +49,15 @@ const addPo = async function (req, res) {
     if (exists && initial_status !== "approval_pending")
       return res.status(400).send({ message: "PO Number already used!" });
 
-    const itemsSanitized = items.map((it) => ({
+    const itemsSanitized = item.map((it) => ({
       category: it.category ?? null,
       product_name: String(it.product_name ?? ""),
+      gst_percent: String(it.gst_percent ?? ""),
       product_make: String(it.product_make ?? ""),
+      description: String(it.description ?? ""),
       uom: String(it.uom ?? ""),
       quantity: String(it.quantity ?? "0"),
       cost: String(it.cost ?? "0"),
-      gst_percent: String(it.gst ?? "0"),
     }));
 
     const toNum = (v) => {
@@ -100,6 +105,7 @@ const addPo = async function (req, res) {
       delivery_date: null,
       dispatch_date: null,
       material_ready_date:null,
+      delivery_type
     });
 
     newPO.status_history.push({
@@ -136,24 +142,49 @@ const editPO = async function (req, res) {
     }
 
     const currStatus = existing?.current_status?.status;
-    if (currStatus !== "approval_pending") {
+    
+    const canEdit =
+      currStatus === "approval_pending" || currStatus === "approval_rejected";
+
+    if (!canEdit) {
       return res.status(409).json({
-        msg: "Editing not allowed unless status is approval_pending",
+        msg: "Editing not allowed unless status is approval_pending or approval_rejected",
         current_status: currStatus,
       });
     }
 
     const payload = { ...req.body };
 
+    // normalize items -> item (your schema expects item)
     if (Array.isArray(payload.items) && !Array.isArray(payload.item)) {
       payload.item = payload.items;
       delete payload.items;
     }
 
+    // Build atomic update
+    const updateOps = {
+      $set: { ...payload },
+    };
+
+    if (currStatus === "approval_rejected") {
+      updateOps.$push = {
+        status_history: {
+          status: "approval_pending",
+          remarks: "",
+          user_id: req.user.userId
+        },
+      };
+
+      updateOps.$set["current_status.status"] = "approval_pending";
+      updateOps.$set["current_status.remarks"] = "";
+      updateOps.$set["current_status.user_id"] = req.user.userId;
+    }
+
     const update = await purchaseOrderModells
-      .findByIdAndUpdate(id, { $set: payload }, { new: true })
+      .findByIdAndUpdate(id, updateOps, { new: true })
       .lean();
 
+    // PO history snapshot
     const pohistory = {
       po_number: update.po_number,
       offer_Id: update.offer_Id,
@@ -171,7 +202,9 @@ const editPO = async function (req, res) {
       gst: update.gst,
       updated_on: new Date().toISOString(),
       submitted_By: update.submitted_By,
+      delivery_type: update.delivery_type,
     };
+
     await pohisttoryModells.create(pohistory);
 
     return res.status(200).json({
@@ -184,6 +217,8 @@ const editPO = async function (req, res) {
       .json({ msg: "Internal Server error", error: error.message });
   }
 };
+
+
 
 //Get-Purchase-Order
 const getPO = async function (req, res) {
@@ -292,13 +327,12 @@ const getPOByPONumber = async (req, res) => {
       });
     }
 
-    // Collect category IDs that need names
     const catIdSet = new Set();
     for (const it of itemsArr) {
       const cat = it?.category;
       if (!cat) continue;
 
-      // category can be ObjectId string or populated object
+
       if (
         typeof cat === "object" &&
         cat?._id &&
@@ -394,32 +428,147 @@ const getPOHistoryById = async (req, res) => {
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
-    let data = await purchaseOrderModells.find().lean();
-
-    const updatedData = await Promise.all(
-      data.map(async (po) => {
-        let itemName = po.item;
-
-        const isObjectId = mongoose.Types.ObjectId.isValid(po.item);
-
-        if (isObjectId) {
-          const material = await materialCategoryModells
-            .findById(po.item)
-            .select("name")
-            .lean();
-          itemName = material?.name || null;
-        }
-
-        return {
-          ...po,
-          item: itemName,
-        };
-      })
-    );
+    const updatedData = await purchaseOrderModells.aggregate([
+      {
+        $lookup: {
+          from: "materialcategorymodells",
+          localField: "item",
+          foreignField: "_id",
+          as: "material",
+        },
+      },
+      {
+        $unwind: {
+          path: "$material",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          item: {
+            $ifNull: ["$material.name", "$item"],
+          },
+        },
+      },
+      {
+        $project: {
+          material: 0,
+        },
+      },
+    ]);
 
     res.status(200).json({ msg: "All PO", data: updatedData });
   } catch (error) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
+  }
+};
+
+const getallpodetail = async function (req, res) {
+  try {
+    const { po_number } = req.query;
+
+  
+    if (!po_number) {
+      const poList = await purchaseOrderModells
+        .find({}, { po_number: 1, _id: 0 })
+        .lean();
+
+      return res.status(200).json({
+        po_numbers: poList.map((po) => po.po_number),
+      });
+    }
+
+    const selectedPo = await purchaseOrderModells.findOne({ po_number }).lean();
+
+    if (!selectedPo) {
+      return res.status(404).json({ message: "PO not found" });
+    }
+
+    const poAggregate = await purchaseOrderModells.aggregate([
+      { $match: { po_number } },
+      {
+        $group: {
+          _id: "$po_number",
+          total_po_value: { $sum: { $toDouble: "$po_value" } },
+        },
+      },
+    ]);
+
+    const po_value = poAggregate.length > 0 ? poAggregate[0].total_po_value : 0;
+
+ 
+    let itemName = "";
+    if (Array.isArray(selectedPo.item)) {
+      itemName = selectedPo.item.map((i) => i.product_name).join(", ");
+    } else if (mongoose.Types.ObjectId.isValid(selectedPo.item)) {
+      const itemDoc = await materialCategoryModells
+        .findById(selectedPo.item)
+        .lean();
+      itemName = itemDoc?.name || "";
+    } else if (typeof selectedPo.item === "string") {
+      itemName = selectedPo.item;
+    }
+
+ 
+    let vendorDetails = {};
+    if (selectedPo.vendor) {
+      const matchedVendor = await vendorModells
+        .findOne({
+          name: selectedPo.vendor,
+        })
+        .lean();
+      if (matchedVendor) {
+        vendorDetails = {
+          benificiary: matchedVendor.name,
+          acc_number: matchedVendor.Account_No,
+          ifsc: matchedVendor.IFSC_Code,
+          branch: matchedVendor.Bank_Name,
+        };
+      }
+    }
+
+
+    const approvedPayments = await payRequestModells.aggregate([
+      { $match: { po_number, approved: "Approved" } },
+      {
+        $group: {
+          _id: "$po_number",
+          totalAdvancePaid: { $sum: { $toDouble: "$amount_paid" } },
+        },
+      },
+    ]);
+    const totalAdvancePaid =
+      approvedPayments.length > 0 ? approvedPayments[0].totalAdvancePaid : 0;
+
+    const po_balance = po_value - totalAdvancePaid;
+
+    return res.status(200).json({
+      p_id:selectedPo.p_id,
+      po_number: selectedPo.po_number,
+      po_value,
+      vendor: selectedPo.vendor,
+      item: itemName,
+      total_advance_paid: totalAdvancePaid,
+      po_balance,
+      ...vendorDetails,
+    });
+  } catch (err) {
+    console.error("Error fetching purchase order:", err);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
+  }
+};
+
+const getallpoNumber = async function (req, res) {
+  try {
+    const po_numbers = await purchaseOrderModells.find();
+
+    res.status(200).json({ msg: "All Po-Numbers", data: po_numbers });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ msg: "Internal Server Error", error: error.message });
   }
 };
 
@@ -1360,42 +1509,15 @@ const deletePO = async function (req, res) {
       return res.status(404).json({ msg: "PO not found" });
     }
 
-    const poNumber = data.po_number?.toString()?.trim();
-    if (!poNumber) {
-      return res.status(200).json({
-        msg: "PO deleted from DB, but no po_number found for CSV removal.",
-        data,
-      });
-    }
-
-    const filePath = path.join(__dirname, "..", "data", "po_old.csv");
-    const rows = [];
-
-    fs.createReadStream(filePath)
-      .pipe(csvParser())
-      .on("data", (row) => {
-        if (row.po_number?.trim() !== poNumber) {
-          rows.push(row);
-        }
-      })
-      .on("end", () => {
-        const json2csv = new Parser({ fields: Object.keys(rows[0] || {}) });
-        const csv = json2csv.parse(rows);
-        fs.writeFileSync(filePath, csv, "utf8");
-
-        return res
-          .status(200)
-          .json({ msg: "PO deleted from DB and CSV", data });
-      })
-      .on("error", (err) => {
-        console.error("Error reading CSV:", err);
-        res.status(500).json({
-          msg: "PO deleted from DB, but error reading CSV",
-          error: err.message,
-        });
-      });
+    return res.status(200).json({
+      msg: "PO deleted successfully",
+      data,
+    });
   } catch (error) {
-    res.status(400).json({ msg: "Server error", error: error.message });
+    return res.status(500).json({
+      msg: "Server error while deleting PO",
+      error: error.message,
+    });
   }
 };
 
@@ -1442,7 +1564,7 @@ const updateEditandDeliveryDate = async (req, res) => {
 
 const updateStatusPO = async (req, res) => {
   try {
-    const { status, remarks, id } = req.body;
+    const { status, remarks, id, new_po_number } = req.body;
     if (!id) return res.status(404).json({ message: "ID is required" });
     if (!status && !remarks)
       return res
@@ -1457,7 +1579,7 @@ const updateStatusPO = async (req, res) => {
     const purchaseOrder = await purchaseOrderModells.findOne({ $or: query });
     if (!purchaseOrder)
       return res.status(404).json({ message: "Purchase Order not found" });
-
+    
     purchaseOrder.status_history.push({
       status,
       remarks,
@@ -1465,6 +1587,10 @@ const updateStatusPO = async (req, res) => {
     });
     if (status === "material_ready") {
       purchaseOrder.material_ready_date = new Date();
+    }
+
+    if(new_po_number){
+      purchaseOrder.po_number = new_po_number;
     }
 
     if (status === "ready_to_dispatch") {
@@ -1725,7 +1851,9 @@ module.exports = {
   exportCSV,
   moverecovery,
   getPOByPONumber,
+  getallpoNumber,
   getPOById,
+  getallpodetail,
   deletePO,
   getpohistory,
   getPOHistoryById,

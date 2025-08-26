@@ -374,7 +374,7 @@ const exportToCsv = async (req, res) => {
 
     const tasks = await tasksModells
       .find({ _id: { $in: ids } })
-      .populate("project_id", "name")
+      .populate("project_id", "code name")
       .populate("assigned_to", "name")
       .populate("createdBy", "name")
       .populate("current_status.user_id", "name")
@@ -398,7 +398,8 @@ const exportToCsv = async (req, res) => {
           ? new Date(task.deadline).toLocaleDateString("en-GB")
           : "N/A",
         Project: task.project_id?.[0]?.name || "N/A",
-        AssignedTo:
+        "Project Code": task.project_id?.[0]?.code || "N/A",
+         AssignedTo:
           task.assigned_to?.map((user) => user.name).join(", ") || "N/A",
         Priority: task.priority,
         StatusHistory: statusHistory || "N/A",

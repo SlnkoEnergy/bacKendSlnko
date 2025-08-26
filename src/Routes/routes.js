@@ -3,7 +3,6 @@ const jwtMW = require("../middlewares/auth");
 const {
   addMoney,
   getCreditAmount,
-  getAllBill,
   allbill,
   credit_amount,
   deletecredit,
@@ -47,6 +46,7 @@ const {
   getPOByPONumber,
   getPOById,
   deletePO,
+  getallpodetail,
   getpohistory,
   getPOHistoryById,
   updateEditandDeliveryDate,
@@ -64,7 +64,6 @@ const {
 const { additem, getItem } = require("../Controllers/itemController");
 const {
   payRrequest,
-  holdpay,
   getPaySummary,
   account_matched,
   utrUpdate,
@@ -104,7 +103,8 @@ const {
   deleteBill,
   bill_approved,
   exportBills,
-} = require("../Controllers/billController");
+  getAllBill,
+} = require("../Controllers/bill.controller");
 const {
   subtractmoney,
   getsubtractMoney,
@@ -436,6 +436,12 @@ router.get(
   jwtMW.authorization,
   getPOById
 );
+router.get(
+  "/get-po-detail",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getallpodetail
+);
 router.delete(
   "/delete-pO-IT/:_id",
   jwtMW.authentication,
@@ -517,12 +523,6 @@ router.post(
   jwtMW.authentication,
   jwtMW.authorization,
   payRrequest
-);
-router.post(
-  "/hold-paymenT-IT",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  holdpay
 );
 router.get(
   "/get-pay-summarY-IT",
@@ -669,6 +669,7 @@ router.get(
   jwtMW.authorization,
   getPaginatedBill
 );
+router.get('/bill', jwtMW.authentication, getAllBill);
 router.get(
   "/get-bill-by-id",
   jwtMW.authentication,

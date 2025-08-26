@@ -57,7 +57,6 @@ const getAllMaterials = async function (req, res) {
 
     let filter = {};
 
-    // ✅ Parse categories from query param (comma separated string -> array)
     let categories = [];
     if (category) {
       categories = category.split(",").map((id) => id.trim());
@@ -79,7 +78,7 @@ const getAllMaterials = async function (req, res) {
         { category: { $in: matchingCategories.map((cat) => cat._id) } },
       ];
 
-      // keep category filter intact if already applied
+        
       if (categories.length > 0) {
         filter.$or.push({ category: { $in: categories } });
       }
