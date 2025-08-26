@@ -119,6 +119,7 @@ const purchaseOrderSchema = new mongoose.Schema(
             "out_for_delivery",
             "ready_to_dispatch",
             "delivered",
+            "partially_delivered"
           ],
         },
         remarks: {
@@ -142,6 +143,7 @@ const purchaseOrderSchema = new mongoose.Schema(
           "out_for_delivery",
           "ready_to_dispatch",
           "delivered",
+          "partially_delivered"
         ],
       },
       remarks: {

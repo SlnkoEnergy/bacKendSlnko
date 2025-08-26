@@ -238,8 +238,13 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
     po_number = String(po_number).trim();
   }
 
-  // Base aggregation
+  // Free-text search across po_no, vendor, bill_no, project_id
+  const rawSearch = (req.query.search ?? req.query.q ?? "").toString().trim();
+
+  const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
   const pipeline = [
+    // Join PO basics
     {
       $lookup: {
         from: "purchaseorders",
@@ -249,21 +254,23 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
       },
     },
     { $unwind: { path: "$po", preserveNullAndEmptyArrays: true } },
+
+    // Normalize item -> array, unwind items (so we can attach category names)
     {
       $addFields: {
         _wasItemArray: { $isArray: "$item" },
         item: {
-          $cond: {
-            if: { $isArray: "$item" },
-            then: "$item",
-            else: [{ $ifNull: ["$item", null] }],
-          },
+          $cond: [
+            { $isArray: "$item" },
+            "$item",
+            [{ $ifNull: ["$item", null] }],
+          ],
         },
       },
     },
     { $unwind: { path: "$item", preserveNullAndEmptyArrays: true } },
 
-    // Category name lookup for each item
+    // Attach category name to each item
     {
       $lookup: {
         from: "materialcategories",
@@ -283,7 +290,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
       },
     },
 
-    // Re-group items back
+    // Re-group back to one bill doc
     {
       $group: {
         _id: "$_id",
@@ -299,14 +306,21 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
         "doc.item": {
           $cond: [
             "$doc._wasItemArray",
-            "$items",
-            { $arrayElemAt: ["$items", 0] },
+            "$items", // keep array if originally array
+            { $arrayElemAt: ["$items", 0] }, // back to single item if originally single
           ],
         },
       },
     },
-    { $replaceRoot: { newRoot: "$doc" } },
 
+    // SAFETY: keep current doc if "doc" is missing to avoid 'newRoot missing'
+    {
+      $replaceRoot: {
+        newRoot: { $ifNull: ["$doc", "$$ROOT"] },
+      },
+    },
+
+    // Cast numeric fields for po totals
     {
       $addFields: {
         __po_value_num: { $toDouble: { $ifNull: ["$po.po_value", 0] } },
@@ -314,6 +328,32 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
       },
     },
 
+    // Populate approved_by -> users.name (fallbacks supported)
+    {
+      $lookup: {
+        from: "users",
+        localField: "approved_by", // bill.approved_by (ObjectId)
+        foreignField: "_id",
+        as: "approvedUser",
+      },
+    },
+    {
+      $addFields: {
+        approved_by_name: {
+          $ifNull: [
+            { $arrayElemAt: ["$approvedUser.name", 0] },
+            {
+              $ifNull: [
+                { $arrayElemAt: ["$approvedUser.full_name", 0] },
+                { $arrayElemAt: ["$approvedUser.username", 0] },
+              ],
+            },
+          ],
+        },
+      },
+    },
+
+    // Flatten fields for output & filtering
     {
       $addFields: {
         project_id: "$po.p_id",
@@ -335,6 +375,8 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
         created_on: "$createdAt",
       },
     },
+
+    // Final shape (add fields here if you want to return them)
     {
       $project: {
         _id: 1,
@@ -350,25 +392,47 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
         po_status: 1,
         received: 1,
         created_on: 1,
+        approved_by: 1,       // keep original ObjectId
+        approved_by_name: 1,  // populated name
       },
     },
   ];
 
-  // ---- Optional filters (only when truly provided) ----
+  // ----- Filters -----
   const filters = [];
+
   if (status) {
     filters.push({ po_status: status });
   }
+
   if (po_number && po_number.length > 0) {
-    filters.push({ po_no: po_number }); // exact match
-    // If you want partial search:
-    // filters.push({ po_no: { $regex: po_number, $options: "i" } });
+    // exact match for param po_number (as you had)
+    filters.push({ po_no: po_number });
+    // If you prefer partial:
+    // filters.push({ po_no: { $regex: escapeRegExp(po_number), $options: "i" } });
   }
+
+  if (rawSearch) {
+    const tokens = rawSearch.split(/\s+/).filter(Boolean).slice(0, 6); // safety cap
+    const andOfOrs = tokens.map((t) => {
+      const rx = new RegExp(escapeRegExp(t), "i");
+      return {
+        $or: [
+          { po_no: rx },
+          { vendor: rx },
+          { bill_no: rx },
+          { project_id: rx },
+        ],
+      };
+    });
+    filters.push({ $and: andOfOrs });
+  }
+
   if (filters.length) {
     pipeline.push({ $match: { $and: filters } });
   }
 
-  // Sort + paginate
+  // ----- Sort + paginate + total -----
   pipeline.push(
     { $sort: { created_on: -1, _id: -1 } },
     {
@@ -569,7 +633,7 @@ const GetBillByID = catchAsyncError(async (req, res, next) => {
           date: "$poData.date",
           po_value: "$poData.po_value",
           vendor: "$poData.vendor",
-          total_billed: "$poData.total_billed"
+          total_billed: "$poData.total_billed",
         },
       },
     },
@@ -613,7 +677,10 @@ const bill_approved = catchAsyncError(async function (req, res, next) {
     return next(new ErrorHandler("No bill found", 404));
   }
 
-  if (existingBill.approved_by !== undefined && existingBill.approved_by !== null) {
+  if (
+    existingBill.approved_by !== undefined &&
+    existingBill.approved_by !== null
+  ) {
     return next(
       new ErrorHandler(
         "Bill is already approved and cannot be updated to an empty string.",
