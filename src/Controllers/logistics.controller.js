@@ -6,7 +6,7 @@ const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
-
+const updateStatus = require("../utils/updatestatus.utils");
 const getParamId = (req) => req.params.id || req.params._id || req.body.id;
 const isId = (v) => mongoose.Types.ObjectId.isValid(v);
 const toObjectId = (v) => (isId(v) ? new mongoose.Types.ObjectId(v) : null);
@@ -268,29 +268,93 @@ const createLogistic = async (req, res) => {
 const getAllLogistics = async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const pageSize = Math.max(
-      1,
-      Math.min(200, parseInt(req.query.pageSize, 10) || 50)
-    );
+    const pageSize = Math.max(1, Math.min(200, parseInt(req.query.pageSize, 10) || 50));
+
     const search = (req.query.search || "").trim();
     const status = (req.query.status || "").trim();
     const poId = (req.query.po_id || "").trim();
 
-    const filter = {};
+    // -------- normalize po_number (single or CSV) ----------
+    const isBlankish = (v) => {
+      if (v == null) return true;
+      const s = String(v).trim().toLowerCase();
+      return !s || s === "undefined" || s === "null";
+    };
+
+    const rawPoNumberQ = req.query.po_number; // could be undefined | string | string[]
+    let poNumbers = [];
+    if (!isBlankish(rawPoNumberQ)) {
+      if (Array.isArray(rawPoNumberQ)) {
+        poNumbers = rawPoNumberQ
+          .flatMap((s) => String(s).split(","))
+          .map((s) => s.trim())
+          .filter((s) => s && s.toLowerCase() !== "undefined" && s.toLowerCase() !== "null");
+      } else {
+        poNumbers = String(rawPoNumberQ)
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s && s.toLowerCase() !== "undefined" && s.toLowerCase() !== "null");
+      }
+    }
+    // -------------------------------------------------------
+
+    // Build filter with ANDed clauses so we don't clobber $or from search
+    const andClauses = [];
+
     if (search) {
-      filter.$or = [
-        { logistic_code: { $regex: search, $options: "i" } },
-        { vehicle_number: { $regex: search, $options: "i" } },
-        { driver_number: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-      ];
+      andClauses.push({
+        $or: [
+          { logistic_code:  { $regex: search, $options: "i" } },
+          { vehicle_number: { $regex: search, $options: "i" } },
+          { driver_number:  { $regex: search, $options: "i" } },
+          { description:    { $regex: search, $options: "i" } },
+        ],
+      });
     }
+
     if (status) {
-      filter["current_status.status"] = status;
+      andClauses.push({ "current_status.status": status });
     }
-    if (poId && isId(poId)) {
-      filter.po_id = toObjectId(poId);
+
+    // Collect PO ids from po_id and from po_number(s)
+    const poIdList = [];
+    if (poId && isId(poId)) poIdList.push(toObjectId(poId));
+
+    if (poNumbers.length) {
+      const pos = await purchaseOrderModells
+        .find({ po_number: { $in: poNumbers } })
+        .select("_id po_number")
+        .lean();
+
+      if (pos.length === 0) {
+        // IMPORTANT: only short-circuit when po_number WAS actually provided and none matched.
+        return res.status(200).json({
+          message: "Logistics fetched successfully",
+          meta: { total: 0, page, pageSize, count: 0 },
+          data: [],
+        });
+      }
+
+      poIdList.push(...pos.map((p) => p._id));
     }
+
+    if (poIdList.length) {
+      // Match both ObjectId and string forms; also match items.material_po
+      const objectIds = poIdList.map((id) => toObjectId(id));
+      const stringIds = objectIds.map(String);
+
+      andClauses.push({
+        $or: [
+          { po_id: { $in: objectIds } },
+          { po_id: { $in: stringIds } },
+          { "items.material_po": { $in: objectIds } },
+          { "items.material_po": { $in: stringIds } },
+        ],
+      });
+    }
+
+    // If NO po_number (or blankish) and NO po_id and NO other filters, this stays {}, returning ALL data
+    const filter = andClauses.length ? { $and: andClauses } : {};
 
     const [total, raw] = await Promise.all([
       Logistic.countDocuments(filter),
@@ -312,11 +376,8 @@ const getAllLogistics = async (req, res) => {
             "createdAt",
           ].join(" ")
         )
-
         .populate("po_id", "po_number vendor po_value p_id")
-
         .populate("items.material_po", "po_number vendor p_id items")
-
         .populate({ path: "items.category_id", select: "name category_name" })
         .populate("created_by", "_id name")
         .sort({ createdAt: -1 })
@@ -326,47 +387,39 @@ const getAllLogistics = async (req, res) => {
     ]);
 
     const logistics = raw.map((doc) => {
+      // Normalize po_id to an array for aggregation
+      const poArr = Array.isArray(doc.po_id) ? doc.po_id : (doc.po_id ? [doc.po_id] : []);
+
       const vendorList = Array.from(
         new Set(
-          (Array.isArray(doc.po_id) ? doc.po_id : [])
+          poArr
             .map((p) => (p && typeof p === "object" ? p.vendor : null))
             .filter(Boolean)
         )
       );
 
-      const transportValueSum = (
-        Array.isArray(doc.po_id) ? doc.po_id : []
-      ).reduce((acc, p) => acc + (parseFloat(p?.po_value) || 0), 0);
+      const transportValueSum = poArr.reduce(
+        (acc, p) => acc + (parseFloat(p?.po_value) || 0),
+        0
+      );
 
       return {
         ...doc,
         vendor: vendorList[0] || null,
         transport_vendors: vendorList,
-        transport_po_value_sum: Number.isFinite(transportValueSum)
-          ? transportValueSum
-          : null,
-
+        transport_po_value_sum: Number.isFinite(transportValueSum) ? transportValueSum : null,
         items: (doc.items || []).map((it) => ({
           ...it,
-          category_name:
-            it?.category_id?.category_name ?? it?.category_id?.name ?? null,
+          category_name: it?.category_id?.category_name ?? it?.category_id?.name ?? null,
           vendor:
-            (it?.material_po && typeof it.material_po === "object"
-              ? it.material_po.vendor
-              : null) ||
+            (it?.material_po && typeof it.material_po === "object" ? it.material_po.vendor : null) ||
             vendorList[0] ||
             null,
-
           uom: resolveUomFromPO(it),
-
           po_number:
-            (it?.material_po && typeof it.material_po === "object"
-              ? it.material_po.po_number
-              : it?.po_number) || null,
+            (it?.material_po && typeof it.material_po === "object" ? it.material_po.po_number : it?.po_number) || null,
           project_id:
-            (it?.material_po && typeof it.material_po === "object"
-              ? it.material_po.p_id
-              : it?.project_id) || null,
+            (it?.material_po && typeof it.material_po === "object" ? it.material_po.p_id : it?.project_id) || null,
         })),
       };
     });
@@ -378,11 +431,10 @@ const getAllLogistics = async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching logistics:", err);
-    return res
-      .status(500)
-      .json({ message: "Failed to fetch logistics", error: err.message });
+    return res.status(500).json({ message: "Failed to fetch logistics", error: err.message });
   }
 };
+
 
 /* ---------------- get by id ---------------- */
 const getLogisticById = async (req, res) => {
@@ -594,7 +646,7 @@ const deleteLogistic = async (req, res) => {
 const updateLogisticStatus = async (req, res) => {
   try {
     const id = getParamId(req);
-    const { status, remarks, dispatch_date } = req.body;
+    const { status, remarks = "", dispatch_date } = req.body;
     const userId = req.user?.userId || null;
 
     if (!id || !isId(id)) {
@@ -607,31 +659,36 @@ const updateLogisticStatus = async (req, res) => {
       return res.status(400).json({ message: "Invalid status" });
     }
 
-    const doc = await Logistic.findById(id).lean();
+    // 1) Load the document (NOT lean)
+    const doc = await Logistic.findById(id);
     if (!doc) return res.status(404).json({ message: "Logistic not found" });
 
-    const now = new Date();
-    const $set = {
-      current_status: { status, remarks, user_id: userId },
-    };
-    const $push = {
-      status_history: { status, remarks, user_id: userId },
-    };
+    // 2) Push to history (like your Tasks controller)
+    if (!Array.isArray(doc.status_history)) doc.status_history = [];
+    doc.status_history.push({ status, remarks, user_id: userId });
 
+    // 3) Apply date side-effects
+    const now = new Date();
     if (status === "ready_to_dispatch") {
-      if (dispatch_date) $set.dispatch_date = new Date(dispatch_date);
-      else if (!doc.dispatch_date) $set.dispatch_date = now;
+      doc.dispatch_date = dispatch_date
+        ? new Date(dispatch_date)
+        : (doc.dispatch_date || now);
     }
     if (status === "out_for_delivery") {
-      if (!doc.dispatch_date) $set.dispatch_date = now;
+      if (!doc.dispatch_date) doc.dispatch_date = now;
     }
     if (status === "delivered") {
-      if (!doc.dispatch_date) $set.dispatch_date = now;
-      if (!doc.delivery_date) $set.delivery_date = now;
+      if (!doc.dispatch_date) doc.dispatch_date = now;
+      if (!doc.delivery_date) doc.delivery_date = now;
     }
 
-    await Logistic.updateOne({ _id: id }, { $set, $push });
+    // 4) Let your util compute current_status from the history (default = ready_to_dispatch)
+    updateStatus(doc, "ready_to_dispatch");
 
+    // 5) Save
+    await doc.save();
+
+    // 6) Re-fetch populated for response
     const fresh = await Logistic.findById(id)
       .select(
         "logistic_code total_transport_po_value vehicle_number driver_number total_ton current_status status_history dispatch_date delivery_date po_id items"
@@ -641,6 +698,10 @@ const updateLogisticStatus = async (req, res) => {
       .populate({ path: "items.category_id", select: "name category_name" })
       .lean();
 
+    // Compute current_status on the lean object for the API response
+    updateStatus(fresh, "ready_to_dispatch");
+
+    // 7) If delivered, recalc impacted POs
     if (status === "delivered") {
       const affectedPoIds = new Set(
         (fresh.items || [])
@@ -663,6 +724,7 @@ const updateLogisticStatus = async (req, res) => {
       );
     }
 
+    // 8) Enrich response (unchanged)
     const vendorList = Array.from(
       new Set(
         (Array.isArray(fresh?.po_id) ? fresh.po_id : [])
@@ -692,16 +754,15 @@ const updateLogisticStatus = async (req, res) => {
           : null,
     }));
 
-    const responseData = {
-      ...fresh,
-      vendor: vendorList[0] || null,
-      transport_vendors: vendorList,
-      items: enrichedItems,
-    };
-
-    return res
-      .status(200)
-      .json({ message: "Status updated", data: responseData });
+    return res.status(200).json({
+      message: "Status updated",
+      data: {
+        ...fresh,
+        vendor: vendorList[0] || null,
+        transport_vendors: vendorList,
+        items: enrichedItems,
+      },
+    });
   } catch (err) {
     console.error("updateLogisticStatus error:", err);
     return res

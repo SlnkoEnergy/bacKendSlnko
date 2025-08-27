@@ -98,23 +98,28 @@ const purchaseOrderSchema = new mongoose.Schema(
     dispatch_date: {
       type: Date,
     },
+    material_ready_date: {
+      type: Date,
+    },
     total_billed: {
       type: String,
+
       default: "0",
     },
     delivery_type: {
       type: String,
       enum: ["afor", "slnko", "client"],
     },
+
     attachments: [
       {
         attachment_url: {
           type: String,
         },
-        attachment_name:{
-          type: String
-        }
-      }
+        attachment_name: {
+          type: String,
+        },
+      },
     ],
     status_history: [
       {
