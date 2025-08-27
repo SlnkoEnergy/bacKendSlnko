@@ -17,9 +17,9 @@ const purchaseOrderSchema = new mongoose.Schema(
     date: {
       type: String,
     },
-    total_bills:{
+    total_bills: {
       type: Number,
-      default: 0
+      default: 0,
     },
     item: [
       {
@@ -106,6 +106,16 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
       enum: ["afor", "slnko", "client"],
     },
+    attachments: [
+      {
+        attachment_url: {
+          type: String,
+        },
+        attachment_name:{
+          type: String
+        }
+      }
+    ],
     status_history: [
       {
         status: {

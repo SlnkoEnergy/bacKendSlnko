@@ -25,8 +25,8 @@ const inspectionSchema = new mongoose.Schema(
     description: {
       type: String,
     },
-    date:{
-        type: Date
+    date: {
+      type: Date,
     },
     vendor_mobile: {
       type: String,
@@ -46,8 +46,8 @@ const inspectionSchema = new mongoose.Schema(
         product_make: {
           type: String,
         },
-        quantity:{
-            type: String
+        quantity: {
+          type: String,
         },
       },
     ],
@@ -72,6 +72,13 @@ const inspectionSchema = new mongoose.Schema(
           type: Date,
           default: Date.now,
         },
+        attachments: [
+          {
+            attachment_url: {
+              type: String,
+            },
+          },
+        ],
       },
     ],
     current_status: {
@@ -85,7 +92,7 @@ const inspectionSchema = new mongoose.Schema(
       user_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-      },
+      }
     },
   },
   { timestamps: true }
@@ -93,5 +100,6 @@ const inspectionSchema = new mongoose.Schema(
 
 inspectionSchema.pre("save", function (next) {
   updateStatus(this, "requested");
+  next();
 });
 module.exports = mongoose.model("inspection", inspectionSchema);

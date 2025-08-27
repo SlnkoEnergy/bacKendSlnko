@@ -1,11 +1,15 @@
 // controllers/inspection.controller.js
-const { catchAsyncError } = require("../middlewares/catchasyncerror.middleware");
+const {
+  catchAsyncError,
+} = require("../middlewares/catchasyncerror.middleware");
 const Inspection = require("../Modells/inspection.model");
-const ErrorHandler = require("../middlewares/error.middleware")
+const ErrorHandler = require("../middlewares/error.middleware");
+const axios = require("axios");
+const FormData = require("form-data");
+const sharp = require("sharp");
+const mime = require("mime-types");
 
-// CREATE
-// controller
-const createInspection = catchAsyncError(async (req, res) => {
+const createInspection = catchAsyncError(async (req, res, next) => {
   const userId = req.user?.userId;
   const b = req.body || {};
 
@@ -15,8 +19,8 @@ const createInspection = catchAsyncError(async (req, res) => {
     const ins = b.inspection || {};
 
     doc = {
-      project_code:  b.project_code,
-      dept_category: b.dept_category, 
+      project_code: b.project_code,
+      dept_category: b.dept_category,
       vendor: b.vendor,
       vendor_contact: ins.contact_person || "",
       vendor_mobile: ins.contact_mobile || "",
@@ -25,7 +29,8 @@ const createInspection = catchAsyncError(async (req, res) => {
       description: ins.notes || b.description || "",
       date: ins.datetime || b.date || undefined,
       item: items.map((it) => ({
-        category_id: it.category_id || it.category || it.productCategoryId || undefined,
+        category_id:
+          it.category_id || it.productCategoryId || it._id || undefined,
         product_name: it.product_name || it.productName || "",
         description: it.description || it.briefDescription || "",
         product_make: it.product_make || it.make || "",
@@ -36,65 +41,280 @@ const createInspection = catchAsyncError(async (req, res) => {
   } else {
     doc = { ...b, created_by: userId };
   }
-
   const inspection = new Inspection(doc);
   const saved = await inspection.save();
   res.status(201).json(saved);
 });
 
-
-
 const getAllInspections = catchAsyncError(async (req, res) => {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const sortBy = req.query.sortBy || "createdAt";
-    const order = req.query.order === "desc" ? -1 : 1;
-    const search = req.query.search || "";
+  const page = Number.parseInt(req.query.page, 10) || 1;
+  const limit = Number.parseInt(req.query.limit, 10) || 10;
+  const sortBy = req.query.sortBy || "createdAt";
+  const order = req.query.order === "asc" ? 1 : -1;
 
-    // Build search filter
-    const searchFilter = {
-      $or: [
-        { vendor: { $regex: search, $options: "i" } },
-        { vendor_contact: { $regex: search, $options: "i" } },
-        { dept_category: { $regex: search, $options: "i" } },
-      ],
-    };
+  const search = (req.query.search || "").trim();
 
-    const inspections = await Inspection.find(searchFilter)
-      .populate("project_id created_by current_status.user_id")
-      .sort({ [sortBy]: order })
-      .skip((page - 1) * limit)
-      .limit(limit);
+  // Optional date range (inclusive)
+  const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
+  const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+  if (endDate) endDate.setHours(23, 59, 59, 999);
 
-    const total = await Inspection.countDocuments(searchFilter);
+  // ----- Pipeline build -----
+  const pipeline = [];
 
-    res.json({
-      data: inspections,
-      pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
+  // 1) Date filter first (cheap, uses index if present)
+  const matchDate = {};
+  if (startDate || endDate) {
+    matchDate["date"] = {};
+    if (startDate) matchDate["date"].$gte = startDate;
+    if (endDate) matchDate["date"].$lte = endDate;
+  }
+  if (Object.keys(matchDate).length) pipeline.push({ $match: matchDate });
+
+  // 2) Lookup categories for ANY item.category_id (array supported)
+  pipeline.push({
+    $lookup: {
+      from: "materialcategories",
+      localField: "item.category_id",
+      foreignField: "_id",
+      as: "categories",
+    },
+  });
+
+  // 3) Search filter (uses categories.name now available)
+  if (search) {
+    const regex = new RegExp(search, "i");
+    pipeline.push({
+      $match: {
+        $or: [
+          { project_code: { $regex: regex } },
+          { vendor: { $regex: regex } },
+          { "categories.name": { $regex: regex } }, // ✅ search by category name
+        ],
       },
     });
-  
+  }
+
+  // 4) Facet for total + paged data
+  const sortStage = { $sort: { [sortBy]: order } };
+  const skipStage = { $skip: (page - 1) * limit };
+  const limitStage = { $limit: limit };
+
+  pipeline.push({
+    $facet: {
+      data: [
+        sortStage,
+        skipStage,
+        limitStage,
+
+        // created_by populate
+        {
+          $lookup: {
+            from: "users",
+            localField: "created_by",
+            foreignField: "_id",
+            as: "created_by_doc",
+          },
+        },
+        {
+          $unwind: {
+            path: "$created_by_doc",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+
+        // current_status.user_id populate
+        {
+          $lookup: {
+            from: "users",
+            localField: "current_status.user_id",
+            foreignField: "_id",
+            as: "current_status_user_doc",
+          },
+        },
+        {
+          $unwind: {
+            path: "$current_status_user_doc",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+
+        // Enrich each item with its category document (replaces category_id with doc)
+        {
+          $addFields: {
+            item: {
+              $map: {
+                input: "$item",
+                as: "it",
+                in: {
+                  $mergeObjects: [
+                    "$$it",
+                    {
+                      // Keep original ObjectId (optional)
+                      category_oid: "$$it.category_id",
+                      // Replace category_id with the matched doc
+                      category_id: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: "$categories",
+                              as: "cat",
+                              cond: { $eq: ["$$cat._id", "$$it.category_id"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+            "current_status.user_doc": "$current_status_user_doc",
+          },
+        },
+      ],
+      totalCount: [{ $count: "count" }],
+    },
+  });
+
+  // 5) Execute aggregation
+  const agg = await Inspection.aggregate(pipeline);
+
+  const docs = agg?.[0]?.data || [];
+  const total = agg?.[0]?.totalCount?.[0]?.count || 0;
+
+  res.json({
+    data: docs,
+    pagination: {
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+    },
+  });
 });
 
+const updateStatusInspection = catchAsyncError(async (req, res, next) => {
+  try {
+    const { status, remarks } = req.body;
+    const { id } = req.params;
+
+    const inspection = await Inspection.findById(id).populate(
+      "item.category_id",
+      "name"
+    );
+    if (!inspection) return next(new ErrorHandler("Inspection Not Found", 404));
+
+    const projectCode = (inspection.project_code || "unknown_project").replace(
+      /[/\\]/g,
+      "_"
+    );
+    const firstItem = Array.isArray(inspection.item)
+      ? inspection.item[0]
+      : null;
+    const categoryName = (
+      firstItem?.category_id?.name || "unknown_category"
+    ).replace(/[/\\]/g, "_");
+
+    const folderPath = `inspection/${projectCode}/${categoryName}`.replace(
+      / /g,
+      "_"
+    );
+
+    // Upload files (if any)
+    const uploadedAttachmentObjs = [];
+
+    for (const file of req.files || []) {
+      const mimeType =
+        mime.lookup(file.originalname) ||
+        file.mimetype ||
+        "application/octet-stream";
+      let buffer = file.buffer;
+
+      // Compress images
+      if (mimeType.startsWith("image/")) {
+        const ext = mime.extension(mimeType);
+        if (ext === "jpeg" || ext === "jpg") {
+          buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+        } else if (ext === "png") {
+          buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
+        } else if (ext === "webp") {
+          buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
+        } else {
+          buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+        }
+      }
+
+      // Upload to blob storage
+      const form = new FormData();
+      form.append("file", buffer, {
+        filename: file.originalname,
+        contentType: mimeType,
+      });
+
+      const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${folderPath}`;
+      const response = await axios.post(uploadUrl, form, {
+        headers: form.getHeaders(),
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+
+      const respData = response.data;
+      const url =
+        (Array.isArray(respData) && respData[0]) ||
+        respData?.url ||
+        respData?.fileUrl ||
+        respData?.data?.url ||
+        null;
+
+      if (url) {
+        uploadedAttachmentObjs.push({ attachment_url: url }); 
+      }
+    }
+
+    // Push status update (match schema fields)
+    inspection.status_history.push({
+      status,
+      remarks,
+      user_id: req.user.userId,
+      updatedAt: new Date(), 
+      attachments: uploadedAttachmentObjs,
+    });
+
+    await inspection.save();
+
+    res.status(200).json({
+      message: "Status Updated Successfully",
+      data: inspection,
+    });
+  } catch (error) {
+    console.error("Error updating inspection status:", error);
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message || String(error),
+    });
+  }
+});
 
 // READ ONE
 const getInspectionById = catchAsyncError(async (req, res) => {
-    const inspection = await Inspection.findById(req.params.id).populate("project_id created_by current_status.user_id");
-    if (!inspection) return next(new ErrorHandler("Not Found", 404));
-    res.json(inspection);
+  const inspection = await Inspection.findById(req.params.id)
+    .populate("created_by current_status.user_id")
+    .populate("item.category_id", "_id name")
+    .populate("status_history.user_id", "_id name")
+    .populate("current_status.user_id", "_id name")
+  if (!inspection) return next(new ErrorHandler("Not Found", 404));
+  res.json(inspection);
 });
 
 // UPDATE
 const updateInspection = catchAsyncError(async (req, res) => {
-    const updated = await Inspection.findByIdAndUpdate(req.params.id, req.body, {
-      new: true
-    });
-    if (!updated) return next(new ErrorHandler("Not Found", 404));
-    res.json(updated);
+  const updated = await Inspection.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+  });
+  if (!updated) return next(new ErrorHandler("Not Found", 404));
+  res.json(updated);
 });
 
 // DELETE
@@ -113,5 +333,6 @@ module.exports = {
   updateInspection,
   getInspectionById,
   getAllInspections,
-  deleteInspection
-}
+  deleteInspection,
+  updateStatusInspection,
+};
