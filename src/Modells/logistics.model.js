@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+const updateStatus = require("../utils/updatestatus.utils");
 const logisticSchema = new mongoose.Schema(
   {
     po_id: [
@@ -73,5 +73,9 @@ const logisticSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+logisticSchema.pre("save", function (next) {
+  updateStatus(this, "ready_to_dispatch"); 
+  next();                                   
+});
 
 module.exports = mongoose.model("Logistic", logisticSchema);
