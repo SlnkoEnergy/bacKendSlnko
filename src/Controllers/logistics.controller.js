@@ -460,6 +460,7 @@ const getLogisticById = async (req, res) => {
           "description",
           "created_by",
           "createdAt",
+          "attachment_url"
         ].join(" ")
       )
       .populate("po_id", "po_number vendor po_value p_id")
