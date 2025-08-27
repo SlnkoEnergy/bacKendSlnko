@@ -4,7 +4,7 @@ const PurchaseRequestCounter = require("../Modells/purchaserequestcounter.model"
 const Project = require("../Modells/project.model");
 const purchaseOrderModells = require("../Modells/purchaseorder.model");
 const materialCategoryModells = require("../Modells/materialcategory.model");
-const modulecategory = require("../Modells/modulecategory.model")
+const modulecategory = require("../Modells/modulecategory.model");
 const scopeModel = require("../Modells/scope.model");
 const axios = require("axios");
 const XLSX = require("xlsx");
@@ -91,12 +91,10 @@ const getAllPurchaseRequestByProjectId = async (req, res) => {
 
     res.status(200).json(enrichedRequests);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        error: "Failed to fetch purchase requests",
-        error: error.message,
-      });
+    res.status(500).json({
+      error: "Failed to fetch purchase requests",
+      error: error.message,
+    });
   }
 };
 
@@ -113,15 +111,28 @@ const getAllPurchaseRequest = async (req, res) => {
       createdTo = "",
       etdFrom = "",
       etdTo = "",
+      open_pr = false,
     } = req.query;
 
-    const skip = (page - 1) * limit;
+    const useOpenPR = open_pr === "true" || open_pr === true;
+    const numericLimit = Number(limit) || 10;
+    const numericPage = Number(page) || 1;
+    const skip = (numericPage - 1) * numericLimit;
 
     const searchRegex = new RegExp(search, "i");
     const itemSearchRegex = new RegExp(itemSearch, "i");
-    const poValueSearchNumber = Number(poValueSearch);
     const statusSearchRegex = new RegExp(statusSearch, "i");
+    const poValueSearchNumber =
+      poValueSearch !== "" ? Number(poValueSearch) : null;
 
+    // Robust way to reference the purchase orders collection used by your model
+    const PO_COLLECTION =
+      (global.purchaseOrderModells &&
+        purchaseOrderModells.collection &&
+        purchaseOrderModells.collection.name) ||
+      "purchaseorders";
+
+    // ---------- Base: join project, user, item/category; apply simple filters ----------
     const baseStages = [
       {
         $lookup: {
@@ -132,6 +143,7 @@ const getAllPurchaseRequest = async (req, res) => {
         },
       },
       { $unwind: { path: "$project_id", preserveNullAndEmptyArrays: true } },
+
       {
         $lookup: {
           from: "users",
@@ -141,12 +153,8 @@ const getAllPurchaseRequest = async (req, res) => {
         },
       },
       { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
-      {
-        $unwind: {
-          path: "$items",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
+
+      { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "materialcategories",
@@ -155,12 +163,8 @@ const getAllPurchaseRequest = async (req, res) => {
           as: "item_data",
         },
       },
-      {
-        $unwind: {
-          path: "$item_data",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
+      { $unwind: { path: "$item_data", preserveNullAndEmptyArrays: true } },
+
       ...(search
         ? [
             {
@@ -174,24 +178,15 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
+
       ...(itemSearch
-        ? [
-            {
-              $match: {
-                "item_data.name": itemSearchRegex,
-              },
-            },
-          ]
+        ? [{ $match: { "item_data.name": itemSearchRegex } }]
         : []),
+
       ...(statusSearch
-        ? [
-            {
-              $match: {
-                "items.status": statusSearchRegex,
-              },
-            },
-          ]
+        ? [{ $match: { "items.status": statusSearchRegex } }]
         : []),
+
       ...(createdFrom && createdTo
         ? [
             {
@@ -204,6 +199,8 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
+
+      // Shape back to one doc per PR
       {
         $project: {
           _id: 1,
@@ -216,10 +213,7 @@ const getAllPurchaseRequest = async (req, res) => {
             status: "$items.status",
             other_item_name: "$items.other_item_name",
             amount: "$items.amount",
-            item_id: {
-              _id: "$item_data._id",
-              name: "$item_data.name",
-            },
+            item_id: { _id: "$item_data._id", name: "$item_data.name" },
           },
         },
       },
@@ -244,89 +238,142 @@ const getAllPurchaseRequest = async (req, res) => {
               input: "$items",
               as: "it",
               cond: {
-                $and: [
-                  { $ne: ["$$it", null] },
-                  { $ne: ["$$it._id", null] },
-                ],
+                $and: [{ $ne: ["$$it", null] }, { $ne: ["$$it._id", null] }],
               },
             },
           },
         },
       },
+
+      // ---------- Lookup POs for each PR and compute fields in-pipeline ----------
+      {
+        $lookup: {
+          from: PO_COLLECTION,
+          let: { prId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$pr_id", "$$prId"] } } },
+            {
+              $project: {
+                po_number: 1,
+                po_value: {
+                  $cond: [
+                    { $ifNull: ["$po_value", false] },
+                    { $toDouble: "$po_value" },
+                    0,
+                  ],
+                },
+                etd: 1,
+              },
+            },
+          ],
+          as: "pos",
+        },
+      },
+      // validPos = POs with non-empty po_number; also compute po_numbers, po_details, po_value (sum)
+      {
+        $addFields: {
+          validPos: {
+            $filter: {
+              input: "$pos",
+              as: "p",
+              cond: {
+                $and: [
+                  { $ne: ["$$p.po_number", null] },
+                  { $ne: ["$$p.po_number", ""] },
+                ],
+              },
+            },
+          },
+          po_numbers: { $map: { input: "$pos", as: "p", in: "$$p.po_number" } },
+          po_details: {
+            $map: {
+              input: "$pos",
+              as: "p",
+              in: {
+                po_number: "$$p.po_number",
+                po_value: "$$p.po_value",
+                etd: "$$p.etd",
+              },
+            },
+          },
+          po_value: {
+            $sum: {
+              $map: {
+                input: "$pos",
+                as: "p",
+                in: "$$p.po_value",
+              },
+            },
+          },
+        },
+      },
+
+      // ---------- Open PR filter (before pagination) ----------
+      ...(useOpenPR
+        ? [{ $match: { $expr: { $eq: [{ $size: "$validPos" }, 0] } } }]
+        : []),
+
+      // ---------- PO-value filter (before pagination) ----------
+      ...(poValueSearchNumber !== null
+        ? [{ $match: { po_value: poValueSearchNumber } }]
+        : []),
+
+      // ---------- ETD range filter (any PO with etd in range) ----------
+      ...(etdFrom && etdTo
+        ? [
+            {
+              $match: {
+                $expr: {
+                  $gt: [
+                    {
+                      $size: {
+                        $filter: {
+                          input: "$pos",
+                          as: "p",
+                          cond: {
+                            $and: [
+                              { $ne: ["$$p.etd", null] },
+                              { $gte: ["$$p.etd", new Date(etdFrom)] },
+                              { $lte: ["$$p.etd", new Date(etdTo)] },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                    0,
+                  ],
+                },
+              },
+            },
+          ]
+        : []),
+
+      { $sort: { createdAt: -1 } },
     ];
 
-    const pipeline = [
-      ...baseStages,
-      { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: Number(limit) },
-    ];
+    // Count pipeline = same filters, but end with $count
     const countPipeline = [...baseStages, { $count: "totalCount" }];
 
-    let [requests, countResult] = await Promise.all([
-      PurchaseRequest.aggregate(pipeline),
+    // Paged pipeline = same filters, then skip/limit
+    const pagePipeline = [
+      ...baseStages,
+      { $skip: skip },
+      { $limit: numericLimit },
+    ];
+
+    const [pagedRows, countRows] = await Promise.all([
+      PurchaseRequest.aggregate(pagePipeline),
       PurchaseRequest.aggregate(countPipeline),
     ]);
 
-    let totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
+    const totalCount =
+      countRows && countRows.length > 0 ? countRows[0].totalCount : 0;
 
-    requests = await Promise.all(
-      requests.map(async (request) => {
-        // fetch all POs linked to this PR
-        const pos = await purchaseOrderModells.find({ pr_id: request._id });
-
-        const poDetails = pos.map((po) => ({
-          po_number: po.po_number,
-          po_value: Number(po.po_value || 0),
-          etd: po.etd ? new Date(po.etd) : null,
-        }));
-
-        const totalPoValueWithGst = poDetails.reduce(
-          (acc, po) => acc + po.po_value,
-          0
-        );
-
-        const singleItem = itemSearch
-          ? request.items?.[0] || null
-          : undefined;
-
-        return {
-          ...request,
-          ...(singleItem !== undefined ? { item: singleItem } : {}),
-          po_value: totalPoValueWithGst,
-          po_numbers: poDetails.map((p) => p.po_number) || [], // always present
-          po_details: poDetails || [], // always present
-        };
-      })
-    );
-
-    if (poValueSearch) {
-      requests = requests.filter(
-        (r) => Number(r.po_value) === poValueSearchNumber
-      );
-    }
-
-    if (etdFrom && etdTo) {
-      const etdStart = new Date(etdFrom);
-      const etdEnd = new Date(etdTo);
-      requests = requests.filter((r) =>
-        r.po_details.some((po) => {
-          if (!po.etd) return false;
-          const etdDate = new Date(po.etd);
-          return etdDate >= etdStart && etdDate <= etdEnd;
-        })
-      );
-    }
-
-    if (poValueSearch || (etdFrom && etdTo)) {
-      totalCount = requests.length;
-    }
-
-    res.status(200).json({
+    return res.status(200).json({
       totalCount,
-      currentPage: Number(page),
-      totalPages: Math.ceil(totalCount / limit),
-      data: requests,
+      currentPage: numericPage,
+      totalPages: Math.ceil(totalCount / numericLimit) || 1,
+      data: pagedRows,
     });
   } catch (error) {
     console.error(error);
@@ -336,7 +383,6 @@ const getAllPurchaseRequest = async (req, res) => {
     });
   }
 };
-
 
 const getPurchaseRequestById = async (req, res) => {
   try {
@@ -352,8 +398,8 @@ const getPurchaseRequestById = async (req, res) => {
         select: "name code site_address p_id",
       })
       .populate({
-        path:"created_by",
-        select:"_id name"
+        path: "created_by",
+        select: "_id name",
       })
       .populate({
         path: "items.item_id",
@@ -500,7 +546,6 @@ const getPurchaseRequest = async (req, res) => {
           _id: purchaseRequest.project_id?._id,
           name: purchaseRequest.project_id?.name,
           code: purchaseRequest.project_id?.code,
-          
         },
       },
       item: {
@@ -682,17 +727,16 @@ const getMaterialScope = async (req, res) => {
   }
 };
 
-
 async function fetchExcelFromBOQ(req, res) {
   try {
     const {
       project_id,
-      template_name,           
-      category,                 
-      category_column,          
-      sheet,                    
-      category_mode,           
-      category_logic,          
+      template_name,
+      category,
+      category_column,
+      sheet,
+      category_mode,
+      category_logic,
     } = req.query;
 
     if (!project_id || !mongoose.isValidObjectId(project_id)) {
@@ -706,11 +750,11 @@ async function fetchExcelFromBOQ(req, res) {
       Array.isArray(val)
         ? val
         : typeof val === "string"
-        ? val
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : [];
+          ? val
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
 
     // tokenize a cell by common separators: "/", ",", "&" (with spaces)
     const tokenizeCell = (cell) =>
@@ -731,13 +775,13 @@ async function fetchExcelFromBOQ(req, res) {
     // ---- category synonyms -------------------------------------------------
     // Canonical → aliases (all compared in normalized form)
     const EXPAND = {
-      "rms": ["rms", "wms"],
+      rms: ["rms", "wms"],
       "lt panel": ["acdb"],
       "ht panel": ["vcb"],
       "earthing & la": ["earthing", "la"],
       "meter box": ["ldb"],
       "class c": ["bos"],
-      "gss": ["pss end", "bay end ext.", "bay end ext"],
+      gss: ["pss end", "bay end ext.", "bay end ext"],
       "i&c": ["i&c", "cleaning", "civil"],
     };
 
@@ -760,9 +804,9 @@ async function fetchExcelFromBOQ(req, res) {
       "ht panel": "HT Panel",
       "earthing & la": "Earthing & LA",
       "meter box": "Meter Box",
-      "gss": "GSS",
+      gss: "GSS",
       "i&c": "I&C",
-      "rms": "RMS",
+      rms: "RMS",
     };
 
     const buildGroups = (inputs) =>
@@ -811,8 +855,7 @@ async function fetchExcelFromBOQ(req, res) {
     if (!fileUrl) {
       return res.status(404).json({
         message: "No current_attachment URL found for the matched BOQ item.",
-        hint:
-          "Ensure current_attachment is an array of file URLs and at least one exists.",
+        hint: "Ensure current_attachment is an array of file URLs and at least one exists.",
       });
     }
 
@@ -861,7 +904,7 @@ async function fetchExcelFromBOQ(req, res) {
     const groups = buildGroups(selectedInputs);
 
     const matchMode = (category_mode || "exact").toLowerCase();
-    const logic = (category_logic || "or").toLowerCase();        
+    const logic = (category_logic || "or").toLowerCase();
 
     let rows = allRows;
     if (groups.length > 0) {
@@ -873,7 +916,9 @@ async function fetchExcelFromBOQ(req, res) {
           const groupOk = groups.map((alts) =>
             alts.some((a) => cellNorm.includes(a))
           );
-          return logic === "and" ? groupOk.every(Boolean) : groupOk.some(Boolean);
+          return logic === "and"
+            ? groupOk.every(Boolean)
+            : groupOk.some(Boolean);
         }
         const tokens = tokenizeCell(cellRaw);
         const groupOk = groups.map((alts) =>
@@ -889,7 +934,10 @@ async function fetchExcelFromBOQ(req, res) {
       let canon = null;
       for (const t of tokens) {
         const c = REVERSE_EXPAND[norm(t)];
-        if (c) { canon = c; break; }
+        if (c) {
+          canon = c;
+          break;
+        }
       }
       if (!canon && matchMode === "contains") {
         const cellNorm = norm(String(raw));
@@ -900,9 +948,7 @@ async function fetchExcelFromBOQ(req, res) {
           }
         }
       }
-      const display = canon
-        ? (CANON_DISPLAY[norm(canon)] || canon)
-        : raw;
+      const display = canon ? CANON_DISPLAY[norm(canon)] || canon : raw;
 
       return {
         ...r,
@@ -951,7 +997,6 @@ async function fetchExcelFromBOQ(req, res) {
   }
 }
 
-
 module.exports = {
   CreatePurchaseRequest,
   getAllPurchaseRequest,
@@ -961,5 +1006,5 @@ module.exports = {
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
   getMaterialScope,
-  fetchExcelFromBOQ
+  fetchExcelFromBOQ,
 };
