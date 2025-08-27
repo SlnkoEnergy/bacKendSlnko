@@ -218,6 +218,7 @@ const getAllTasks = async (req, res) => {
           createdAt: 1,
           deadline: 1,
           priority: 1,
+          status_history:1,
           current_status: 1,
           project_details: {
             $map: {
