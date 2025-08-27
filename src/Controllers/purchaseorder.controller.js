@@ -10,9 +10,12 @@ const {
   getLowerPriorityStatus,
 } = require("../utils/updatePurchaseRequestStatus");
 const purchaseRequest = require("../Modells/purchaserequest.model");
-// const purchaseRequest = require("../Modells/PurchaseRequest/purchaseRequest");
 const payRequestModells = require("../Modells/payRequestModells");
 const vendorModells = require("../Modells/vendor.model");
+const axios = require("axios");
+const FormData = require("form-data");
+const sharp = require("sharp");
+const mime = require("mime-types");
 
 const addPo = async function (req, res) {
   try {
@@ -136,32 +139,103 @@ const editPO = async function (req, res) {
       return res.status(400).json({ msg: "invalid id" });
     }
 
+    // Get current PO
     const existing = await purchaseOrderModells.findById(id).lean();
     if (!existing) {
       return res.status(404).json({ msg: "PO not found" });
     }
 
     const currStatus = existing?.current_status?.status;
-    
-    const canEdit =
-      currStatus === "approval_pending" || currStatus === "approval_rejected";
+  
 
-    if (!canEdit) {
-      return res.status(409).json({
-        msg: "Editing not allowed unless status is approval_pending or approval_rejected",
-        current_status: currStatus,
-      });
-    }
+    const bodyData =
+      typeof req.body.data === "string"
+        ? JSON.parse(req.body.data)
+        : (req.body.data || req.body);
 
-    const payload = { ...req.body };
+    const payload = { ...bodyData };
 
-    // normalize items -> item (your schema expects item)
+    // normalize items -> item (your schema expects "item")
     if (Array.isArray(payload.items) && !Array.isArray(payload.item)) {
       payload.item = payload.items;
       delete payload.items;
     }
 
-    // Build atomic update
+    if ("attachments" in payload) {
+      delete payload.attachments;
+    }
+    const uploadedAttachments = []; 
+
+    if (req.files && req.files.length) {
+      const safePoNumber = String(existing.po_number || "").replace(/ /g, "_");
+      const folderPath = `SCM/PO/${safePoNumber}`;
+
+      for (const file of req.files) {
+        const attachment_name = file.originalname || "file";
+        const mimeType = mime.lookup(attachment_name) || file.mimetype || "application/octet-stream";
+        let buffer = file.buffer;
+
+        // Light compression for images
+        if (mimeType.startsWith("image/")) {
+          const ext = mime.extension(mimeType);
+          try {
+            if (ext === "jpeg" || ext === "jpg") {
+              buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+            } else if (ext === "png") {
+              buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
+            } else if (ext === "webp") {
+              buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
+            } else {
+              buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+            }
+          } catch (e) {
+            // If sharp fails, keep original buffer
+            console.warn("Image compression failed, using original buffer:", e?.message);
+          }
+        }
+
+        // Upload the file
+        const form = new FormData();
+        form.append("file", buffer, {
+          filename: attachment_name,
+          contentType: mimeType,
+        });
+
+        const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
+
+        let url = null;
+        try {
+          const response = await axios.post(uploadUrl, form, {
+            headers: form.getHeaders(),
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+          });
+
+          const respData = response.data;
+          // Common shapes you used in createExpense
+          url = Array.isArray(respData) && respData.length > 0
+            ? respData[0]
+            : respData.url ||
+              respData.fileUrl ||
+              (respData.data && respData.data.url) ||
+              null;
+
+        } catch (e) {
+          console.error("Upload failed for:", attachment_name, e?.message);
+        }
+
+        if (url) {
+          uploadedAttachments.push({
+            attachment_url: url,
+            attachment_name,
+          });
+        } else {
+          console.warn(`No URL found for uploaded file ${attachment_name}`);
+        }
+      }
+    }
+
+    // ===== Build atomic update =====
     const updateOps = {
       $set: { ...payload },
     };
@@ -171,20 +245,23 @@ const editPO = async function (req, res) {
         status_history: {
           status: "approval_pending",
           remarks: "",
-          user_id: req.user.userId
+          user_id: req.user.userId,
         },
       };
-
-      updateOps.$set["current_status.status"] = "approval_pending";
-      updateOps.$set["current_status.remarks"] = "";
-      updateOps.$set["current_status.user_id"] = req.user.userId;
     }
 
+    // If we have new attachments, push all using $each
+    if (uploadedAttachments.length) {
+      if (!updateOps.$push) updateOps.$push = {};
+      updateOps.$push.attachments = { $each: uploadedAttachments };
+    }
+
+    // Perform update
     const update = await purchaseOrderModells
       .findByIdAndUpdate(id, updateOps, { new: true })
       .lean();
 
-    // PO history snapshot
+    // ===== PO History snapshot (optional: include attachments snapshot) =====
     const pohistory = {
       po_number: update.po_number,
       offer_Id: update.offer_Id,
@@ -203,6 +280,8 @@ const editPO = async function (req, res) {
       updated_on: new Date().toISOString(),
       submitted_By: update.submitted_By,
       delivery_type: update.delivery_type,
+      // Capture attachments at the time of edit (optional)
+      attachments: update.attachments || [],
     };
 
     await pohisttoryModells.create(pohistory);
@@ -212,11 +291,13 @@ const editPO = async function (req, res) {
       data: update,
     });
   } catch (error) {
+    console.error("editPO error:", error);
     return res
       .status(500)
       .json({ msg: "Internal Server error", error: error.message });
   }
 };
+
 
 
 

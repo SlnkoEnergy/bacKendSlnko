@@ -385,6 +385,7 @@ router.put(
   "/edit-pO-IT/:_id",
   jwtMW.authentication,
   jwtMW.authorization,
+  upload,
   editPO
 );
 router.get("/get-pO-IT/:_id", jwtMW.authentication, jwtMW.authorization, getPO);
@@ -669,7 +670,7 @@ router.get(
   jwtMW.authorization,
   getPaginatedBill
 );
-router.get('/bill', jwtMW.authentication, getAllBill);
+router.get("/bill", jwtMW.authentication, getAllBill);
 router.get(
   "/get-bill-by-id",
   jwtMW.authentication,

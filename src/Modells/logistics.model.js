@@ -21,10 +21,8 @@ const logisticSchema = new mongoose.Schema(
     total_ton: { type: String, required: true },
     total_transport_po_value: { type: String, required: true },
     description: { type: String },
-   
     delivery_date: { type: Date },
     dispatch_date: { type: Date },
-
     status_history: [
       {
         status: {
@@ -77,5 +75,6 @@ logisticSchema.pre("save", function (next) {
   updateStatus(this, "ready_to_dispatch"); 
   next();                                   
 });
+
 
 module.exports = mongoose.model("Logistic", logisticSchema);
