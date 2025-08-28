@@ -436,7 +436,7 @@ const accApproved = async function (req, res) {
       if (
         currentStage === "CAM" &&
         role === "visitor" &&
-        (department === "Projects" || department === "Infra")
+        department === "Projects"
       ) {
         return { nextStage: "Account", approvedValue: "Pending" };
       }
