@@ -747,6 +747,9 @@ const getPaginatedPo = async (req, res) => {
         case "Delivered":
           matchStage["current_status.status"] = "delivered";
           break;
+          case "Short Quantity":
+          matchStage["current_status.status"] = "short_quantity";
+          break;
           case "Partially Delivered":
           matchStage["current_status.status"] = "partially_delivered";
           break;
