@@ -137,40 +137,34 @@ async function recalcPOFromReceipts(poId, userId, baseRemarks = "") {
     const ordered = toNum(line.quantity);
     if (ordered <= 0) continue;
 
-    // rows that belong to this PO line
     const rows = logRows.filter((r) => matchesPOLine(line, r));
 
     const requested = rows.reduce((acc, r) => acc + toNum(r.quantity_requested), 0);
-    const received = rows.reduce((acc, r) => acc + toNum(r.received_qty), 0);
+    const received  = rows.reduce((acc, r) => acc + toNum(r.received_qty), 0);
 
     if (requested > 0 || received > 0) anyActivity = true;
 
-    const eqOrderedRequested = approxEq(ordered, requested);
+    const eqOrderedRequested  = approxEq(ordered, requested);
     const eqRequestedReceived = approxEq(requested, received);
 
-    // 1) Delivered for this line: ordered == requested == received
-    if (eqOrderedRequested && eqRequestedReceived) {
-      // delivered line; keep allDelivered true
-      continue;
-    }
+    // delivered for this line: ordered == requested == received
+    if (eqOrderedRequested && eqRequestedReceived) continue;
 
-    allDelivered = false; // something differs for this line
+    allDelivered = false;
 
-    // 2) Partially delivered for this line:
-    //    ordered > requested AND requested == received
+    // partial: ordered > requested AND requested == received
     if (ordered > requested + EPS && eqRequestedReceived) {
       anyPartiallyDelivered = true;
       continue;
     }
 
-    // 3) Short quantity for this line:
-    //    ordered == requested AND received < requested
+    // short: ordered == requested AND received < requested
     if (eqOrderedRequested && received < requested - EPS) {
       anyShortQuantity = true;
       continue;
     }
 
-    // Fallbacks:
+    // fallbacks
     if (requested > received + EPS) {
       anyShortQuantity = true;
     } else if (requested > 0 && !eqOrderedRequested) {
@@ -178,33 +172,30 @@ async function recalcPOFromReceipts(poId, userId, baseRemarks = "") {
     }
   }
 
-  // ---- Final PO status across lines ----
+  // ---- Decide final PO status (no verbose remarks) ----
   let finalStatus = po.current_status?.status || "po_created";
-  let scopeRemark = "";
 
   if (allDelivered) {
     finalStatus = "delivered";
-    scopeRemark = "FULLY DELIVERED (all items received)";
     if (!po.delivery_date) po.delivery_date = new Date();
   } else if (anyShortQuantity) {
     finalStatus = "short_quantity";
-    scopeRemark =
-      "SHORT QUANTITY (ordered == requested but received < requested for at least one item)";
   } else if (anyPartiallyDelivered) {
     finalStatus = "partially_delivered";
-    scopeRemark =
-      "PARTIALLY DELIVERED (requested < ordered but all requested were received)";
   } else if (!anyActivity) {
-    // nothing requested/received yet -> leave conservative label
     finalStatus = "short_quantity";
-    scopeRemark = "SHORT QUANTITY (no receipts yet)";
-  } else {
-    scopeRemark = "UPDATED (no exact rule matched)";
   }
 
-  const combinedRemarks = [baseRemarks, scopeRemark].filter(Boolean).join(" | ");
+  // Build a concise remark that reflects the *computed* status
+  // and drops the long explanation entirely.
+  const normalizeRemark = (base, status) => {
+    if (!base) return `Auto update: ${status}`;
+    const i = base.lastIndexOf(":");
+    return i === -1 ? `${base} → ${status}` : `${base.slice(0, i + 1)} ${status}`;
+  };
+  const combinedRemarks = normalizeRemark(baseRemarks, finalStatus);
 
-  const sameStatus = po.current_status?.status === finalStatus;
+  const sameStatus  = po.current_status?.status  === finalStatus;
   const sameRemarks = (po.current_status?.remarks || "") === combinedRemarks;
 
   if (!sameStatus || !sameRemarks) {
@@ -222,6 +213,7 @@ async function recalcPOFromReceipts(poId, userId, baseRemarks = "") {
     await po.save();
   }
 }
+
 
 /* ------------------------------- controllers ------------------------------ */
 
