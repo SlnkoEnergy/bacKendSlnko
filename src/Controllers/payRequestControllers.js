@@ -8,7 +8,7 @@ const { get, default: mongoose } = require("mongoose");
 const exccelDataModells = require("../Modells/excelDataModells");
 const recoverypayrequest = require("../Modells/recoveryPayrequestModells");
 const subtractMoneyModells = require("../Modells/debitMoneyModells");
-const materialCategoryModells = require("../Modells/EngineeringModells/materials/materialCategoryModells");
+const materialCategoryModells = require("../Modells/materialcategory.model");
 const userModells = require("../Modells/users/userModells");
 const utrCounter = require("../Modells/Globals/utrCounter");
 
@@ -111,15 +111,12 @@ const payRrequest = async (req, res) => {
       } while (await payRequestModells.exists({ pay_id }));
     }
 
-    // ---------- initial stage & histories ----------
     const initialStage = credit?.credit_status ? "Credit Pending" : "Draft";
 
     const newPayment = new payRequestModells({
       p_id: Number(p_id) || project.p_id,
       pay_id,
       cr_id,
-
-      // payment body
       pay_type,
       amount_paid,
       // amt_for_customer,
@@ -372,7 +369,6 @@ const accApproved = async function (req, res) {
         .status(403)
         .json({ message: "Only managers or visitors can approve or reject" });
     }
-
     let ids = [];
 
     if (_id) {
@@ -440,7 +436,7 @@ const accApproved = async function (req, res) {
       if (
         currentStage === "CAM" &&
         role === "visitor" &&
-        (department === "Projects" || department === "Infra")
+        department === "Projects"
       ) {
         return { nextStage: "Account", approvedValue: "Pending" };
       }
@@ -480,7 +476,6 @@ const accApproved = async function (req, res) {
 
         const currentStage = payment.approval_status?.stage || "Draft";
 
-        // ---------- REJECTION: allowed at ANY stage; sets stage="Rejected" ----------
         if (status === "Rejected") {
           const now = new Date();
           payment.approved = "Rejected";
@@ -508,7 +503,6 @@ const accApproved = async function (req, res) {
           continue;
         }
 
-        // ---------- SCM validations for PO/value (non-reject) ----------
         if (department === "SCM") {
           const paidFor = payment.paid_for?.trim();
           const poNumber = payment.po_number?.trim();
@@ -562,7 +556,6 @@ const accApproved = async function (req, res) {
           }
         }
 
-        // ---------- transition (non-reject) ----------
         const transition = computeTransition(payment, currentStage);
         if (!transition) {
           results.push({
@@ -973,7 +966,6 @@ const restorepayrequest = async function (req, res) {
       pay_id: data.pay_id,
       pay_type: data.pay_type,
       amount_paid: data.amount_paid,
-      // amt_for_customer: data.amt_for_customer,
       dbt_date: data.dbt_date,
       paid_for: data.paid_for,
       vendor: data.vendor,
@@ -1075,20 +1067,20 @@ const excelData = async function (req, res) {
   res.status(200).json({ msg: "All Excel Data", data: data });
 };
 
-//update excel data
+
 const updateExcelData = async function (req, res) {
   try {
     const status = req.body;
 
-    // Perform update operation
+  
     const result = await exccelDataModells.updateMany(
-      { status, status: "Not-paid" }, // Query for documents with status "Not-paid"
-      { $set: { status: "Deleted" } } // Update the status to "Deleted"
+      { status, status: "Not-paid" },
+      { $set: { status: "Deleted" } } 
     );
 
-    // Check if any documents were updated
+   
     if (result.modifiedCount > 0) {
-      // Return success response with the number of modified documents
+  
       res.json({
         message: "Deleted successfully",
         modifiedCount: result.modifiedCount,
@@ -1351,7 +1343,6 @@ const getPay = async (req, res) => {
     res.status(500).json({ msg: "Error retrieving data", error: err.message });
   }
 };
-
 const getTrashPayment = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -1475,6 +1466,7 @@ const getTrashPayment = async (req, res) => {
       .json({ msg: "Error retrieving trash payments", error: err.message });
   }
 };
+
 
 const approve_pending = async function (req, res) {
   try {
@@ -1625,3 +1617,4 @@ module.exports = {
   getExcelDataById,
   getpy,
 };
+
