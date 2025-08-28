@@ -4,7 +4,7 @@ function indianFYString(date = new Date()) {
   const fyStartYear = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; // Apr = 3
   const yy = String(fyStartYear).slice(-2);
   const yyNext = String(fyStartYear + 1).slice(-2);
-  return `${yy}-${yyNext}`; // e.g. "25-26"
+  return `${yy}-${yyNext}`; 
 }
 async function nextLogisticCode() {
   const fy = indianFYString();

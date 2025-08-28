@@ -5,7 +5,7 @@ const deadleadModells = require("../../Modells/deadleadModells");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
 const { default: mongoose } = require("mongoose");
 const { Parser } = require("json2csv");
-const {  getnovuNotification } = require("../../utils/nouvnotificationutils");
+const {  getnovuNotification } = require("../../utils/nouvnotification.utils");
 
 const createTask = async (req, res) => {
   try {

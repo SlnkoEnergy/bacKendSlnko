@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const logisticscounterSchema = new mongoose.Schema(
+const inspectionCounterSchema = new mongoose.Schema(
   {
     name: {
       type: String,
@@ -16,4 +16,4 @@ const logisticscounterSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("logisticscounter", logisticscounterSchema);
+module.exports = mongoose.model("inspectioncounter", inspectionCounterSchema);
