@@ -966,7 +966,6 @@ const restorepayrequest = async function (req, res) {
       pay_id: data.pay_id,
       pay_type: data.pay_type,
       amount_paid: data.amount_paid,
-      // amt_for_customer: data.amt_for_customer,
       dbt_date: data.dbt_date,
       paid_for: data.paid_for,
       vendor: data.vendor,
@@ -1068,20 +1067,20 @@ const excelData = async function (req, res) {
   res.status(200).json({ msg: "All Excel Data", data: data });
 };
 
-//update excel data
+
 const updateExcelData = async function (req, res) {
   try {
     const status = req.body;
 
-    // Perform update operation
+  
     const result = await exccelDataModells.updateMany(
-      { status, status: "Not-paid" }, // Query for documents with status "Not-paid"
-      { $set: { status: "Deleted" } } // Update the status to "Deleted"
+      { status, status: "Not-paid" },
+      { $set: { status: "Deleted" } } 
     );
 
-    // Check if any documents were updated
+   
     if (result.modifiedCount > 0) {
-      // Return success response with the number of modified documents
+  
       res.json({
         message: "Deleted successfully",
         modifiedCount: result.modifiedCount,
