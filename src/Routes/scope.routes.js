@@ -6,6 +6,7 @@ const {
   updateScopeStatus,
   deleteScope,
   getScopePdf,
+  ensureProjectScope,
 } = require("../Controllers/scope.controller");
 const router = require("express").Router();
 const jwtMW = require("../middlewares/auth");
@@ -27,5 +28,6 @@ router.put(
 );
 router.delete("/scope", jwtMW.authentication, jwtMW.authorization, deleteScope);
 router.get('/scope-pdf', jwtMW.authentication, jwtMW.authorization, getScopePdf);
+router.put('/ensureProjectScope', ensureProjectScope)
 
 module.exports = router;
