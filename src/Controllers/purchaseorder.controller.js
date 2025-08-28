@@ -16,6 +16,7 @@ const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
+const inspectionModel = require("../Modells/inspection.model");
 
 const addPo = async function (req, res) {
   try {
@@ -395,57 +396,60 @@ const getPOByPONumber = async (req, res) => {
         ? poDoc.item
         : [];
 
-    if (!itemsArr.length) {
-      return res.status(200).json({
-        msg: "Purchase Order fetched successfully",
-        data: poDoc,
+    if (itemsArr.length) {
+      const catIdSet = new Set();
+      for (const it of itemsArr) {
+        const cat = it?.category;
+        if (!cat) continue;
+
+        if (
+          typeof cat === "object" &&
+          cat?._id &&
+          mongoose.isValidObjectId(cat._id)
+        ) {
+          catIdSet.add(String(cat._id));
+        } else if (mongoose.isValidObjectId(cat)) {
+          catIdSet.add(String(cat));
+        }
+      }
+
+      // Fetch missing category names
+      const catDocs = catIdSet.size
+        ? await materialCategoryModells
+            .find({ _id: { $in: Array.from(catIdSet) } })
+            .select({ name: 1 })
+            .lean()
+        : [];
+
+      const catMap = new Map(
+        catDocs.map((c) => [String(c._id), { _id: c._id, name: c.name }])
+      );
+
+      const mappedItems = itemsArr.map((it) => {
+        const cat = it?.category;
+        if (cat && typeof cat === "object" && cat._id) {
+          const key = String(cat._id);
+          return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
+        }
+        if (cat && mongoose.isValidObjectId(cat)) {
+          const key = String(cat);
+          return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
+        }
+        return it;
       });
+
+      if (Array.isArray(poDoc.items)) poDoc.items = mappedItems;
+      if (Array.isArray(poDoc.item)) poDoc.item = mappedItems;
     }
 
-    const catIdSet = new Set();
-    for (const it of itemsArr) {
-      const cat = it?.category;
-      if (!cat) continue;
-
-      if (
-        typeof cat === "object" &&
-        cat?._id &&
-        mongoose.isValidObjectId(cat._id)
-      ) {
-        catIdSet.add(String(cat._id));
-      } else if (mongoose.isValidObjectId(cat)) {
-        catIdSet.add(String(cat));
-      }
-    }
-
-    // Fetch missing category names
-    const catDocs = catIdSet.size
-      ? await materialCategoryModells
-          .find({ _id: { $in: Array.from(catIdSet) } })
-          .select({ name: 1 })
-          .lean()
-      : [];
-
-    const catMap = new Map(
-      catDocs.map((c) => [String(c._id), { _id: c._id, name: c.name }])
-    );
-
-    const mappedItems = itemsArr.map((it) => {
-      const cat = it?.category;
-      if (cat && typeof cat === "object" && cat._id) {
-        const key = String(cat._id);
-        return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
-      }
-      if (cat && mongoose.isValidObjectId(cat)) {
-        const key = String(cat);
-        return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
-      }
-      return it;
+    const inspectionCount = await inspectionModel.countDocuments({
+      po_number: poDoc.po_number,
     });
 
-    const updatedPO = { ...poDoc };
-    if (Array.isArray(poDoc.items)) updatedPO.items = mappedItems;
-    if (Array.isArray(poDoc.item)) updatedPO.item = mappedItems;
+    const updatedPO = {
+      ...poDoc,
+      inspectionCount,
+    };
 
     return res.status(200).json({
       msg: "Purchase Order fetched successfully",

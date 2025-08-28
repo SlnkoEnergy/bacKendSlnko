@@ -8,10 +8,13 @@ const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
+const { nextInspectionCode } = require("../utils/inspection.utils");
 
-const createInspection = catchAsyncError(async (req, res, next) => {
+const createInspection = catchAsyncError(async (req, res) => {
   const userId = req.user?.userId;
   const b = req.body || {};
+
+  const inspection_code = await nextInspectionCode();
 
   let doc;
   if (b.items && b.inspection) {
@@ -20,7 +23,8 @@ const createInspection = catchAsyncError(async (req, res, next) => {
 
     doc = {
       project_code: b.project_code,
-      dept_category: b.dept_category,
+      po_id: b.po_id,
+      inspection_code,
       vendor: b.vendor,
       vendor_contact: ins.contact_person || "",
       vendor_mobile: ins.contact_mobile || "",
@@ -39,14 +43,19 @@ const createInspection = catchAsyncError(async (req, res, next) => {
       created_by: userId,
     };
   } else {
-    doc = { ...b, created_by: userId };
+    doc = { ...b, created_by: userId, inspection_code };
   }
+
   const inspection = new Inspection(doc);
   const saved = await inspection.save();
-  res.status(201).json(saved);
+
+  res.status(201).json({
+    msg: "Inspection created successfully",
+    data: saved,
+  });
 });
 
-const getAllInspections = catchAsyncError(async (req, res) => {
+const getAllInspections = catchAsyncError(async (req, res, next) => {
   const page = Number.parseInt(req.query.page, 10) || 1;
   const limit = Number.parseInt(req.query.limit, 10) || 10;
   const sortBy = req.query.sortBy || "createdAt";
@@ -54,15 +63,23 @@ const getAllInspections = catchAsyncError(async (req, res) => {
 
   const search = (req.query.search || "").trim();
 
-  // Optional date range (inclusive)
   const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
   const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
   if (endDate) endDate.setHours(23, 59, 59, 999);
 
-  // ----- Pipeline build -----
-  const pipeline = [];
+  const { po_number } = req.query;
 
-  // 1) Date filter first (cheap, uses index if present)
+  const pipeline = [];
+  if (
+    po_number &&
+    po_number !== "null" &&
+    po_number !== "undefined" &&
+    po_number.trim() !== ""
+  ) {
+    pipeline.push({ $match: { po_number } });
+  }
+
+  // Date filter
   const matchDate = {};
   if (startDate || endDate) {
     matchDate["date"] = {};
@@ -71,7 +88,7 @@ const getAllInspections = catchAsyncError(async (req, res) => {
   }
   if (Object.keys(matchDate).length) pipeline.push({ $match: matchDate });
 
-  // 2) Lookup categories for ANY item.category_id (array supported)
+  // Category lookup
   pipeline.push({
     $lookup: {
       from: "materialcategories",
@@ -81,7 +98,7 @@ const getAllInspections = catchAsyncError(async (req, res) => {
     },
   });
 
-  // 3) Search filter (uses categories.name now available)
+  // Optional search (project_code, vendor, etc.)
   if (search) {
     const regex = new RegExp(search, "i");
     pipeline.push({
@@ -89,13 +106,15 @@ const getAllInspections = catchAsyncError(async (req, res) => {
         $or: [
           { project_code: { $regex: regex } },
           { vendor: { $regex: regex } },
-          { "categories.name": { $regex: regex } }, // ✅ search by category name
+          { "categories.name": { $regex: regex } },
+          { inspection_code: { $regex: regex } },
+          { po_number: { $regex: regex } },
         ],
       },
     });
   }
 
-  // 4) Facet for total + paged data
+  // Pagination
   const sortStage = { $sort: { [sortBy]: order } };
   const skipStage = { $skip: (page - 1) * limit };
   const limitStage = { $limit: limit };
@@ -106,8 +125,6 @@ const getAllInspections = catchAsyncError(async (req, res) => {
         sortStage,
         skipStage,
         limitStage,
-
-        // created_by populate
         {
           $lookup: {
             from: "users",
@@ -122,8 +139,6 @@ const getAllInspections = catchAsyncError(async (req, res) => {
             preserveNullAndEmptyArrays: true,
           },
         },
-
-        // current_status.user_id populate
         {
           $lookup: {
             from: "users",
@@ -138,8 +153,6 @@ const getAllInspections = catchAsyncError(async (req, res) => {
             preserveNullAndEmptyArrays: true,
           },
         },
-
-        // Enrich each item with its category document (replaces category_id with doc)
         {
           $addFields: {
             item: {
@@ -150,9 +163,7 @@ const getAllInspections = catchAsyncError(async (req, res) => {
                   $mergeObjects: [
                     "$$it",
                     {
-                      // Keep original ObjectId (optional)
                       category_oid: "$$it.category_id",
-                      // Replace category_id with the matched doc
                       category_id: {
                         $arrayElemAt: [
                           {
@@ -178,7 +189,6 @@ const getAllInspections = catchAsyncError(async (req, res) => {
     },
   });
 
-  // 5) Execute aggregation
   const agg = await Inspection.aggregate(pipeline);
 
   const docs = agg?.[0]?.data || [];
@@ -269,7 +279,7 @@ const updateStatusInspection = catchAsyncError(async (req, res, next) => {
         null;
 
       if (url) {
-        uploadedAttachmentObjs.push({ attachment_url: url }); 
+        uploadedAttachmentObjs.push({ attachment_url: url });
       }
     }
 
@@ -278,7 +288,7 @@ const updateStatusInspection = catchAsyncError(async (req, res, next) => {
       status,
       remarks,
       user_id: req.user.userId,
-      updatedAt: new Date(), 
+      updatedAt: new Date(),
       attachments: uploadedAttachmentObjs,
     });
 
@@ -298,18 +308,18 @@ const updateStatusInspection = catchAsyncError(async (req, res, next) => {
 });
 
 // READ ONE
-const getInspectionById = catchAsyncError(async (req, res) => {
+const getInspectionById = catchAsyncError(async (req, res, next) => {
   const inspection = await Inspection.findById(req.params.id)
     .populate("created_by current_status.user_id")
     .populate("item.category_id", "_id name")
     .populate("status_history.user_id", "_id name")
-    .populate("current_status.user_id", "_id name")
+    .populate("current_status.user_id", "_id name");
   if (!inspection) return next(new ErrorHandler("Not Found", 404));
   res.json(inspection);
 });
 
 // UPDATE
-const updateInspection = catchAsyncError(async (req, res) => {
+const updateInspection = catchAsyncError(async (req, res, next) => {
   const updated = await Inspection.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
   });
@@ -318,15 +328,11 @@ const updateInspection = catchAsyncError(async (req, res) => {
 });
 
 // DELETE
-const deleteInspection = async (req, res) => {
-  try {
-    const deleted = await Inspection.findByIdAndDelete(req.params.id);
-    if (!deleted) return next(new ErrorHandler("Not Found", 404));
-    res.json({ message: "Deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+const deleteInspection = catchAsyncError(async (req, res, next) => {
+  const deleted = await Inspection.findByIdAndDelete(req.params.id);
+  if (!deleted) return next(new ErrorHandler("Not Found", 404));
+  res.json({ message: "Deleted successfully" });
+});
 
 module.exports = {
   createInspection,
