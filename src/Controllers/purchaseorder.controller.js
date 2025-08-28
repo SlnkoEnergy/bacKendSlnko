@@ -17,6 +17,7 @@ const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
 const inspectionModel = require("../Modells/inspection.model");
+const billModel = require("../Modells/bill.model");
 
 const addPo = async function (req, res) {
   try {
@@ -2000,8 +2001,6 @@ const getPoBasic = async (req, res) => {
       { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: pageSize },
-
-      // ✅ convert string category → ObjectId
       {
         $addFields: {
           item: {
@@ -2029,7 +2028,7 @@ const getPoBasic = async (req, res) => {
                 category: {
                   $convert: {
                     input: "$$it.category",
-                    to: "objectId", // 👈 convert string to ObjectId
+                    to: "objectId", 
                     onError: null,
                     onNull: null,
                   },
@@ -2040,7 +2039,6 @@ const getPoBasic = async (req, res) => {
         },
       },
 
-      // ✅ lookup materialcategories
       {
         $lookup: {
           from: "materialcategories",
@@ -2049,8 +2047,6 @@ const getPoBasic = async (req, res) => {
           as: "categoryDocs",
         },
       },
-
-      // ✅ rebuild items with category populated
       {
         $addFields: {
           items: {
@@ -2143,6 +2139,67 @@ const getPoBasic = async (req, res) => {
   }
 };
 
+const manipulatepo= async (req, res) => {
+  try {
+    const purchaseOrders = await purchaseOrderModells.find();
+
+    for (let po of purchaseOrders) {
+      const bills = await billModel.find({ po_number: po.po_number });
+
+      const totalBilled = bills.reduce((sum, bill) => sum + (bill.bill_value || 0), 0);
+
+      if (Number(po.total_billed) !== totalBilled) {
+        console.log(
+          `Updating PO: ${po.po_number} | Old total_billed: ${po.total_billed} | New total_billed: ${totalBilled}`
+        );
+
+        po.total_billed = totalBilled;
+        await po.save();
+      }
+    }
+
+    res.status(200).json({ message: "PO total_billed synced successfully" });
+  } catch (error) {
+    console.error("Error syncing POs:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
+const calculateBill = async (req, res) => {
+  try {
+    const purchaseOrders = await purchaseOrderModells.find();
+
+    for (let po of purchaseOrders) {
+      const bills = await billModel.find({ po_number: po.po_number });
+
+      const totalBillsCount = bills.length;
+
+      // Only update if values have changed
+      if (
+        Number(po.total_bills) !== totalBillsCount
+      ) {
+        console.log(
+          `Updating PO: ${po.po_number} | 
+           Old total_bills: ${po.total_bills || 0} | New total_bills: ${totalBillsCount}`
+        );
+
+        po.total_bills = totalBillsCount;
+
+        await po.save();
+      }
+    }
+
+    res
+      .status(200)
+      .json({ message: "PO total_bills synced successfully" });
+  } catch (error) {
+    console.error("Error syncing POs:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
 //get All PO With
 module.exports = {
   addPo,
@@ -2163,4 +2220,6 @@ module.exports = {
   updateEditandDeliveryDate,
   updateStatusPO,
   getPoBasic,
+  manipulatepo,
+  calculateBill
 };

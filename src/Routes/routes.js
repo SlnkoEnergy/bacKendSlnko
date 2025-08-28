@@ -52,6 +52,9 @@ const {
   updateEditandDeliveryDate,
   updateStatusPO,
   getPoBasic,
+  manipulatepo,
+  calculateBill,
+  normalizePOItemsOnlyForObjectIdStrings
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -104,6 +107,7 @@ const {
   bill_approved,
   exportBills,
   getAllBill,
+  manipulatebill,
 } = require("../Controllers/bill.controller");
 const {
   subtractmoney,
@@ -150,8 +154,6 @@ const {
   getCommBdRateHistory,
   getCommBDRateByOfferId,
 } = require("../Controllers/coomBDRateController");
-
-// const { createBDlead, getBDlead, editBDlead, deleteBDlead }=require("../Controllers/createBdLeadcontroller");
 
 const {
   createeBDlead,
@@ -305,8 +307,6 @@ router.get(
   jwtMW.authorization,
   getAllDepartment
 );
-//forget pass through resend
-// router.post("/forget-password",forgetpassword);
 
 //project router
 router.post(
@@ -467,6 +467,9 @@ router.put(
   jwtMW.authorization,
   updateStatusPO
 );
+router.put('/manipulatepo',manipulatepo)
+router.put('/calculateBill', calculateBill)
+  
 
 router.put(
   "/:id/updateEtdOrDelivery",
@@ -707,7 +710,7 @@ router.get(
   jwtMW.authorization,
   exportBills
 );
-
+router.put('/manipulatebill', manipulatebill)
 //subtractmoney-debitmoney
 router.post(
   "/debit-moneY-IT",

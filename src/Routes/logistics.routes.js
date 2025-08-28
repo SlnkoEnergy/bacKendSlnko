@@ -7,6 +7,13 @@ const {
   deleteLogistic,
   updateLogisticStatus,
 } = require("../Controllers/logistics.controller");
+const {
+  listLogisticHistory,
+  getLogisticHistory,
+  createLogisticHistory,
+  updateLogisticHistory,
+  deleteLogisticHistory,
+} = require("../Controllers/logisticshistory.controller");
 
 const jwtMW = require("../middlewares/auth");
 const upload = require("../middlewares/multer");
@@ -31,7 +38,6 @@ router.post(
   jwtMW.authorization,
   createLogistic
 );
-
 router.put(
   "/logistic/:_id",
   jwtMW.authentication,
@@ -46,13 +52,21 @@ router.delete(
   jwtMW.authorization,
   deleteLogistic
 );
-
-
 router.put(
   "/logistic/:id/status",
   jwtMW.authentication,
   jwtMW.authorization,
   updateLogisticStatus
+);
+
+router.get("/logistichistory", jwtMW.authentication, listLogisticHistory);
+router.get("/logistichistory/:id", jwtMW.authentication, getLogisticHistory);
+router.post("/logistichistory", jwtMW.authentication, createLogisticHistory);
+router.put("/logistichistory/:id", jwtMW.authentication, updateLogisticHistory);
+router.delete(
+  "/LogisticHistory/:id",
+  jwtMW.authentication,
+  deleteLogisticHistory
 );
 
 module.exports = router;
