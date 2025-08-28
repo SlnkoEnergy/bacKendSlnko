@@ -485,20 +485,121 @@ const deleteExpense = async (req, res) => {
 const exportExpenseSheetsCSV = async (req, res) => {
   try {
     const sheetIds = req.body.sheetIds;
+    const isDashboard = String(req.query.dashboard || "").toLowerCase() === "true";
 
     if (!Array.isArray(sheetIds) || sheetIds.length === 0) {
       return res.status(400).json({ message: "No sheetIds provided." });
+    }
+
+    if (isDashboard) {
+      const ids = sheetIds
+        .filter(Boolean)
+        .map((id) => new mongoose.Types.ObjectId(id));
+
+      const rows = await ExpenseSheet.aggregate([
+        { $match: { _id: { $in: ids } } },
+        { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: "$_id",
+            expense_code: { $first: "$expense_code" },
+            emp_name:     { $first: "$emp_name" },
+            emp_code:     { $first: "$emp_id" },
+            createdAt:    { $first: "$createdAt" },
+            status: {
+              $first: { $ifNull: ["$current_status.status", "$current_status"] },
+            },
+            disb_date:    { $first: "$disbursement_date" },
+            requested: {
+              $sum: {
+                $convert: {
+                  input: "$items.invoice.invoice_amount",
+                  to: "double",
+                  onError: 0,
+                  onNull: 0,
+                },
+              },
+            },
+            approved: {
+              $sum: {
+                $convert: {
+                  input: {
+                    $ifNull: ["$items.approved_amount", "$items.approval.approved_amount"],
+                  },
+                  to: "double",
+                  onError: 0,
+                  onNull: 0,
+                },
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            rejected: { $max: [0, { $subtract: ["$requested", "$approved"] }] },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            "Expense Code": "$expense_code",
+            "Employee Name": "$emp_name",
+            "Requested Amount": { $round: ["$requested", 2] },
+            "Approval Amount":  { $round: ["$approved", 2] },
+            "Rejected Amount":  { $round: ["$rejected", 2] },
+            "Disbursement Date": {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$disb_date", null] },
+                    { $ne: ["$disb_date", ""] },
+                  ],
+                },
+                { $dateToString: { format: "%d/%m/%Y", date: "$disb_date" } },
+                "-",
+              ],
+            },
+            Status: { $ifNull: ["$status", "-"] },
+            "Created At": { $dateToString: { format: "%d %b %Y", date: "$createdAt" } },
+            "Emp Code": "$emp_code",
+          },
+        },
+        { $sort: { "Created At": 1, "Expense Code": 1 } },
+      ]);
+
+      if (!rows || rows.length === 0) {
+        return res.status(404).json({ message: "No records found for provided sheetIds." });
+      }
+
+      const fields = [
+        "Expense Code",
+        "Employee Name",
+        "Requested Amount",
+        "Approval Amount",
+        "Rejected Amount",
+        "Disbursement Date",
+        "Status",
+        "Created At",
+        "Emp Code",
+      ];
+
+      const parser = new Parser({ fields });
+      const csv = parser.parse(rows);
+
+      res.header("Content-Type", "text/csv");
+      res.attachment(
+        sheetIds.length === 1
+          ? `expenseDashboard_${sheetIds[0]}.csv`
+          : `expenseDashboard_${sheetIds.length}Sheets.csv`
+      );
+      return res.send(csv);
     }
 
     let finalCSV = "";
 
     for (const sheetId of sheetIds) {
       const expenseSheets = await ExpenseSheet.aggregate([
-        {
-          $match: {
-            _id: new mongoose.Types.ObjectId(sheetId),
-          },
-        },
+        { $match: { _id: new mongoose.Types.ObjectId(sheetId) } },
         { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
         {
           $project: {
@@ -507,31 +608,42 @@ const exportExpenseSheetsCSV = async (req, res) => {
             "Emp Code": "$emp_id",
             "Employee Name": "$emp_name",
             "Project Code": { $toString: "$items.project_code" },
-            "Sheet Current Status": "$current_status.status",
-            From: {
-              $dateToString: { format: "%d/%m/%Y", date: "$expense_term.from" },
-            },
-            To: {
-              $dateToString: { format: "%d/%m/%Y", date: "$expense_term.to" },
-            },
+            "Sheet Current Status": { $ifNull: ["$current_status.status", "$current_status"] },
+            From: { $dateToString: { format: "%d/%m/%Y", date: "$expense_term.from" } },
+            To:   { $dateToString: { format: "%d/%m/%Y", date: "$expense_term.to"   } },
             "Sheet Remarks": "$comments",
             Category: "$items.category",
             Description: "$items.description",
             "Expense Date": {
               $cond: [
-                { $ifNull: ["$items.expense_date", false] },
                 {
-                  $dateToString: {
-                    format: "%d/%m/%Y",
-                    date: "$items.expense_date",
-                  },
+                  $and: [
+                    { $ne: ["$items.expense_date", null] },
+                    { $ne: ["$items.expense_date", ""] },
+                  ],
                 },
+                { $dateToString: { format: "%d/%m/%Y", date: "$items.expense_date" } },
                 "",
               ],
             },
             "Invoice Number": "$items.invoice.invoice_number",
             "Invoice Amount": {
-              $toDouble: "$items.invoice.invoice_amount",
+              $convert: {
+                input: "$items.invoice.invoice_amount",
+                to: "double",
+                onError: 0,
+                onNull: 0,
+              },
+            },
+            "Approved Amount": {
+              $convert: {
+                input: {
+                  $ifNull: ["$items.approved_amount", "$items.approval.approved_amount"],
+                },
+                to: "double",
+                onError: 0,
+                onNull: 0,
+              },
             },
             "Item Remarks": "$items.remarks",
             "Attachment Available": {
@@ -580,7 +692,7 @@ const exportExpenseSheetsCSV = async (req, res) => {
       );
 
       const json2csvParser = new Parser({ fields });
-      let csvTable = json2csvParser.parse(expenseSheets);
+      const csvTable = json2csvParser.parse(expenseSheets);
 
       // Summary
       const summaryMap = {};
@@ -589,15 +701,12 @@ const exportExpenseSheetsCSV = async (req, res) => {
 
       for (const row of expenseSheets) {
         const category = row["Category"] || "Uncategorized";
-        const invoice = parseFloat(row["Invoice Amount"] || 0);
+        const invoice  = parseFloat(row["Invoice Amount"] || 0);
         const approved = parseFloat(row["Approved Amount"] || 0);
 
-        if (!summaryMap[category]) {
-          summaryMap[category] = { requested: 0, approved: 0 };
-        }
-
+        if (!summaryMap[category]) summaryMap[category] = { requested: 0, approved: 0 };
         summaryMap[category].requested += invoice;
-        summaryMap[category].approved += approved;
+        summaryMap[category].approved  += approved;
 
         totalRequested += invoice;
         totalApproved += approved;
@@ -624,23 +733,15 @@ const exportExpenseSheetsCSV = async (req, res) => {
         .map((row) => (Array.isArray(row) ? row.join(",") : row))
         .join("\n");
 
-      finalCSV +=
-        headerCSV +
-        "\n" +
-        csvTable +
-        "\n" +
-        summaryRows.join("\n") +
-        "\n\n";
+      finalCSV += headerCSV + "\n" + csvTable + "\n" + summaryRows.join("\n") + "\n\n";
     }
 
     res.header("Content-Type", "text/csv");
     res.attachment("expenseSheets.csv");
     res.send(finalCSV);
   } catch (err) {
-    console.error("CSV Export Error:", err.message);
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: err.message });
+    console.error("CSV Export Error:", err);
+    res.status(500).json({ message: "Internal Server Error", error: err.message });
   }
 };
 

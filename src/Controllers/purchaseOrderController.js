@@ -6,11 +6,12 @@ const { Parser } = require("json2csv");
 const fs = require("fs");
 const path = require("path");
 const { default: mongoose } = require("mongoose");
-const materialCategoryModells = require("../Modells/EngineeringModells/materials/materialCategoryModells");
+const materialCategoryModells = require("../Modells/materialcategory.model");
 const {
   getLowerPriorityStatus,
 } = require("../utils/updatePurchaseRequestStatus");
-const purchaseRequest = require("../Modells/PurchaseRequest/purchaseRequest");
+const purchaseRequest = require("../Modells/purchaserequest.model");
+// const purchaseRequest = require("../Modells/PurchaseRequest/purchaseRequest");
 const payRequestModells = require("../Modells/payRequestModells");
 const vendorModells = require("../Modells/vendorModells");
 

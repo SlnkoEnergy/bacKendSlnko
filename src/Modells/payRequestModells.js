@@ -1,5 +1,7 @@
+
 const { default: mongoose } = require("mongoose");
 const updateCurrentStatus = require("../utils/payRequestUpdate/updateCurrentStatus");
+
 
 const StatusHistorySchema = new mongoose.Schema(
   {
@@ -54,9 +56,9 @@ const UTRHistorySchema = new mongoose.Schema(
 
 const payRequestschema = new mongoose.Schema(
   {
+    id: { type: String },
     p_id: { type: Number },
     pay_id: { type: String },
-    cr_id: { type: String },
     pay_type: { type: String },
     amount_paid: { type: String },
     // amt_for_customer: { type: String },
@@ -65,9 +67,16 @@ const payRequestschema = new mongoose.Schema(
     vendor: { type: String },
     po_number: { type: String },
     po_value: { type: String },
+    po_balance: { type: String },
+    pay_mode: {
+      type: String,
+    },
+    paid_to: {
+      type: String,
+    },
     ifsc: { type: String },
     benificiary: { type: String },
-    acc_number: { type: mongoose.Schema.Types.Mixed },
+    acc_number: { type: mongoose.Schema.Types.Mixed},
     branch: { type: String },
     // created_on: { type: String, default: Date.now },
     submitted_by: { type: String },
@@ -104,7 +113,6 @@ const payRequestschema = new mongoose.Schema(
       },
       user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       remarks: { type: String },
-      // (optional) timestamp: { type: Date, default: Date.now },
     },
 
     timers: {
@@ -119,6 +127,7 @@ const payRequestschema = new mongoose.Schema(
 
     acc_match: { type: String },
     utr: { type: String },
+    total_advance_paid: { type: String },
     other: { type: String },
     comment: { type: String },
   },

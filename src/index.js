@@ -2,18 +2,20 @@ const express = require("express");
 const mongoose = require("mongoose");
 const app = express();
 const routes = require("../src/Routes/routes");
-const engineeringRoutes = require("../src/Routes/engineering/engineeringRoutes");
+const engineeringRoutes = require("./Routes/engineering.routes");
 const bdleadsRoutes = require("../src/Routes/bdleads/bdleadDashboardRoutes");
 const dprRoutes = require("../src/Routes/dpr/dprRoutes");
 const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRoutes");
-const taskRoutes = require("../src/Routes/tasks/tasks");
+const taskRoutes = require("./Routes/tasks.routes");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
+const scopeRoutes = require("../src/Routes/scope.routes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
 const http = require("http");
 const Sentry = require("@sentry/node");
 const Tracing = require("@sentry/tracing");
+require("../src/utils/cron/inactivelead.cron.utils");
 
 Sentry.init({
   dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",
@@ -50,7 +52,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_URL;
 
 const startServer = async () => {
   try {
@@ -66,6 +68,7 @@ const startServer = async () => {
     app.use("/v1/purchaseRequest", purchaseRoutes);
     app.use("/v1/tasks", taskRoutes);
     app.use("/v1/accounting", accountingRoutes);
+    app.use("/v1/scope", scopeRoutes);
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);

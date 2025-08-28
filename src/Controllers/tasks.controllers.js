@@ -1,6 +1,6 @@
-const TaskCounterSchema = require("../../Modells/Globals/taskCounter");
-const tasksModells = require("../../Modells/tasks/task");
-const User = require("../../Modells/users/userModells");
+const TaskCounterSchema = require("../Modells/Globals/taskCounter");
+const tasksModells = require("../Modells/task.model");
+const User = require("../Modells/users/userModells");
 const { Parser } = require("json2csv");
 
 const createTask = async (req, res) => {
@@ -63,6 +63,7 @@ const getAllTasks = async (req, res) => {
       search = "",
       status = "",
       createdAt = "",
+      deadline ="",
       department = "",
     } = req.query;
 
@@ -195,6 +196,14 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ createdAt: { $gte: start, $lt: end } });
     }
 
+    // deadline filter
+    if(deadline) {
+      const start = new Date(deadline);
+      const end = new Date(deadline);
+      end.setDate(end.getDate() + 1);
+      postLookupMatch.push({ deadline : {$gte: start, $lt: end }})
+    }
+
     // Department filter
     if (department) {
       postLookupMatch.push({ "assigned_to.department": department });
@@ -218,6 +227,7 @@ const getAllTasks = async (req, res) => {
           createdAt: 1,
           deadline: 1,
           priority: 1,
+          status_history:1,
           current_status: 1,
           project_details: {
             $map: {
@@ -374,7 +384,7 @@ const exportToCsv = async (req, res) => {
 
     const tasks = await tasksModells
       .find({ _id: { $in: ids } })
-      .populate("project_id", "name")
+      .populate("project_id", "code name")
       .populate("assigned_to", "name")
       .populate("createdBy", "name")
       .populate("current_status.user_id", "name")
@@ -398,7 +408,8 @@ const exportToCsv = async (req, res) => {
           ? new Date(task.deadline).toLocaleDateString("en-GB")
           : "N/A",
         Project: task.project_id?.[0]?.name || "N/A",
-        AssignedTo:
+        "Project Code": task.project_id?.[0]?.code || "N/A",
+         AssignedTo:
           task.assigned_to?.map((user) => user.name).join(", ") || "N/A",
         Priority: task.priority,
         StatusHistory: statusHistory || "N/A",

@@ -67,13 +67,11 @@ cron.schedule("* * * * *", async () => {
     };
 
     const toDelete = await PayRequest.find(deleteQuery);
-    // console.log(`📝 Trash Pending to delete: ${toDelete.length}`);
+   
 
     if (toDelete.length > 0) {
       await PayRequest.deleteMany(deleteQuery);
-      // console.log(
-      //   `🗑 Deleted: ${deleteResult.deletedCount} old Trash Pending requests`
-      // );
+    
     }
   } catch (err) {
     console.error(" [Cron] Error:", err);
