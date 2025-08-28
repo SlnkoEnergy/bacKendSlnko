@@ -110,7 +110,6 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
       enum: ["afor", "slnko", "client"],
     },
-
     attachments: [
       {
         attachment_url: {
