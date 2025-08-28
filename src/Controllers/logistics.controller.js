@@ -271,7 +271,18 @@ const getAllLogistics = async (req, res) => {
     const pageSize = Math.max(1, Math.min(200, parseInt(req.query.pageSize, 10) || 50));
 
     const search = (req.query.search || "").trim();
-    const status = (req.query.status || "").trim();
+
+    // ---------- normalize status from tabs ----------
+    // Tabs send: "All" | "Out for delivery" | "Delivered"
+    const normStatus = (() => {
+      const raw = Array.isArray(req.query.status) ? req.query.status[0] : req.query.status;
+      const s = String(raw || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+      if (!s || s === "all" || s === "undefined" || s === "null") return "";
+      const ALLOWED = new Set(["out_for_delivery", "delivered", "ready_to_dispatch"]);
+      return ALLOWED.has(s) ? s : ""; // ignore unknowns → treat as All
+    })();
+    // ------------------------------------------------
+
     const poId = (req.query.po_id || "").trim();
 
     // -------- normalize po_number (single or CSV) ----------
@@ -312,9 +323,32 @@ const getAllLogistics = async (req, res) => {
       });
     }
 
-    if (status) {
-      andClauses.push({ "current_status.status": status });
-    }
+    // Status filter driven by tab:
+    // match current_status.status OR last status in status_history
+   // --- Status filter driven by tab ---
+if (normStatus) {
+  andClauses.push({
+    $or: [
+      { "current_status.status": normStatus },
+
+      // Match the LAST element of status_history (if any) to normStatus
+      {
+        $expr: {
+          $eq: [
+            {
+              $reduce: {
+                input: { $ifNull: ["$status_history", []] }, // missing -> []
+                initialValue: null,
+                in: "$$this.status", // after the last iteration this is the last status
+              },
+            },
+            normStatus,
+          ],
+        },
+      },
+    ],
+  });
+}
 
     // Collect PO ids from po_id and from po_number(s)
     const poIdList = [];
@@ -327,7 +361,7 @@ const getAllLogistics = async (req, res) => {
         .lean();
 
       if (pos.length === 0) {
-        // IMPORTANT: only short-circuit when po_number WAS actually provided and none matched.
+        // If user actually filtered by po_number and none matched → empty result
         return res.status(200).json({
           message: "Logistics fetched successfully",
           meta: { total: 0, page, pageSize, count: 0 },
@@ -353,7 +387,7 @@ const getAllLogistics = async (req, res) => {
       });
     }
 
-    // If NO po_number (or blankish) and NO po_id and NO other filters, this stays {}, returning ALL data
+    // If no filters → {}, returns ALL
     const filter = andClauses.length ? { $and: andClauses } : {};
 
     const [total, raw] = await Promise.all([
@@ -369,6 +403,7 @@ const getAllLogistics = async (req, res) => {
             "total_transport_po_value",
             "total_ton",
             "current_status",
+            "status_history",            // <-- include for UI fallback
             "dispatch_date",
             "delivery_date",
             "description",
@@ -434,6 +469,7 @@ const getAllLogistics = async (req, res) => {
     return res.status(500).json({ message: "Failed to fetch logistics", error: err.message });
   }
 };
+
 
 
 /* ---------------- get by id ---------------- */
