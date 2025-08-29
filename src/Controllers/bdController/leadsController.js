@@ -9,7 +9,7 @@ const group = require("../../Modells/bdleads/group");
 const task = require("../../Modells/bdleads/task");
 const groupModells = require("../../Modells/bdleads/group");
 const { Novu } = require('@novu/node');
-const { getnovuNotification } = require("../../utils/nouvnotificationutils");
+const { getnovuNotification } = require("../../utils/nouvnotification.utils");
 const handoversheetModells = require("../../Modells/handoversheet.model");
 
 const createBDlead = async function (req, res) {

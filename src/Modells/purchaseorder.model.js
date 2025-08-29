@@ -103,14 +103,12 @@ const purchaseOrderSchema = new mongoose.Schema(
     },
     total_billed: {
       type: String,
-
       default: "0",
     },
     delivery_type: {
       type: String,
       enum: ["afor", "slnko", "client"],
     },
-
     attachments: [
       {
         attachment_url: {
