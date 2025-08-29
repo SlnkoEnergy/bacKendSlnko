@@ -515,6 +515,48 @@ const projectBalance = async (req, res) => {
       },
       {
         $addFields: {
+          project_kwp: {
+            $let: {
+              vars: {
+                v: {
+                  $cond: [
+                    { $isNumber: "$project_kwp" },
+                    "$project_kwp",
+                    {
+                      $cond: [
+                        {
+                          $and: [
+                            { $ne: ["$project_kwp", null] },
+                            { $ne: ["$project_kwp", ""] },
+                          ],
+                        },
+                        {
+                          $convert: {
+                            input: "$project_kwp",
+                            to: "double",
+                            onError: 0,
+                            onNull: 0,
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+              },
+              in: {
+                $cond: [
+                  { $gt: ["$$v", 100] },
+                  { $divide: ["$$v", 1000] },
+                  "$$v",
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
           latestCreditCreatedAt: {
             $max: {
               $map: {
@@ -810,7 +852,7 @@ const exportProjectBalance = async (req, res) => {
           },
         },
       },
-     {
+      {
         $addFields: {
           totalCredit: {
             $round: [
@@ -1182,7 +1224,6 @@ const exportProjectBalance = async (req, res) => {
           },
         },
       },
-
 
       {
         $project: {
