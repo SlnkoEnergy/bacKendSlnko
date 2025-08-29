@@ -16,6 +16,8 @@ const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
+const userModells = require("../Modells/users/userModells");
+const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const addPo = async function (req, res) {
   try {
@@ -107,7 +109,7 @@ const addPo = async function (req, res) {
       etd: null,
       delivery_date: null,
       dispatch_date: null,
-      material_ready_date:null,
+      material_ready_date: null,
       delivery_type
     });
 
@@ -146,7 +148,7 @@ const editPO = async function (req, res) {
     }
 
     const currStatus = existing?.current_status?.status;
-  
+
 
     const bodyData =
       typeof req.body.data === "string"
@@ -164,7 +166,7 @@ const editPO = async function (req, res) {
     if ("attachments" in payload) {
       delete payload.attachments;
     }
-    const uploadedAttachments = []; 
+    const uploadedAttachments = [];
 
     if (req.files && req.files.length) {
       const safePoNumber = String(existing.po_number || "").replace(/ /g, "_");
@@ -216,9 +218,9 @@ const editPO = async function (req, res) {
           url = Array.isArray(respData) && respData.length > 0
             ? respData[0]
             : respData.url ||
-              respData.fileUrl ||
-              (respData.data && respData.data.url) ||
-              null;
+            respData.fileUrl ||
+            (respData.data && respData.data.url) ||
+            null;
 
         } catch (e) {
           console.error("Upload failed for:", attachment_name, e?.message);
@@ -428,9 +430,9 @@ const getPOByPONumber = async (req, res) => {
     // Fetch missing category names
     const catDocs = catIdSet.size
       ? await materialCategoryModells
-          .find({ _id: { $in: Array.from(catIdSet) } })
-          .select({ name: 1 })
-          .lean()
+        .find({ _id: { $in: Array.from(catIdSet) } })
+        .select({ name: 1 })
+        .lean()
       : [];
 
     const catMap = new Map(
@@ -548,7 +550,7 @@ const getallpodetail = async function (req, res) {
   try {
     const { po_number } = req.query;
 
-  
+
     if (!po_number) {
       const poList = await purchaseOrderModells
         .find({}, { po_number: 1, _id: 0 })
@@ -577,7 +579,7 @@ const getallpodetail = async function (req, res) {
 
     const po_value = poAggregate.length > 0 ? poAggregate[0].total_po_value : 0;
 
- 
+
     let itemName = "";
     if (Array.isArray(selectedPo.item)) {
       itemName = selectedPo.item.map((i) => i.product_name).join(", ");
@@ -590,7 +592,7 @@ const getallpodetail = async function (req, res) {
       itemName = selectedPo.item;
     }
 
- 
+
     let vendorDetails = {};
     if (selectedPo.vendor) {
       const matchedVendor = await vendorModells
@@ -624,7 +626,7 @@ const getallpodetail = async function (req, res) {
     const po_balance = po_value - totalAdvancePaid;
 
     return res.status(200).json({
-      p_id:selectedPo.p_id,
+      p_id: selectedPo.p_id,
       po_number: selectedPo.po_number,
       po_value,
       vendor: selectedPo.vendor,
@@ -693,27 +695,27 @@ const getPaginatedPo = async (req, res) => {
       }),
       ...(createdFrom || createdTo
         ? {
-            dateObj: {
-              ...(createdFrom ? { $gte: new Date(createdFrom) } : {}),
-              ...(createdTo ? { $lte: new Date(createdTo) } : {}),
-            },
-          }
+          dateObj: {
+            ...(createdFrom ? { $gte: new Date(createdFrom) } : {}),
+            ...(createdTo ? { $lte: new Date(createdTo) } : {}),
+          },
+        }
         : {}),
       ...(etdFrom || etdTo
         ? {
-            etd: {
-              ...(etdFrom && { $gte: etdFrom }),
-              ...(etdTo && { $lte: etdTo }),
-            },
-          }
+          etd: {
+            ...(etdFrom && { $gte: etdFrom }),
+            ...(etdTo && { $lte: etdTo }),
+          },
+        }
         : {}),
       ...(deliveryFrom || deliveryTo
         ? {
-            delivery_date: {
-              ...(deliveryFrom && { $gte: deliveryFrom }),
-              ...(deliveryTo && { $lte: deliveryTo }),
-            },
-          }
+          delivery_date: {
+            ...(deliveryFrom && { $gte: deliveryFrom }),
+            ...(deliveryTo && { $lte: deliveryTo }),
+          },
+        }
         : {}),
     };
 
@@ -733,7 +735,7 @@ const getPaginatedPo = async (req, res) => {
           matchStage["current_status.status"] = "po_created";
           matchStage["etd"] = { $ne: null };
           break;
-        case "Material Ready": 
+        case "Material Ready":
           matchStage["current_status.status"] = "material_ready";
           matchStage["material_ready_date"] = { $ne: null };
           break;
@@ -747,7 +749,7 @@ const getPaginatedPo = async (req, res) => {
         case "Delivered":
           matchStage["current_status.status"] = "delivered";
           break;
-          case "Partially Delivered":
+        case "Partially Delivered":
           matchStage["current_status.status"] = "partially_delivered";
           break;
         default:
@@ -1195,7 +1197,7 @@ const getPaginatedPo = async (req, res) => {
           etd: 1,
           delivery_date: 1,
           dispatch_date: 1,
-          material_ready_date:1,
+          material_ready_date: 1,
           current_status: 1,
           status_history: 1,
           type: "$billingTypes",
@@ -1264,12 +1266,12 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-            .replace(/ /g, "/")
+          .toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+          .replace(/ /g, "/")
         : "";
 
     const data = result.map((item) => ({
@@ -1468,12 +1470,12 @@ const getExportPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-            .replace(/ /g, "/")
+          .toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+          .replace(/ /g, "/")
         : "";
 
     const formatted = result.map((item) => ({
@@ -1660,7 +1662,7 @@ const updateStatusPO = async (req, res) => {
     const purchaseOrder = await purchaseOrderModells.findOne({ $or: query });
     if (!purchaseOrder)
       return res.status(404).json({ message: "Purchase Order not found" });
-    
+
     purchaseOrder.status_history.push({
       status,
       remarks,
@@ -1670,7 +1672,7 @@ const updateStatusPO = async (req, res) => {
       purchaseOrder.material_ready_date = new Date();
     }
 
-    if(new_po_number){
+    if (new_po_number) {
       purchaseOrder.po_number = new_po_number;
     }
 
@@ -1716,6 +1718,46 @@ const updateStatusPO = async (req, res) => {
 
     await purchaseRequest.findByIdAndUpdate(pr._id, { items: updatedItems });
 
+    // Notification on Status Change to Approval Pending
+
+    if (status === "approval_pending" || status === "approval_done" || status === "approval_rejected" || status === "po_created") {
+
+      let text = "";
+      if(status === "approval_pending") text = "Approval Pending";
+      if(status === "approval_done") text = "Approval Done";
+      if(status === "approval_rejected") text = "Approval Rejected";
+      if(status === "po_created") text = "Po Created";
+
+      try {
+        const workflow = 'purchase-order';
+        let senders = [];
+
+        if (status === "approval_pending" || "po_created") {
+          senders = await userModells.find({
+            department: "CAM"
+          }).select('_id').lean().then(users => users.map(u => u._id));
+        }
+        if (status === "approval_done" || "approval_rejected") {
+          senders = await userModells.find({
+            $or: [
+              {department: "Projects",
+              role: "visitor"},
+
+              {department: "SCM"}
+            ]
+            
+          }).select('_id').lean().then(users => users.map(u => u._id));
+        }
+        const data = {
+          message: `Purchase Order for Project ID ${purchaseOrder.p_id} is now marked as ${text}. Please review and take necessary action `,
+          link : `/add_po?mode=edit&_id=${purchaseOrder._id}`
+        }
+        await getnovuNotification(workflow, senders, data);
+
+      } catch (error) {
+        console.log(error);
+      }
+    }
     res.status(201).json({
       message: "Purchase Order Status Updated and PR Item Statuses Evaluated",
       data: purchaseOrder,
@@ -1753,14 +1795,14 @@ const getPoBasic = async (req, res) => {
         },
         ...(search
           ? [
-              {
-                $or: [
-                  { p_id: { $regex: searchRegex } },
-                  { po_number: { $regex: searchRegex } },
-                  { vendor: { $regex: searchRegex } },
-                ],
-              },
-            ]
+            {
+              $or: [
+                { p_id: { $regex: searchRegex } },
+                { po_number: { $regex: searchRegex } },
+                { vendor: { $regex: searchRegex } },
+              ],
+            },
+          ]
           : []),
       ],
     };
