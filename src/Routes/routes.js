@@ -54,7 +54,9 @@ const {
   getPoBasic,
   manipulatepo,
   calculateBill,
-  normalizePOItemsOnlyForObjectIdStrings
+  normalizePOItemsOnlyForObjectIdStrings,
+  fixSubmittedBy,
+  itemArray
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -258,7 +260,6 @@ const {
   delete_lead,
   updateLeadStatus,
 } = require("../Controllers/bdleadController");
-
 const upload = require("../middlewares/multer.js");
 
 // Admin router
@@ -469,7 +470,8 @@ router.put(
 );
 router.put('/manipulatepo',manipulatepo)
 router.put('/calculateBill', calculateBill)
-  
+router.put('/changesubmit', fixSubmittedBy)
+router.put('/itemArray', itemArray)
 
 router.put(
   "/:id/updateEtdOrDelivery",

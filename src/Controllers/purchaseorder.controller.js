@@ -18,6 +18,7 @@ const sharp = require("sharp");
 const mime = require("mime-types");
 const inspectionModel = require("../Modells/inspection.model");
 const billModel = require("../Modells/bill.model");
+const userModells = require("../Modells/users/userModells");
 
 const addPo = async function (req, res) {
   try {
@@ -2028,7 +2029,7 @@ const getPoBasic = async (req, res) => {
                 category: {
                   $convert: {
                     input: "$$it.category",
-                    to: "objectId", 
+                    to: "objectId",
                     onError: null,
                     onNull: null,
                   },
@@ -2139,14 +2140,17 @@ const getPoBasic = async (req, res) => {
   }
 };
 
-const manipulatepo= async (req, res) => {
+const manipulatepo = async (req, res) => {
   try {
     const purchaseOrders = await purchaseOrderModells.find();
 
     for (let po of purchaseOrders) {
       const bills = await billModel.find({ po_number: po.po_number });
 
-      const totalBilled = bills.reduce((sum, bill) => sum + (bill.bill_value || 0), 0);
+      const totalBilled = bills.reduce(
+        (sum, bill) => sum + (bill.bill_value || 0),
+        0
+      );
 
       if (Number(po.total_billed) !== totalBilled) {
         console.log(
@@ -2165,7 +2169,6 @@ const manipulatepo= async (req, res) => {
   }
 };
 
-
 const calculateBill = async (req, res) => {
   try {
     const purchaseOrders = await purchaseOrderModells.find();
@@ -2176,9 +2179,7 @@ const calculateBill = async (req, res) => {
       const totalBillsCount = bills.length;
 
       // Only update if values have changed
-      if (
-        Number(po.total_bills) !== totalBillsCount
-      ) {
+      if (Number(po.total_bills) !== totalBillsCount) {
         console.log(
           `Updating PO: ${po.po_number} | 
            Old total_bills: ${po.total_bills || 0} | New total_bills: ${totalBillsCount}`
@@ -2190,12 +2191,157 @@ const calculateBill = async (req, res) => {
       }
     }
 
-    res
-      .status(200)
-      .json({ message: "PO total_bills synced successfully" });
+    res.status(200).json({ message: "PO total_bills synced successfully" });
   } catch (error) {
     console.error("Error syncing POs:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+function escapeRegExp(s = "") {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const fixSubmittedBy = async (req, res) => {
+  try {
+    // 1) Read raw values to avoid Mongoose casting ObjectId
+    const purchaseOrders = await purchaseOrderModells
+      .find({ submitted_By: { $exists: true, $ne: null } })
+      .select("_id po_number submitted_By")
+      .lean();
+
+    let updatedCount = 0;
+    let failedCount = 0;
+    let skippedCount = 0;
+
+    for (const po of purchaseOrders) {
+      const raw = po?.submitted_By;
+
+      if (!raw) {
+        console.warn(`[SKIP] ${po.po_number} - submitted_By empty/undefined`);
+        skippedCount++;
+        continue;
+      }
+
+      // If it's already an ObjectId-looking string, skip
+      if (mongoose.Types.ObjectId.isValid(raw)) {
+        console.log(`[SKIP] ${po.po_number} - already ObjectId: ${raw}`);
+        skippedCount++;
+        continue;
+      }
+
+      const submittedName = String(raw).trim().replace(/\s+/g, " ");
+      console.log(`[PROCESS] ${po.po_number} - submitted_By: "${submittedName}"`);
+
+      // 2) Safe, case-insensitive exact match on name
+      const user = await userModells
+        .findOne({ name: { $regex: new RegExp("^" + escapeRegExp(submittedName) + "$", "i") } })
+        .select("_id name")
+        .lean();
+
+      if (!user) {
+        console.warn(`[FAILED] ${po.po_number} - No user found for "${submittedName}"`);
+        failedCount++;
+        continue;
+      }
+
+      // 3) Update using updateOne (works with lean())
+      const result = await purchaseOrderModells.updateOne(
+        { _id: po._id },
+        { $set: { submitted_By: user._id } }
+      );
+
+      if (result.modifiedCount === 1) {
+        updatedCount++;
+        console.log(`[UPDATED] ${po.po_number} -> ${user._id} (${user.name})`);
+      } else {
+        console.warn(
+          `[WARN] ${po.po_number} matched but not modified (maybe already set to same id?)`
+        );
+      }
+    }
+
+    res.json({
+      message: "submitted_By field normalized",
+      updated: updatedCount,
+      failed: failedCount,
+      skipped: skippedCount,
+      totalScanned: purchaseOrders.length,
+    });
+  } catch (error) {
+    console.error("[ERROR] fixSubmittedBy:", error);
+    res.status(500).json({ message: "Error updating submitted_By", error });
+  }
+};
+
+
+// utility to normalize
+function normalizeItemField(item) {
+  if (Array.isArray(item) && item.length > 0) {
+    let firstObj = item[0];
+
+    // unwrap mongoose subdoc
+    if (firstObj._doc) firstObj = firstObj._doc;
+
+    if (typeof firstObj === "object" && firstObj !== null) {
+      const chars = Object.keys(firstObj)
+        .filter(k => /^\d+$/.test(k))           // numeric only
+        .sort((a, b) => Number(a) - Number(b))  // order
+        .map(k => firstObj[k]);                 // values
+
+      return chars.join("").trim();
+    }
+
+    if (typeof firstObj === "string") {
+      return item.join("").trim();
+    }
+  }
+
+  return item; // already string
+}
+
+// controller
+const itemArray = async (req, res) => {
+  try {
+    const purchaseOrders = await purchaseOrderModells.find({
+      item: { $type: "array" }
+    }).lean(); // fetch as plain objects
+
+    if (!purchaseOrders.length) {
+      return res.json({ success: true, message: "No array items found" });
+    }
+
+    // build bulk ops for raw collection
+    const bulkOps = purchaseOrders.map(po => {
+      const normalized = normalizeItemField(po.item);
+
+      if (!normalized || typeof normalized !== "string") {
+        return null; // skip if nothing to update
+      }
+
+      return {
+        updateOne: {
+          filter: { _id: po._id },
+          update: { $set: { item: normalized } }
+        }
+      };
+    }).filter(Boolean);
+
+    if (!bulkOps.length) {
+      return res.json({ success: true, message: "No valid updates to apply" });
+    }
+
+    // run at raw MongoDB level
+    const result = await purchaseOrderModells.collection.bulkWrite(bulkOps);
+
+    res.json({
+      success: true,
+      message: `Normalized ${result.modifiedCount} entries out of ${purchaseOrders.length}`,
+      result
+    });
+  } catch (error) {
+    console.error("Error normalizing items:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
 
@@ -2221,5 +2367,7 @@ module.exports = {
   updateStatusPO,
   getPoBasic,
   manipulatepo,
-  calculateBill
+  calculateBill,
+  fixSubmittedBy,
+  itemArray
 };

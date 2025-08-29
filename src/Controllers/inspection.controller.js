@@ -300,7 +300,6 @@ const updateStatusInspection = catchAsyncError(async (req, res, next) => {
       }
     }
 
-    // Push status update (match schema fields)
     inspection.status_history.push({
       status,
       remarks,
@@ -343,11 +342,10 @@ const getInspectionById = catchAsyncError(async (req, res, next) => {
       path: "status_history.user_id",
       select: "_id name emp_id email phone role department createdAt updatedAt",
     })
-    .lean(); // make sure we can safely append fields
+    .lean(); 
 
   if (!inspection) return next(new ErrorHandler("Not Found", 404));
 
-  // ✅ Lookup purchase order to attach project_code
   const purchaseOrder = await purchaseOrderModel
     .findOne({
       po_number: inspection.po_number,
