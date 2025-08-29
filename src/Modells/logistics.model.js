@@ -72,9 +72,8 @@ const logisticSchema = new mongoose.Schema(
   { timestamps: true }
 );
 logisticSchema.pre("save", function (next) {
-  updateStatus(this, "ready_to_dispatch"); 
-  next();                                   
+  updateStatus(this, "ready_to_dispatch");
+  next();
 });
-
 
 module.exports = mongoose.model("Logistic", logisticSchema);

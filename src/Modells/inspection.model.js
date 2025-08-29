@@ -3,12 +3,9 @@ const updateStatus = require("../utils/updatestatus.utils");
 
 const inspectionSchema = new mongoose.Schema(
   {
-    project_code: {
-      type: String,
-    },
     po_number: {
       type: String,
-      required: true
+      required: true,
     },
     inspection_code: {
       type: String,

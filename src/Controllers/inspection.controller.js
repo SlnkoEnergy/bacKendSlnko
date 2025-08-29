@@ -9,6 +9,7 @@ const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
 const { nextInspectionCode } = require("../utils/inspection.utils");
+const purchaseOrderModel = require("../Modells/purchaseorder.model");
 
 const createInspection = catchAsyncError(async (req, res) => {
   const userId = req.user?.userId;
@@ -153,8 +154,24 @@ const getAllInspections = catchAsyncError(async (req, res, next) => {
             preserveNullAndEmptyArrays: true,
           },
         },
+        // ✅ Lookup purchase order here
+        {
+          $lookup: {
+            from: "purchaseorders",
+            localField: "po_number",
+            foreignField: "po_number",
+            as: "po_doc",
+          },
+        },
+        {
+          $unwind: {
+            path: "$po_doc",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
         {
           $addFields: {
+            project_code: "$po_doc.p_id",
             item: {
               $map: {
                 input: "$item",
@@ -310,11 +327,37 @@ const updateStatusInspection = catchAsyncError(async (req, res, next) => {
 // READ ONE
 const getInspectionById = catchAsyncError(async (req, res, next) => {
   const inspection = await Inspection.findById(req.params.id)
-    .populate("created_by current_status.user_id")
-    .populate("item.category_id", "_id name")
-    .populate("status_history.user_id", "_id name")
-    .populate("current_status.user_id", "_id name");
+    .populate({
+      path: "created_by",
+      select: "_id name emp_id email phone role department createdAt updatedAt",
+    })
+    .populate({
+      path: "current_status.user_id",
+      select: "_id name emp_id email phone role department createdAt updatedAt",
+    })
+    .populate({
+      path: "item.category_id",
+      select: "_id name",
+    })
+    .populate({
+      path: "status_history.user_id",
+      select: "_id name emp_id email phone role department createdAt updatedAt",
+    })
+    .lean(); // make sure we can safely append fields
+
   if (!inspection) return next(new ErrorHandler("Not Found", 404));
+
+  // ✅ Lookup purchase order to attach project_code
+  const purchaseOrder = await purchaseOrderModel
+    .findOne({
+      po_number: inspection.po_number,
+    })
+    .select("p_id");
+
+  if (purchaseOrder) {
+    inspection.project_code = purchaseOrder.p_id;
+  }
+
   res.json(inspection);
 });
 

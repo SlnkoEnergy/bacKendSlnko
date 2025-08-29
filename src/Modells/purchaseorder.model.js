@@ -79,7 +79,8 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
     },
     submitted_By: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
     po_basic: {
       type: String,
