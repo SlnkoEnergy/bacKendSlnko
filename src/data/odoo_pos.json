@@ -1,0 +1,5288 @@
+[
+    {
+        "po_number": "INFRA-PO/2025-26/00067",
+        "vendor": "AAINATH CONSTRUCTION COMPANY (LAKH SINGH)",
+        "po_date": "2025-09-28 09:26:49",
+        "item_category": "Complete work from piling casting till commissioning including civil materials, menpower and all machinery",
+        "warehouse": "RJK-C/EtricaPower-Khiyasariya/2520/435",
+        "basic_po_value": 3872000,
+        "total_tax": "18% IGST P",
+        "total_tax_percent": 18,
+        "total_gst": 696960,
+        "total_po_value": 4568960,
+        "order_lines": [
+            {
+                "id": 24080,
+                "product_id": [
+                    1671,
+                    "[PRSE0002] Erection, Installation and Commissioning Services"
+                ],
+                "product_qty": 3.52,
+                "price_unit": 1100000,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "Complete work from piling casting till commissioning including civil materials, menpower and all machinery",
+                "price_subtotal": 3872000,
+                "tax_percent": 18,
+                "gst_amount": 696960
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02666",
+        "vendor": "ETRICA POWER",
+        "po_date": "2025-08-29 15:29:35",
+        "item_category": "CMO 100D Data Logger (SUNGROW)",
+        "warehouse": "MPK/AkshatRathore/2000/499",
+        "basic_po_value": 30000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 5400,
+        "total_po_value": 35400,
+        "order_lines": [
+            {
+                "id": 24154,
+                "product_id": [
+                    476,
+                    "[PRIN0006] CMO 100D Data Logger (SUNGROW)"
+                ],
+                "product_qty": 1,
+                "price_unit": 30000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "CMO 100D Data Logger (SUNGROW)",
+                "price_subtotal": 30000,
+                "tax_percent": 18,
+                "gst_amount": 5400
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02705",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-29 13:37:46",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ( inverter stand) ( HDG)",
+        "warehouse": "RJK-C/AVNEnergy/2220/645",
+        "basic_po_value": 1986352,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 357543.36000000004,
+        "total_po_value": 2343895.3600000003,
+        "order_lines": [
+            {
+                "id": 24224,
+                "product_id": [
+                    150,
+                    "Module Mounting Structure As per Shared BOQ"
+                ],
+                "product_qty": 18939,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Column(HDG)\n(1128 Nos)",
+                "price_subtotal": 1534059,
+                "tax_percent": 18,
+                "gst_amount": 276130.62
+            },
+            {
+                "id": 24225,
+                "product_id": [
+                    150,
+                    "Module Mounting Structure As per Shared BOQ"
+                ],
+                "product_qty": 4560,
+                "price_unit": 59,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Lower Column Black(1128 NOS)",
+                "price_subtotal": 269040,
+                "tax_percent": 18,
+                "gst_amount": 48427.2
+            },
+            {
+                "id": 24226,
+                "product_id": [
+                    150,
+                    "Module Mounting Structure As per Shared BOQ"
+                ],
+                "product_qty": 1997,
+                "price_unit": 82.25,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ( HDG Bracing Plate)( 2256 NOS)",
+                "price_subtotal": 164253.25,
+                "tax_percent": 18,
+                "gst_amount": 29565.585
+            },
+            {
+                "id": 24227,
+                "product_id": [
+                    150,
+                    "Module Mounting Structure As per Shared BOQ"
+                ],
+                "product_qty": 231,
+                "price_unit": 82.25,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ( inverter stand) ( HDG)",
+                "price_subtotal": 18999.75,
+                "tax_percent": 18,
+                "gst_amount": 3419.955
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02704",
+        "vendor": "UTTAM BHARAT ELECTRICALS PVT LTD",
+        "po_date": "2025-08-29 13:11:59",
+        "item_category": "1100 kVA, 11/0.8 kV, YNd11, OLTC, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP",
+        "warehouse": "TGREDCO/PranathiSandupatla/1000/592",
+        "basic_po_value": 1800000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 324000,
+        "total_po_value": 2124000,
+        "order_lines": [
+            {
+                "id": 24223,
+                "product_id": [
+                    417,
+                    "1100kVA 11/0.800kV Outdoor Copper Double wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP"
+                ],
+                "product_qty": 1,
+                "price_unit": 1800000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "1100 kVA, 11/0.8 kV, YNd11, OLTC, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP",
+                "price_subtotal": 1800000,
+                "tax_percent": 18,
+                "gst_amount": 324000
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02703",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-29 13:08:59",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ( inverter stand) ( HDG)",
+        "warehouse": "RJK-A/SanchaySolar/2000/641",
+        "basic_po_value": 1235777,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 222439.86,
+        "total_po_value": 1458216.8599999999,
+        "order_lines": [
+            {
+                "id": 24219,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 11584,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Column(HDG)\n(875 Nos)",
+                "price_subtotal": 938304,
+                "tax_percent": 18,
+                "gst_amount": 168894.72
+            },
+            {
+                "id": 24220,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 3043,
+                "price_unit": 59,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Lower Column Black(875 NOS)",
+                "price_subtotal": 179537,
+                "tax_percent": 18,
+                "gst_amount": 32316.66
+            },
+            {
+                "id": 24221,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1244,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ( HDG Bracing Plate)( 1750 NOS)",
+                "price_subtotal": 100764,
+                "tax_percent": 18,
+                "gst_amount": 18137.52
+            },
+            {
+                "id": 24222,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 212,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ( inverter stand) ( HDG)",
+                "price_subtotal": 17172,
+                "tax_percent": 18,
+                "gst_amount": 3090.96
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02702",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-29 13:06:59",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ( inverter stand) ( HDG)",
+        "warehouse": "RJK-A/GumberSolar/2000/640",
+        "basic_po_value": 1235777,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 222439.86,
+        "total_po_value": 1458216.8599999999,
+        "order_lines": [
+            {
+                "id": 24215,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 11584,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Column(HDG)\n(875 Nos)",
+                "price_subtotal": 938304,
+                "tax_percent": 18,
+                "gst_amount": 168894.72
+            },
+            {
+                "id": 24216,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 3043,
+                "price_unit": 59,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Lower Column Black(875 NOS)",
+                "price_subtotal": 179537,
+                "tax_percent": 18,
+                "gst_amount": 32316.66
+            },
+            {
+                "id": 24217,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1244,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ( HDG Bracing Plate)( 1750 NOS)",
+                "price_subtotal": 100764,
+                "tax_percent": 18,
+                "gst_amount": 18137.52
+            },
+            {
+                "id": 24218,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 212,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ( inverter stand) ( HDG)",
+                "price_subtotal": 17172,
+                "tax_percent": 18,
+                "gst_amount": 3090.96
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02701",
+        "vendor": "LS Power Control Private Limited",
+        "po_date": "2025-08-29 13:06:23",
+        "item_category": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+        "warehouse": "TGREDCO/PranathiSandupatla/1000/592",
+        "basic_po_value": 1005000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 36,
+        "total_gst": 180900,
+        "total_po_value": 1185900,
+        "order_lines": [
+            {
+                "id": 24213,
+                "product_id": [
+                    503,
+                    "[PRCP0011] ACCB - 4IN 2Out Ground Mounted Outdoor type (IP65 with Canopy) as per GTP"
+                ],
+                "product_qty": 1,
+                "price_unit": 570000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "ACCB - 4IN 2Out Ground Mounted Outdoor type (IP65 with Canopy) as per GTP",
+                "price_subtotal": 570000,
+                "tax_percent": 18,
+                "gst_amount": 102600
+            },
+            {
+                "id": 24214,
+                "product_id": [
+                    152,
+                    "[PRCP0001] 11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP."
+                ],
+                "product_qty": 1,
+                "price_unit": 435000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+                "price_subtotal": 435000,
+                "tax_percent": 18,
+                "gst_amount": 78300
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02700",
+        "vendor": "BUDHIA STEEL WORKS PRIVATE LIMITED",
+        "po_date": "2025-08-29 12:19:58",
+        "item_category": "MMS Module Mounting Structure (Galvalume)",
+        "warehouse": "MPK/BeekeshKumar/2000/488",
+        "basic_po_value": 2366856,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 426034.07999999996,
+        "total_po_value": 2792890.08,
+        "order_lines": [
+            {
+                "id": 24211,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 32873,
+                "price_unit": 72,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MMS Module Mounting Structure (Galvalume)",
+                "price_subtotal": 2366856,
+                "tax_percent": 18,
+                "gst_amount": 426034.07999999996
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02699",
+        "vendor": "BUDHIA STEEL WORKS PRIVATE LIMITED",
+        "po_date": "2025-08-29 12:19:17",
+        "item_category": "MMS Module Mounting Structure (Galvalume)",
+        "warehouse": "MPK/BhulebaiSolanki/1000/569",
+        "basic_po_value": 1190376,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 214267.68,
+        "total_po_value": 1404643.68,
+        "order_lines": [
+            {
+                "id": 24210,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 16533,
+                "price_unit": 72,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MMS Module Mounting Structure (Galvalume)",
+                "price_subtotal": 1190376,
+                "tax_percent": 18,
+                "gst_amount": 214267.68
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02698",
+        "vendor": "BUDHIA STEEL WORKS PRIVATE LIMITED",
+        "po_date": "2025-08-29 12:09:04",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ FASTENER(HDG)\n( Nos)",
+        "warehouse": "MPK/BhulebaiSolanki/1000/569",
+        "basic_po_value": 1540425,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 277276.5,
+        "total_po_value": 1817701.5,
+        "order_lines": [
+            {
+                "id": 24206,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 20539,
+                "price_unit": 75,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ FASTENER(HDG)\n( Nos)",
+                "price_subtotal": 1540425,
+                "tax_percent": 18,
+                "gst_amount": 277276.5
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02697",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-29 12:08:52",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ-HDG(MIN 80 Microns Inverter Stand",
+        "warehouse": "MPK/BeekeshKumar/2000/488",
+        "basic_po_value": 1457158,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 262288.44,
+        "total_po_value": 1719446.4400000002,
+        "order_lines": [
+            {
+                "id": 24202,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 14523,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Columns HDG(MIN 80 Microns)-865 Nos",
+                "price_subtotal": 1176363,
+                "tax_percent": 18,
+                "gst_amount": 211745.34
+            },
+            {
+                "id": 24203,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 2807,
+                "price_unit": 59,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Columns Black-865 Nos",
+                "price_subtotal": 165613,
+                "tax_percent": 18,
+                "gst_amount": 29810.34
+            },
+            {
+                "id": 24205,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1229,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ- HDG(MIN 80 Microns Bracing Plates-1730 Nos",
+                "price_subtotal": 99549,
+                "tax_percent": 18,
+                "gst_amount": 17918.82
+            },
+            {
+                "id": 24204,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 193,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-HDG(MIN 80 Microns Inverter Stand",
+                "price_subtotal": 15633,
+                "tax_percent": 18,
+                "gst_amount": 2813.94
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02696",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-29 11:59:09",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ( inverter stand) ( HDG)",
+        "warehouse": "MPK/BhulebaiSolanki/1000/569",
+        "basic_po_value": 725666,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 130619.88,
+        "total_po_value": 856285.88,
+        "order_lines": [
+            {
+                "id": 24198,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 7219,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Column(HDG)\n(430 Nos)",
+                "price_subtotal": 584739,
+                "tax_percent": 18,
+                "gst_amount": 105253.01999999999
+            },
+            {
+                "id": 24199,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1396,
+                "price_unit": 59,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Lower Column Black(430 NOS)",
+                "price_subtotal": 82364,
+                "tax_percent": 18,
+                "gst_amount": 14825.519999999999
+            },
+            {
+                "id": 24200,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 611,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ( HDG Bracing Plate)( 860 NOS)",
+                "price_subtotal": 49491,
+                "tax_percent": 18,
+                "gst_amount": 8908.38
+            },
+            {
+                "id": 24201,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 112,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ( inverter stand) ( HDG)",
+                "price_subtotal": 9072,
+                "tax_percent": 18,
+                "gst_amount": 1632.96
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02695",
+        "vendor": "ORNATE AGENCIES PRIVATE LIMITED",
+        "po_date": "2025-08-29 11:35:59",
+        "item_category": "532 Wp - Thin film Photovoltaic Solar Module - Make First Solar",
+        "warehouse": "UPNEDA/Dakash Solar/1600/490",
+        "basic_po_value": 37793280,
+        "total_tax": "Input IGST @12%",
+        "total_tax_percent": 12,
+        "total_gst": 4535193.6,
+        "total_po_value": 42328473.6,
+        "order_lines": [
+            {
+                "id": 24197,
+                "product_id": [
+                    1586,
+                    "[PRSM0003] Thin film Photovoltaic Solar Module"
+                ],
+                "product_qty": 3840,
+                "price_unit": 9842,
+                "taxes_id": [
+                    36
+                ],
+                "name": "532 Wp - Thin film Photovoltaic Solar Module - Make First Solar",
+                "price_subtotal": 37793280,
+                "tax_percent": 12,
+                "gst_amount": 4535193.6
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02693",
+        "vendor": "SHOPTEC",
+        "po_date": "2025-08-29 10:27:17",
+        "item_category": "1. IMPACT BY HONEYWELL NVR 4SATA 32CH I-HPNVR-432\n2. IMPACT BY HONEYWELL 2MP BULLET I-HIB2PI-UL\n3. IMPACT BY HONEYWELL ANPR I-HIPB5PI LPD\n4. IMPACT BY HONEYWELL 5MP HUMAN DETECT I-HIPD5PI-MVF\n5. IMPACT BY HONEYWELL PTZ 33X I-HIP6PI.P33X\n6. WD/SEAGATE 6 TB HARD DRIVE SURVEILLANCE\n7. INDOOR RACK 15 U\n8. POE Switch 4 Port\n9. POE Switch 8 Port\n10. SWITCH 8 PORT\n11. SEP 1.2 GIGA MODULE\n12. D-Link Cat6 Wire\n13. D-Link Cat6 Wire\n14. fiber cable single core\n15. FIBER JOINTER BOX WITH SPILICINC\n16. FIBER BIDI PATCH CORD 3MTR\n17. metal hoops for pole\n18. Junction Box\n19. OTHER HARDWARE\n20. Service/Wire Laying\n21. Service/ Installation\n\n& other scope work ",
+        "warehouse": "RJK-C/Arakis-Ranoli/3560/426",
+        "basic_po_value": 660110.18,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 18,
+        "total_gst": 118819.8324,
+        "total_po_value": 778930.0124,
+        "order_lines": [
+            {
+                "id": 24188,
+                "product_id": [
+                    955,
+                    "CCTV Camera"
+                ],
+                "product_qty": 1,
+                "price_unit": 660110.18,
+                "taxes_id": [
+                    82
+                ],
+                "name": "1. IMPACT BY HONEYWELL NVR 4SATA 32CH I-HPNVR-432\n2. IMPACT BY HONEYWELL 2MP BULLET I-HIB2PI-UL\n3. IMPACT BY HONEYWELL ANPR I-HIPB5PI LPD\n4. IMPACT BY HONEYWELL 5MP HUMAN DETECT I-HIPD5PI-MVF\n5. IMPACT BY HONEYWELL PTZ 33X I-HIP6PI.P33X\n6. WD/SEAGATE 6 TB HARD DRIVE SURVEILLANCE\n7. INDOOR RACK 15 U\n8. POE Switch 4 Port\n9. POE Switch 8 Port\n10. SWITCH 8 PORT\n11. SEP 1.2 GIGA MODULE\n12. D-Link Cat6 Wire\n13. D-Link Cat6 Wire\n14. fiber cable single core\n15. FIBER JOINTER BOX WITH SPILICINC\n16. FIBER BIDI PATCH CORD 3MTR\n17. metal hoops for pole\n18. Junction Box\n19. OTHER HARDWARE\n20. Service/Wire Laying\n21. Service/ Installation\n\n& other scope work ",
+                "price_subtotal": 660110.18,
+                "tax_percent": 18,
+                "gst_amount": 118819.8324
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02692",
+        "vendor": "Sangam Electric",
+        "po_date": "2025-08-29 09:42:35",
+        "item_category": "42 feet lattise tower godiya with joint patti 2nos",
+        "warehouse": "RJK-C/Veekay-Pataniya/4000/439",
+        "basic_po_value": 55120,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 9921.6,
+        "total_po_value": 65041.6,
+        "order_lines": [
+            {
+                "id": 24187,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 1040,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "42 feet lattise tower godiya with joint patti 2nos",
+                "price_subtotal": 55120,
+                "tax_percent": 18,
+                "gst_amount": 9921.6
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02691",
+        "vendor": "Sangam Electric",
+        "po_date": "2025-08-29 09:32:41",
+        "item_category": "M.S NUT BOLTS - \n 12X5 SOOT = 50 NOS\n 4X5 SOOT= 25 NOS\n 2X5 SOOT = 260 NOS\n 3X5 SOOT = 100 NOS",
+        "warehouse": "RJK-C/MaaBhadrakalika/2520/452",
+        "basic_po_value": 288750,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 36,
+        "total_gst": 51975,
+        "total_po_value": 340725,
+        "order_lines": [
+            {
+                "id": 24174,
+                "product_id": [
+                    794,
+                    "[PRTL0006] ACSR Conductors (Dog/Rabbit)"
+                ],
+                "product_qty": 3000,
+                "price_unit": 92,
+                "taxes_id": [
+                    35
+                ],
+                "name": "ACSR DOG CONDUCTOR - AS PER CTL",
+                "price_subtotal": 276000,
+                "tax_percent": 18,
+                "gst_amount": 49680
+            },
+            {
+                "id": 24186,
+                "product_id": [
+                    562,
+                    "[PRTL0010] MS Nut Bolts for Transmission Line"
+                ],
+                "product_qty": 150,
+                "price_unit": 85,
+                "taxes_id": [
+                    35
+                ],
+                "name": "M.S NUT BOLTS - \n 12X5 SOOT = 50 NOS\n 4X5 SOOT= 25 NOS\n 2X5 SOOT = 260 NOS\n 3X5 SOOT = 100 NOS",
+                "price_subtotal": 12750,
+                "tax_percent": 18,
+                "gst_amount": 2295
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02690",
+        "vendor": "Sangam Electric",
+        "po_date": "2025-08-29 09:32:15",
+        "item_category": "LUGS 185 SQMM ALUMINUM",
+        "warehouse": "RJK-C/Adishakti /2520/451",
+        "basic_po_value": 591109,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 270,
+        "total_gst": 106399.62000000001,
+        "total_po_value": 697508.62,
+        "order_lines": [
+            {
+                "id": 24155,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 3120,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "42 FEET LATTISE TOWER GODIYA WITH JOINT PATTI\n6 NOS - (Tower with Clamp)",
+                "price_subtotal": 165360,
+                "tax_percent": 18,
+                "gst_amount": 29764.8
+            },
+            {
+                "id": 24156,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 624,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MS STRUCTURE SETS 33KV TOWER V CROSS =26 NOS",
+                "price_subtotal": 33072,
+                "tax_percent": 18,
+                "gst_amount": 5952.96
+            },
+            {
+                "id": 24157,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 120,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MS STRUCTURE SETS V CUT POINT FOR TOWER = 6 NOS",
+                "price_subtotal": 6360,
+                "tax_percent": 18,
+                "gst_amount": 1144.8
+            },
+            {
+                "id": 24158,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 504,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MS STRUCTURE SETS 12 FEET LENGTH CHANNEL = 14 NOS",
+                "price_subtotal": 26712,
+                "tax_percent": 18,
+                "gst_amount": 4808.16
+            },
+            {
+                "id": 24159,
+                "product_id": [
+                    794,
+                    "[PRTL0006] ACSR Conductors (Dog/Rabbit)"
+                ],
+                "product_qty": 3000,
+                "price_unit": 92,
+                "taxes_id": [
+                    35
+                ],
+                "name": "ACSR DOG CONDUCTOR - AS PER CTL",
+                "price_subtotal": 276000,
+                "tax_percent": 18,
+                "gst_amount": 49680
+            },
+            {
+                "id": 24160,
+                "product_id": [
+                    788,
+                    "[PRTL0014] Pin/Stay Insulators"
+                ],
+                "product_qty": 24,
+                "price_unit": 290,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV PIN INSULATOR",
+                "price_subtotal": 6960,
+                "tax_percent": 18,
+                "gst_amount": 1252.8
+            },
+            {
+                "id": 24161,
+                "product_id": [
+                    791,
+                    "[PRTL0004] Disc Hardware Fitting, Stay Sets, GI Stay Set"
+                ],
+                "product_qty": 18,
+                "price_unit": 290,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV DISC INSULATOR B&S TYPE",
+                "price_subtotal": 5220,
+                "tax_percent": 18,
+                "gst_amount": 939.5999999999999
+            },
+            {
+                "id": 24162,
+                "product_id": [
+                    791,
+                    "[PRTL0004] Disc Hardware Fitting, Stay Sets, GI Stay Set"
+                ],
+                "product_qty": 25,
+                "price_unit": 1150,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV STAY SET",
+                "price_subtotal": 28750,
+                "tax_percent": 18,
+                "gst_amount": 5175
+            },
+            {
+                "id": 24163,
+                "product_id": [
+                    562,
+                    "[PRTL0010] MS Nut Bolts for Transmission Line"
+                ],
+                "product_qty": 150,
+                "price_unit": 85,
+                "taxes_id": [
+                    35
+                ],
+                "name": "M.S NUT BOLTS - \n 12X5 SOOT = 50 NOS\n 4X5 SOOT= 25 NOS\n 2X5 SOOT = 260 NOS\n 3X5 SOOT = 100 NOS",
+                "price_subtotal": 12750,
+                "tax_percent": 18,
+                "gst_amount": 2295
+            },
+            {
+                "id": 24164,
+                "product_id": [
+                    708,
+                    "[PRTL0002] 11 KV Transmission Line Material Supply (General)"
+                ],
+                "product_qty": 24,
+                "price_unit": 190,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV GI PIN",
+                "price_subtotal": 4560,
+                "tax_percent": 18,
+                "gst_amount": 820.8
+            },
+            {
+                "id": 24165,
+                "product_id": [
+                    791,
+                    "[PRTL0004] Disc Hardware Fitting, Stay Sets, GI Stay Set"
+                ],
+                "product_qty": 18,
+                "price_unit": 555,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV B&S HARDWARE",
+                "price_subtotal": 9990,
+                "tax_percent": 18,
+                "gst_amount": 1798.2
+            },
+            {
+                "id": 24166,
+                "product_id": [
+                    708,
+                    "[PRTL0002] 11 KV Transmission Line Material Supply (General)"
+                ],
+                "product_qty": 20,
+                "price_unit": 210,
+                "taxes_id": [
+                    35
+                ],
+                "name": "PG CLAMP FOR DOG CONDUCTOR",
+                "price_subtotal": 4200,
+                "tax_percent": 18,
+                "gst_amount": 756
+            },
+            {
+                "id": 24167,
+                "product_id": [
+                    788,
+                    "[PRTL0014] Pin/Stay Insulators"
+                ],
+                "product_qty": 25,
+                "price_unit": 85,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV STAY INSULATOR",
+                "price_subtotal": 2125,
+                "tax_percent": 18,
+                "gst_amount": 382.5
+            },
+            {
+                "id": 24168,
+                "product_id": [
+                    856,
+                    "[PRTL0008] GI Pin, GI Wire"
+                ],
+                "product_qty": 120,
+                "price_unit": 65,
+                "taxes_id": [
+                    35
+                ],
+                "name": "STAY WIRE",
+                "price_subtotal": 7800,
+                "tax_percent": 18,
+                "gst_amount": 1404
+            },
+            {
+                "id": 24169,
+                "product_id": [
+                    1687,
+                    "[PRCC0039] Cable Lugs"
+                ],
+                "product_qty": 25,
+                "price_unit": 50,
+                "taxes_id": [
+                    35
+                ],
+                "name": "LUGS 185 SQMM ALUMINUM",
+                "price_subtotal": 1250,
+                "tax_percent": 18,
+                "gst_amount": 225
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02689",
+        "vendor": "Sangam Electric",
+        "po_date": "2025-08-29 09:32:07",
+        "item_category": "LUGS 185 SQMM ALUMINUM",
+        "warehouse": "RJK-C/Adishakti /2520/451",
+        "basic_po_value": 591109,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 270,
+        "total_gst": 106399.62000000001,
+        "total_po_value": 697508.62,
+        "order_lines": [
+            {
+                "id": 24139,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 3120,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "42 FEET LATTISE TOWER GODIYA WITH JOINT PATTI\n6 NOS - (Tower with Clamp)",
+                "price_subtotal": 165360,
+                "tax_percent": 18,
+                "gst_amount": 29764.8
+            },
+            {
+                "id": 24140,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 624,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MS STRUCTURE SETS 33KV TOWER V CROSS =26 NOS",
+                "price_subtotal": 33072,
+                "tax_percent": 18,
+                "gst_amount": 5952.96
+            },
+            {
+                "id": 24141,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 120,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MS STRUCTURE SETS V CUT POINT FOR TOWER = 6 NOS",
+                "price_subtotal": 6360,
+                "tax_percent": 18,
+                "gst_amount": 1144.8
+            },
+            {
+                "id": 24142,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 504,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MS STRUCTURE SETS 12 FEET LENGTH CHANNEL = 14 NOS",
+                "price_subtotal": 26712,
+                "tax_percent": 18,
+                "gst_amount": 4808.16
+            },
+            {
+                "id": 24143,
+                "product_id": [
+                    794,
+                    "[PRTL0006] ACSR Conductors (Dog/Rabbit)"
+                ],
+                "product_qty": 3000,
+                "price_unit": 92,
+                "taxes_id": [
+                    35
+                ],
+                "name": "ACSR DOG CONDUCTOR - AS PER CTL",
+                "price_subtotal": 276000,
+                "tax_percent": 18,
+                "gst_amount": 49680
+            },
+            {
+                "id": 24144,
+                "product_id": [
+                    788,
+                    "[PRTL0014] Pin/Stay Insulators"
+                ],
+                "product_qty": 24,
+                "price_unit": 290,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV PIN INSULATOR",
+                "price_subtotal": 6960,
+                "tax_percent": 18,
+                "gst_amount": 1252.8
+            },
+            {
+                "id": 24145,
+                "product_id": [
+                    791,
+                    "[PRTL0004] Disc Hardware Fitting, Stay Sets, GI Stay Set"
+                ],
+                "product_qty": 18,
+                "price_unit": 290,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV DISC INSULATOR B&S TYPE",
+                "price_subtotal": 5220,
+                "tax_percent": 18,
+                "gst_amount": 939.5999999999999
+            },
+            {
+                "id": 24146,
+                "product_id": [
+                    791,
+                    "[PRTL0004] Disc Hardware Fitting, Stay Sets, GI Stay Set"
+                ],
+                "product_qty": 25,
+                "price_unit": 1150,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV STAY SET",
+                "price_subtotal": 28750,
+                "tax_percent": 18,
+                "gst_amount": 5175
+            },
+            {
+                "id": 24147,
+                "product_id": [
+                    562,
+                    "[PRTL0010] MS Nut Bolts for Transmission Line"
+                ],
+                "product_qty": 150,
+                "price_unit": 85,
+                "taxes_id": [
+                    35
+                ],
+                "name": "M.S NUT BOLTS - \n 12X5 SOOT = 50 NOS\n 4X5 SOOT= 25 NOS\n 2X5 SOOT = 260 NOS\n 3X5 SOOT = 100 NOS",
+                "price_subtotal": 12750,
+                "tax_percent": 18,
+                "gst_amount": 2295
+            },
+            {
+                "id": 24148,
+                "product_id": [
+                    708,
+                    "[PRTL0002] 11 KV Transmission Line Material Supply (General)"
+                ],
+                "product_qty": 24,
+                "price_unit": 190,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV GI PIN",
+                "price_subtotal": 4560,
+                "tax_percent": 18,
+                "gst_amount": 820.8
+            },
+            {
+                "id": 24149,
+                "product_id": [
+                    791,
+                    "[PRTL0004] Disc Hardware Fitting, Stay Sets, GI Stay Set"
+                ],
+                "product_qty": 18,
+                "price_unit": 555,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV B&S HARDWARE",
+                "price_subtotal": 9990,
+                "tax_percent": 18,
+                "gst_amount": 1798.2
+            },
+            {
+                "id": 24150,
+                "product_id": [
+                    708,
+                    "[PRTL0002] 11 KV Transmission Line Material Supply (General)"
+                ],
+                "product_qty": 20,
+                "price_unit": 210,
+                "taxes_id": [
+                    35
+                ],
+                "name": "PG CLAMP FOR DOG CONDUCTOR",
+                "price_subtotal": 4200,
+                "tax_percent": 18,
+                "gst_amount": 756
+            },
+            {
+                "id": 24151,
+                "product_id": [
+                    788,
+                    "[PRTL0014] Pin/Stay Insulators"
+                ],
+                "product_qty": 25,
+                "price_unit": 85,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV STAY INSULATOR",
+                "price_subtotal": 2125,
+                "tax_percent": 18,
+                "gst_amount": 382.5
+            },
+            {
+                "id": 24152,
+                "product_id": [
+                    856,
+                    "[PRTL0008] GI Pin, GI Wire"
+                ],
+                "product_qty": 120,
+                "price_unit": 65,
+                "taxes_id": [
+                    35
+                ],
+                "name": "STAY WIRE",
+                "price_subtotal": 7800,
+                "tax_percent": 18,
+                "gst_amount": 1404
+            },
+            {
+                "id": 24153,
+                "product_id": [
+                    1687,
+                    "[PRCC0039] Cable Lugs"
+                ],
+                "product_qty": 25,
+                "price_unit": 50,
+                "taxes_id": [
+                    35
+                ],
+                "name": "LUGS 185 SQMM ALUMINUM",
+                "price_subtotal": 1250,
+                "tax_percent": 18,
+                "gst_amount": 225
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02642",
+        "vendor": "VAARTA INDIA INFOTECH PRIVATE LIMITED",
+        "po_date": "2025-08-29 07:19:11",
+        "item_category": "300 kVA @ 51 ℃ / 301.8 kVA @ 50 ℃ Multi-MPPT String Inverter SG320HX-20 ",
+        "warehouse": "MPK/AkshatRathore/2000/499",
+        "basic_po_value": 3185000,
+        "total_tax": "Input IGST @12%",
+        "total_tax_percent": 12,
+        "total_gst": 382200,
+        "total_po_value": 3567200,
+        "order_lines": [
+            {
+                "id": 24138,
+                "product_id": [
+                    1054,
+                    "[PRIN0004] 300 kVA @ 51 ℃ / 301.8 kVA @ 50 ℃ Multi-MPPT String Inverter SG320HX-20 "
+                ],
+                "product_qty": 7,
+                "price_unit": 455000,
+                "taxes_id": [
+                    36
+                ],
+                "name": "300 kVA @ 51 ℃ / 301.8 kVA @ 50 ℃ Multi-MPPT String Inverter SG320HX-20 ",
+                "price_subtotal": 3185000,
+                "tax_percent": 12,
+                "gst_amount": 382200
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02688",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-28 13:37:18",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ( inverter stand) ( HDG)",
+        "warehouse": "MPK/BeekeshKumar/2000/488",
+        "basic_po_value": 1529506,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 275311.08,
+        "total_po_value": 1804817.0799999998,
+        "order_lines": [
+            {
+                "id": 24134,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 14524,
+                "price_unit": 85,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Column(HDG)\n(865 Nos)",
+                "price_subtotal": 1234540,
+                "tax_percent": 18,
+                "gst_amount": 222217.19999999998
+            },
+            {
+                "id": 24135,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 2808,
+                "price_unit": 62,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Lower Column Black(865 NOS)",
+                "price_subtotal": 174096,
+                "tax_percent": 18,
+                "gst_amount": 31337.28
+            },
+            {
+                "id": 24136,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1229,
+                "price_unit": 85,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ( HDG Bracing Plate)( 1730 NOS)",
+                "price_subtotal": 104465,
+                "tax_percent": 18,
+                "gst_amount": 18803.7
+            },
+            {
+                "id": 24137,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 193,
+                "price_unit": 85,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ( inverter stand) ( HDG)",
+                "price_subtotal": 16405,
+                "tax_percent": 18,
+                "gst_amount": 2952.9
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02687",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-28 13:29:02",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+        "warehouse": "TGREDCO/MarojuLaxmi/1000/657",
+        "basic_po_value": 644492.5,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 116008.65,
+        "total_po_value": 760501.15,
+        "order_lines": [
+            {
+                "id": 24130,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 5759,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Columns HDG(MIN 80 Microns)-435 Nos",
+                "price_subtotal": 486635.5,
+                "tax_percent": 18,
+                "gst_amount": 87594.39
+            },
+            {
+                "id": 24131,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1513,
+                "price_unit": 62,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Column Black -435 Nos",
+                "price_subtotal": 93806,
+                "tax_percent": 18,
+                "gst_amount": 16885.079999999998
+            },
+            {
+                "id": 24132,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 618,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Bracing Plate HDG(MIN 80 Microns)-870 Nos",
+                "price_subtotal": 52221,
+                "tax_percent": 18,
+                "gst_amount": 9399.779999999999
+            },
+            {
+                "id": 24133,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 140,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+                "price_subtotal": 11830,
+                "tax_percent": 18,
+                "gst_amount": 2129.4
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02686",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-28 13:28:09",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+        "warehouse": "TGREDCO/GoundlaRadhika/1000/615",
+        "basic_po_value": 644492.5,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 116008.65,
+        "total_po_value": 760501.15,
+        "order_lines": [
+            {
+                "id": 24126,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 5759,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Columns HDG(MIN 80 Microns)-435 Nos",
+                "price_subtotal": 486635.5,
+                "tax_percent": 18,
+                "gst_amount": 87594.39
+            },
+            {
+                "id": 24127,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1513,
+                "price_unit": 62,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Column Black -435 Nos",
+                "price_subtotal": 93806,
+                "tax_percent": 18,
+                "gst_amount": 16885.079999999998
+            },
+            {
+                "id": 24128,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 618,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Bracing Plate HDG(MIN 80 Microns)-870 Nos",
+                "price_subtotal": 52221,
+                "tax_percent": 18,
+                "gst_amount": 9399.779999999999
+            },
+            {
+                "id": 24129,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 140,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+                "price_subtotal": 11830,
+                "tax_percent": 18,
+                "gst_amount": 2129.4
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02685",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-28 13:27:14",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+        "warehouse": "TGREDCO/KVenkatesh/1000/591",
+        "basic_po_value": 644492.5,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 116008.65,
+        "total_po_value": 760501.15,
+        "order_lines": [
+            {
+                "id": 24122,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 5759,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Columns HDG(MIN 80 Microns)-435 Nos",
+                "price_subtotal": 486635.5,
+                "tax_percent": 18,
+                "gst_amount": 87594.39
+            },
+            {
+                "id": 24123,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1513,
+                "price_unit": 62,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Column Black -435 Nos",
+                "price_subtotal": 93806,
+                "tax_percent": 18,
+                "gst_amount": 16885.079999999998
+            },
+            {
+                "id": 24124,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 618,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Bracing Plate HDG(MIN 80 Microns)-870 Nos",
+                "price_subtotal": 52221,
+                "tax_percent": 18,
+                "gst_amount": 9399.779999999999
+            },
+            {
+                "id": 24125,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 140,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+                "price_subtotal": 11830,
+                "tax_percent": 18,
+                "gst_amount": 2129.4
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02684",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-28 13:26:16",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+        "warehouse": "TGREDCO/GujjaSuchithra/1000/590",
+        "basic_po_value": 644492.5,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 116008.65,
+        "total_po_value": 760501.15,
+        "order_lines": [
+            {
+                "id": 24118,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 5759,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Columns HDG(MIN 80 Microns)-435 Nos",
+                "price_subtotal": 486635.5,
+                "tax_percent": 18,
+                "gst_amount": 87594.39
+            },
+            {
+                "id": 24119,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1513,
+                "price_unit": 62,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Column Black -435 Nos",
+                "price_subtotal": 93806,
+                "tax_percent": 18,
+                "gst_amount": 16885.079999999998
+            },
+            {
+                "id": 24120,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 618,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Bracing Plate HDG(MIN 80 Microns)-870 Nos",
+                "price_subtotal": 52221,
+                "tax_percent": 18,
+                "gst_amount": 9399.779999999999
+            },
+            {
+                "id": 24121,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 140,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+                "price_subtotal": 11830,
+                "tax_percent": 18,
+                "gst_amount": 2129.4
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02683",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-28 13:25:17",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+        "warehouse": "TGDRECO/M. Malathi/1000/621",
+        "basic_po_value": 644492.5,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 116008.65,
+        "total_po_value": 760501.15,
+        "order_lines": [
+            {
+                "id": 24114,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 5759,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Columns HDG(MIN 80 Microns)-435 Nos",
+                "price_subtotal": 486635.5,
+                "tax_percent": 18,
+                "gst_amount": 87594.39
+            },
+            {
+                "id": 24115,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1513,
+                "price_unit": 62,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Column Black -435 Nos",
+                "price_subtotal": 93806,
+                "tax_percent": 18,
+                "gst_amount": 16885.079999999998
+            },
+            {
+                "id": 24116,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 618,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Bracing Plate HDG(MIN 80 Microns)-870 Nos",
+                "price_subtotal": 52221,
+                "tax_percent": 18,
+                "gst_amount": 9399.779999999999
+            },
+            {
+                "id": 24117,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 140,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+                "price_subtotal": 11830,
+                "tax_percent": 18,
+                "gst_amount": 2129.4
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02682",
+        "vendor": "Electricare - Manoj Kumar Jangid",
+        "po_date": "2025-08-28 13:19:16",
+        "item_category": "33kV Kiosk as per Specification and GTP Submitted ",
+        "warehouse": "UPNEDA/Shikha/3300/486",
+        "basic_po_value": 1920000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 36,
+        "total_gst": 345600,
+        "total_po_value": 2265600,
+        "order_lines": [
+            {
+                "id": 24112,
+                "product_id": [
+                    1732,
+                    "[PRCP0023] ACCB - 13IN 2Out Ground Mounted Outdoor type (IP65 with Canopy) as per GTP"
+                ],
+                "product_qty": 1,
+                "price_unit": 1120000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "ACCB - 13IN 2Out Ground Mounted Outdoor type (IP65 with Canopy) as per GTP",
+                "price_subtotal": 1120000,
+                "tax_percent": 18,
+                "gst_amount": 201600
+            },
+            {
+                "id": 24111,
+                "product_id": [
+                    1650,
+                    "[PRCP0003] 33kV Kiosk as per Specification and GTP Submitted "
+                ],
+                "product_qty": 1,
+                "price_unit": 800000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33kV Kiosk as per Specification and GTP Submitted ",
+                "price_subtotal": 800000,
+                "tax_percent": 18,
+                "gst_amount": 144000
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02681",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-28 13:16:41",
+        "item_category": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+        "warehouse": "TGREDCO/PranathiSandupatla/1000/592",
+        "basic_po_value": 644492.5,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 116008.65,
+        "total_po_value": 760501.15,
+        "order_lines": [
+            {
+                "id": 24107,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 5759,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Columns HDG(MIN 80 Microns)-435 Nos",
+                "price_subtotal": 486635.5,
+                "tax_percent": 18,
+                "gst_amount": 87594.39
+            },
+            {
+                "id": 24108,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1513,
+                "price_unit": 62,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Column Black -435 Nos",
+                "price_subtotal": 93806,
+                "tax_percent": 18,
+                "gst_amount": 16885.079999999998
+            },
+            {
+                "id": 24109,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 618,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Bracing Plate HDG(MIN 80 Microns)-870 Nos",
+                "price_subtotal": 52221,
+                "tax_percent": 18,
+                "gst_amount": 9399.779999999999
+            },
+            {
+                "id": 24110,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 140,
+                "price_unit": 84.5,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ-Inverter Stand HDG(MIN 80 Microns)",
+                "price_subtotal": 11830,
+                "tax_percent": 18,
+                "gst_amount": 2129.4
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02680",
+        "vendor": "CONTROL PANEL SYSTEMS",
+        "po_date": "2025-08-28 13:16:36",
+        "item_category": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+        "warehouse": "RJK-A/GumberSolar/2000/640",
+        "basic_po_value": 1215000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 36,
+        "total_gst": 218700,
+        "total_po_value": 1433700,
+        "order_lines": [
+            {
+                "id": 24105,
+                "product_id": [
+                    392,
+                    "[PRCP0016] ACCB - 7IN 2OUT - 01 No. - Ground Mounted, Outdoor Type"
+                ],
+                "product_qty": 1,
+                "price_unit": 780000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "ACCB - 7IN 2OUT - 01 No. - Ground Mounted, Outdoor Type",
+                "price_subtotal": 780000,
+                "tax_percent": 18,
+                "gst_amount": 140400
+            },
+            {
+                "id": 24106,
+                "product_id": [
+                    152,
+                    "[PRCP0001] 11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP."
+                ],
+                "product_qty": 1,
+                "price_unit": 435000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+                "price_subtotal": 435000,
+                "tax_percent": 18,
+                "gst_amount": 78300
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02679",
+        "vendor": "CONTROL PANEL SYSTEMS",
+        "po_date": "2025-08-28 13:16:02",
+        "item_category": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+        "warehouse": "RJK-A/SanchaySolar/2000/641",
+        "basic_po_value": 1215000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 36,
+        "total_gst": 218700,
+        "total_po_value": 1433700,
+        "order_lines": [
+            {
+                "id": 24103,
+                "product_id": [
+                    392,
+                    "[PRCP0016] ACCB - 7IN 2OUT - 01 No. - Ground Mounted, Outdoor Type"
+                ],
+                "product_qty": 1,
+                "price_unit": 780000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "ACCB - 7IN 2OUT - 01 No. - Ground Mounted, Outdoor Type",
+                "price_subtotal": 780000,
+                "tax_percent": 18,
+                "gst_amount": 140400
+            },
+            {
+                "id": 24104,
+                "product_id": [
+                    152,
+                    "[PRCP0001] 11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP."
+                ],
+                "product_qty": 1,
+                "price_unit": 435000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+                "price_subtotal": 435000,
+                "tax_percent": 18,
+                "gst_amount": 78300
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02678",
+        "vendor": "MARSONS ENERGY PRIVATE LIMITED",
+        "po_date": "2025-08-28 13:14:28",
+        "item_category": "2200 kVA, 11/0.8 kV, YNd11, OLTC Make- CTR, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP",
+        "warehouse": "RJK-A/GumberSolar/2000/640",
+        "basic_po_value": 2500000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 450000,
+        "total_po_value": 2950000,
+        "order_lines": [
+            {
+                "id": 24102,
+                "product_id": [
+                    722,
+                    "[PRTF0017] 2200 kVA, 11/0.8 kV, YNd11, OLTC Make- CTR, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP"
+                ],
+                "product_qty": 1,
+                "price_unit": 2500000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "2200 kVA, 11/0.8 kV, YNd11, OLTC Make- CTR, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP",
+                "price_subtotal": 2500000,
+                "tax_percent": 18,
+                "gst_amount": 450000
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02677",
+        "vendor": "MARSONS ENERGY PRIVATE LIMITED",
+        "po_date": "2025-08-28 13:13:13",
+        "item_category": "2200 kVA, 11/0.8 kV, YNd11, OLTC Make- CTR, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP",
+        "warehouse": "RJK-A/SanchaySolar/2000/641",
+        "basic_po_value": 2500000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 450000,
+        "total_po_value": 2950000,
+        "order_lines": [
+            {
+                "id": 24101,
+                "product_id": [
+                    722,
+                    "[PRTF0017] 2200 kVA, 11/0.8 kV, YNd11, OLTC Make- CTR, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP"
+                ],
+                "product_qty": 1,
+                "price_unit": 2500000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "2200 kVA, 11/0.8 kV, YNd11, OLTC Make- CTR, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP",
+                "price_subtotal": 2500000,
+                "tax_percent": 18,
+                "gst_amount": 450000
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02676",
+        "vendor": "ABC Transformers Pvt. Ltd.",
+        "po_date": "2025-08-28 13:05:45",
+        "item_category": "1100kVA 11/0.800kV YNd11, OLTC, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP",
+        "warehouse": "MPK/BhulebaiSolanki/1000/569",
+        "basic_po_value": 1540000,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 18,
+        "total_gst": 277200,
+        "total_po_value": 1817200,
+        "order_lines": [
+            {
+                "id": 24100,
+                "product_id": [
+                    1461,
+                    "[PRTF0004] 1100kVA 11/0.800kV YNd11, OLTC, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP"
+                ],
+                "product_qty": 1,
+                "price_unit": 1540000,
+                "taxes_id": [
+                    82
+                ],
+                "name": "1100kVA 11/0.800kV YNd11, OLTC, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP",
+                "price_subtotal": 1540000,
+                "tax_percent": 18,
+                "gst_amount": 277200
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02675",
+        "vendor": "UTTAM BHARAT ELECTRICALS PVT LTD",
+        "po_date": "2025-08-28 12:51:56",
+        "item_category": "2400 kVA, 11/0.8 kV, YNd11, OLTC Make- CTR, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer - Type ONAN As per shared Approved GTP ",
+        "warehouse": "MPK/SiddharthJain/2000/618",
+        "basic_po_value": 2730000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 491400,
+        "total_po_value": 3221400,
+        "order_lines": [
+            {
+                "id": 24099,
+                "product_id": [
+                    760,
+                    "[PRTF0019] 2400 kVA, 11/0.8 kV, YNd11, OLTC Make- CTR, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP "
+                ],
+                "product_qty": 1,
+                "price_unit": 2730000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "2400 kVA, 11/0.8 kV, YNd11, OLTC Make- CTR, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer - Type ONAN As per shared Approved GTP ",
+                "price_subtotal": 2730000,
+                "tax_percent": 18,
+                "gst_amount": 491400
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02674",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-28 11:52:33",
+        "item_category": "[PRFS0010] M10x30 HDG GRADE 8.8 Full Thread Hex Bolt with nut, washers\n& M12*30",
+        "warehouse": "RJK-A/MBLS-Infra/2000/583",
+        "basic_po_value": 21600,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 18,
+        "total_gst": 3888,
+        "total_po_value": 25488,
+        "order_lines": [
+            {
+                "id": 24095,
+                "product_id": [
+                    1007,
+                    "[PRFS0010] M10x30 HDG GRADE 8.8 Full Thread Hex Bolt with nut, washers"
+                ],
+                "product_qty": 160,
+                "price_unit": 135,
+                "taxes_id": [
+                    82
+                ],
+                "name": "[PRFS0010] M10x30 HDG GRADE 8.8 Full Thread Hex Bolt with nut, washers\n& M12*30",
+                "price_subtotal": 21600,
+                "tax_percent": 18,
+                "gst_amount": 3888
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02673",
+        "vendor": "Kannect Engineers Pvt Ltd",
+        "po_date": "2025-08-28 10:02:05",
+        "item_category": "Supply of 11kV Outgoing Panel 800A \nfor S/Stn.  end as per DHBVN. Make:- Crompton ",
+        "warehouse": "HRK/NarsinghSolar/1000/653",
+        "basic_po_value": 350000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 63000,
+        "total_po_value": 413000,
+        "order_lines": [
+            {
+                "id": 24092,
+                "product_id": [
+                    1249,
+                    "[PRCP0002] 11kV Kiosk as per Specification and GTP Submitted"
+                ],
+                "product_qty": 1,
+                "price_unit": 350000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "Supply of 11kV Outgoing Panel 800A \nfor S/Stn.  end as per DHBVN. Make:- Crompton ",
+                "price_subtotal": 350000,
+                "tax_percent": 18,
+                "gst_amount": 63000
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02672",
+        "vendor": "ORNATE AGENCIES PRIVATE LIMITED",
+        "po_date": "2025-08-28 09:37:50",
+        "item_category": "532 Wp - Thin film Photovoltaic Solar Module - Make First Solar",
+        "warehouse": "RJK-C/Arakis/3310/399",
+        "basic_po_value": 61414080,
+        "total_tax": "Input IGST @12%",
+        "total_tax_percent": 12,
+        "total_gst": 7369689.6,
+        "total_po_value": 68783769.6,
+        "order_lines": [
+            {
+                "id": 24082,
+                "product_id": [
+                    1586,
+                    "[PRSM0003] Thin film Photovoltaic Solar Module"
+                ],
+                "product_qty": 6240,
+                "price_unit": 9842,
+                "taxes_id": [
+                    36
+                ],
+                "name": "532 Wp - Thin film Photovoltaic Solar Module - Make First Solar",
+                "price_subtotal": 61414080,
+                "tax_percent": 12,
+                "gst_amount": 7369689.6
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02671",
+        "vendor": "ORNATE AGENCIES PRIVATE LIMITED",
+        "po_date": "2025-08-28 09:35:10",
+        "item_category": "532 Wp - Thin film Photovoltaic Solar Module - Make First Solar",
+        "warehouse": "RJK-C/Arakis-Ranoli/3560/426",
+        "basic_po_value": 66138240,
+        "total_tax": "Input IGST @12%",
+        "total_tax_percent": 12,
+        "total_gst": 7936588.8,
+        "total_po_value": 74074828.8,
+        "order_lines": [
+            {
+                "id": 24081,
+                "product_id": [
+                    1586,
+                    "[PRSM0003] Thin film Photovoltaic Solar Module"
+                ],
+                "product_qty": 6720,
+                "price_unit": 9842,
+                "taxes_id": [
+                    36
+                ],
+                "name": "532 Wp - Thin film Photovoltaic Solar Module - Make First Solar",
+                "price_subtotal": 66138240,
+                "tax_percent": 12,
+                "gst_amount": 7936588.8
+            }
+        ]
+    },
+    {
+        "po_number": "INFRA-PO/2025-26/00068",
+        "vendor": "KARNI ELECTRICALS AND SUPPLIERS (MODA RAM)",
+        "po_date": "2025-08-28 09:31:12",
+        "item_category": "Laying of 11 KV, XLPE, Cable (Aluminium conductor) underground as per relevant IS/JdVVNL standards including excavation of 30 cm x 120 cm deep trench in Kaccha land 25 cm thick under layer of sand. ",
+        "warehouse": "RJK-C/EtricaDeriya/2520/411",
+        "basic_po_value": 863425,
+        "total_tax": "18% IGST P",
+        "total_tax_percent": 126,
+        "total_gst": 155416.5,
+        "total_po_value": 1018841.5,
+        "order_lines": [
+            {
+                "id": 24083,
+                "product_id": [
+                    1671,
+                    "[PRSE0002] Erection, Installation and Commissioning Services"
+                ],
+                "product_qty": 100,
+                "price_unit": 4000,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "issioning Services\t\nErection of PCC Poles 9 Mtr. Long(400/200Kg.)",
+                "price_subtotal": 400000,
+                "tax_percent": 18,
+                "gst_amount": 72000
+            },
+            {
+                "id": 24084,
+                "product_id": [
+                    1671,
+                    "[PRSE0002] Erection, Installation and Commissioning Services"
+                ],
+                "product_qty": 15,
+                "price_unit": 13000,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "Erection Lattice Structure (single Circuit)",
+                "price_subtotal": 195000,
+                "tax_percent": 18,
+                "gst_amount": 35100
+            },
+            {
+                "id": 24085,
+                "product_id": [
+                    1671,
+                    "[PRSE0002] Erection, Installation and Commissioning Services"
+                ],
+                "product_qty": 100,
+                "price_unit": 500,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "Safe carriage &  LOADING AND UNLOADING OF POLE  (chamu to deriya)",
+                "price_subtotal": 50000,
+                "tax_percent": 18,
+                "gst_amount": 9000
+            },
+            {
+                "id": 24086,
+                "product_id": [
+                    1671,
+                    "[PRSE0002] Erection, Installation and Commissioning Services"
+                ],
+                "product_qty": 2,
+                "price_unit": 25000,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "2 Pole  Structure of 33KV& 11KV  RMU complete in all respect ",
+                "price_subtotal": 50000,
+                "tax_percent": 18,
+                "gst_amount": 9000
+            },
+            {
+                "id": 24087,
+                "product_id": [
+                    1671,
+                    "[PRSE0002] Erection, Installation and Commissioning Services"
+                ],
+                "product_qty": 2,
+                "price_unit": 75000,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "missioning Services\t\n4 Pole  Structure of  33KV& 11KV  RMU complete in all respect  ",
+                "price_subtotal": 150000,
+                "tax_percent": 18,
+                "gst_amount": 27000
+            },
+            {
+                "id": 24088,
+                "product_id": [
+                    1671,
+                    "[PRSE0002] Erection, Installation and Commissioning Services"
+                ],
+                "product_qty": 1,
+                "price_unit": 18000,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "Erection Lattice Structure (double Circuit)",
+                "price_subtotal": 18000,
+                "tax_percent": 18,
+                "gst_amount": 3240
+            },
+            {
+                "id": 24089,
+                "product_id": [
+                    1671,
+                    "[PRSE0002] Erection, Installation and Commissioning Services"
+                ],
+                "product_qty": 1,
+                "price_unit": 425,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "Laying of 11 KV, XLPE, Cable (Aluminium conductor) underground as per relevant IS/JdVVNL standards including excavation of 30 cm x 120 cm deep trench in Kaccha land 25 cm thick under layer of sand. ",
+                "price_subtotal": 425,
+                "tax_percent": 18,
+                "gst_amount": 76.5
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02670",
+        "vendor": "NARMADA SALES",
+        "po_date": "2025-08-28 09:18:50",
+        "item_category": "Nabl Testing Of CTPT",
+        "warehouse": "MPK/Chandrapal/2000/445",
+        "basic_po_value": 1555800,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 108,
+        "total_gst": 280044,
+        "total_po_value": 1835844,
+        "order_lines": [
+            {
+                "id": 24077,
+                "product_id": [
+                    1653,
+                    "[PRMT0001] Supply of 3 phase 4 wire 0.2s class ABT Meter"
+                ],
+                "product_qty": 3,
+                "price_unit": 275000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "SECURE MAKE ABT METER APEX100 11KV, 100/5A, CL0.2S",
+                "price_subtotal": 825000,
+                "tax_percent": 18,
+                "gst_amount": 148500
+            },
+            {
+                "id": 24078,
+                "product_id": [
+                    1653,
+                    "[PRMT0001] Supply of 3 phase 4 wire 0.2s class ABT Meter"
+                ],
+                "product_qty": 3,
+                "price_unit": 35000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "CUBICAL FOR ABT METER",
+                "price_subtotal": 105000,
+                "tax_percent": 18,
+                "gst_amount": 18900
+            },
+            {
+                "id": 24079,
+                "product_id": [
+                    1653,
+                    "[PRMT0001] Supply of 3 phase 4 wire 0.2s class ABT Meter"
+                ],
+                "product_qty": 3,
+                "price_unit": 2500,
+                "taxes_id": [
+                    35
+                ],
+                "name": "Cubical Stand ",
+                "price_subtotal": 7500,
+                "tax_percent": 18,
+                "gst_amount": 1350
+            },
+            {
+                "id": 24090,
+                "product_id": [
+                    1174,
+                    "[PRTL0001] GSS Metering Cubicle with Accessories"
+                ],
+                "product_qty": 1,
+                "price_unit": 444300,
+                "taxes_id": [
+                    35
+                ],
+                "name": "1) Communication modem E90, make Secure  :- 6 Nos\n\n2)Communication cord :- 6 Nos\n\n3) Yagi antenna :- 6 Nos\n\n4) GPS clock :- 3 Nos\n\n5)Modem configuration, DB set-up and integration with MPEB and SLDC :- 3 Nos\n\n6) Meter testing from NABL laboratory (ERDA/CPRI) :- 3 Nos\n\n7) GPS integration / configuration with ABT meter :- 3 Nos ",
+                "price_subtotal": 444300,
+                "tax_percent": 18,
+                "gst_amount": 79974
+            },
+            {
+                "id": 24093,
+                "product_id": [
+                    1174,
+                    "[PRTL0001] GSS Metering Cubicle with Accessories"
+                ],
+                "product_qty": 2,
+                "price_unit": 59000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "11KV CTPT UNIT 0.2S, 100/5A",
+                "price_subtotal": 118000,
+                "tax_percent": 18,
+                "gst_amount": 21240
+            },
+            {
+                "id": 24094,
+                "product_id": [
+                    1174,
+                    "[PRTL0001] GSS Metering Cubicle with Accessories"
+                ],
+                "product_qty": 2,
+                "price_unit": 28000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "Nabl Testing Of CTPT",
+                "price_subtotal": 56000,
+                "tax_percent": 18,
+                "gst_amount": 10080
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02669",
+        "vendor": "Sangam Electric",
+        "po_date": "2025-08-28 07:11:16",
+        "item_category": "MS STRUCTURE SETS 33KV TOWER V CROSS =26 NOS",
+        "warehouse": "RJK-C/Adishakti /2520/451",
+        "basic_po_value": 302359,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 234,
+        "total_gst": 54424.619999999995,
+        "total_po_value": 356783.62,
+        "order_lines": [
+            {
+                "id": 24063,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 3120,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "42 FEET LATTISE TOWER GODIYA WITH JOINT PATTI\n6 NOS - (Tower with Clamp)",
+                "price_subtotal": 165360,
+                "tax_percent": 18,
+                "gst_amount": 29764.8
+            },
+            {
+                "id": 24065,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 120,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MS STRUCTURE SETS V CUT POINT FOR TOWER = 6 NOS",
+                "price_subtotal": 6360,
+                "tax_percent": 18,
+                "gst_amount": 1144.8
+            },
+            {
+                "id": 24066,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 504,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MS STRUCTURE SETS 12 FEET LENGTH CHANNEL = 14 NOS",
+                "price_subtotal": 26712,
+                "tax_percent": 18,
+                "gst_amount": 4808.16
+            },
+            {
+                "id": 24068,
+                "product_id": [
+                    788,
+                    "[PRTL0014] Pin/Stay Insulators"
+                ],
+                "product_qty": 24,
+                "price_unit": 290,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV PIN INSULATOR",
+                "price_subtotal": 6960,
+                "tax_percent": 18,
+                "gst_amount": 1252.8
+            },
+            {
+                "id": 24069,
+                "product_id": [
+                    791,
+                    "[PRTL0004] Disc Hardware Fitting, Stay Sets, GI Stay Set"
+                ],
+                "product_qty": 18,
+                "price_unit": 290,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV DISC INSULATOR B&S TYPE",
+                "price_subtotal": 5220,
+                "tax_percent": 18,
+                "gst_amount": 939.5999999999999
+            },
+            {
+                "id": 24070,
+                "product_id": [
+                    791,
+                    "[PRTL0004] Disc Hardware Fitting, Stay Sets, GI Stay Set"
+                ],
+                "product_qty": 25,
+                "price_unit": 1150,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV STAY SET",
+                "price_subtotal": 28750,
+                "tax_percent": 18,
+                "gst_amount": 5175
+            },
+            {
+                "id": 24072,
+                "product_id": [
+                    708,
+                    "[PRTL0002] 11 KV Transmission Line Material Supply (General)"
+                ],
+                "product_qty": 24,
+                "price_unit": 190,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV GI PIN",
+                "price_subtotal": 4560,
+                "tax_percent": 18,
+                "gst_amount": 820.8
+            },
+            {
+                "id": 24073,
+                "product_id": [
+                    791,
+                    "[PRTL0004] Disc Hardware Fitting, Stay Sets, GI Stay Set"
+                ],
+                "product_qty": 18,
+                "price_unit": 555,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV B&S HARDWARE",
+                "price_subtotal": 9990,
+                "tax_percent": 18,
+                "gst_amount": 1798.2
+            },
+            {
+                "id": 24074,
+                "product_id": [
+                    708,
+                    "[PRTL0002] 11 KV Transmission Line Material Supply (General)"
+                ],
+                "product_qty": 20,
+                "price_unit": 210,
+                "taxes_id": [
+                    35
+                ],
+                "name": "PG CLAMP FOR DOG CONDUCTOR",
+                "price_subtotal": 4200,
+                "tax_percent": 18,
+                "gst_amount": 756
+            },
+            {
+                "id": 24075,
+                "product_id": [
+                    788,
+                    "[PRTL0014] Pin/Stay Insulators"
+                ],
+                "product_qty": 25,
+                "price_unit": 85,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV STAY INSULATOR",
+                "price_subtotal": 2125,
+                "tax_percent": 18,
+                "gst_amount": 382.5
+            },
+            {
+                "id": 24076,
+                "product_id": [
+                    856,
+                    "[PRTL0008] GI Pin, GI Wire"
+                ],
+                "product_qty": 120,
+                "price_unit": 65,
+                "taxes_id": [
+                    35
+                ],
+                "name": "STAY WIRE",
+                "price_subtotal": 7800,
+                "tax_percent": 18,
+                "gst_amount": 1404
+            },
+            {
+                "id": 24091,
+                "product_id": [
+                    1687,
+                    "[PRCC0039] Cable Lugs"
+                ],
+                "product_qty": 25,
+                "price_unit": 50,
+                "taxes_id": [
+                    35
+                ],
+                "name": "LUGS 185 SQMM ALUMINUM",
+                "price_subtotal": 1250,
+                "tax_percent": 18,
+                "gst_amount": 225
+            },
+            {
+                "id": 24185,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 624,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MS STRUCTURE SETS 33KV TOWER V CROSS =26 NOS",
+                "price_subtotal": 33072,
+                "tax_percent": 18,
+                "gst_amount": 5952.96
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02668",
+        "vendor": "Narmada sales",
+        "po_date": "2025-08-28 05:55:18",
+        "item_category": "",
+        "warehouse": "SlnkoEnergy",
+        "basic_po_value": 0,
+        "total_tax": "",
+        "total_tax_percent": 0,
+        "total_gst": 0,
+        "total_po_value": 0,
+        "order_lines": []
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02667",
+        "vendor": "KRANTIK ENERGY PRIVATE LIMITED",
+        "po_date": "2025-08-28 05:28:51",
+        "item_category": "CT PT Unit with installation Accessories (MP KUSUM)",
+        "warehouse": null,
+        "basic_po_value": 1842376,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 54,
+        "total_gst": 331627.68,
+        "total_po_value": 2174003.6799999997,
+        "order_lines": [
+            {
+                "id": 24060,
+                "product_id": [
+                    456,
+                    "ABT GSS Meter with installation Accessories (MP KUSUM)"
+                ],
+                "product_qty": 3,
+                "price_unit": 298000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "ABT GSS Meter with installation Accessories (MP KUSUM)",
+                "price_subtotal": 894000,
+                "tax_percent": 18,
+                "gst_amount": 160920
+            },
+            {
+                "id": 24061,
+                "product_id": [
+                    457,
+                    " GSS Metering Cubicle with installation Accessories (MP KUSUM)"
+                ],
+                "product_qty": 2,
+                "price_unit": 389188,
+                "taxes_id": [
+                    35
+                ],
+                "name": " GSS Metering Cubicle with installation Accessories (MP KUSUM)",
+                "price_subtotal": 778376,
+                "tax_percent": 18,
+                "gst_amount": 140107.68
+            },
+            {
+                "id": 24062,
+                "product_id": [
+                    458,
+                    "CT PT Unit with installation Accessories (MP KUSUM)"
+                ],
+                "product_qty": 2,
+                "price_unit": 85000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "CT PT Unit with installation Accessories (MP KUSUM)",
+                "price_subtotal": 170000,
+                "tax_percent": 18,
+                "gst_amount": 30600
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02665",
+        "vendor": "Accord Transformer & Switchgear Pvt.",
+        "po_date": "2025-08-27 13:35:53",
+        "item_category": "1100kVA 11/0.800kV YNd11, OLTC, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP",
+        "warehouse": "HRK/NarsinghSolar/1000/653",
+        "basic_po_value": 1675000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 301500,
+        "total_po_value": 1976500,
+        "order_lines": [
+            {
+                "id": 24049,
+                "product_id": [
+                    1461,
+                    "[PRTF0004] 1100kVA 11/0.800kV YNd11, OLTC, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP"
+                ],
+                "product_qty": 1,
+                "price_unit": 1675000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "1100kVA 11/0.800kV YNd11, OLTC, Copper wound 3 Phase 50 Hz Oil Cooled Outdoor Type Transformer As per shared Approved GTP",
+                "price_subtotal": 1675000,
+                "tax_percent": 18,
+                "gst_amount": 301500
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02664",
+        "vendor": "Electricare - Manoj Kumar Jangid",
+        "po_date": "2025-08-27 13:30:25",
+        "item_category": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+        "warehouse": "HRK/NarsinghSolar/1000/653",
+        "basic_po_value": 920000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 36,
+        "total_gst": 165600,
+        "total_po_value": 1085600,
+        "order_lines": [
+            {
+                "id": 24048,
+                "product_id": [
+                    503,
+                    "[PRCP0011] ACCB - 4IN 2Out Ground Mounted Outdoor type (IP65 with Canopy) as per GTP"
+                ],
+                "product_qty": 1,
+                "price_unit": 490000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "ACCB - 4IN 2Out Ground Mounted Outdoor type (IP65 with Canopy) as per GTP",
+                "price_subtotal": 490000,
+                "tax_percent": 18,
+                "gst_amount": 88200
+            },
+            {
+                "id": 24047,
+                "product_id": [
+                    152,
+                    "[PRCP0001] 11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP."
+                ],
+                "product_qty": 1,
+                "price_unit": 430000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+                "price_subtotal": 430000,
+                "tax_percent": 18,
+                "gst_amount": 77400
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02663",
+        "vendor": "LS Power Control Private Limited",
+        "po_date": "2025-08-27 13:18:37",
+        "item_category": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+        "warehouse": "MPK/AkshatRathore/2000/499",
+        "basic_po_value": 1255000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 36,
+        "total_gst": 225900,
+        "total_po_value": 1480900,
+        "order_lines": [
+            {
+                "id": 24044,
+                "product_id": [
+                    392,
+                    "[PRCP0016] ACCB - 7IN 2OUT - 01 No. - Ground Mounted, Outdoor Type"
+                ],
+                "product_qty": 1,
+                "price_unit": 820000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "ACCB - 7IN 2OUT - 01 No. - Ground Mounted, Outdoor Type",
+                "price_subtotal": 820000,
+                "tax_percent": 18,
+                "gst_amount": 147600
+            },
+            {
+                "id": 24045,
+                "product_id": [
+                    152,
+                    "[PRCP0001] 11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP."
+                ],
+                "product_qty": 1,
+                "price_unit": 435000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+                "price_subtotal": 435000,
+                "tax_percent": 18,
+                "gst_amount": 78300
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02662",
+        "vendor": "Kannect Engineers Pvt Ltd",
+        "po_date": "2025-08-27 11:57:25",
+        "item_category": "Supply, Installation, testing &\nCommissioning of RTU Telemetry\nSystem with SLDC Panipat including\ncharging code and IOA Address\napplication",
+        "warehouse": "HRK/NarsinghSolar/1000/653",
+        "basic_po_value": 1340000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 72,
+        "total_gst": 241200,
+        "total_po_value": 1581200,
+        "order_lines": [
+            {
+                "id": 24040,
+                "product_id": [
+                    1707,
+                    "[PRCP0022] 11kV Metering Cubicle With CT PT Unit "
+                ],
+                "product_qty": 1,
+                "price_unit": 90000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "Supply of 11kV Metering Cubicle\nOutdoor type Double door with\nSingle core CT & PT Class-0.2s as per\nDHBVN/UHBVN Specs",
+                "price_subtotal": 90000,
+                "tax_percent": 18,
+                "gst_amount": 16200
+            },
+            {
+                "id": 24041,
+                "product_id": [
+                    1707,
+                    "[PRCP0022] 11kV Metering Cubicle With CT PT Unit "
+                ],
+                "product_qty": 1,
+                "price_unit": 95000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "Supply of 11kV Metering Cubicle\nOutdoor type Double door with\nDual core CT & PT Class-0.2s as per\nDHBVN/UHBVN Specs\n",
+                "price_subtotal": 95000,
+                "tax_percent": 18,
+                "gst_amount": 17100
+            },
+            {
+                "id": 24042,
+                "product_id": [
+                    1653,
+                    "[PRMT0001] Supply of 3 phase 4 wire 0.2s class ABT Meter"
+                ],
+                "product_qty": 3,
+                "price_unit": 135000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "Supply of DLMS ABT Energy Meter, -\n/110V, -/1A, 0.2s as per\nSAMAST/HVPNL Specs ",
+                "price_subtotal": 405000,
+                "tax_percent": 18,
+                "gst_amount": 72900
+            },
+            {
+                "id": 24043,
+                "product_id": [
+                    1707,
+                    "[PRCP0022] 11kV Metering Cubicle With CT PT Unit "
+                ],
+                "product_qty": 1,
+                "price_unit": 750000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "Supply, Installation, testing &\nCommissioning of RTU Telemetry\nSystem with SLDC Panipat including\ncharging code and IOA Address\napplication",
+                "price_subtotal": 750000,
+                "tax_percent": 18,
+                "gst_amount": 135000
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02661",
+        "vendor": "ADMIRE FABRICATION & ENGINEERING PRIVATE LIMITED",
+        "po_date": "2025-08-27 11:38:49",
+        "item_category": "Office Container 20 X 10 feet,\n2 windows,2 fans,3 tube lights,1 main\ndoor with bulk headlight,AC\nprovisions,Switch and sockets.",
+        "warehouse": "UPNEDA/Beruar-Ghazipur/1000/553",
+        "basic_po_value": 183500,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 18,
+        "total_gst": 33030,
+        "total_po_value": 216530,
+        "order_lines": [
+            {
+                "id": 24039,
+                "product_id": [
+                    844,
+                    "PORT CABIN"
+                ],
+                "product_qty": 1,
+                "price_unit": 183500,
+                "taxes_id": [
+                    82
+                ],
+                "name": "Office Container 20 X 10 feet,\n2 windows,2 fans,3 tube lights,1 main\ndoor with bulk headlight,AC\nprovisions,Switch and sockets.",
+                "price_subtotal": 183500,
+                "tax_percent": 18,
+                "gst_amount": 33030
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02660",
+        "vendor": "ADMIRE FABRICATION & ENGINEERING PRIVATE LIMITED",
+        "po_date": "2025-08-27 11:37:30",
+        "item_category": "Office Container 20 X 10 feet,\n2 windows,2 fans,3 tube lights,1 main\ndoor with bulk headlight,AC\nprovisions,Switch and sockets.",
+        "warehouse": "UPNEDA/Beruar-Azamgarh/1000/552",
+        "basic_po_value": 183500,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 18,
+        "total_gst": 33030,
+        "total_po_value": 216530,
+        "order_lines": [
+            {
+                "id": 24038,
+                "product_id": [
+                    844,
+                    "PORT CABIN"
+                ],
+                "product_qty": 1,
+                "price_unit": 183500,
+                "taxes_id": [
+                    82
+                ],
+                "name": "Office Container 20 X 10 feet,\n2 windows,2 fans,3 tube lights,1 main\ndoor with bulk headlight,AC\nprovisions,Switch and sockets.",
+                "price_subtotal": 183500,
+                "tax_percent": 18,
+                "gst_amount": 33030
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02659",
+        "vendor": "SHUBAN TRANSPORT SERVICE",
+        "po_date": "2025-08-27 11:17:03",
+        "item_category": " Coloum Transportation ",
+        "warehouse": "UPNEDA/Beruar-Azamgarh/1000/552",
+        "basic_po_value": 31100,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 1555,
+        "total_po_value": 32655,
+        "order_lines": [
+            {
+                "id": 24037,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 31100,
+                "taxes_id": [
+                    91
+                ],
+                "name": " Coloum Transportation ",
+                "price_subtotal": 31100,
+                "tax_percent": 5,
+                "gst_amount": 1555
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02658",
+        "vendor": "SHUBAN TRANSPORT SERVICE",
+        "po_date": "2025-08-27 11:15:51",
+        "item_category": " Coloum Transportation ",
+        "warehouse": "UPNEDA/Beruar-Ghazipur/1000/553",
+        "basic_po_value": 31000,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 1550,
+        "total_po_value": 32550,
+        "order_lines": [
+            {
+                "id": 24036,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 31000,
+                "taxes_id": [
+                    91
+                ],
+                "name": " Coloum Transportation ",
+                "price_subtotal": 31000,
+                "tax_percent": 5,
+                "gst_amount": 1550
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02657",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-27 11:00:01",
+        "item_category": "MMS Module Mounting Structure INVERTER STAND",
+        "warehouse": "MPK/AkshatRathore/2000/499",
+        "basic_po_value": 249218,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 36,
+        "total_gst": 44859.24,
+        "total_po_value": 294077.24,
+        "order_lines": [
+            {
+                "id": 24033,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 2891,
+                "price_unit": 85,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure MS BOLT-UPPER+LOWE R COLUMN",
+                "price_subtotal": 245735,
+                "tax_percent": 18,
+                "gst_amount": 44232.299999999996
+            },
+            {
+                "id": 24034,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 43,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure INVERTER STAND",
+                "price_subtotal": 3483,
+                "tax_percent": 18,
+                "gst_amount": 626.9399999999999
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02656",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-27 10:54:47",
+        "item_category": "MMS Module Mounting Structure INVERTER STAND",
+        "warehouse": "RJK-A/PhulbantiMeena/1710/567",
+        "basic_po_value": 259673,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 36,
+        "total_gst": 46741.14,
+        "total_po_value": 306414.14,
+        "order_lines": [
+            {
+                "id": 24029,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 3014,
+                "price_unit": 85,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure MS BOLT-UPPER+LOWE R COLUMN",
+                "price_subtotal": 256190,
+                "tax_percent": 18,
+                "gst_amount": 46114.2
+            },
+            {
+                "id": 24030,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 43,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure INVERTER STAND",
+                "price_subtotal": 3483,
+                "tax_percent": 18,
+                "gst_amount": 626.9399999999999
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02655",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-27 10:46:38",
+        "item_category": "MMS Module Mounting Structure Column Inverter, Inverter Mounting, Cable Support Channel (HDG) ",
+        "warehouse": "RJK-A/PhulbantiMeena/1710/567",
+        "basic_po_value": 1240533,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 223295.94,
+        "total_po_value": 1463828.94,
+        "order_lines": [
+            {
+                "id": 24025,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 12340,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Column-CS (HDG) (735 Nos)",
+                "price_subtotal": 999540,
+                "tax_percent": 18,
+                "gst_amount": 179917.19999999998
+            },
+            {
+                "id": 24026,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 2385,
+                "price_unit": 59,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Lower Column- CU\n(Black) (735 Nos)",
+                "price_subtotal": 140715,
+                "tax_percent": 18,
+                "gst_amount": 25328.7
+            },
+            {
+                "id": 24027,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1045,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Bracing Connection Plate (HDG) (1470 Nos)\n",
+                "price_subtotal": 84645,
+                "tax_percent": 18,
+                "gst_amount": 15236.099999999999
+            },
+            {
+                "id": 24028,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 193,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure Column Inverter, Inverter Mounting, Cable Support Channel (HDG) ",
+                "price_subtotal": 15633,
+                "tax_percent": 18,
+                "gst_amount": 2813.94
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02654",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-27 10:37:31",
+        "item_category": "MMS Module Mounting Structure Column Inverter, Inverter Mounting, Cable Support Channel (HDG) ",
+        "warehouse": "MPK/AkshatRathore/2000/499",
+        "basic_po_value": 1190584,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 214305.12,
+        "total_po_value": 1404889.1199999999,
+        "order_lines": [
+            {
+                "id": 24021,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 11837,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Column-CS (HDG) (840 Nos)",
+                "price_subtotal": 958797,
+                "tax_percent": 18,
+                "gst_amount": 172583.46
+            },
+            {
+                "id": 24022,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 2288,
+                "price_unit": 59,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Lower Column- CU\n(Black) (840 Nos)",
+                "price_subtotal": 134992,
+                "tax_percent": 18,
+                "gst_amount": 24298.559999999998
+            },
+            {
+                "id": 24023,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1002,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Bracing Connection Plate (HDG) (1680 Nos)\n",
+                "price_subtotal": 81162,
+                "tax_percent": 18,
+                "gst_amount": 14609.16
+            },
+            {
+                "id": 24024,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 193,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure Column Inverter, Inverter Mounting, Cable Support Channel (HDG) ",
+                "price_subtotal": 15633,
+                "tax_percent": 18,
+                "gst_amount": 2813.94
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02653",
+        "vendor": "BUDHIA STEEL WORKS PRIVATE LIMITED",
+        "po_date": "2025-08-27 10:27:36",
+        "item_category": "MMS Module Mounting Structure (Fastener)",
+        "warehouse": "MPK/AkshatRathore/2000/499",
+        "basic_po_value": 2234304,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 402174.72,
+        "total_po_value": 2636478.7199999997,
+        "order_lines": [
+            {
+                "id": 24020,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 31032,
+                "price_unit": 72,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MMS Module Mounting Structure (Fastener)",
+                "price_subtotal": 2234304,
+                "tax_percent": 18,
+                "gst_amount": 402174.72
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02652",
+        "vendor": "BUDHIA STEEL WORKS PRIVATE LIMITED",
+        "po_date": "2025-08-27 10:13:36",
+        "item_category": "MMS Module Mounting Structure (Galvalume)",
+        "warehouse": "MPK/AkshatRathore/2000/499",
+        "basic_po_value": 2234304,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 402174.72,
+        "total_po_value": 2636478.7199999997,
+        "order_lines": [
+            {
+                "id": 24010,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 31032,
+                "price_unit": 72,
+                "taxes_id": [
+                    35
+                ],
+                "name": "MMS Module Mounting Structure (Galvalume)",
+                "price_subtotal": 2234304,
+                "tax_percent": 18,
+                "gst_amount": 402174.72
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02651",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-27 09:35:43",
+        "item_category": "MMS Module Mounting Structure Column Inverter, Inverter Mounting, Cable Support Channel (HDG) ",
+        "warehouse": "MPK/AkshatRathore/2000/499",
+        "basic_po_value": 1190584,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 214305.12,
+        "total_po_value": 1404889.1199999999,
+        "order_lines": [
+            {
+                "id": 24004,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 11837,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Column-CS (HDG) (705 Nos)",
+                "price_subtotal": 958797,
+                "tax_percent": 18,
+                "gst_amount": 172583.46
+            },
+            {
+                "id": 24005,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 2288,
+                "price_unit": 59,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Lower Column- CU\n(Black) (705 Nos)",
+                "price_subtotal": 134992,
+                "tax_percent": 18,
+                "gst_amount": 24298.559999999998
+            },
+            {
+                "id": 24006,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1002,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Bracing Connection Plate (HDG) (1410 Nos)\n",
+                "price_subtotal": 81162,
+                "tax_percent": 18,
+                "gst_amount": 14609.16
+            },
+            {
+                "id": 24007,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 193,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure Column Inverter, Inverter Mounting, Cable Support Channel (HDG) ",
+                "price_subtotal": 15633,
+                "tax_percent": 18,
+                "gst_amount": 2813.94
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02650",
+        "vendor": "SALASAR TECHNO ENGINEERING LIMITED",
+        "po_date": "2025-08-27 09:35:02",
+        "item_category": "[PRMM0006] MMS Module Mounting Structure HDG Inverter Stand ",
+        "warehouse": "MPK/AkshatRathore/2000/499",
+        "basic_po_value": 1417063,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 255071.33999999997,
+        "total_po_value": 1672134.3399999999,
+        "order_lines": [
+            {
+                "id": 24000,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 14103,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Column(HDG)\n(840 Nos)\n",
+                "price_subtotal": 1142343,
+                "tax_percent": 18,
+                "gst_amount": 205621.74
+            },
+            {
+                "id": 24001,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 2726,
+                "price_unit": 59,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Column(Black)\n(840 Nos)\n",
+                "price_subtotal": 160834,
+                "tax_percent": 18,
+                "gst_amount": 28950.12
+            },
+            {
+                "id": 24002,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 1194,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "MMS Module Mounting Structure As per Shared BOQ Bracing Plate (HDG)\n(1680 Nos)\n",
+                "price_subtotal": 96714,
+                "tax_percent": 18,
+                "gst_amount": 17408.52
+            },
+            {
+                "id": 24003,
+                "product_id": [
+                    1500,
+                    "[PRMM0006] MMS Module Mounting Structure"
+                ],
+                "product_qty": 212,
+                "price_unit": 81,
+                "taxes_id": [
+                    82
+                ],
+                "name": "[PRMM0006] MMS Module Mounting Structure HDG Inverter Stand ",
+                "price_subtotal": 17172,
+                "tax_percent": 18,
+                "gst_amount": 3090.96
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02649",
+        "vendor": "Sangam Electric",
+        "po_date": "2025-08-27 09:20:48",
+        "item_category": "CTPT CLAMP",
+        "warehouse": "RJK-C/EtricaPower-Khiyasariya/2520/435",
+        "basic_po_value": 16470,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 54,
+        "total_gst": 2964.6,
+        "total_po_value": 19434.6,
+        "order_lines": [
+            {
+                "id": 23997,
+                "product_id": [
+                    1687,
+                    "[PRCC0039] Cable Lugs"
+                ],
+                "product_qty": 30,
+                "price_unit": 9,
+                "taxes_id": [
+                    35
+                ],
+                "name": "4 SQMM BIMETALLIC RING TYPE",
+                "price_subtotal": 270,
+                "tax_percent": 18,
+                "gst_amount": 48.6
+            },
+            {
+                "id": 23998,
+                "product_id": [
+                    1405,
+                    "[PRTL0011] MS Pipe"
+                ],
+                "product_qty": 2,
+                "price_unit": 1800,
+                "taxes_id": [
+                    35
+                ],
+                "name": "Gi pipe 2.5\" (20') 2 nos",
+                "price_subtotal": 3600,
+                "tax_percent": 18,
+                "gst_amount": 648
+            },
+            {
+                "id": 23999,
+                "product_id": [
+                    708,
+                    "[PRTL0002] 11 KV Transmission Line Material Supply (General)"
+                ],
+                "product_qty": 36,
+                "price_unit": 350,
+                "taxes_id": [
+                    35
+                ],
+                "name": "CTPT CLAMP",
+                "price_subtotal": 12600,
+                "tax_percent": 18,
+                "gst_amount": 2268
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02648",
+        "vendor": "NOIDA RAJASTHAN TRANSPORT COMPANY",
+        "po_date": "2025-08-27 08:54:51",
+        "item_category": "Aux Transformer transportation ",
+        "warehouse": "RJK-C/SuparthGreen/4030/318",
+        "basic_po_value": 8433,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 421.65000000000003,
+        "total_po_value": 8854.65,
+        "order_lines": [
+            {
+                "id": 23995,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 8433,
+                "taxes_id": [
+                    91
+                ],
+                "name": "Aux Transformer transportation ",
+                "price_subtotal": 8433,
+                "tax_percent": 5,
+                "gst_amount": 421.65000000000003
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02647",
+        "vendor": "NOIDA RAJASTHAN TRANSPORT COMPANY",
+        "po_date": "2025-08-27 08:53:53",
+        "item_category": "Aux Transformer transportation ",
+        "warehouse": "RJK-C/Arakis-Ranoli/3560/426",
+        "basic_po_value": 8334,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 416.70000000000005,
+        "total_po_value": 8750.7,
+        "order_lines": [
+            {
+                "id": 23994,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 8334,
+                "taxes_id": [
+                    91
+                ],
+                "name": "Aux Transformer transportation ",
+                "price_subtotal": 8334,
+                "tax_percent": 5,
+                "gst_amount": 416.70000000000005
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02646",
+        "vendor": "NOIDA RAJASTHAN TRANSPORT COMPANY",
+        "po_date": "2025-08-27 08:52:42",
+        "item_category": "Aux Transformer transportation ",
+        "warehouse": "RJK-C/Arakis/3310/399",
+        "basic_po_value": 8333,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 416.65000000000003,
+        "total_po_value": 8749.65,
+        "order_lines": [
+            {
+                "id": 23993,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 8333,
+                "taxes_id": [
+                    91
+                ],
+                "name": "Aux Transformer transportation ",
+                "price_subtotal": 8333,
+                "tax_percent": 5,
+                "gst_amount": 416.65000000000003
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02645",
+        "vendor": "Eco Motion Logistic",
+        "po_date": "2025-08-27 07:27:56",
+        "item_category": " Vcb kiosk Transportation ",
+        "warehouse": "RJK-C/SuparthGreen/4030/318",
+        "basic_po_value": 20000,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 1000,
+        "total_po_value": 21000,
+        "order_lines": [
+            {
+                "id": 23992,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 20000,
+                "taxes_id": [
+                    91
+                ],
+                "name": " Vcb kiosk Transportation ",
+                "price_subtotal": 20000,
+                "tax_percent": 5,
+                "gst_amount": 1000
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02644",
+        "vendor": "Eco Motion Logistic",
+        "po_date": "2025-08-27 07:27:20",
+        "item_category": " Vcb kiosk Transportation ",
+        "warehouse": "RJK-C/Arakis-Ranoli/3560/426",
+        "basic_po_value": 20000,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 1000,
+        "total_po_value": 21000,
+        "order_lines": [
+            {
+                "id": 23991,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 20000,
+                "taxes_id": [
+                    91
+                ],
+                "name": " Vcb kiosk Transportation ",
+                "price_subtotal": 20000,
+                "tax_percent": 5,
+                "gst_amount": 1000
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02643",
+        "vendor": "Eco Motion Logistic",
+        "po_date": "2025-08-27 07:26:19",
+        "item_category": " Vcb kiosk Transportation ",
+        "warehouse": "RJK-C/Arakis/3310/399",
+        "basic_po_value": 20000,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 1000,
+        "total_po_value": 21000,
+        "order_lines": [
+            {
+                "id": 23990,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 20000,
+                "taxes_id": [
+                    91
+                ],
+                "name": " Vcb kiosk Transportation ",
+                "price_subtotal": 20000,
+                "tax_percent": 5,
+                "gst_amount": 1000
+            }
+        ]
+    },
+    {
+        "po_number": "INFRA-PO/2025-26/00066",
+        "vendor": "Gopal Singh",
+        "po_date": "2025-08-27 07:04:12",
+        "item_category": "Boundaries cleaning & levelling work by JCB ",
+        "warehouse": "RJK-C/EtricaPower-Khiyasariya/2520/435",
+        "basic_po_value": 14955,
+        "total_tax": "18% IGST P",
+        "total_tax_percent": 54,
+        "total_gst": 2691.8999999999996,
+        "total_po_value": 17646.9,
+        "order_lines": [
+            {
+                "id": 23985,
+                "product_id": [
+                    1670,
+                    "[PRSE0001] Machinery Hire Charges"
+                ],
+                "product_qty": 8.1,
+                "price_unit": 800,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "Boundaries cleaning & levelling work by Karali",
+                "price_subtotal": 6480,
+                "tax_percent": 18,
+                "gst_amount": 1166.3999999999999
+            },
+            {
+                "id": 23986,
+                "product_id": [
+                    1671,
+                    "[PRSE0002] Erection, Installation and Commissioning Services"
+                ],
+                "product_qty": 2,
+                "price_unit": 500,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "Existing fencing removing by labours ",
+                "price_subtotal": 1000,
+                "tax_percent": 18,
+                "gst_amount": 180
+            },
+            {
+                "id": 23987,
+                "product_id": [
+                    1701,
+                    "[PRSE0006] Construction Machinery Rental or Hire Charges  "
+                ],
+                "product_qty": 5.75,
+                "price_unit": 1300,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "Boundaries cleaning & levelling work by JCB ",
+                "price_subtotal": 7475,
+                "tax_percent": 18,
+                "gst_amount": 1345.5
+            }
+        ]
+    },
+    {
+        "po_number": "INFRA-PO/2025-26/00065",
+        "vendor": "Gopal Singh",
+        "po_date": "2025-08-27 07:02:37",
+        "item_category": "",
+        "warehouse": "Slnko Infra Private Limited",
+        "basic_po_value": 0,
+        "total_tax": "",
+        "total_tax_percent": 0,
+        "total_gst": 0,
+        "total_po_value": 0,
+        "order_lines": []
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02641",
+        "vendor": "SLnko Infra Private Limited",
+        "po_date": "2025-08-27 06:50:07",
+        "item_category": "Boundaries cleaning & levelling work by JCB ",
+        "warehouse": "RJK-C/EtricaPower-Khiyasariya/2520/435",
+        "basic_po_value": 14955,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 54,
+        "total_gst": 2691.8999999999996,
+        "total_po_value": 17646.9,
+        "order_lines": [
+            {
+                "id": 23982,
+                "product_id": [
+                    1670,
+                    "[PRSE0001] Machinery Hire Charges"
+                ],
+                "product_qty": 8.1,
+                "price_unit": 800,
+                "taxes_id": [
+                    82
+                ],
+                "name": "Boundaries cleaning & levelling work by Karali",
+                "price_subtotal": 6480,
+                "tax_percent": 18,
+                "gst_amount": 1166.3999999999999
+            },
+            {
+                "id": 23983,
+                "product_id": [
+                    1671,
+                    "[PRSE0002] Erection, Installation and Commissioning Services"
+                ],
+                "product_qty": 2,
+                "price_unit": 500,
+                "taxes_id": [
+                    82
+                ],
+                "name": "Existing fencing removing by labours ",
+                "price_subtotal": 1000,
+                "tax_percent": 18,
+                "gst_amount": 180
+            },
+            {
+                "id": 23984,
+                "product_id": [
+                    1670,
+                    "[PRSE0001] Machinery Hire Charges"
+                ],
+                "product_qty": 5.75,
+                "price_unit": 1300,
+                "taxes_id": [
+                    82
+                ],
+                "name": "Boundaries cleaning & levelling work by JCB ",
+                "price_subtotal": 7475,
+                "tax_percent": 18,
+                "gst_amount": 1345.5
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02640",
+        "vendor": "CONTROL PANEL SYSTEMS",
+        "po_date": "2025-08-26 13:21:20",
+        "item_category": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+        "warehouse": "RJK-A/MBLS-Infra/2000/583",
+        "basic_po_value": 1215000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 36,
+        "total_gst": 218700,
+        "total_po_value": 1433700,
+        "order_lines": [
+            {
+                "id": 23980,
+                "product_id": [
+                    392,
+                    "[PRCP0016] ACCB - 7IN 2OUT - 01 No. - Ground Mounted, Outdoor Type"
+                ],
+                "product_qty": 1,
+                "price_unit": 780000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "ACCB - 7IN 2OUT - 01 No. - Ground Mounted, Outdoor Type",
+                "price_subtotal": 780000,
+                "tax_percent": 18,
+                "gst_amount": 140400
+            },
+            {
+                "id": 23981,
+                "product_id": [
+                    152,
+                    "[PRCP0001] 11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP."
+                ],
+                "product_qty": 1,
+                "price_unit": 435000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "11 kV ICOG, Outdoor Panel (11kV, 630A, 25kA for 3 sec with MFM of CL 0.2) as per shared GTP.",
+                "price_subtotal": 435000,
+                "tax_percent": 18,
+                "gst_amount": 78300
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02639",
+        "vendor": "VERILII SYSTEM LLP",
+        "po_date": "2025-08-26 12:11:27",
+        "item_category": "Telemeter including 1 Year service  ",
+        "warehouse": "UPNEDA/Dakash Solar/1600/490",
+        "basic_po_value": 350000,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 18,
+        "total_gst": 63000,
+        "total_po_value": 413000,
+        "order_lines": [
+            {
+                "id": 23979,
+                "product_id": [
+                    1653,
+                    "[PRMT0001] Supply of 3 phase 4 wire 0.2s class ABT Meter"
+                ],
+                "product_qty": 1,
+                "price_unit": 350000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "Telemeter including 1 Year service  ",
+                "price_subtotal": 350000,
+                "tax_percent": 18,
+                "gst_amount": 63000
+            }
+        ]
+    },
+    {
+        "po_number": "INFRA-PO/2025-26/00064",
+        "vendor": "MAHIPAL SINGH",
+        "po_date": "2025-08-26 11:42:45",
+        "item_category": "Structure materials unloading charges by hydra",
+        "warehouse": "RJK-C/EtricaRen-Ramdev/2520/402",
+        "basic_po_value": 221100,
+        "total_tax": "18% IGST P",
+        "total_tax_percent": 72,
+        "total_gst": 39798,
+        "total_po_value": 260898,
+        "order_lines": [
+            {
+                "id": 23966,
+                "product_id": [
+                    1670,
+                    "[PRSE0001] Machinery Hire Charges"
+                ],
+                "product_qty": 98,
+                "price_unit": 1200,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "Water Tanker used for electrical & civil work - LA foundation , Yard foundation , Camera pole foundation, Curing work, Earthing purpose",
+                "price_subtotal": 117600,
+                "tax_percent": 18,
+                "gst_amount": 21168
+            },
+            {
+                "id": 23967,
+                "product_id": [
+                    1670,
+                    "[PRSE0001] Machinery Hire Charges"
+                ],
+                "product_qty": 127,
+                "price_unit": 500,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "500 ltrs water tank used for piling work, earthing drilling purposes, camera pole augaring purposes & other miscellaneous work",
+                "price_subtotal": 63500,
+                "tax_percent": 18,
+                "gst_amount": 11430
+            },
+            {
+                "id": 23968,
+                "product_id": [
+                    1670,
+                    "[PRSE0001] Machinery Hire Charges"
+                ],
+                "product_qty": 7,
+                "price_unit": 5000,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "Module unloading purpose by hydra ",
+                "price_subtotal": 35000,
+                "tax_percent": 18,
+                "gst_amount": 6300
+            },
+            {
+                "id": 23969,
+                "product_id": [
+                    1670,
+                    "[PRSE0001] Machinery Hire Charges"
+                ],
+                "product_qty": 1,
+                "price_unit": 5000,
+                "taxes_id": [
+                    1330
+                ],
+                "name": "Structure materials unloading charges by hydra",
+                "price_subtotal": 5000,
+                "tax_percent": 18,
+                "gst_amount": 900
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02637",
+        "vendor": "SLnko Infra Private Limited",
+        "po_date": "2025-08-26 11:35:16",
+        "item_category": "Structure materials unloading charges by hydra",
+        "warehouse": "RJK-C/EtricaRen-Ramdev/2520/402",
+        "basic_po_value": 221100,
+        "total_tax": "GST 18%",
+        "total_tax_percent": 72,
+        "total_gst": 39798,
+        "total_po_value": 260898,
+        "order_lines": [
+            {
+                "id": 23962,
+                "product_id": [
+                    1670,
+                    "[PRSE0001] Machinery Hire Charges"
+                ],
+                "product_qty": 98,
+                "price_unit": 1200,
+                "taxes_id": [
+                    82
+                ],
+                "name": "Water Tanker used for electrical & civil work - LA foundation , Yard foundation , Camera pole foundation, Curing work, Earthing purpose",
+                "price_subtotal": 117600,
+                "tax_percent": 18,
+                "gst_amount": 21168
+            },
+            {
+                "id": 23963,
+                "product_id": [
+                    1670,
+                    "[PRSE0001] Machinery Hire Charges"
+                ],
+                "product_qty": 127,
+                "price_unit": 500,
+                "taxes_id": [
+                    82
+                ],
+                "name": "500 ltrs water tank used for piling work, earthing drilling purposes, camera pole augaring purposes & other miscellaneous work",
+                "price_subtotal": 63500,
+                "tax_percent": 18,
+                "gst_amount": 11430
+            },
+            {
+                "id": 23964,
+                "product_id": [
+                    1670,
+                    "[PRSE0001] Machinery Hire Charges"
+                ],
+                "product_qty": 7,
+                "price_unit": 5000,
+                "taxes_id": [
+                    82
+                ],
+                "name": "Module unloading purpose by hydra ",
+                "price_subtotal": 35000,
+                "tax_percent": 18,
+                "gst_amount": 6300
+            },
+            {
+                "id": 23965,
+                "product_id": [
+                    1670,
+                    "[PRSE0001] Machinery Hire Charges"
+                ],
+                "product_qty": 1,
+                "price_unit": 5000,
+                "taxes_id": [
+                    82
+                ],
+                "name": "Structure materials unloading charges by hydra",
+                "price_subtotal": 5000,
+                "tax_percent": 18,
+                "gst_amount": 900
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02638",
+        "vendor": "PARK CABLES",
+        "po_date": "2025-08-26 11:28:49",
+        "item_category": "1.1 kV, 3C, 4 sqmm Cu, Ar, XLPE Multi Strand Cable",
+        "warehouse": "RJK-C/SuparthGreen/4030/318",
+        "basic_po_value": 129445,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 108,
+        "total_gst": 23300.1,
+        "total_po_value": 152745.1,
+        "order_lines": [
+            {
+                "id": 23970,
+                "product_id": [
+                    198,
+                    "[PRCA0007] 16C X 2.5 sqmm, Cu, Ar XLPE Multi Strand Cable"
+                ],
+                "product_qty": 135,
+                "price_unit": 435,
+                "taxes_id": [
+                    35
+                ],
+                "name": "16C X 2.5 sqmm, Cu, Ar XLPE Multi Strand Cable",
+                "price_subtotal": 58725,
+                "tax_percent": 18,
+                "gst_amount": 10570.5
+            },
+            {
+                "id": 23972,
+                "product_id": [
+                    506,
+                    "[PRCA0015] 1.1 kV, 4C, 25 sqmm Al, Ar, XLPE Multi Strand Cable"
+                ],
+                "product_qty": 140,
+                "price_unit": 150,
+                "taxes_id": [
+                    35
+                ],
+                "name": "1.1 kV, 4C, 25 sqmm Al, Ar, XLPE Multi Strand Cable",
+                "price_subtotal": 21000,
+                "tax_percent": 18,
+                "gst_amount": 3780
+            },
+            {
+                "id": 23973,
+                "product_id": [
+                    235,
+                    "[PRCA0014] 1.1 kV, 2C, 2.5 sqmm Cu, Flexible Multi Strand Cable"
+                ],
+                "product_qty": 100,
+                "price_unit": 57,
+                "taxes_id": [
+                    35
+                ],
+                "name": "1.1 kV, 2C, 2.5 sqmm Cu, Flexible Multi Strand Cable",
+                "price_subtotal": 5700,
+                "tax_percent": 18,
+                "gst_amount": 1026
+            },
+            {
+                "id": 23974,
+                "product_id": [
+                    1507,
+                    "[PRCA0016] 1.1 kV, 3C, 2.5 sqmm Cu, Ar, XLPE Multi Strand Cable"
+                ],
+                "product_qty": 120,
+                "price_unit": 101,
+                "taxes_id": [
+                    35
+                ],
+                "name": "1.1 kV, 3C, 2.5 sqmm Cu, Ar, XLPE Multi Strand Cable",
+                "price_subtotal": 12120,
+                "tax_percent": 18,
+                "gst_amount": 2181.6
+            },
+            {
+                "id": 23975,
+                "product_id": [
+                    1655,
+                    "[PRCA0018] 1.1 kV, 4C, 4 sqmm Cu, Ar, XLPE Multi Strand Cable"
+                ],
+                "product_qty": 100,
+                "price_unit": 178,
+                "taxes_id": [
+                    35
+                ],
+                "name": "1.1 kV, 4C, 4 sqmm Cu, Ar, XLPE Multi Strand Cable",
+                "price_subtotal": 17800,
+                "tax_percent": 18,
+                "gst_amount": 3204
+            },
+            {
+                "id": 23976,
+                "product_id": [
+                    1506,
+                    "[PRCA0017] 1.1 kV, 3C, 4 sqmm Cu, Ar, XLPE Multi Strand Cable"
+                ],
+                "product_qty": 100,
+                "price_unit": 141,
+                "taxes_id": [
+                    35
+                ],
+                "name": "1.1 kV, 3C, 4 sqmm Cu, Ar, XLPE Multi Strand Cable",
+                "price_subtotal": 14100,
+                "tax_percent": 18,
+                "gst_amount": 2538
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02636",
+        "vendor": "VIKRAM SOLAR LIMITED- Kolkata",
+        "po_date": "2025-08-26 10:29:54",
+        "item_category": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+        "warehouse": "TPSODL/PradeepPanda/2000/663",
+        "basic_po_value": 33700800,
+        "total_tax": "Input IGST @12%",
+        "total_tax_percent": 12,
+        "total_gst": 4044096,
+        "total_po_value": 37744896,
+        "order_lines": [
+            {
+                "id": 23961,
+                "product_id": [
+                    1518,
+                    "[PRSM0001] Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules"
+                ],
+                "product_qty": 4080,
+                "price_unit": 8260,
+                "taxes_id": [
+                    36
+                ],
+                "name": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+                "price_subtotal": 33700800,
+                "tax_percent": 12,
+                "gst_amount": 4044096
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02635",
+        "vendor": "VIKRAM SOLAR LIMITED- Kolkata",
+        "po_date": "2025-08-26 10:25:18",
+        "item_category": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+        "warehouse": "TPSODL/SCMSolar/2000/642",
+        "basic_po_value": 33700800,
+        "total_tax": "Input IGST @12%",
+        "total_tax_percent": 12,
+        "total_gst": 4044096,
+        "total_po_value": 37744896,
+        "order_lines": [
+            {
+                "id": 23960,
+                "product_id": [
+                    1518,
+                    "[PRSM0001] Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules"
+                ],
+                "product_qty": 4080,
+                "price_unit": 8260,
+                "taxes_id": [
+                    36
+                ],
+                "name": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+                "price_subtotal": 33700800,
+                "tax_percent": 12,
+                "gst_amount": 4044096
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02634",
+        "vendor": "VIKRAM SOLAR LIMITED- Kolkata",
+        "po_date": "2025-08-26 10:24:25",
+        "item_category": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+        "warehouse": "TPSODL/KrishnKamakshi/2000/535",
+        "basic_po_value": 33700800,
+        "total_tax": "Input IGST @12%",
+        "total_tax_percent": 12,
+        "total_gst": 4044096,
+        "total_po_value": 37744896,
+        "order_lines": [
+            {
+                "id": 23959,
+                "product_id": [
+                    1518,
+                    "[PRSM0001] Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules"
+                ],
+                "product_qty": 4080,
+                "price_unit": 8260,
+                "taxes_id": [
+                    36
+                ],
+                "name": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+                "price_subtotal": 33700800,
+                "tax_percent": 12,
+                "gst_amount": 4044096
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02633",
+        "vendor": "VIKRAM SOLAR LIMITED- Kolkata",
+        "po_date": "2025-08-26 10:23:41",
+        "item_category": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+        "warehouse": "TPNODL/KrishnaChandra/2000/588",
+        "basic_po_value": 33700800,
+        "total_tax": "Input IGST @12%",
+        "total_tax_percent": 12,
+        "total_gst": 4044096,
+        "total_po_value": 37744896,
+        "order_lines": [
+            {
+                "id": 23958,
+                "product_id": [
+                    1518,
+                    "[PRSM0001] Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules"
+                ],
+                "product_qty": 4080,
+                "price_unit": 8260,
+                "taxes_id": [
+                    36
+                ],
+                "name": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+                "price_subtotal": 33700800,
+                "tax_percent": 12,
+                "gst_amount": 4044096
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02632",
+        "vendor": "VIKRAM SOLAR LIMITED- Kolkata",
+        "po_date": "2025-08-26 10:19:57",
+        "item_category": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+        "warehouse": "TPSODL/NewAge/2000/536",
+        "basic_po_value": 33700800,
+        "total_tax": "Input IGST @12%",
+        "total_tax_percent": 12,
+        "total_gst": 4044096,
+        "total_po_value": 37744896,
+        "order_lines": [
+            {
+                "id": 23957,
+                "product_id": [
+                    1518,
+                    "[PRSM0001] Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules"
+                ],
+                "product_qty": 4080,
+                "price_unit": 8260,
+                "taxes_id": [
+                    36
+                ],
+                "name": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+                "price_subtotal": 33700800,
+                "tax_percent": 12,
+                "gst_amount": 4044096
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02630",
+        "vendor": "S.S. LOGISTICS",
+        "po_date": "2025-08-26 10:07:20",
+        "item_category": " Kanha wrong cable  Transportation",
+        "warehouse": "SlnkoEnergy",
+        "basic_po_value": 20000,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 1000,
+        "total_po_value": 21000,
+        "order_lines": [
+            {
+                "id": 23955,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 20000,
+                "taxes_id": [
+                    91
+                ],
+                "name": " Kanha wrong cable  Transportation",
+                "price_subtotal": 20000,
+                "tax_percent": 5,
+                "gst_amount": 1000
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02629",
+        "vendor": "S.S. LOGISTICS",
+        "po_date": "2025-08-26 09:37:31",
+        "item_category": " HT CABLES Transportation",
+        "warehouse": "RJK-C/EtricaPower-Khiyasariya/2520/435",
+        "basic_po_value": 9000,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 450,
+        "total_po_value": 9450,
+        "order_lines": [
+            {
+                "id": 23954,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 9000,
+                "taxes_id": [
+                    91
+                ],
+                "name": " HT CABLES Transportation",
+                "price_subtotal": 9000,
+                "tax_percent": 5,
+                "gst_amount": 450
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02628",
+        "vendor": "S.S. LOGISTICS",
+        "po_date": "2025-08-26 09:36:26",
+        "item_category": " HT CABLES Transportation",
+        "warehouse": "RJK-C/EtricaChamu-kerli/2520/408",
+        "basic_po_value": 9000,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 450,
+        "total_po_value": 9450,
+        "order_lines": [
+            {
+                "id": 23953,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 9000,
+                "taxes_id": [
+                    91
+                ],
+                "name": " HT CABLES Transportation",
+                "price_subtotal": 9000,
+                "tax_percent": 5,
+                "gst_amount": 450
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02631",
+        "vendor": "VIKRAM SOLAR LIMITED- Kolkata",
+        "po_date": "2025-08-26 09:30:47",
+        "item_category": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+        "warehouse": "TPSODL/ShyamalaiSolar/2000/534",
+        "basic_po_value": 33700800,
+        "total_tax": "Input IGST @12%",
+        "total_tax_percent": 12,
+        "total_gst": 4044096,
+        "total_po_value": 37744896,
+        "order_lines": [
+            {
+                "id": 23956,
+                "product_id": [
+                    1518,
+                    "[PRSM0001] Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules"
+                ],
+                "product_qty": 4080,
+                "price_unit": 8260,
+                "taxes_id": [
+                    36
+                ],
+                "name": "590 Wp Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules, Make- Vikram Solar",
+                "price_subtotal": 33700800,
+                "tax_percent": 12,
+                "gst_amount": 4044096
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02627",
+        "vendor": "Gautam Solar Pvt. Ltd.",
+        "po_date": "2025-08-26 07:27:14",
+        "item_category": "590 Wp - Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules - Make Gautam Solar",
+        "warehouse": "MPK/Anujkumar/1000/518",
+        "basic_po_value": 16188420,
+        "total_tax": "Input IGST @12%",
+        "total_tax_percent": 12,
+        "total_gst": 1942610.4,
+        "total_po_value": 18131030.4,
+        "order_lines": [
+            {
+                "id": 23952,
+                "product_id": [
+                    1518,
+                    "[PRSM0001] Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules"
+                ],
+                "product_qty": 2040,
+                "price_unit": 7935.5,
+                "taxes_id": [
+                    36
+                ],
+                "name": "590 Wp - Mono PERC Crystalline Half- cut, N-Type Topcon Bifacial Solar PV Modules - Make Gautam Solar",
+                "price_subtotal": 16188420,
+                "tax_percent": 12,
+                "gst_amount": 1942610.4
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02626",
+        "vendor": "Safe India Logistics",
+        "po_date": "2025-08-26 06:26:14",
+        "item_category": " Coloum  Transportation",
+        "warehouse": "RJK-C/Arvind/1120/382",
+        "basic_po_value": 20600,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 1030,
+        "total_po_value": 21630,
+        "order_lines": [
+            {
+                "id": 23951,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 20600,
+                "taxes_id": [
+                    91
+                ],
+                "name": " Coloum  Transportation",
+                "price_subtotal": 20600,
+                "tax_percent": 5,
+                "gst_amount": 1030
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02625",
+        "vendor": "Safe India Logistics",
+        "po_date": "2025-08-26 06:23:21",
+        "item_category": " INVERETER STAND    Transportation",
+        "warehouse": "RJK-C/Kamakshi/2520/421",
+        "basic_po_value": 18100,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 905,
+        "total_po_value": 19005,
+        "order_lines": [
+            {
+                "id": 23950,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 18100,
+                "taxes_id": [
+                    91
+                ],
+                "name": " INVERETER STAND    Transportation",
+                "price_subtotal": 18100,
+                "tax_percent": 5,
+                "gst_amount": 905
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02624",
+        "vendor": "Sangam Electric",
+        "po_date": "2025-08-26 06:22:54",
+        "item_category": "33 KV Hardware",
+        "warehouse": "RJK-C/EtricaChamu-pandito/2520/409",
+        "basic_po_value": 1632118,
+        "total_tax": "Input IGST @18%",
+        "total_tax_percent": 270,
+        "total_gst": 293781.24,
+        "total_po_value": 1925899.24,
+        "order_lines": [
+            {
+                "id": 23935,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 1440,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "8 FEET LENGTH CHANNEL - \n 60 NOS",
+                "price_subtotal": 76320,
+                "tax_percent": 18,
+                "gst_amount": 13737.6
+            },
+            {
+                "id": 23936,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 2496,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "16FT LENGTH CHANNEL - \n 52 NOS",
+                "price_subtotal": 132288,
+                "tax_percent": 18,
+                "gst_amount": 23811.84
+            },
+            {
+                "id": 23937,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 990,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": " 6FT LENGTH CHANNEL - \n 55 NOS",
+                "price_subtotal": 52470,
+                "tax_percent": 18,
+                "gst_amount": 9444.6
+            },
+            {
+                "id": 23938,
+                "product_id": [
+                    788,
+                    "[PRTL0014] Pin/Stay Insulators"
+                ],
+                "product_qty": 70,
+                "price_unit": 85,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV Stay Insulator",
+                "price_subtotal": 5950,
+                "tax_percent": 18,
+                "gst_amount": 1071
+            },
+            {
+                "id": 23939,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 120,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "Stay Clamp - 120 Nos",
+                "price_subtotal": 6360,
+                "tax_percent": 18,
+                "gst_amount": 1144.8
+            },
+            {
+                "id": 23940,
+                "product_id": [
+                    791,
+                    "[PRTL0004] Disc Hardware Fitting, Stay Sets, GI Stay Set"
+                ],
+                "product_qty": 120,
+                "price_unit": 1150,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV Stay Set ",
+                "price_subtotal": 138000,
+                "tax_percent": 18,
+                "gst_amount": 24840
+            },
+            {
+                "id": 23941,
+                "product_id": [
+                    562,
+                    "[PRTL0010] MS Nut Bolts for Transmission Line"
+                ],
+                "product_qty": 800,
+                "price_unit": 85,
+                "taxes_id": [
+                    35
+                ],
+                "name": "Nut Bolt - 12 Inch (600 Pcs), Nut Bolt - 4 Inch (1350 Pcs)",
+                "price_subtotal": 68000,
+                "tax_percent": 18,
+                "gst_amount": 12240
+            },
+            {
+                "id": 23942,
+                "product_id": [
+                    795,
+                    "[PRTL0009] Gang Operated (GO) Air Break Switch"
+                ],
+                "product_qty": 4,
+                "price_unit": 28000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV GO Set - CTL Pass ",
+                "price_subtotal": 112000,
+                "tax_percent": 18,
+                "gst_amount": 20160
+            },
+            {
+                "id": 23943,
+                "product_id": [
+                    796,
+                    "[PRTL0007] Dropout (DO) Fuse"
+                ],
+                "product_qty": 4,
+                "price_unit": 12000,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV DO Set - CTL Pass",
+                "price_subtotal": 48000,
+                "tax_percent": 18,
+                "gst_amount": 8640
+            },
+            {
+                "id": 23944,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 1590,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "42 FEET LATTISE TOWER -  V CROSS WITH GODIYA JOINT PATTI - 3 NOS",
+                "price_subtotal": 84270,
+                "tax_percent": 18,
+                "gst_amount": 15168.599999999999
+            },
+            {
+                "id": 23945,
+                "product_id": [
+                    788,
+                    "[PRTL0014] Pin/Stay Insulators"
+                ],
+                "product_qty": 1210,
+                "price_unit": 290,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV DISC B&S INSULATOR",
+                "price_subtotal": 350900,
+                "tax_percent": 18,
+                "gst_amount": 63162
+            },
+            {
+                "id": 23946,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 720,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV V CROOSS (CLAMP) ONLY - 450 NOS",
+                "price_subtotal": 38160,
+                "tax_percent": 18,
+                "gst_amount": 6868.8
+            },
+            {
+                "id": 23947,
+                "product_id": [
+                    552,
+                    "[PRTL0012] MS Structures, V Cross Arm, Channel with Clamp, Stay Clamp, Tower"
+                ],
+                "product_qty": 5200,
+                "price_unit": 53,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV V CROSS TOP WITH CLAMP -  200 NOS",
+                "price_subtotal": 275600,
+                "tax_percent": 18,
+                "gst_amount": 49608
+            },
+            {
+                "id": 23948,
+                "product_id": [
+                    953,
+                    "[PRLE0004] Lightning Arrestor with 107 Mtr Diameter over 7 Meter High Mast with counter"
+                ],
+                "product_qty": 4,
+                "price_unit": 3200,
+                "taxes_id": [
+                    35
+                ],
+                "name": "11 KV Lightning Arrestor",
+                "price_subtotal": 12800,
+                "tax_percent": 18,
+                "gst_amount": 2304
+            },
+            {
+                "id": 23949,
+                "product_id": [
+                    791,
+                    "[PRTL0004] Disc Hardware Fitting, Stay Sets, GI Stay Set"
+                ],
+                "product_qty": 420,
+                "price_unit": 550,
+                "taxes_id": [
+                    35
+                ],
+                "name": "33 KV Hardware",
+                "price_subtotal": 231000,
+                "tax_percent": 18,
+                "gst_amount": 41580
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02623",
+        "vendor": "Safe India Logistics",
+        "po_date": "2025-08-26 06:21:53",
+        "item_category": " TRANSFORMER     Transportation",
+        "warehouse": "RJK-C/SuparthGreen/4030/318",
+        "basic_po_value": 53100,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 2655,
+        "total_po_value": 55755,
+        "order_lines": [
+            {
+                "id": 23934,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 53100,
+                "taxes_id": [
+                    91
+                ],
+                "name": " TRANSFORMER     Transportation",
+                "price_subtotal": 53100,
+                "tax_percent": 5,
+                "gst_amount": 2655
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02622",
+        "vendor": "S.S. LOGISTICS",
+        "po_date": "2025-08-26 06:03:48",
+        "item_category": " AC CABLES     Transportation",
+        "warehouse": "RJK-C/JeevanRam/2520/424",
+        "basic_po_value": 14500,
+        "total_tax": "GST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 725,
+        "total_po_value": 15225,
+        "order_lines": [
+            {
+                "id": 23933,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 14500,
+                "taxes_id": [
+                    91
+                ],
+                "name": " AC CABLES     Transportation",
+                "price_subtotal": 14500,
+                "tax_percent": 5,
+                "gst_amount": 725
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02621",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 05:04:57",
+        "item_category": "Fasner  Transportation ",
+        "warehouse": "MPK/VivekChaubey/2000/461",
+        "basic_po_value": 10000,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 500,
+        "total_po_value": 10500,
+        "order_lines": [
+            {
+                "id": 23932,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 10000,
+                "taxes_id": [
+                    58
+                ],
+                "name": "Fasner  Transportation ",
+                "price_subtotal": 10000,
+                "tax_percent": 5,
+                "gst_amount": 500
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02620",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 05:04:00",
+        "item_category": "LDB Transportation ",
+        "warehouse": "RJK-C/EtricaChamu-pandito/2520/409",
+        "basic_po_value": 18000,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 900,
+        "total_po_value": 18900,
+        "order_lines": [
+            {
+                "id": 23931,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 18000,
+                "taxes_id": [
+                    58
+                ],
+                "name": "LDB Transportation ",
+                "price_subtotal": 18000,
+                "tax_percent": 5,
+                "gst_amount": 900
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02619",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 05:02:54",
+        "item_category": "Street light  pole Transportation ",
+        "warehouse": "RJK-C/EtricaDeriya/2520/411",
+        "basic_po_value": 27000,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 1350,
+        "total_po_value": 28350,
+        "order_lines": [
+            {
+                "id": 23930,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 27000,
+                "taxes_id": [
+                    58
+                ],
+                "name": "Street light  pole Transportation ",
+                "price_subtotal": 27000,
+                "tax_percent": 5,
+                "gst_amount": 1350
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02618",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 05:01:39",
+        "item_category": "Street light   Transportation ",
+        "warehouse": "RJK-C/EtricaChamu-kerli/2520/408",
+        "basic_po_value": 18000,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 900,
+        "total_po_value": 18900,
+        "order_lines": [
+            {
+                "id": 23929,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 18000,
+                "taxes_id": [
+                    58
+                ],
+                "name": "Street light   Transportation ",
+                "price_subtotal": 18000,
+                "tax_percent": 5,
+                "gst_amount": 900
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02617",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 05:00:30",
+        "item_category": "LT HT  Transportation ",
+        "warehouse": "RJK-C/EtricaPower-Khiyasariya/2520/435",
+        "basic_po_value": 19000,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 950,
+        "total_po_value": 19950,
+        "order_lines": [
+            {
+                "id": 23928,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 19000,
+                "taxes_id": [
+                    58
+                ],
+                "name": "LT HT  Transportation ",
+                "price_subtotal": 19000,
+                "tax_percent": 5,
+                "gst_amount": 950
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02616",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 04:59:30",
+        "item_category": "LT HT  Transportation ",
+        "warehouse": "RJK-C/EtricaDeriya/2520/411",
+        "basic_po_value": 19000,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 950,
+        "total_po_value": 19950,
+        "order_lines": [
+            {
+                "id": 23927,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 19000,
+                "taxes_id": [
+                    58
+                ],
+                "name": "LT HT  Transportation ",
+                "price_subtotal": 19000,
+                "tax_percent": 5,
+                "gst_amount": 950
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02615",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 04:57:04",
+        "item_category": "Upper structure  Transportation ",
+        "warehouse": "RJK-C/Arakis/3310/399",
+        "basic_po_value": 44000,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 2200,
+        "total_po_value": 46200,
+        "order_lines": [
+            {
+                "id": 23926,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 44000,
+                "taxes_id": [
+                    58
+                ],
+                "name": "Upper structure  Transportation ",
+                "price_subtotal": 44000,
+                "tax_percent": 5,
+                "gst_amount": 2200
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02614",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 04:53:26",
+        "item_category": " Gate Transportation ",
+        "warehouse": "RJK-C/EtricaChamu-pandito/2520/409",
+        "basic_po_value": 6250,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 312.5,
+        "total_po_value": 6562.5,
+        "order_lines": [
+            {
+                "id": 23925,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 6250,
+                "taxes_id": [
+                    58
+                ],
+                "name": " Gate Transportation ",
+                "price_subtotal": 6250,
+                "tax_percent": 5,
+                "gst_amount": 312.5
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02613",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 04:53:00",
+        "item_category": " Gate Transportation ",
+        "warehouse": "RJK-C/EtricaDeriya/2520/411",
+        "basic_po_value": 6250,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 312.5,
+        "total_po_value": 6562.5,
+        "order_lines": [
+            {
+                "id": 23924,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 6250,
+                "taxes_id": [
+                    58
+                ],
+                "name": " Gate Transportation ",
+                "price_subtotal": 6250,
+                "tax_percent": 5,
+                "gst_amount": 312.5
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02612",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 04:52:27",
+        "item_category": " Gate Transportation ",
+        "warehouse": "RJK-C/EtricaPower-Khiyasariya/2520/435",
+        "basic_po_value": 6250,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 312.5,
+        "total_po_value": 6562.5,
+        "order_lines": [
+            {
+                "id": 23923,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 6250,
+                "taxes_id": [
+                    58
+                ],
+                "name": " Gate Transportation ",
+                "price_subtotal": 6250,
+                "tax_percent": 5,
+                "gst_amount": 312.5
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02611",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 04:51:02",
+        "item_category": " Gate Transportation ",
+        "warehouse": "RJK-C/EtricaPower-VijayNagar/2520/436",
+        "basic_po_value": 6250,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 312.5,
+        "total_po_value": 6562.5,
+        "order_lines": [
+            {
+                "id": 23922,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 6250,
+                "taxes_id": [
+                    58
+                ],
+                "name": " Gate Transportation ",
+                "price_subtotal": 6250,
+                "tax_percent": 5,
+                "gst_amount": 312.5
+            }
+        ]
+    },
+    {
+        "po_number": "ENERGY-PO/25-26/02610",
+        "vendor": "Supreme Cargo Carrier",
+        "po_date": "2025-08-26 04:49:22",
+        "item_category": "HDG Fasteners Transportation ",
+        "warehouse": "RJK-C/Adishakti /2520/451",
+        "basic_po_value": 16000,
+        "total_tax": "IGST 5% (RC)",
+        "total_tax_percent": 5,
+        "total_gst": 800,
+        "total_po_value": 16800,
+        "order_lines": [
+            {
+                "id": 23921,
+                "product_id": [
+                    1664,
+                    "Transportation and Freight Charges - Project "
+                ],
+                "product_qty": 1,
+                "price_unit": 16000,
+                "taxes_id": [
+                    58
+                ],
+                "name": "HDG Fasteners Transportation ",
+                "price_subtotal": 16000,
+                "tax_percent": 5,
+                "gst_amount": 800
+            }
+        ]
+    }
+]

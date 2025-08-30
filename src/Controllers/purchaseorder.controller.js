@@ -687,7 +687,6 @@ const getPaginatedPo = async (req, res) => {
     }
 
     if (req.query.item_id) {
-      // item can be ObjectId or string
       andClauses.push({
         $or: [
           { item: new mongoose.Types.ObjectId(req.query.item_id) },
@@ -769,9 +768,7 @@ const getPaginatedPo = async (req, res) => {
       ? { $and: andClauses, ...baseEq }
       : baseEq;
 
-    // ---------- MAIN PIPELINE ----------
     const pipeline = [
-      // Normalize date + flag array shape
       {
         $addFields: {
           dateObj: {
@@ -786,216 +783,68 @@ const getPaginatedPo = async (req, res) => {
       },
 
       { $match: preMatch },
+      {
+        $addFields: {
+          total_billed_num: {
+            $convert: {
+              input: "$total_billed",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
+          po_value_num: {
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          partial_billing: {
+            $cond: [
+              { $gte: ["$total_billed_num", "$po_value_num"] },
+              "Fully Billed",
+              "Bill Pending",
+            ],
+          },
+        },
+      },
+      ...(status ? [{ $match: { partial_billing: status } }] : []),
 
-      // ===== Resolve category names (IDs or strings, array or legacy) =====
-      {
-        $addFields: {
-          itemCatRawArr: {
-            $cond: [
-              "$isItemArray",
-              {
-                $map: {
-                  input: "$item",
-                  as: "it",
-                  in: {
-                    $cond: [
-                      { $eq: [{ $type: "$$it.category" }, "object"] },
-                      "$$it.category._id",
-                      "$$it.category",
-                    ],
-                  },
-                },
-              },
-              [],
-            ],
-          },
-        },
-      },
-      {
-        $addFields: {
-          itemCatObjectIdArr: {
-            $map: {
-              input: "$itemCatRawArr",
-              as: "c",
-              in: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: [{ $type: "$$c" }, "string"] },
-                      { $eq: [{ $strLenCP: "$$c" }, 24] },
-                      {
-                        $regexMatch: {
-                          input: "$$c",
-                          regex: "^[0-9a-fA-F]{24}$",
-                        },
-                      },
-                    ],
-                  },
-                  { $toObjectId: "$$c" },
-                  {
-                    $cond: [
-                      { $eq: [{ $type: "$$c" }, "objectId"] },
-                      "$$c",
-                      null,
-                    ],
-                  },
-                ],
-              },
-            },
-          },
-          itemCatNameStrArr: {
-            $map: {
-              input: "$itemCatRawArr",
-              as: "c",
-              in: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: [{ $type: "$$c" }, "string"] },
-                      {
-                        $not: [
-                          {
-                            $and: [
-                              { $eq: [{ $strLenCP: "$$c" }, 24] },
-                              {
-                                $regexMatch: {
-                                  input: "$$c",
-                                  regex: "^[0-9a-fA-F]{24}$",
-                                },
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                  "$$c",
-                  null,
-                ],
-              },
-            },
-          },
-          legacyItemStr: {
-            $cond: [{ $not: ["$isItemArray"] }, { $toString: "$item" }, null],
-          },
-          legacyItemObjId: {
-            $cond: [
-              {
-                $and: [
-                  { $not: ["$isItemArray"] },
-                  { $eq: [{ $type: "$item" }, "string"] },
-                  { $eq: [{ $strLenCP: "$item" }, 24] },
-                  {
-                    $regexMatch: { input: "$item", regex: "^[0-9a-fA-F]{24}$" },
-                  },
-                ],
-              },
-              { $toObjectId: "$item" },
-              null,
-            ],
-          },
-        },
-      },
       {
         $lookup: {
           from: "materialcategories",
-          let: {
-            idList: {
-              $setUnion: [
-                {
-                  $filter: {
-                    input: "$itemCatObjectIdArr",
-                    as: "x",
-                    cond: { $ne: ["$$x", null] },
-                  },
-                },
-                [{ $ifNull: ["$legacyItemObjId", null] }],
-              ],
-            },
-          },
-          pipeline: [
-            { $match: { $expr: { $in: ["$_id", "$$idList"] } } },
-            { $project: { _id: 1, name: 1 } },
-          ],
-          as: "mcByIds",
-        },
-      },
-      {
-        $lookup: {
-          from: "materialcategories",
-          let: {
-            nameList: {
-              $setUnion: [
-                {
-                  $filter: {
-                    input: "$itemCatNameStrArr",
-                    as: "x",
-                    cond: { $ne: ["$$x", null] },
-                  },
-                },
-                [{ $ifNull: ["$legacyItemStr", null] }],
-              ],
-            },
-          },
-          pipeline: [
-            { $match: { $expr: { $in: ["$name", "$$nameList"] } } },
-            { $project: { _id: 1, name: 1 } },
-          ],
-          as: "mcByNames",
+          localField: "item.category",
+          foreignField: "_id",
+          as: "categoryData",
         },
       },
       {
         $addFields: {
           resolvedCatNames: {
-            $setUnion: [
-              { $map: { input: "$mcByIds", as: "c", in: "$$c.name" } },
-              { $map: { input: "$mcByNames", as: "c", in: "$$c.name" } },
-            ],
-          },
-          rawCatStrings: {
-            $map: {
-              input: "$itemCatRawArr",
-              as: "c",
-              in: { $toString: "$$c" },
-            },
+            $map: { input: "$categoryData", as: "c", in: "$$c.name" },
           },
         },
       },
-
       ...(itemSearch
         ? [
             {
-              $addFields: {
-                searchableCategoryNames: {
-                  $cond: [
-                    "$isItemArray",
-                    { $setUnion: ["$resolvedCatNames", "$rawCatStrings"] },
-                    {
-                      $setUnion: [
-                        "$resolvedCatNames",
-                        [{ $toString: "$item" }],
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-            {
               $match: {
-                searchableCategoryNames: {
-                  $elemMatch: { $regex: itemSearchRegex },
-                },
+                resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
               },
             },
           ]
         : []),
 
-      // Sorting & pagination now happen after all filters
-      { $sort: { createdAt: -1 } },
+      { $sort: { createdAt: -1, po_number: 1 } },
       { $skip: skip },
       { $limit: pageSize },
 
-      // ---- Lightweight coercions
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
@@ -1010,124 +859,11 @@ const getPaginatedPo = async (req, res) => {
         },
       },
 
-      // ---- Lookups for payment/bill (unchanged)
-      {
-        $lookup: {
-          from: "payrequests",
-          let: { poNumber: "$po_number" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: [{ $toString: "$po_number" }, "$$poNumber"] },
-                    { $eq: ["$approved", "Approved"] },
-                    { $ne: ["$utr", null] },
-                    { $ne: ["$utr", ""] },
-                  ],
-                },
-              },
-            },
-          ],
-          as: "approvedPayments",
-        },
-      },
-      {
-        $lookup: {
-          from: "biildetails",
-          localField: "po_number",
-          foreignField: "po_number",
-          as: "billData",
-        },
-      },
-      {
-        $addFields: {
-          amount_paid: {
-            $sum: {
-              $map: {
-                input: "$approvedPayments",
-                as: "pay",
-                in: {
-                  $convert: {
-                    input: "$$pay.amount_paid",
-                    to: "double",
-                    onError: 0,
-                    onNull: 0,
-                  },
-                },
-              },
-            },
-          },
-          total_billed: {
-            $sum: {
-              $map: {
-                input: "$billData",
-                as: "b",
-                in: {
-                  $convert: {
-                    input: "$$b.bill_value",
-                    to: "double",
-                    onError: 0,
-                    onNull: 0,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      {
-        $addFields: {
-          partial_billing: {
-            $cond: [
-              { $lt: ["$total_billed", "$po_value"] },
-              "Bill Pending",
-              "Fully Billed",
-            ],
-          },
-          billingTypes: {
-            $cond: [
-              { $gt: [{ $size: "$billData" }, 0] },
-              {
-                $let: {
-                  vars: {
-                    sorted: {
-                      $slice: [
-                        {
-                          $filter: {
-                            input: {
-                              $sortArray: {
-                                input: "$billData",
-                                sortBy: { updatedAt: -1 },
-                              },
-                            },
-                            as: "d",
-                            cond: { $ne: ["$$d.type", null] },
-                          },
-                        },
-                        1,
-                      ],
-                    },
-                  },
-                  in: { $arrayElemAt: ["$$sorted.type", 0] },
-                },
-              },
-              "-",
-            ],
-          },
-        },
-      },
-
-      // Optional status filter after computing partial_billing
-      ...(status ? [{ $match: { partial_billing: status } }] : []),
-
-      // Final projection (unchanged)
       {
         $project: {
           _id: 1,
           po_number: 1,
           p_id: 1,
-          pr_no: { $arrayElemAt: ["$prRequest.pr_no", 0] }, // ensure present below
           vendor: 1,
           date: 1,
           po_value: 1,
@@ -1151,81 +887,15 @@ const getPaginatedPo = async (req, res) => {
           material_ready_date: 1,
           current_status: 1,
           status_history: 1,
-          type: "$billingTypes",
-
-          // computed item display
-          item: {
-            $cond: [
-              "$isItemArray",
-              {
-                $cond: [
-                  { $gt: [{ $size: "$resolvedCatNames" }, 0] },
-                  {
-                    $reduce: {
-                      input: "$resolvedCatNames",
-                      initialValue: "",
-                      in: {
-                        $concat: [
-                          {
-                            $cond: [
-                              { $eq: ["$$value", ""] },
-                              "",
-                              { $concat: ["$$value", ", "] },
-                            ],
-                          },
-                          "$$this",
-                        ],
-                      },
-                    },
-                  },
-                  {
-                    $reduce: {
-                      input: "$rawCatStrings",
-                      initialValue: "",
-                      in: {
-                        $concat: [
-                          {
-                            $cond: [
-                              { $eq: ["$$value", ""] },
-                              "",
-                              { $concat: ["$$value", ", "] },
-                            ],
-                          },
-                          "$$this",
-                        ],
-                      },
-                    },
-                  },
-                ],
-              },
-              {
-                $cond: [
-                  { $gt: [{ $size: "$resolvedCatNames" }, 0] },
-                  { $arrayElemAt: ["$resolvedCatNames", 0] },
-                  { $toString: "$item" },
-                ],
-              },
-            ],
-          },
+          category_names: "$resolvedCatNames",
         },
       },
     ];
 
-    // Add PR join right before projection if you still need pr_no
-    pipeline.splice(pipeline.length - 1, 0, {
-      $lookup: {
-        from: "purchaserequests",
-        localField: "pr_id",
-        foreignField: "_id",
-        as: "prRequest",
-      },
-    });
-
-    // ---------- COUNT PIPELINE (mirror filters incl. itemSearch) ----------
+    // ---------- COUNT PIPELINE ----------
     const countPipeline = [
       {
         $addFields: {
-          isItemArray: { $eq: [{ $type: "$item" }, "array"] },
           dateObj: {
             $cond: [
               { $eq: [{ $type: "$date" }, "string"] },
@@ -1236,112 +906,34 @@ const getPaginatedPo = async (req, res) => {
         },
       },
       { $match: preMatch },
-
-      // same category resolve as above (minimal set)
       {
         $addFields: {
-          itemCatRawArr: {
-            $cond: [
-              "$isItemArray",
-              {
-                $map: {
-                  input: "$item",
-                  as: "it",
-                  in: {
-                    $cond: [
-                      { $eq: [{ $type: "$$it.category" }, "object"] },
-                      "$$it.category._id",
-                      "$$it.category",
-                    ],
-                  },
-                },
-              },
-              [],
-            ],
+          total_billed_num: {
+            $convert: {
+              input: "$total_billed",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
+          po_value_num: {
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
         },
       },
       {
         $addFields: {
-          itemCatObjectIdArr: {
-            $map: {
-              input: "$itemCatRawArr",
-              as: "c",
-              in: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: [{ $type: "$$c" }, "string"] },
-                      { $eq: [{ $strLenCP: "$$c" }, 24] },
-                      {
-                        $regexMatch: {
-                          input: "$$c",
-                          regex: "^[0-9a-fA-F]{24}$",
-                        },
-                      },
-                    ],
-                  },
-                  { $toObjectId: "$$c" },
-                  {
-                    $cond: [
-                      { $eq: [{ $type: "$$c" }, "objectId"] },
-                      "$$c",
-                      null,
-                    ],
-                  },
-                ],
-              },
-            },
-          },
-          itemCatNameStrArr: {
-            $map: {
-              input: "$itemCatRawArr",
-              as: "c",
-              in: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: [{ $type: "$$c" }, "string"] },
-                      {
-                        $not: [
-                          {
-                            $and: [
-                              { $eq: [{ $strLenCP: "$$c" }, 24] },
-                              {
-                                $regexMatch: {
-                                  input: "$$c",
-                                  regex: "^[0-9a-fA-F]{24}$",
-                                },
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                  "$$c",
-                  null,
-                ],
-              },
-            },
-          },
-          legacyItemStr: {
-            $cond: [{ $not: ["$isItemArray"] }, { $toString: "$item" }, null],
-          },
-          legacyItemObjId: {
+          // mirror the same rule as in main pipeline
+          partial_billing: {
             $cond: [
-              {
-                $and: [
-                  { $not: ["$isItemArray"] },
-                  { $eq: [{ $type: "$item" }, "string"] },
-                  { $eq: [{ $strLenCP: "$item" }, 24] },
-                  {
-                    $regexMatch: { input: "$item", regex: "^[0-9a-fA-F]{24}$" },
-                  },
-                ],
-              },
-              { $toObjectId: "$item" },
-              null,
+              { $gte: ["$total_billed_num", "$po_value_num"] },
+              "Fully Billed",
+              "Bill Pending",
             ],
           },
         },
@@ -1349,142 +941,27 @@ const getPaginatedPo = async (req, res) => {
       {
         $lookup: {
           from: "materialcategories",
-          let: {
-            idList: {
-              $setUnion: [
-                {
-                  $filter: {
-                    input: "$itemCatObjectIdArr",
-                    as: "x",
-                    cond: { $ne: ["$$x", null] },
-                  },
-                },
-                [{ $ifNull: ["$legacyItemObjId", null] }],
-              ],
-            },
-          },
-          pipeline: [
-            { $match: { $expr: { $in: ["$_id", "$$idList"] } } },
-            { $project: { _id: 1, name: 1 } },
-          ],
-          as: "mcByIds",
-        },
-      },
-      {
-        $lookup: {
-          from: "materialcategories",
-          let: {
-            nameList: {
-              $setUnion: [
-                {
-                  $filter: {
-                    input: "$itemCatNameStrArr",
-                    as: "x",
-                    cond: { $ne: ["$$x", null] },
-                  },
-                },
-                [{ $ifNull: ["$legacyItemStr", null] }],
-              ],
-            },
-          },
-          pipeline: [
-            { $match: { $expr: { $in: ["$name", "$$nameList"] } } },
-            { $project: { _id: 1, name: 1 } },
-          ],
-          as: "mcByNames",
+          localField: "item.category",
+          foreignField: "_id",
+          as: "categoryData",
         },
       },
       {
         $addFields: {
           resolvedCatNames: {
-            $setUnion: [
-              { $map: { input: "$mcByIds", as: "c", in: "$$c.name" } },
-              { $map: { input: "$mcByNames", as: "c", in: "$$c.name" } },
-            ],
-          },
-          rawCatStrings: {
-            $map: {
-              input: "$itemCatRawArr",
-              as: "c",
-              in: { $toString: "$$c" },
-            },
+            $map: { input: "$categoryData", as: "c", in: "$$c.name" },
           },
         },
       },
       ...(itemSearch
         ? [
             {
-              $addFields: {
-                searchableCategoryNames: {
-                  $cond: [
-                    "$isItemArray",
-                    { $setUnion: ["$resolvedCatNames", "$rawCatStrings"] },
-                    {
-                      $setUnion: [
-                        "$resolvedCatNames",
-                        [{ $toString: "$item" }],
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-            {
               $match: {
-                searchableCategoryNames: {
-                  $elemMatch: { $regex: itemSearchRegex },
-                },
+                resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
               },
             },
           ]
         : []),
-
-      // retain billing partial filter semantics for status
-      {
-        $addFields: {
-          po_number: { $toString: "$po_number" },
-          po_value: { $toDouble: "$po_value" },
-        },
-      },
-      {
-        $lookup: {
-          from: "biildetails",
-          localField: "po_number",
-          foreignField: "po_number",
-          as: "billData",
-        },
-      },
-      {
-        $addFields: {
-          total_billed: {
-            $sum: {
-              $map: {
-                input: "$billData",
-                as: "b",
-                in: {
-                  $convert: {
-                    input: "$$b.bill_value",
-                    to: "double",
-                    onError: 0,
-                    onNull: 0,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      {
-        $addFields: {
-          partial_billing: {
-            $cond: {
-              if: { $lt: ["$total_billed", "$po_value"] },
-              then: "Bill Pending",
-              else: "Fully Billed",
-            },
-          },
-        },
-      },
       ...(status ? [{ $match: { partial_billing: status } }] : []),
       { $count: "total" },
     ];
@@ -1507,10 +984,7 @@ const getPaginatedPo = async (req, res) => {
             .replace(/ /g, "/")
         : "";
 
-    const data = result.map((item) => ({
-      ...item,
-      date: formatDate(item.date),
-    }));
+    const data = result.map((it) => ({ ...it, date: formatDate(it.date) }));
 
     res.status(200).json({
       msg: "All PO Detail With PO Number",
@@ -1519,9 +993,10 @@ const getPaginatedPo = async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res
-      .status(500)
-      .json({ msg: "Error retrieving bills with PO data", error: err.message });
+    res.status(500).json({
+      msg: "Error retrieving POs with category data",
+      error: err.message,
+    });
   }
 };
 
@@ -2204,7 +1679,6 @@ function escapeRegExp(s = "") {
 
 const fixSubmittedBy = async (req, res) => {
   try {
-    // 1) Read raw values to avoid Mongoose casting ObjectId
     const purchaseOrders = await purchaseOrderModells
       .find({ submitted_By: { $exists: true, $ne: null } })
       .select("_id po_number submitted_By")
@@ -2231,16 +1705,24 @@ const fixSubmittedBy = async (req, res) => {
       }
 
       const submittedName = String(raw).trim().replace(/\s+/g, " ");
-      console.log(`[PROCESS] ${po.po_number} - submitted_By: "${submittedName}"`);
+      console.log(
+        `[PROCESS] ${po.po_number} - submitted_By: "${submittedName}"`
+      );
 
       // 2) Safe, case-insensitive exact match on name
       const user = await userModells
-        .findOne({ name: { $regex: new RegExp("^" + escapeRegExp(submittedName) + "$", "i") } })
+        .findOne({
+          name: {
+            $regex: new RegExp("^" + escapeRegExp(submittedName) + "$", "i"),
+          },
+        })
         .select("_id name")
         .lean();
 
       if (!user) {
-        console.warn(`[FAILED] ${po.po_number} - No user found for "${submittedName}"`);
+        console.warn(
+          `[FAILED] ${po.po_number} - No user found for "${submittedName}"`
+        );
         failedCount++;
         continue;
       }
@@ -2274,7 +1756,6 @@ const fixSubmittedBy = async (req, res) => {
   }
 };
 
-
 // utility to normalize
 function normalizeItemField(item) {
   if (Array.isArray(item) && item.length > 0) {
@@ -2285,9 +1766,9 @@ function normalizeItemField(item) {
 
     if (typeof firstObj === "object" && firstObj !== null) {
       const chars = Object.keys(firstObj)
-        .filter(k => /^\d+$/.test(k))           // numeric only
-        .sort((a, b) => Number(a) - Number(b))  // order
-        .map(k => firstObj[k]);                 // values
+        .filter((k) => /^\d+$/.test(k))
+        .sort((a, b) => Number(a) - Number(b))
+        .map((k) => firstObj[k]);
 
       return chars.join("").trim();
     }
@@ -2297,35 +1778,38 @@ function normalizeItemField(item) {
     }
   }
 
-  return item; // already string
+  return item;
 }
 
 // controller
 const itemArray = async (req, res) => {
   try {
-    const purchaseOrders = await purchaseOrderModells.find({
-      item: { $type: "array" }
-    }).lean(); // fetch as plain objects
+    const purchaseOrders = await purchaseOrderModells
+      .find({
+        item: { $type: "array" },
+      })
+      .lean();
 
     if (!purchaseOrders.length) {
       return res.json({ success: true, message: "No array items found" });
     }
 
-    // build bulk ops for raw collection
-    const bulkOps = purchaseOrders.map(po => {
-      const normalized = normalizeItemField(po.item);
+    const bulkOps = purchaseOrders
+      .map((po) => {
+        const normalized = normalizeItemField(po.item);
 
-      if (!normalized || typeof normalized !== "string") {
-        return null; // skip if nothing to update
-      }
-
-      return {
-        updateOne: {
-          filter: { _id: po._id },
-          update: { $set: { item: normalized } }
+        if (!normalized || typeof normalized !== "string") {
+          return null;
         }
-      };
-    }).filter(Boolean);
+
+        return {
+          updateOne: {
+            filter: { _id: po._id },
+            update: { $set: { item: normalized } },
+          },
+        };
+      })
+      .filter(Boolean);
 
     if (!bulkOps.length) {
       return res.json({ success: true, message: "No valid updates to apply" });
@@ -2337,14 +1821,13 @@ const itemArray = async (req, res) => {
     res.json({
       success: true,
       message: `Normalized ${result.modifiedCount} entries out of ${purchaseOrders.length}`,
-      result
+      result,
     });
   } catch (error) {
     console.error("Error normalizing items:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
-
 
 //get All PO With
 module.exports = {
@@ -2369,5 +1852,5 @@ module.exports = {
   manipulatepo,
   calculateBill,
   fixSubmittedBy,
-  itemArray
+  itemArray,
 };

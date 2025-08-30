@@ -46,16 +46,69 @@ const addMaterialCategory = async (req, res) => {
   }
 };
 
-// Get all material categories
+
 const getAllMaterialCategories = async (req, res) => {
   try {
-    const materialCategories = await materialCategory
-      .find()
-      .populate("createdBy", "name email")
-      .populate("updatedBy", "name email");
+    const page = parseInt(req.query.page, 10) > 0 ? parseInt(req.query.page, 10) : 1;
+    const pageSizeParam =
+      req.query.pageSize != null ? req.query.pageSize : req.query.limit;
+    const pageSize =
+      parseInt(pageSizeParam, 10) > 0 ? parseInt(pageSizeParam, 10) : 10;
+    const skip = (page - 1) * pageSize;
+
+    // filters
+    const search = (req.query.search || "").trim();
+    const type = (req.query.type || "").trim().toLowerCase();    
+    const statusQ = (req.query.status || "").trim().toLowerCase(); 
+
+    // sort
+    const sortBy = (req.query.sortBy || "createdAt").trim();
+    const sortOrder = ((req.query.sortOrder || "desc").toLowerCase() === "asc" ? 1 : -1);
+    const sort = { [sortBy]: sortOrder };
+
+    const query = {};
+
+    if (type === "inactive" && !statusQ) {
+      query.status = "inactive";
+    } else {
+      if (["supply", "execution"].includes(type)) {
+        query.type = type;
+      }
+      if (["active", "inactive"].includes(statusQ)) {
+        query.status = statusQ;
+      }
+    }
+
+    if (search) {
+      const re = new RegExp(search, "i");
+      query.$or = [
+        { name: { $regex: re } },
+        { category_code: { $regex: re } },
+        { description: { $regex: re } },
+      ];
+    }
+
+    // fetch
+    const [items, total] = await Promise.all([
+      materialCategory.find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(pageSize)
+        .populate("createdBy", "name email")
+        .populate("updatedBy", "name email")
+        .lean(),
+      materialCategory.countDocuments(query),
+    ]);
+
     res.status(200).json({
       message: "Material Categories retrieved successfully",
-      data: materialCategories,
+      meta: {
+        total,
+        page,
+        pageSize,
+        count: items.length,
+      },
+      data: items,
     });
   } catch (error) {
     res.status(500).json({
@@ -64,6 +117,7 @@ const getAllMaterialCategories = async (req, res) => {
     });
   }
 };
+
 
 const namesearchOfMaterialCategories = async (req, res) => {
   try {
@@ -245,10 +299,15 @@ const updateMaterialCategory = async (req, res) => {
   try {
     const { name, description, fields } = req.body;
     const id = req.params._id;
+    const userId = req.user?.userId;
+
+    if (!id) {
+      return res.status(400).json({ message: "Material Category ID is required" });
+    }
 
     const updatedMaterialCategory = await materialCategory.findByIdAndUpdate(
       id,
-      { name, description, fields, updatedBy: id },
+      { name, description, fields, updatedBy: userId },
       { new: true }
     );
 

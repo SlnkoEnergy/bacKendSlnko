@@ -261,6 +261,7 @@ const {
   updateLeadStatus,
 } = require("../Controllers/bdleadController");
 const upload = require("../middlewares/multer.js");
+const { odoo } = require("../Controllers/odoo.controller.js");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -472,7 +473,7 @@ router.put('/manipulatepo',manipulatepo)
 router.put('/calculateBill', calculateBill)
 router.put('/changesubmit', fixSubmittedBy)
 router.put('/itemArray', itemArray)
-
+router.put('/odoo', odoo)
 router.put(
   "/:id/updateEtdOrDelivery",
   jwtMW.authentication,

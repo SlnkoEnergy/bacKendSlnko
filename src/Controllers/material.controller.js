@@ -24,7 +24,7 @@ const createMaterial = async function (req, res) {
     const newMaterial = new materialModells({
       category,
       sku_code: nextSkuCode,
-      description: description,
+      description,
       data,
       is_available,
       createdBy: userId,
@@ -32,6 +32,15 @@ const createMaterial = async function (req, res) {
     });
 
     await newMaterial.save();
+
+    await materialCategoryModells.findByIdAndUpdate(
+      category,
+      { 
+        $inc: { product_count: 1 },
+        $set: { updatedBy: userId } 
+      },
+      { new: true }
+    );
 
     res.status(201).json({
       message: "Material Created Successfully",
@@ -44,6 +53,7 @@ const createMaterial = async function (req, res) {
     });
   }
 };
+
 
 // Get all materials
 const getAllMaterials = async function (req, res) {
