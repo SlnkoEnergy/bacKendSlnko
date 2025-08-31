@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 
 const addMaterialCategory = async (req, res) => {
   try {
-    const { name, description, fields, type } = req.body;
+    const { name, description, fields, type, status, order } = req.body;
     const userId = req.user?.userId;
 
     if (!name || !description || !type) {
@@ -28,6 +28,8 @@ const addMaterialCategory = async (req, res) => {
       type,
       category_code: categoryCode,
       fields,
+      status,
+      order,
       createdBy: userId,
       updatedBy: userId,
     });

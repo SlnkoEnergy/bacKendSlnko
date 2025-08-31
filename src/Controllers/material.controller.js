@@ -177,7 +177,7 @@ const deleteMaterial = async function (req, res) {
 const getMaterialById = async (req, res) => {
   try {
     const { id } = req.params;
-    const material = await materialModells.findById(id);
+    const material = await materialModells.findById(id).populate("category", "_id name");
     if (!material) {
       return res.status(404).json({
         message: "Material Not Found",
