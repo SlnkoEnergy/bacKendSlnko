@@ -11,7 +11,7 @@ const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
 const scopeRoutes = require("../src/Routes/scope.routes");
 const productRoutes = require("../src/Routes/products.routes");
 const logisticRoutes = require("../src/Routes/logistics.routes");
-const historyRoutes = require("../src/Routes/history.routes");
+const historyRoutes = require("./Routes/Pohistory.routes");
 const billRoutes = require("../src/Routes/bill.routes");
 const inspectionRoutes = require("../src/Routes/inspection.routes");
 const cors = require("cors");
@@ -56,7 +56,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_URL;
 
 const startServer = async () => {
   try {

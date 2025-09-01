@@ -24,7 +24,7 @@ const purchaseOrderSchema = new mongoose.Schema(
     item: [
       {
         category: {
-          type: mongoose.Schema.Types.Mixed,
+          type: mongoose.Schema.Types.ObjectId,
           ref: "MaterialCategory",
         },
         product_name: {
@@ -79,7 +79,8 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
     },
     submitted_By: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
     po_basic: {
       type: String,
@@ -103,7 +104,6 @@ const purchaseOrderSchema = new mongoose.Schema(
     },
     total_billed: {
       type: String,
-
       default: "0",
     },
     delivery_type: {
@@ -135,6 +135,7 @@ const purchaseOrderSchema = new mongoose.Schema(
             "ready_to_dispatch",
             "material_ready",
             "delivered",
+            "short_quantity",
             "partially_delivered",
           ],
         },
@@ -161,6 +162,7 @@ const purchaseOrderSchema = new mongoose.Schema(
           "ready_to_dispatch",
           "material_ready",
           "delivered",
+          "short_quantity",
           "partially_delivered",
         ],
       },

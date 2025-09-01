@@ -63,6 +63,7 @@ const getAllTasks = async (req, res) => {
       search = "",
       status = "",
       createdAt = "",
+      deadline ="",
       department = "",
     } = req.query;
 
@@ -195,6 +196,14 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ createdAt: { $gte: start, $lt: end } });
     }
 
+    // deadline filter
+    if(deadline) {
+      const start = new Date(deadline);
+      const end = new Date(deadline);
+      end.setDate(end.getDate() + 1);
+      postLookupMatch.push({ deadline : {$gte: start, $lt: end }})
+    }
+
     // Department filter
     if (department) {
       postLookupMatch.push({ "assigned_to.department": department });
@@ -218,6 +227,7 @@ const getAllTasks = async (req, res) => {
           createdAt: 1,
           deadline: 1,
           priority: 1,
+          status_history:1,
           current_status: 1,
           project_details: {
             $map: {

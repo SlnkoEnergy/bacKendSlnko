@@ -2,6 +2,8 @@ const scopeModel = require("../Modells/scope.model");
 const MaterialCategory = require("../Modells/materialcategory.model");
 const projectModells = require("../Modells/project.model");
 const { default: axios } = require("axios");
+const { default: mongoose } = require("mongoose");
+const materialcategoryModel = require("../Modells/materialcategory.model");
 
 const createScope = async (req, res) => {
   try {
@@ -274,6 +276,72 @@ const getScopePdf = async (req, res) => {
   }
 };
 
+const IT_TEAM_USER_ID = new mongoose.Types.ObjectId("6839a4086356310d4e15f6fd");
+
+const ensureProjectScope = async (req, res) => {
+  try {
+    const projects = await projectModells.find({}).select({ _id: 1 }).lean();
+
+    if (!projects.length) {
+      return res.status(404).json({ message: "No projects found" });
+    }
+
+    const categories = await materialcategoryModel
+      .find({ status: { $ne: "inactive" } })
+      .select({ _id: 1, name: 1 })
+      .lean();
+
+    const itemsTemplate = categories.map((c) => ({
+      item_id: c._id,
+      name: c.name || "",
+      pr_status: false,
+    }));
+
+    let createdCount = 0;
+    let skippedCount = 0;
+
+    for (const project of projects) {
+      const exists = await scopeModel
+        .findOne({ project_id: project._id })
+        .lean();
+
+      if (exists) {
+        skippedCount++;
+        continue;
+      }
+
+      await scopeModel.create({
+        project_id: project._id,
+        items: itemsTemplate, 
+        createdBy: IT_TEAM_USER_ID,
+        status_history: [],
+        current_status: {
+          status: "open",
+          remarks: null,
+          user_id: null,
+        },
+      });
+
+      createdCount++;
+    }
+
+    return res.status(201).json({
+      message: "Scopes ensured for all projects",
+      totalProjects: projects.length,
+      created: createdCount,
+      skipped: skippedCount,
+      itemsPerScope: itemsTemplate.length,
+    });
+  } catch (err) {
+    console.error("ensureAllProjectScopes error:", err);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+};
+
+
 module.exports = {
   createScope,
   getScopeById,
@@ -282,4 +350,5 @@ module.exports = {
   deleteScope,
   updateScopeStatus,
   getScopePdf,
+  ensureProjectScope,
 };

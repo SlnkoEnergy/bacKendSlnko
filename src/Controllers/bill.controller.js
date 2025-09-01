@@ -7,6 +7,7 @@ const {
   catchAsyncError,
 } = require("../middlewares/catchasyncerror.middleware");
 const ErrorHandler = require("../middlewares/error.middleware");
+const userModells = require("../Modells/users/userModells");
 
 const addBill = catchAsyncError(async function (req, res, next) {
   const {
@@ -224,6 +225,7 @@ const getPaginatedBill = catchAsyncError(async (req, res) => {
   });
 });
 
+
 const getAllBill = catchAsyncError(async (req, res, next) => {
   const page = Number.parseInt(req.query.page, 10) || 1;
   const pageSize = Number.parseInt(req.query.pageSize, 10) || 10;
@@ -238,7 +240,6 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
     po_number = String(po_number).trim();
   }
 
-  // Free-text search across po_no, vendor, bill_no, project_id
   const rawSearch = (req.query.search ?? req.query.q ?? "").toString().trim();
 
   const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -461,6 +462,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
   });
 });
 
+
 //Bills Exports
 const exportBills = catchAsyncError(async (req, res, next) => {
   const { from, to, export: exportAll } = req.query;
@@ -647,14 +649,34 @@ const GetBillByID = catchAsyncError(async (req, res, next) => {
 const updatebill = catchAsyncError(async function (req, res, next) {
   let id = req.params._id;
   let updatedata = req.body;
-  let data = await billModel.findByIdAndUpdate(id, updatedata, {
-    new: true,
-  });
-  if (!data) {
-    return next(new ErrorHandler("User Not found", 404));
+
+  const existingBill = await billModel.findById(id);
+  if (!existingBill) {
+    return next(new ErrorHandler("Bill not found", 404));
   }
-  res.status(200).json({ msg: "Bill updated sucessfully", data });
+
+  let data = await billModel.findByIdAndUpdate(id, updatedata, { new: true });
+  if (!data) {
+    return next(new ErrorHandler("Bill not found after update", 404));
+  }
+
+  if (data.purchase_order_id) {
+    const po = await purchaseOrderModells.findById(data.purchase_order_id);
+    if (po) {
+      const prevTotalBilled = po.total_billed || 0;
+      const prevBillValue = existingBill.bill_value || 0;
+      const newBillValue = data.bill_value || 0;
+
+      const adjustedTotalBilled = prevTotalBilled - prevBillValue + newBillValue;
+
+      po.total_billed = adjustedTotalBilled;
+      await po.save();
+    }
+  }
+
+  res.status(200).json({ msg: "Bill updated successfully", data });
 });
+
 
 //delete-bill
 const deleteBill = catchAsyncError(async function (req, res, next) {
@@ -700,6 +722,115 @@ const bill_approved = catchAsyncError(async function (req, res, next) {
   });
 });
 
+
+function escapeRegex(s = "") {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// normalize whitespace; trim; collapse multiple spaces
+function normalizeName(s = "") {
+  return s.trim().replace(/\s+/g, " ");
+}
+
+// lookup strategy: exact (case-insensitive), else contains (case-insensitive)
+async function findUserByName(raw) {
+  const name = normalizeName(raw);
+  if (!name) return null;
+
+  // 1) exact match (case-insensitive)
+  let user = await userModells.findOne({
+    name: { $regex: `^${escapeRegex(name)}$`, $options: "i" },
+  }).lean();
+
+  if (user) return user;
+
+  // 2) fallback: contains (case-insensitive)
+  user = await userModells.findOne({
+    name: { $regex: escapeRegex(name), $options: "i" },
+  }).lean();
+
+  return user || null;
+}
+
+const manipulatebill = async (req, res) => {
+  try {
+    // Only fetch bills where either field is a string -> reduces work
+    const bills = await billModel.find({
+      $or: [
+        { submitted_by: { $type: "string" } },
+        { approved_by: { $type: "string" } },
+      ],
+    }).lean(); // lean for speed; we'll bulkWrite updates
+
+    let processed = 0;
+    let toUpdate = [];
+
+    for (const bill of bills) {
+      processed++;
+
+      const updateDoc = {};
+      let hasChanges = false;
+
+      // submitted_by
+      if (typeof bill.submitted_by === "string" && bill.submitted_by.trim()) {
+        const user = await findUserByName(bill.submitted_by);
+        if (user?._id) {
+          console.log(
+            `Bill ${bill._id} | submitted_by: "${bill.submitted_by}" → ${user._id}`
+          );
+          updateDoc.submitted_by = user._id;
+          hasChanges = true;
+        } else {
+          console.warn(
+            `Bill ${bill._id} | submitted_by unmatched: "${bill.submitted_by}"`
+          );
+        }
+      }
+
+      // approved_by
+      if (typeof bill.approved_by === "string" && bill.approved_by.trim()) {
+        const user = await findUserByName(bill.approved_by);
+        if (user?._id) {
+          console.log(
+            `Bill ${bill._id} | approved_by: "${bill.approved_by}" → ${user._id}`
+          );
+          updateDoc.approved_by = user._id;
+          hasChanges = true;
+        } else {
+          console.warn(
+            `Bill ${bill._id} | approved_by unmatched: "${bill.approved_by}"`
+          );
+        }
+      }
+
+      if (hasChanges) {
+        toUpdate.push({
+          updateOne: {
+            filter: { _id: bill._id },
+            update: { $set: updateDoc },
+          },
+        });
+      }
+    }
+
+    let bulkResult = null;
+    if (toUpdate.length) {
+      bulkResult = await billModel.bulkWrite(toUpdate, { ordered: false });
+    }
+
+    res.status(200).json({
+      message: "Bills normalized successfully",
+      processed,
+      updated: bulkResult ? (bulkResult.modifiedCount || 0) : 0,
+      attempted: toUpdate.length,
+    });
+  } catch (error) {
+    console.error("Error normalizing bills:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
 module.exports = {
   addBill,
   getBill,
@@ -710,4 +841,5 @@ module.exports = {
   bill_approved,
   exportBills,
   getAllBill,
+  manipulatebill
 };

@@ -3,11 +3,13 @@ const updateStatus = require("../utils/updatestatus.utils");
 
 const inspectionSchema = new mongoose.Schema(
   {
-    project_code: {
+    po_number: {
       type: String,
+      required: true,
     },
-    dept_category: {
+    inspection_code: {
       type: String,
+      required: true,
     },
     vendor: {
       type: String,
@@ -92,7 +94,7 @@ const inspectionSchema = new mongoose.Schema(
       user_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-      }
+      },
     },
   },
   { timestamps: true }

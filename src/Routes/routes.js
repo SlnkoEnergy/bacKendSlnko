@@ -104,6 +104,7 @@ const {
   bill_approved,
   exportBills,
   getAllBill,
+  manipulatebill,
 } = require("../Controllers/bill.controller");
 const {
   subtractmoney,
@@ -150,8 +151,6 @@ const {
   getCommBdRateHistory,
   getCommBDRateByOfferId,
 } = require("../Controllers/coomBDRateController");
-
-// const { createBDlead, getBDlead, editBDlead, deleteBDlead }=require("../Controllers/createBdLeadcontroller");
 
 const {
   createeBDlead,
@@ -256,7 +255,6 @@ const {
   delete_lead,
   updateLeadStatus,
 } = require("../Controllers/bdleadController");
-
 const upload = require("../middlewares/multer.js");
 
 // Admin router
@@ -305,8 +303,6 @@ router.get(
   jwtMW.authorization,
   getAllDepartment
 );
-//forget pass through resend
-// router.post("/forget-password",forgetpassword);
 
 //project router
 router.post(
@@ -707,7 +703,7 @@ router.get(
   jwtMW.authorization,
   exportBills
 );
-
+router.put('/manipulatebill', manipulatebill)
 //subtractmoney-debitmoney
 router.post(
   "/debit-moneY-IT",

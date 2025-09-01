@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 
 const addMaterialCategory = async (req, res) => {
   try {
-    const { name, description, fields, type } = req.body;
+    const { name, description, fields, type, status, order } = req.body;
     const userId = req.user?.userId;
 
     if (!name || !description || !type) {
@@ -28,6 +28,8 @@ const addMaterialCategory = async (req, res) => {
       type,
       category_code: categoryCode,
       fields,
+      status,
+      order,
       createdBy: userId,
       updatedBy: userId,
     });
@@ -46,16 +48,71 @@ const addMaterialCategory = async (req, res) => {
   }
 };
 
-// Get all material categories
 const getAllMaterialCategories = async (req, res) => {
   try {
-    const materialCategories = await materialCategory
-      .find()
-      .populate("createdBy", "name email")
-      .populate("updatedBy", "name email");
+    const page =
+      parseInt(req.query.page, 10) > 0 ? parseInt(req.query.page, 10) : 1;
+    const pageSizeParam =
+      req.query.pageSize != null ? req.query.pageSize : req.query.limit;
+    const pageSize =
+      parseInt(pageSizeParam, 10) > 0 ? parseInt(pageSizeParam, 10) : 10;
+    const skip = (page - 1) * pageSize;
+
+    // filters
+    const search = (req.query.search || "").trim();
+    const type = (req.query.type || "").trim().toLowerCase();
+    const statusQ = (req.query.status || "").trim().toLowerCase();
+
+    // sort
+    const sortBy = (req.query.sortBy || "createdAt").trim();
+    const sortOrder =
+      (req.query.sortOrder || "desc").toLowerCase() === "asc" ? 1 : -1;
+    const sort = { [sortBy]: sortOrder };
+
+    const query = {};
+
+    if (type === "inactive" && !statusQ) {
+      query.status = "inactive";
+    } else {
+      if (["supply", "execution"].includes(type)) {
+        query.type = type;
+      }
+      if (["active", "inactive"].includes(statusQ)) {
+        query.status = statusQ;
+      }
+    }
+
+    if (search) {
+      const re = new RegExp(search, "i");
+      query.$or = [
+        { name: { $regex: re } },
+        { category_code: { $regex: re } },
+        { description: { $regex: re } },
+      ];
+    }
+
+    // fetch
+    const [items, total] = await Promise.all([
+      materialCategory
+        .find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(pageSize)
+        .populate("createdBy", "name email")
+        .populate("updatedBy", "name email")
+        .lean(),
+      materialCategory.countDocuments(query),
+    ]);
+
     res.status(200).json({
       message: "Material Categories retrieved successfully",
-      data: materialCategories,
+      meta: {
+        total,
+        page,
+        pageSize,
+        count: items.length,
+      },
+      data: items,
     });
   } catch (error) {
     res.status(500).json({
@@ -75,14 +132,47 @@ const namesearchOfMaterialCategories = async (req, res) => {
       project_id,
     } = req.query;
 
+    const statusQ = (req.query.status || "").trim().toLowerCase(); // NEW
     const prFlag = String(pr).toLowerCase() === "true";
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
     const skip = (pageNum - 1) * pageSize;
 
+    // ---- baseline: NEVER return inactive ----
+    const alwaysActiveFilter = { status: { $ne: "inactive" } };
+    if (statusQ === "inactive") {
+      return res.status(200).json({
+        message: "Material categories retrieved successfully",
+        data: [],
+        pagination: {
+          search,
+          page: pageNum,
+          pageSize,
+          total: 0,
+          totalPages: 1,
+          hasMore: false,
+          nextPage: null,
+        },
+        meta: {
+          filteredByProjectScope: false,
+          scopeType: null,
+          reason: "inactive_excluded",
+        },
+      });
+    } else if (statusQ === "active") {
+      // If client explicitly asks for active, enforce it.
+      alwaysActiveFilter.status = "active";
+    }
+
     const baseFilter = search
-      ? { name: { $regex: search.trim().replace(/\s+/g, ".*"), $options: "i" } }
-      : {};
+      ? {
+          ...alwaysActiveFilter,
+          name: {
+            $regex: search.trim().replace(/\s+/g, ".*"),
+            $options: "i",
+          },
+        }
+      : { ...alwaysActiveFilter };
 
     let scopeIds = null;
 
@@ -174,17 +264,31 @@ const namesearchOfMaterialCategories = async (req, res) => {
   }
 };
 
+
 const getAllMaterialCategoriesDropdown = async (req, res) => {
   try {
     const { project_id } = req.query;
+    const statusQ = (req.query.status || "").trim().toLowerCase(); 
 
     if (!project_id) {
       return res.status(400).json({ message: "Project ID is required" });
     }
-
-    const materialCategories = await materialCategory.find({}, "_id name");
-
-    const scopeData = await scopeModel.findOne({ project_id });
+    if (!mongoose.Types.ObjectId.isValid(project_id)) {
+      return res.status(400).json({ message: "Invalid project ID" });
+    }
+    if (statusQ === "inactive") {
+      return res.status(200).json({
+        message: "Material Categories retrieved successfully",
+        data: [],
+        meta: { reason: "inactive_excluded" },
+      });
+    }
+    const scopeData = await scopeModel
+      .findOne(
+        { project_id: new mongoose.Types.ObjectId(project_id) },
+        { items: 1 }
+      )
+      .lean();
 
     if (!scopeData) {
       return res
@@ -192,22 +296,47 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
         .json({ message: "Scope not found for given project" });
     }
 
-    const slnkoItemIds = new Set(
-      scopeData.items
-        .filter((item) => item.scope?.toLowerCase() === "slnko")
-        .map((item) => item.item_id?.toString())
-    );
+    const slnkoItemIds = [
+      ...new Set(
+        (scopeData.items || [])
+          .filter(
+            (item) => item?.scope?.toLowerCase() === "slnko" && item?.item_id
+          )
+          .map((item) => item.item_id.toString())
+      ),
+    ];
 
-    const filteredCategories = materialCategories.filter((cat) =>
-      slnkoItemIds.has(cat._id.toString())
-    );
+    if (slnkoItemIds.length === 0) {
+      return res.status(200).json({
+        message: "Material Categories retrieved successfully",
+        data: [],
+        meta: {
+          filteredByProjectScope: true,
+          scopeType: "slnko",
+          reason: "no_slnko_items_in_scope",
+        },
+      });
+    }
 
-    res.status(200).json({
+    const query = {
+      _id: { $in: slnkoItemIds.map((id) => new mongoose.Types.ObjectId(id)) },
+      status: { $ne: "inactive" },
+    };
+ 
+    if (statusQ === "active") query.status = "active";
+
+    const categories = await materialCategory
+      .find(query, "_id name")
+      .sort({ name: 1, _id: 1 })
+      .lean();
+
+    return res.status(200).json({
       message: "Material Categories retrieved successfully",
-      data: materialCategories,
+      data: categories,
+      meta: { filteredByProjectScope: true, scopeType: "slnko" },
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Error retrieving Material Categories",
       error: error.message,
     });
@@ -243,12 +372,19 @@ const getMaterialCategoryById = async (req, res) => {
 // Update material category
 const updateMaterialCategory = async (req, res) => {
   try {
-    const { name, description, fields } = req.body;
+    const { name, description, fields, type, status } = req.body;
     const id = req.params._id;
+    const userId = req.user?.userId;
+
+    if (!id) {
+      return res
+        .status(400)
+        .json({ message: "Material Category ID is required" });
+    }
 
     const updatedMaterialCategory = await materialCategory.findByIdAndUpdate(
       id,
-      { name, description, fields, updatedBy: id },
+      { name, description, status, type, fields, updatedBy: userId },
       { new: true }
     );
 

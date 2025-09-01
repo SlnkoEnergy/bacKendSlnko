@@ -263,17 +263,12 @@ const requestCreditExtension = async (req, res) => {
 
 //get alll pay summary
 const getPaySummary = async (req, res) => {
-  try{
+  try {
+    const data = await payRequestModells.aggregate([{ $match: {} }]);
 
-    const data = await payRequestModells.aggregate([
-      { $match: {} }
-    ]);
-    
-
-    res.status(200).json({message: "Fetch Data Successfull", data: data})
-
-  } catch(error){
-    res.status(500).json({message: "Error in Fetching Data"})
+    res.status(200).json({ message: "Fetch Data Successfull", data: data });
+  } catch (error) {
+    res.status(500).json({ message: "Error in Fetching Data" });
   }
 };
 
@@ -439,7 +434,7 @@ const accApproved = async function (req, res) {
       if (
         currentStage === "CAM" &&
         role === "visitor" &&
-        (department === "Projects" || department === "Infra")
+        department === "Projects"
       ) {
         return { nextStage: "Account", approvedValue: "Pending" };
       }
@@ -508,7 +503,19 @@ const accApproved = async function (req, res) {
 
         if (department === "SCM") {
           const paidFor = payment.paid_for?.trim();
-          const poNumber = payment.po_number?.trim();
+          const poNumber = (payment.po_number ?? "").trim();
+
+          const trimmedEqPoExpr = {
+            $eq: [
+              {
+                $trim: {
+                  input: { $ifNull: [{ $toString: "$po_number" }, ""] },
+                },
+              },
+              poNumber,
+            ],
+          };
+
           const isMaterialCategory = paidFor
             ? await materialCategoryModells.exists({ name: paidFor })
             : false;
@@ -525,7 +532,7 @@ const accApproved = async function (req, res) {
             }
 
             const purchaseOrder = await purchaseOrderModells
-              .findOne({ po_number: poNumber })
+              .findOne({ $expr: trimmedEqPoExpr })
               .lean();
             if (!purchaseOrder) {
               results.push({
@@ -537,7 +544,7 @@ const accApproved = async function (req, res) {
             }
 
             const approvedPayments = await payRequestModells
-              .find({ po_number: poNumber, approved: "Approved" })
+              .find({ approved: "Approved", $expr: trimmedEqPoExpr })
               .lean();
             const approvedSum = approvedPayments.reduce(
               (sum, p) => sum + (Number(p.amount_paid) || 0),
@@ -969,7 +976,6 @@ const restorepayrequest = async function (req, res) {
       pay_id: data.pay_id,
       pay_type: data.pay_type,
       amount_paid: data.amount_paid,
-      // amt_for_customer: data.amt_for_customer,
       dbt_date: data.dbt_date,
       paid_for: data.paid_for,
       vendor: data.vendor,
@@ -1071,20 +1077,16 @@ const excelData = async function (req, res) {
   res.status(200).json({ msg: "All Excel Data", data: data });
 };
 
-//update excel data
 const updateExcelData = async function (req, res) {
   try {
     const status = req.body;
 
-    // Perform update operation
     const result = await exccelDataModells.updateMany(
-      { status, status: "Not-paid" }, // Query for documents with status "Not-paid"
-      { $set: { status: "Deleted" } } // Update the status to "Deleted"
+      { status, status: "Not-paid" },
+      { $set: { status: "Deleted" } }
     );
 
-    // Check if any documents were updated
     if (result.modifiedCount > 0) {
-      // Return success response with the number of modified documents
       res.json({
         message: "Deleted successfully",
         modifiedCount: result.modifiedCount,
@@ -1347,6 +1349,7 @@ const getPay = async (req, res) => {
     res.status(500).json({ msg: "Error retrieving data", error: err.message });
   }
 };
+
 const getTrashPayment = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -1470,7 +1473,6 @@ const getTrashPayment = async (req, res) => {
       .json({ msg: "Error retrieving trash payments", error: err.message });
   }
 };
-
 
 const approve_pending = async function (req, res) {
   try {
