@@ -56,6 +56,7 @@ const UTRHistorySchema = new mongoose.Schema(
 const payRequestschema = new mongoose.Schema(
   {
     p_id: { type: Number },
+    cr_id:{type: String},
     pay_id: { type: String },
     cr_id: { type: String },
     pay_type: { type: String },

@@ -183,8 +183,9 @@ const getAllLeads = async (req, res) => {
       "Ketan Kumar Jha": ["madhya pradesh"],
       "Gaurav Kumar Upadhyay": ["madhya pradesh"],
       "Om Utkarsh": ["rajasthan"],
-      "Sankalp Choudhary": ["chhattisgarh"],
       "Abhishek Sawhney": ["chhattisgarh"],
+      "Sankalp Choudhary": ["chhattisgarh"]
+
     };
 
 
@@ -354,8 +355,8 @@ const getLeadCounts = async (req, res) => {
       "Ketan Kumar Jha": ["madhya pradesh"],
       "Gaurav Kumar Upadhyay": ["madhya pradesh"],
       "Om Utkarsh": ["rajasthan"],
-       "Sankalp Choudhary": ["chhattisgarh"],
       "Abhishek Sawhney": ["chhattisgarh"],
+      "Sankalp Choudhary": ["chhattisgarh"]
     };
 
 
