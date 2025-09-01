@@ -1,6 +1,6 @@
 const addMoneyModells = require("../Modells/addMoneyModells");
-const projectModells = require("../Modells/projectModells");
-const { getBill } = require("./billController");
+const projectModells = require("../Modells/project.model");
+const { getBill } = require("./bill.controller");
 
 //Add Money
 const addMoney = async function (req, res) {

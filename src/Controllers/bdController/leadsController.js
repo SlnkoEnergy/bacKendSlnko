@@ -8,11 +8,13 @@ const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
 const group = require("../../Modells/bdleads/group");
 const task = require("../../Modells/bdleads/task");
 const groupModells = require("../../Modells/bdleads/group");
-const handoversheetModells = require("../../Modells/handoversheetModells");
+const { Novu } = require('@novu/node');
 const { getnovuNotification } = require("../../utils/nouvnotification.utils");
+const handoversheetModells = require("../../Modells/handoversheet.model");
 
 const createBDlead = async function (req, res) {
   try {
+    const novu = new Novu(process.env.NOVU_SECRET_KEY);
     const body = req.body;
     const requiredFields = [
       "name",
@@ -132,6 +134,8 @@ const createBDlead = async function (req, res) {
     };
 
     const bdLead = new bdleadsModells(payload);
+
+
     await bdLead.save();
 
     res.status(200).json({

@@ -1,10 +1,13 @@
 const mongoose = require("mongoose");
-const PurchaseRequest = require("../../Modells/purchaserequest.model");
-const PurchaseRequestCounter = require("../../Modells/Globals/purchaseRequestCounter");
-const Project = require("../../Modells/projectModells");
-const purchaseOrderModells = require("../../Modells/purchaseOrderModells");
-const materialCategoryModells = require("../../Modells/materialcategory.model");
-const scopeModel = require("../../Modells/scope.model");
+const PurchaseRequest = require("../Modells/purchaserequest.model");
+const PurchaseRequestCounter = require("../Modells/purchaserequestcounter.model");
+const Project = require("../Modells/project.model");
+const purchaseOrderModells = require("../Modells/purchaseorder.model");
+const materialCategoryModells = require("../Modells/materialcategory.model");
+const modulecategory = require("../Modells/modulecategory.model");
+const scopeModel = require("../Modells/scope.model");
+const axios = require("axios");
+const XLSX = require("xlsx");
 
 const CreatePurchaseRequest = async (req, res) => {
   try {
@@ -41,7 +44,6 @@ const CreatePurchaseRequest = async (req, res) => {
 
     const itemIds = purchaseRequestData.items.map((item) => item.item_id);
 
-    // 🔹 Update pr_status for all matching items in the Scope
     await scopeModel.updateOne(
       { project_id: purchaseRequestData.project_id },
       { $set: { "items.$[elem].pr_status": true } },
@@ -89,12 +91,10 @@ const getAllPurchaseRequestByProjectId = async (req, res) => {
 
     res.status(200).json(enrichedRequests);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        error: "Failed to fetch purchase requests",
-        error: error.message,
-      });
+    res.status(500).json({
+      error: "Failed to fetch purchase requests",
+      error: error.message,
+    });
   }
 };
 
@@ -111,16 +111,29 @@ const getAllPurchaseRequest = async (req, res) => {
       createdTo = "",
       etdFrom = "",
       etdTo = "",
+      open_pr = false,
     } = req.query;
 
-    const skip = (page - 1) * limit;
+    const useOpenPR = open_pr === "true" || open_pr === true;
+    const numericLimit = Number(limit) || 10;
+    const numericPage = Number(page) || 1;
+    const skip = (numericPage - 1) * numericLimit;
 
     const searchRegex = new RegExp(search, "i");
     const itemSearchRegex = new RegExp(itemSearch, "i");
-    const poValueSearchNumber = Number(poValueSearch);
     const statusSearchRegex = new RegExp(statusSearch, "i");
+    const poValueSearchNumber =
+      poValueSearch !== "" ? Number(poValueSearch) : null;
 
-    const pipeline = [
+    // Robust way to reference the purchase orders collection used by your model
+    const PO_COLLECTION =
+      (global.purchaseOrderModells &&
+        purchaseOrderModells.collection &&
+        purchaseOrderModells.collection.name) ||
+      "purchaseorders";
+
+    // ---------- Base: join project, user, item/category; apply simple filters ----------
+    const baseStages = [
       {
         $lookup: {
           from: "projectdetails",
@@ -130,6 +143,7 @@ const getAllPurchaseRequest = async (req, res) => {
         },
       },
       { $unwind: { path: "$project_id", preserveNullAndEmptyArrays: true } },
+
       {
         $lookup: {
           from: "users",
@@ -138,13 +152,9 @@ const getAllPurchaseRequest = async (req, res) => {
           as: "created_by",
         },
       },
-      { $unwind: "$created_by" },
-      {
-        $unwind: {
-          path: "$items",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
+      { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
+
+      { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "materialcategories",
@@ -153,13 +163,8 @@ const getAllPurchaseRequest = async (req, res) => {
           as: "item_data",
         },
       },
-      {
-        $unwind: {
-          path: "$item_data",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      
+      { $unwind: { path: "$item_data", preserveNullAndEmptyArrays: true } },
+
       ...(search
         ? [
             {
@@ -173,25 +178,15 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
-     
+
       ...(itemSearch
-        ? [
-            {
-              $match: {
-                "item_data.name": itemSearchRegex,
-              },
-            },
-          ]
+        ? [{ $match: { "item_data.name": itemSearchRegex } }]
         : []),
+
       ...(statusSearch
-        ? [
-            {
-              $match: {
-                "items.status": statusSearchRegex,
-              },
-            },
-          ]
+        ? [{ $match: { "items.status": statusSearchRegex } }]
         : []),
+
       ...(createdFrom && createdTo
         ? [
             {
@@ -204,6 +199,8 @@ const getAllPurchaseRequest = async (req, res) => {
             },
           ]
         : []),
+
+      // Shape back to one doc per PR
       {
         $project: {
           _id: 1,
@@ -216,90 +213,167 @@ const getAllPurchaseRequest = async (req, res) => {
             status: "$items.status",
             other_item_name: "$items.other_item_name",
             amount: "$items.amount",
-            item_id: {
-              _id: "$item_data._id",
-              name: "$item_data.name",
+            item_id: { _id: "$item_data._id", name: "$item_data.name" },
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id",
+          pr_no: { $first: "$pr_no" },
+          createdAt: { $first: "$createdAt" },
+          project_id: { $first: "$project_id" },
+          created_by: { $first: "$created_by" },
+          items: { $push: "$item" },
+        },
+      },
+      {
+        $project: {
+          pr_no: 1,
+          createdAt: 1,
+          project_id: 1,
+          created_by: 1,
+          items: {
+            $filter: {
+              input: "$items",
+              as: "it",
+              cond: {
+                $and: [{ $ne: ["$$it", null] }, { $ne: ["$$it._id", null] }],
+              },
             },
           },
         },
       },
+
+      // ---------- Lookup POs for each PR and compute fields in-pipeline ----------
+      {
+        $lookup: {
+          from: PO_COLLECTION,
+          let: { prId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$pr_id", "$$prId"] } } },
+            {
+              $project: {
+                po_number: 1,
+                po_value: {
+                  $cond: [
+                    { $ifNull: ["$po_value", false] },
+                    { $toDouble: "$po_value" },
+                    0,
+                  ],
+                },
+                etd: 1,
+              },
+            },
+          ],
+          as: "pos",
+        },
+      },
+      // validPos = POs with non-empty po_number; also compute po_numbers, po_details, po_value (sum)
+      {
+        $addFields: {
+          validPos: {
+            $filter: {
+              input: "$pos",
+              as: "p",
+              cond: {
+                $and: [
+                  { $ne: ["$$p.po_number", null] },
+                  { $ne: ["$$p.po_number", ""] },
+                ],
+              },
+            },
+          },
+          po_numbers: { $map: { input: "$pos", as: "p", in: "$$p.po_number" } },
+          po_details: {
+            $map: {
+              input: "$pos",
+              as: "p",
+              in: {
+                po_number: "$$p.po_number",
+                po_value: "$$p.po_value",
+                etd: "$$p.etd",
+              },
+            },
+          },
+          po_value: {
+            $sum: {
+              $map: {
+                input: "$pos",
+                as: "p",
+                in: "$$p.po_value",
+              },
+            },
+          },
+        },
+      },
+
+      // ---------- Open PR filter (before pagination) ----------
+      ...(useOpenPR
+        ? [{ $match: { $expr: { $eq: [{ $size: "$validPos" }, 0] } } }]
+        : []),
+
+      // ---------- PO-value filter (before pagination) ----------
+      ...(poValueSearchNumber !== null
+        ? [{ $match: { po_value: poValueSearchNumber } }]
+        : []),
+
+      // ---------- ETD range filter (any PO with etd in range) ----------
+      ...(etdFrom && etdTo
+        ? [
+            {
+              $match: {
+                $expr: {
+                  $gt: [
+                    {
+                      $size: {
+                        $filter: {
+                          input: "$pos",
+                          as: "p",
+                          cond: {
+                            $and: [
+                              { $ne: ["$$p.etd", null] },
+                              { $gte: ["$$p.etd", new Date(etdFrom)] },
+                              { $lte: ["$$p.etd", new Date(etdTo)] },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                    0,
+                  ],
+                },
+              },
+            },
+          ]
+        : []),
+
       { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: Number(limit) },
     ];
 
-    const countPipeline = [...pipeline.slice(0, -3), { $count: "totalCount" }];
+    // Count pipeline = same filters, but end with $count
+    const countPipeline = [...baseStages, { $count: "totalCount" }];
 
-    let [requests, countResult] = await Promise.all([
-      PurchaseRequest.aggregate(pipeline),
+    // Paged pipeline = same filters, then skip/limit
+    const pagePipeline = [
+      ...baseStages,
+      { $skip: skip },
+      { $limit: numericLimit },
+    ];
+
+    const [pagedRows, countRows] = await Promise.all([
+      PurchaseRequest.aggregate(pagePipeline),
       PurchaseRequest.aggregate(countPipeline),
     ]);
 
-    let totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
+    const totalCount =
+      countRows && countRows.length > 0 ? countRows[0].totalCount : 0;
 
-    // Attach PO details for each request
-    requests = await Promise.all(
-      requests.map(async (request) => {
-        const pos = await purchaseOrderModells.find({ pr_id: request._id });
-
-        const prItemIdStr = request.item?.item_id?._id?.toString?.();
-        const prItemName = request.item?.item_id?.name;
-
-        const filteredPOs = pos.filter((po) => {
-          const poItemStr = po?.item?.toString?.();
-          return poItemStr === prItemIdStr || po.item === prItemName;
-        });
-
-        const poDetails = filteredPOs.map((po) => ({
-          po_number: po.po_number,
-          po_value: Number(po.po_value || 0),
-          etd: po.etd ? new Date(po.etd) : null,
-        }));
-
-        const totalPoValueWithGst = poDetails.reduce(
-          (acc, po) => acc + po.po_value,
-          0
-        );
-
-        return {
-          ...request,
-          po_value: totalPoValueWithGst,
-          po_numbers: poDetails.map((p) => p.po_number),
-          po_details: poDetails,
-        };
-      })
-    );
-
-    // Filter by PO value
-    if (poValueSearch) {
-      requests = requests.filter(
-        (r) => Number(r.po_value) === poValueSearchNumber
-      );
-    }
-
-    // Filter by ETD date range
-    if (etdFrom && etdTo) {
-      const etdStart = new Date(etdFrom);
-      const etdEnd = new Date(etdTo);
-      requests = requests.filter((r) =>
-        r.po_details.some((po) => {
-          if (!po.etd) return false;
-          const etdDate = new Date(po.etd);
-          return etdDate >= etdStart && etdDate <= etdEnd;
-        })
-      );
-    }
-
-    // Update total count if filtered
-    if (poValueSearch || (etdFrom && etdTo)) {
-      totalCount = requests.length;
-    }
-
-    res.status(200).json({
+    return res.status(200).json({
       totalCount,
-      currentPage: Number(page),
-      totalPages: Math.ceil(totalCount / limit),
-      data: requests,
+      currentPage: numericPage,
+      totalPages: Math.ceil(totalCount / numericLimit) || 1,
+      data: pagedRows,
     });
   } catch (error) {
     console.error(error);
@@ -321,7 +395,11 @@ const getPurchaseRequestById = async (req, res) => {
     const purchaseRequest = await PurchaseRequest.findById(id)
       .populate({
         path: "project_id",
-        select: "name code",
+        select: "name code site_address p_id",
+      })
+      .populate({
+        path: "created_by",
+        select: "_id name",
       })
       .populate({
         path: "items.item_id",
@@ -649,6 +727,276 @@ const getMaterialScope = async (req, res) => {
   }
 };
 
+async function fetchExcelFromBOQ(req, res) {
+  try {
+    const {
+      project_id,
+      template_name,
+      category,
+      category_column,
+      sheet,
+      category_mode,
+      category_logic,
+    } = req.query;
+
+    if (!project_id || !mongoose.isValidObjectId(project_id)) {
+      return res.status(400).json({ message: "Valid project_id is required" });
+    }
+
+    // ---- helpers -----------------------------------------------------------
+    const norm = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
+
+    const splitList = (val) =>
+      Array.isArray(val)
+        ? val
+        : typeof val === "string"
+          ? val
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+
+    // tokenize a cell by common separators: "/", ",", "&" (with spaces)
+    const tokenizeCell = (cell) =>
+      String(cell)
+        .split(/\s*[\/|,]\s*|\s+&\s+/)
+        .map(norm)
+        .filter(Boolean);
+
+    // case-insensitive column accessor: "Category" === "category"
+    const getCell = (row, key) => {
+      if (row == null) return "";
+      if (key in row) return row[key];
+      const want = norm(key);
+      const foundKey = Object.keys(row).find((k) => norm(k) === want);
+      return foundKey ? row[foundKey] : "";
+    };
+
+    // ---- category synonyms -------------------------------------------------
+    // Canonical → aliases (all compared in normalized form)
+    const EXPAND = {
+      rms: ["rms", "wms"],
+      "lt panel": ["acdb"],
+      "ht panel": ["vcb"],
+      "earthing & la": ["earthing", "la"],
+      "meter box": ["ldb"],
+      "class c": ["bos"],
+      gss: ["pss end", "bay end ext.", "bay end ext"],
+      "i&c": ["i&c", "cleaning", "civil"],
+    };
+
+    // alias → canonical (normalized)
+    const REVERSE_EXPAND = (() => {
+      const m = {};
+      for (const [canon, alts] of Object.entries(EXPAND)) {
+        const c = norm(canon);
+        m[c] = canon; // identity
+        (alts || []).forEach((a) => {
+          m[norm(a)] = canon;
+        });
+      }
+      return m;
+    })();
+
+    const CANON_DISPLAY = {
+      "class c": "Class C",
+      "lt panel": "LT Panel",
+      "ht panel": "HT Panel",
+      "earthing & la": "Earthing & LA",
+      "meter box": "Meter Box",
+      gss: "GSS",
+      "i&c": "I&C",
+      rms: "RMS",
+    };
+
+    const buildGroups = (inputs) =>
+      inputs.map((c) => {
+        const key = norm(c);
+        const alts = EXPAND[key];
+        return (alts ? alts : [key]).map(norm);
+      });
+
+    const doc = await modulecategory
+      .findOne({ project_id })
+      .populate({ path: "items.template_id", select: "name boq" })
+      .lean();
+
+    if (!doc) {
+      return res
+        .status(404)
+        .json({ message: "moduleCategory not found for given project_id" });
+    }
+
+    const items = Array.isArray(doc.items) ? doc.items : [];
+    if (!items.length) {
+      return res
+        .status(404)
+        .json({ message: "No items available for this project" });
+    }
+
+    let boqItem = items.find((it) => {
+      const tname = it?.template_id?.name;
+      const n = norm(tname);
+      return n.includes("boq") || n.includes("excel");
+    });
+
+    if (!boqItem) {
+      return res.status(404).json({
+        message:
+          "Could not find a BOQ Excel item (no template name containing 'boq'/'excel').",
+      });
+    }
+
+    const currentList = Array.isArray(boqItem.current_attachment)
+      ? boqItem.current_attachment
+      : [];
+    const fileUrl = currentList.filter(Boolean).at(-1);
+
+    if (!fileUrl) {
+      return res.status(404).json({
+        message: "No current_attachment URL found for the matched BOQ item.",
+        hint: "Ensure current_attachment is an array of file URLs and at least one exists.",
+      });
+    }
+
+    const excelResp = await axios.get(fileUrl, { responseType: "arraybuffer" });
+    const wb = XLSX.read(excelResp.data, { type: "buffer" });
+    if (!wb.SheetNames.length) {
+      return res.status(400).json({ message: "Workbook has no sheets." });
+    }
+    let targetSheetName;
+    if (sheet !== undefined) {
+      const asNum = Number(sheet);
+      if (!Number.isNaN(asNum)) {
+        if (asNum < 0 || asNum >= wb.SheetNames.length) {
+          return res.status(400).json({
+            message: `Sheet index ${asNum} out of range.`,
+            available_sheets: wb.SheetNames,
+          });
+        }
+        targetSheetName = wb.SheetNames[asNum];
+      } else {
+        if (!wb.SheetNames.includes(sheet)) {
+          return res.status(400).json({
+            message: `Sheet "${sheet}" not found.`,
+            available_sheets: wb.SheetNames,
+          });
+        }
+        targetSheetName = sheet;
+      }
+    } else {
+      targetSheetName = wb.SheetNames[0];
+    }
+
+    const ws = wb.Sheets[targetSheetName];
+    if (!ws) {
+      return res.status(404).json({ message: "Target worksheet not found." });
+    }
+
+    const allRows = XLSX.utils.sheet_to_json(ws, {
+      defval: "",
+      raw: true,
+      range: 2,
+    });
+
+    const col = category_column || "Category";
+    const selectedInputs = splitList(category);
+    const groups = buildGroups(selectedInputs);
+
+    const matchMode = (category_mode || "exact").toLowerCase();
+    const logic = (category_logic || "or").toLowerCase();
+
+    let rows = allRows;
+    if (groups.length > 0) {
+      rows = allRows.filter((r) => {
+        const cellRaw = getCell(r, col) ?? "";
+
+        if (matchMode === "contains") {
+          const cellNorm = norm(String(cellRaw));
+          const groupOk = groups.map((alts) =>
+            alts.some((a) => cellNorm.includes(a))
+          );
+          return logic === "and"
+            ? groupOk.every(Boolean)
+            : groupOk.some(Boolean);
+        }
+        const tokens = tokenizeCell(cellRaw);
+        const groupOk = groups.map((alts) =>
+          alts.some((a) => tokens.includes(a))
+        );
+        return logic === "and" ? groupOk.every(Boolean) : groupOk.some(Boolean);
+      });
+    }
+
+    rows = rows.map((r) => {
+      const raw = getCell(r, col) ?? "";
+      const tokens = tokenizeCell(raw);
+      let canon = null;
+      for (const t of tokens) {
+        const c = REVERSE_EXPAND[norm(t)];
+        if (c) {
+          canon = c;
+          break;
+        }
+      }
+      if (!canon && matchMode === "contains") {
+        const cellNorm = norm(String(raw));
+        for (const [aliasNorm, canonical] of Object.entries(REVERSE_EXPAND)) {
+          if (cellNorm.includes(aliasNorm)) {
+            canon = canonical;
+            break;
+          }
+        }
+      }
+      const display = canon ? CANON_DISPLAY[norm(canon)] || canon : raw;
+
+      return {
+        ...r,
+        Category: display,
+      };
+    });
+
+    return res.status(200).json({
+      message: "BOQ Excel parsed successfully",
+      meta: {
+        project_id,
+        template_id: boqItem?.template_id?._id || null,
+        template_name: boqItem?.template_id?.name || null,
+        boq_enabled: !!boqItem?.template_id?.boq?.enabled,
+        sheet: targetSheetName,
+        header_from_row: "A3",
+        total_rows: allRows.length,
+        filtered_rows: rows.length,
+        available_sheets: wb.SheetNames,
+        filter: {
+          column: col,
+          user_selected: selectedInputs,
+          expanded_groups: groups,
+          mode: matchMode,
+          logic,
+        },
+        source_url_host: (() => {
+          try {
+            return new URL(fileUrl).host;
+          } catch {
+            return null;
+          }
+        })(),
+      },
+      data: rows,
+    });
+  } catch (error) {
+    console.error(
+      "fetchExcelFromBOQ error:",
+      error?.response?.data || error?.message || error
+    );
+    return res.status(500).json({
+      message: "Failed to fetch/parse BOQ Excel",
+      error: error?.message || "Unknown error",
+    });
+  }
+}
+
 module.exports = {
   CreatePurchaseRequest,
   getAllPurchaseRequest,
@@ -658,4 +1006,5 @@ module.exports = {
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
   getMaterialScope,
+  fetchExcelFromBOQ,
 };

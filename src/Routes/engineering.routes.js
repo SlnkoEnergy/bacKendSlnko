@@ -1,4 +1,4 @@
-var router = require("express").Router();
+const router = require("express").Router();
 const {
   updateBoqCategory,
   getBoqCategory,
@@ -53,7 +53,6 @@ const {
   updateMaterial,
   deleteMaterial,
 } = require("../Controllers/material.controller");
-const { getMaterialScope } = require("../Controllers/purchaseRequestController/purchaseRequestController");
 const jwtMW = require("../middlewares/auth");
 const upload = require("../middlewares/multer");
 
@@ -145,13 +144,13 @@ router.put(
   jwtMW.authentication,
   jwtMW.authorization,
   updateModuleCategoryDB
-)
-router.get('/:projectId/moduletemplate/:module_template/statusHistory',
+);
+router.get(
+  "/:projectId/moduletemplate/:module_template/statusHistory",
   jwtMW.authentication,
   jwtMW.authorization,
   getStatusHistoryForModuleCategory
 );
-
 
 // Boq Categories
 router.post(
@@ -212,28 +211,24 @@ router.post(
   jwtMW.authorization,
   createBoqProject
 );
-
 router.get(
   "/get-all-boq-projects",
   jwtMW.authentication,
   jwtMW.authorization,
   getAllBoqProject
 );
-
 router.get(
   "/get-boq-project-by-id",
   jwtMW.authentication,
   jwtMW.authorization,
   getBoqProjectById
 );
-
 router.get(
   "/get-boq-project-by-project",
   jwtMW.authentication,
   jwtMW.authorization,
   getBoqProjectByProject
 );
-
 router.put(
   "/:projectId/moduletemplate/:moduleTemplateId/updateBoqProject",
   jwtMW.authentication,
@@ -260,7 +255,12 @@ router.get(
   jwtMW.authorization,
   getAllMaterialCategories
 );
-router.get("/material-category-drop", jwtMW.authentication,jwtMW.authorization,getAllMaterialCategoriesDropdown);
+router.get(
+  "/material-category-drop",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getAllMaterialCategoriesDropdown
+);
 router.get(
   "/material-category-id",
   jwtMW.authentication,

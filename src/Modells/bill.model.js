@@ -1,14 +1,16 @@
 const mongoose = require("mongoose");
 
-const purchaseRequestSchema = new mongoose.Schema(
+const billSchema = new mongoose.Schema(
   {
-    project_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "projectDetail",
+    id: {
+      type: String,
     },
-    items: [
+    po_number: {
+      type: String,
+    },
+    item: [
       {
-        item_id: {
+        category_id: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "MaterialCategory",
         },
@@ -18,44 +20,55 @@ const purchaseRequestSchema = new mongoose.Schema(
         product_make: {
           type: String,
         },
-        quantity: {
-          type: String,
-        },
         uom: {
           type: String,
         },
-        cost: {
+        quantity: {
           type: String,
         },
-        gst: {
+        bill_value: {
           type: String,
         },
-        status: {
-          type: String,
-        },
-        description: {
+        gst_percent: {
           type: String,
         },
       },
     ],
+    bill_number: {
+      type: String,
+    },
+    bill_date: {
+      type: String,
+    },
+    bill_value: {
+      type: Number,
+    },
+    gst: {
+      type: Number,
+    },
+    type: {
+      type: String,
+    },
     status: {
-      type: String,
-    },
-    pr_no: {
-      type: String,
-    },
-    delivery_address: {
       type: String,
     },
     description: {
       type: String,
     },
-    created_by: {
+    submitted_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+    },
+    approved_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    created_on: {
+      type: String,
+      default: Date.now,
     },
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.model("PurchaseRequest", purchaseRequestSchema);
+module.exports = mongoose.model("biilDetail", billSchema);
