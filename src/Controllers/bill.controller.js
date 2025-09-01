@@ -225,6 +225,7 @@ const getPaginatedBill = catchAsyncError(async (req, res) => {
   });
 });
 
+
 const getAllBill = catchAsyncError(async (req, res, next) => {
   const page = Number.parseInt(req.query.page, 10) || 1;
   const pageSize = Number.parseInt(req.query.pageSize, 10) || 10;
@@ -239,7 +240,6 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
     po_number = String(po_number).trim();
   }
 
-  // Free-text search across po_no, vendor, bill_no, project_id
   const rawSearch = (req.query.search ?? req.query.q ?? "").toString().trim();
 
   const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -462,6 +462,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
   });
 });
 
+
 //Bills Exports
 const exportBills = catchAsyncError(async (req, res, next) => {
   const { from, to, export: exportAll } = req.query;
@@ -648,14 +649,34 @@ const GetBillByID = catchAsyncError(async (req, res, next) => {
 const updatebill = catchAsyncError(async function (req, res, next) {
   let id = req.params._id;
   let updatedata = req.body;
-  let data = await billModel.findByIdAndUpdate(id, updatedata, {
-    new: true,
-  });
-  if (!data) {
-    return next(new ErrorHandler("User Not found", 404));
+
+  const existingBill = await billModel.findById(id);
+  if (!existingBill) {
+    return next(new ErrorHandler("Bill not found", 404));
   }
-  res.status(200).json({ msg: "Bill updated sucessfully", data });
+
+  let data = await billModel.findByIdAndUpdate(id, updatedata, { new: true });
+  if (!data) {
+    return next(new ErrorHandler("Bill not found after update", 404));
+  }
+
+  if (data.purchase_order_id) {
+    const po = await purchaseOrderModells.findById(data.purchase_order_id);
+    if (po) {
+      const prevTotalBilled = po.total_billed || 0;
+      const prevBillValue = existingBill.bill_value || 0;
+      const newBillValue = data.bill_value || 0;
+
+      const adjustedTotalBilled = prevTotalBilled - prevBillValue + newBillValue;
+
+      po.total_billed = adjustedTotalBilled;
+      await po.save();
+    }
+  }
+
+  res.status(200).json({ msg: "Bill updated successfully", data });
 });
+
 
 //delete-bill
 const deleteBill = catchAsyncError(async function (req, res, next) {

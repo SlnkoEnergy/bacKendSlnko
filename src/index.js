@@ -56,7 +56,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_URL;
 
 const startServer = async () => {
   try {
@@ -76,6 +76,7 @@ const startServer = async () => {
     app.use("/v1/history", historyRoutes);
     app.use("/v1/bill", billRoutes);
     app.use("/v1/inspection", inspectionRoutes);
+    app.use('/v1/odoo', require('./Routes/odoo.routes'));
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);

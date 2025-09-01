@@ -332,12 +332,18 @@ const getAllLogistics = async (req, res) => {
         poNumbers = rawPoNumberQ
           .flatMap((s) => String(s).split(","))
           .map((s) => s.trim())
-          .filter((s) => s && s.toLowerCase() !== "undefined" && s.toLowerCase() !== "null");
+          .filter(
+            (s) =>
+              s && s.toLowerCase() !== "undefined" && s.toLowerCase() !== "null"
+          );
       } else {
         poNumbers = String(rawPoNumberQ)
           .split(",")
           .map((s) => s.trim())
-          .filter((s) => s && s.toLowerCase() !== "undefined" && s.toLowerCase() !== "null");
+          .filter(
+            (s) =>
+              s && s.toLowerCase() !== "undefined" && s.toLowerCase() !== "null"
+          );
       }
     }
 
@@ -461,21 +467,28 @@ const getAllLogistics = async (req, res) => {
         ...doc,
         vendor: vendorList[0] || null,
         transport_vendors: vendorList,
-        transport_po_value_sum: Number.isFinite(transportValueSum) ? transportValueSum : null,
+        transport_po_value_sum: Number.isFinite(transportValueSum)
+          ? transportValueSum
+          : null,
         items: (doc.items || []).map((it) => ({
           ...it,
-          category_name: it?.category_id?.category_name ?? it?.category_id?.name ?? null,
+          category_name:
+            it?.category_id?.category_name ?? it?.category_id?.name ?? null,
           vendor:
-            (it?.material_po && typeof it.material_po === "object" ? it.material_po.vendor : null) ||
+            (it?.material_po && typeof it.material_po === "object"
+              ? it.material_po.vendor
+              : null) ||
             vendorList[0] ||
             null,
           uom: resolveUomFromPO(it),
           po_number:
-            (it?.material_po && typeof it.material_po === "object" ? it.material_po.po_number : it?.po_number) ||
-            null,
+            (it?.material_po && typeof it.material_po === "object"
+              ? it.material_po.po_number
+              : it?.po_number) || null,
           project_id:
-            (it?.material_po && typeof it.material_po === "object" ? it.material_po.p_id : it?.project_id) ||
-            null,
+            (it?.material_po && typeof it.material_po === "object"
+              ? it.material_po.p_id
+              : it?.project_id) || null,
         })),
       };
     });
@@ -487,10 +500,13 @@ const getAllLogistics = async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching logistics:", err);
-    return res.status(500).json({ message: "Failed to fetch logistics", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Failed to fetch logistics", error: err.message });
   }
 };
 
+/* ---------------- get by id ---------------- */
 const getLogisticById = async (req, res) => {
   try {
     const id = getParamId(req);

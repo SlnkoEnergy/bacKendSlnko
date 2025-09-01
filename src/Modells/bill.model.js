@@ -43,7 +43,7 @@ const billSchema = new mongoose.Schema(
     bill_value: {
       type: Number,
     },
-    gst:{
+    gst: {
       type: Number,
     },
     type: {

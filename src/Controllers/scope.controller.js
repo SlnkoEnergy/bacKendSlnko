@@ -280,16 +280,14 @@ const IT_TEAM_USER_ID = new mongoose.Types.ObjectId("6839a4086356310d4e15f6fd");
 
 const ensureProjectScope = async (req, res) => {
   try {
-    // 1) Fetch all projects
     const projects = await projectModells.find({}).select({ _id: 1 }).lean();
 
     if (!projects.length) {
       return res.status(404).json({ message: "No projects found" });
     }
 
-    // 2) Fetch all categories once (reuse for all scopes)
     const categories = await materialcategoryModel
-      .find({})
+      .find({ status: { $ne: "inactive" } })
       .select({ _id: 1, name: 1 })
       .lean();
 
@@ -306,6 +304,7 @@ const ensureProjectScope = async (req, res) => {
       const exists = await scopeModel
         .findOne({ project_id: project._id })
         .lean();
+
       if (exists) {
         skippedCount++;
         continue;
@@ -313,7 +312,7 @@ const ensureProjectScope = async (req, res) => {
 
       await scopeModel.create({
         project_id: project._id,
-        items: itemsTemplate,
+        items: itemsTemplate, 
         createdBy: IT_TEAM_USER_ID,
         status_history: [],
         current_status: {
@@ -331,6 +330,7 @@ const ensureProjectScope = async (req, res) => {
       totalProjects: projects.length,
       created: createdCount,
       skipped: skippedCount,
+      itemsPerScope: itemsTemplate.length,
     });
   } catch (err) {
     console.error("ensureAllProjectScopes error:", err);
@@ -340,6 +340,7 @@ const ensureProjectScope = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   createScope,

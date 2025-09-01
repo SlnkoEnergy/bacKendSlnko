@@ -52,9 +52,6 @@ const {
   updateEditandDeliveryDate,
   updateStatusPO,
   getPoBasic,
-  manipulatepo,
-  calculateBill,
-  normalizePOItemsOnlyForObjectIdStrings
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -258,7 +255,6 @@ const {
   delete_lead,
   updateLeadStatus,
 } = require("../Controllers/bdleadController");
-
 const upload = require("../middlewares/multer.js");
 
 // Admin router
@@ -467,9 +463,6 @@ router.put(
   jwtMW.authorization,
   updateStatusPO
 );
-router.put('/manipulatepo',manipulatepo)
-router.put('/calculateBill', calculateBill)
-  
 
 router.put(
   "/:id/updateEtdOrDelivery",

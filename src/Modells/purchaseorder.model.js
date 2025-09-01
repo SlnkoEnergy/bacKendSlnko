@@ -24,7 +24,7 @@ const purchaseOrderSchema = new mongoose.Schema(
     item: [
       {
         category: {
-          type: mongoose.Schema.Types.Mixed,
+          type: mongoose.Schema.Types.ObjectId,
           ref: "MaterialCategory",
         },
         product_name: {
@@ -79,7 +79,8 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
     },
     submitted_By: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
     po_basic: {
       type: String,
