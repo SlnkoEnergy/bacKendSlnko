@@ -492,7 +492,7 @@ const getPOByPONumber = async (req, res) => {
         const key = String(cat);
         return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
       }
-      return it;
+      return it;})
     const inspectionCount = await inspectionModel.countDocuments({
       po_number: poDoc.po_number,
     });
@@ -731,19 +731,19 @@ const getPaginatedPo = async (req, res) => {
         : {}),
       ...(etdFrom || etdTo
         ? {
-          etd: {
-            ...(etdFrom && { $gte: etdFrom }),
-            ...(etdTo && { $lte: etdTo }),
-          },
-        }
+            etd: {
+              ...(etdFrom ? { $gte: etdFrom } : {}),
+              ...(etdTo ? { $lte: etdTo } : {}),
+            },
+          }
         : {}),
       ...(deliveryFrom || deliveryTo
         ? {
-          delivery_date: {
-            ...(deliveryFrom && { $gte: deliveryFrom }),
-            ...(deliveryTo && { $lte: deliveryTo }),
-          },
-        }
+            delivery_date: {
+              ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
+              ...(deliveryTo ? { $lte: deliveryTo } : {}),
+            },
+          }
         : {}),
       ...(req.query.pr_id && {
         pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
