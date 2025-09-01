@@ -508,34 +508,9 @@ const getPOHistoryById = async (req, res) => {
 //get ALLPO
 const getallpo = async function (req, res) {
   try {
-    const updatedData = await purchaseOrderModells.aggregate([
-      {
-        $lookup: {
-          from: "materialcategorymodells",
-          localField: "item",
-          foreignField: "_id",
-          as: "material",
-        },
-      },
-      {
-        $unwind: {
-          path: "$material",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $addFields: {
-          item: {
-            $ifNull: ["$material.name", "$item"],
-          },
-        },
-      },
-      {
-        $project: {
-          material: 0,
-        },
-      },
-    ]);
+    const updatedData = await purchaseOrderModells
+      .find()
+      .populate("item.category", "_id name");
 
     res.status(200).json({ msg: "All PO", data: updatedData });
   } catch (error) {

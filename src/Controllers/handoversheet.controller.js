@@ -559,26 +559,32 @@ const updatestatus = async function (req, res) {
 
         await moduleCategoryData.save();
 
-        const allMaterialCategories = await materialCategoryModells.find(
-          {},
-          { _id: 1, name: 1, type: 1, order:1 }
-        );
+        const allMaterialCategories = await materialCategoryModells
+          .find(
+            { status: { $ne: "inactive" } },
+            { _id: 1, name: 1, type: 1, order: 1 }
+          )
+          .sort({ order: 1, name: 1 })
+          .lean();
 
-       const scopeData = await scopeModel.create({
-         project_id: projectData._id,
-         items: allMaterialCategories.map((mc) => ({
-           item_id: mc._id,
-           name: mc.name,
-           type: mc.type,
-           order: typeof mc.order === "number" ? mc.order : 0,
-           scope: "client", 
-           quantity: "", 
-           uom: "", 
-         })),
-         createdBy: req.user.userId,
-       });
+        const items = allMaterialCategories.map((mc) => ({
+          item_id: mc._id,
+          name: mc.name || "",
+          type: mc.type, 
+          order: Number.isFinite(mc.order) ? mc.order : 0,
+          scope: "client",
+          quantity: "",
+          uom: "",
+        }));
 
-        await scopeData.save();
+        // 3) Instantiate and save
+        const scopeDoc = new scopeModel({
+          project_id: projectData._id,
+          items,
+          createdBy: req.user.userId,
+        });
+
+        await scopeDoc.save();
 
         return res.status(200).json({
           message:

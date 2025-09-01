@@ -268,7 +268,10 @@ const createLogistic = async (req, res) => {
 const getAllLogistics = async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const pageSize = Math.max(1, Math.min(200, parseInt(req.query.pageSize, 10) || 50));
+    const pageSize = Math.max(
+      1,
+      Math.min(200, parseInt(req.query.pageSize, 10) || 50)
+    );
 
     const search = (req.query.search || "").trim();
     const status = (req.query.status || "").trim();
@@ -288,12 +291,18 @@ const getAllLogistics = async (req, res) => {
         poNumbers = rawPoNumberQ
           .flatMap((s) => String(s).split(","))
           .map((s) => s.trim())
-          .filter((s) => s && s.toLowerCase() !== "undefined" && s.toLowerCase() !== "null");
+          .filter(
+            (s) =>
+              s && s.toLowerCase() !== "undefined" && s.toLowerCase() !== "null"
+          );
       } else {
         poNumbers = String(rawPoNumberQ)
           .split(",")
           .map((s) => s.trim())
-          .filter((s) => s && s.toLowerCase() !== "undefined" && s.toLowerCase() !== "null");
+          .filter(
+            (s) =>
+              s && s.toLowerCase() !== "undefined" && s.toLowerCase() !== "null"
+          );
       }
     }
     // -------------------------------------------------------
@@ -304,10 +313,10 @@ const getAllLogistics = async (req, res) => {
     if (search) {
       andClauses.push({
         $or: [
-          { logistic_code:  { $regex: search, $options: "i" } },
+          { logistic_code: { $regex: search, $options: "i" } },
           { vehicle_number: { $regex: search, $options: "i" } },
-          { driver_number:  { $regex: search, $options: "i" } },
-          { description:    { $regex: search, $options: "i" } },
+          { driver_number: { $regex: search, $options: "i" } },
+          { description: { $regex: search, $options: "i" } },
         ],
       });
     }
@@ -388,7 +397,11 @@ const getAllLogistics = async (req, res) => {
 
     const logistics = raw.map((doc) => {
       // Normalize po_id to an array for aggregation
-      const poArr = Array.isArray(doc.po_id) ? doc.po_id : (doc.po_id ? [doc.po_id] : []);
+      const poArr = Array.isArray(doc.po_id)
+        ? doc.po_id
+        : doc.po_id
+          ? [doc.po_id]
+          : [];
 
       const vendorList = Array.from(
         new Set(
@@ -407,19 +420,28 @@ const getAllLogistics = async (req, res) => {
         ...doc,
         vendor: vendorList[0] || null,
         transport_vendors: vendorList,
-        transport_po_value_sum: Number.isFinite(transportValueSum) ? transportValueSum : null,
+        transport_po_value_sum: Number.isFinite(transportValueSum)
+          ? transportValueSum
+          : null,
         items: (doc.items || []).map((it) => ({
           ...it,
-          category_name: it?.category_id?.category_name ?? it?.category_id?.name ?? null,
+          category_name:
+            it?.category_id?.category_name ?? it?.category_id?.name ?? null,
           vendor:
-            (it?.material_po && typeof it.material_po === "object" ? it.material_po.vendor : null) ||
+            (it?.material_po && typeof it.material_po === "object"
+              ? it.material_po.vendor
+              : null) ||
             vendorList[0] ||
             null,
           uom: resolveUomFromPO(it),
           po_number:
-            (it?.material_po && typeof it.material_po === "object" ? it.material_po.po_number : it?.po_number) || null,
+            (it?.material_po && typeof it.material_po === "object"
+              ? it.material_po.po_number
+              : it?.po_number) || null,
           project_id:
-            (it?.material_po && typeof it.material_po === "object" ? it.material_po.p_id : it?.project_id) || null,
+            (it?.material_po && typeof it.material_po === "object"
+              ? it.material_po.p_id
+              : it?.project_id) || null,
         })),
       };
     });
@@ -431,10 +453,11 @@ const getAllLogistics = async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching logistics:", err);
-    return res.status(500).json({ message: "Failed to fetch logistics", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Failed to fetch logistics", error: err.message });
   }
 };
-
 
 /* ---------------- get by id ---------------- */
 const getLogisticById = async (req, res) => {
@@ -460,7 +483,7 @@ const getLogisticById = async (req, res) => {
           "description",
           "created_by",
           "createdAt",
-          "attachment_url"
+          "attachment_url",
         ].join(" ")
       )
       .populate("po_id", "po_number vendor po_value p_id")
@@ -673,7 +696,7 @@ const updateLogisticStatus = async (req, res) => {
     if (status === "ready_to_dispatch") {
       doc.dispatch_date = dispatch_date
         ? new Date(dispatch_date)
-        : (doc.dispatch_date || now);
+        : doc.dispatch_date || now;
     }
     if (status === "out_for_delivery") {
       if (!doc.dispatch_date) doc.dispatch_date = now;

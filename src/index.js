@@ -76,6 +76,7 @@ const startServer = async () => {
     app.use("/v1/history", historyRoutes);
     app.use("/v1/bill", billRoutes);
     app.use("/v1/inspection", inspectionRoutes);
+    app.use('/v1/odoo', require('./Routes/odoo.routes'));
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);
