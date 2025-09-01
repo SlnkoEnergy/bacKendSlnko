@@ -52,11 +52,6 @@ const {
   updateEditandDeliveryDate,
   updateStatusPO,
   getPoBasic,
-  manipulatepo,
-  calculateBill,
-  normalizePOItemsOnlyForObjectIdStrings,
-  fixSubmittedBy,
-  itemArray
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -261,7 +256,6 @@ const {
   updateLeadStatus,
 } = require("../Controllers/bdleadController");
 const upload = require("../middlewares/multer.js");
-const { odoo } = require("../Controllers/odoo.controller.js");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -469,11 +463,7 @@ router.put(
   jwtMW.authorization,
   updateStatusPO
 );
-router.put('/manipulatepo',manipulatepo)
-router.put('/calculateBill', calculateBill)
-router.put('/changesubmit', fixSubmittedBy)
-router.put('/itemArray', itemArray)
-router.put('/odoo', odoo)
+
 router.put(
   "/:id/updateEtdOrDelivery",
   jwtMW.authentication,
