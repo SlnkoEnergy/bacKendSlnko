@@ -1,7 +1,9 @@
 const scopeModel = require("../Modells/scope.model");
 const MaterialCategory = require("../Modells/materialcategory.model");
-const projectModells = require("../Modells/projectModells");
+const projectModells = require("../Modells/project.model");
 const { default: axios } = require("axios");
+const { default: mongoose } = require("mongoose");
+const materialcategoryModel = require("../Modells/materialcategory.model");
 
 const createScope = async (req, res) => {
   try {
@@ -38,38 +40,15 @@ const getScopeById = async (req, res) => {
       return res.status(404).json({ message: "Scope not found" });
     }
 
-    // Step 1: Find categories where any item has pr_status = true
-    const categoriesWithPr = new Set();
-    for (const item of scope.items) {
-      if (item.pr_status) {
-        categoriesWithPr.add(item.category);
-      }
-    }
-
-    // Step 2: Update pr_status for all items in those categories
-    const updatedItems = scope.items.map(item => {
-      if (categoriesWithPr.has(item.category)) {
-        return { ...item.toObject(), pr_status: true };
-      }
-      return item.toObject();
-    });
-
-    // Step 3: Get unique items by category
-    const uniqueItems = [];
-    const categorySet = new Set();
-    for (const item of updatedItems) {
-      if (!item.category || item.category.trim() === "") continue;
-      if (!categorySet.has(item.category)) {
-        categorySet.add(item.category);
-        uniqueItems.push(item);
-      }
-    }
+    const items = (scope.items || []).map((item) =>
+      typeof item.toObject === "function" ? item.toObject() : item
+    );
 
     return res.status(200).json({
       message: "Scope and material details retrieved successfully",
       data: {
         ...scope.toObject(),
-        items: uniqueItems,
+        items,
       },
     });
   } catch (error) {
@@ -82,13 +61,14 @@ const getScopeById = async (req, res) => {
 
 const getAllScopes = async (req, res) => {
   try {
-    const scopes = await scopeModel.find()
+    const scopes = await scopeModel
+      .find()
       .populate("current_status.user_id", "name")
       .populate("status_history.user_id", "name");
 
     return res.status(200).json({
       message: "Materials with scope info retrieved successfully",
-      data: scopes
+      data: scopes,
     });
   } catch (error) {
     return res.status(500).json({
@@ -97,7 +77,6 @@ const getAllScopes = async (req, res) => {
     });
   }
 };
-
 
 const updateScope = async (req, res) => {
   try {
@@ -115,24 +94,46 @@ const updateScope = async (req, res) => {
       return res.status(404).json({ message: "Scope not found" });
     }
 
-    if (Array.isArray(req.body.items)) {
-      req.body.items.forEach((updatedItem) => {
-        if (updatedItem.category) {
-          scope.items.forEach((item) => {
-            if (item.category === updatedItem.category) {
-              if (updatedItem.scope) {
-                item.scope = updatedItem.scope;
-              }
-              if (updatedItem.quantity !== undefined) {
-                item.quantity = updatedItem.quantity;
-              }
-              if (updatedItem.uom !== undefined) {
-                item.uom = updatedItem.uom;
-              }
-            }
-          });
+    if (Array.isArray(req.body.items) && req.body.items.length > 0) {
+      const byId = new Map(
+        scope.items
+          .filter((it) => it?.item_id)
+          .map((it) => [String(it.item_id), it])
+      );
+      const byName = new Map(
+        scope.items
+          .filter((it) => typeof it?.name === "string" && it.name.length > 0)
+          .map((it) => [it.name, it])
+      );
+
+      for (const updatedItem of req.body.items) {
+        let target = null;
+        if (updatedItem?.item_id && byId.has(String(updatedItem.item_id))) {
+          target = byId.get(String(updatedItem.item_id));
+        } else if (updatedItem?.name && byName.has(updatedItem.name)) {
+          target = byName.get(updatedItem.name);
         }
-      });
+
+        if (!target) {
+          continue;
+        }
+
+        if (typeof updatedItem.scope === "string") {
+          target.scope = updatedItem.scope;
+        }
+        if (updatedItem.quantity !== undefined) {
+          target.quantity = updatedItem.quantity;
+        }
+        if (updatedItem.uom !== undefined) {
+          target.uom = updatedItem.uom;
+        }
+        if (typeof updatedItem.pr_status === "boolean") {
+          target.pr_status = updatedItem.pr_status;
+        }
+        if (typeof updatedItem.order === "number") {
+          target.order = updatedItem.order;
+        }
+      }
     }
 
     scope.status_history.push({
@@ -214,8 +215,7 @@ const getScopePdf = async (req, res) => {
       return res.status(400).json({ message: "Project ID is required" });
     }
 
-    const project = await projectModells
-      .findById(project_id)
+    const project = await projectModells.findById(project_id);
 
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
@@ -229,19 +229,21 @@ const getScopePdf = async (req, res) => {
       .lean();
 
     if (!scopeData || !scopeData.length) {
-      return res.status(404).json({ message: "No scope data found for this project" });
+      return res
+        .status(404)
+        .json({ message: "No scope data found for this project" });
     }
 
     const processed = scopeData.map((scope) => ({
       ...scope,
-      project: project, 
+      project: project,
       totalItems: scope.items?.length || 0,
       items: (scope.items || []).map((item) => ({
         type: item.type,
         scope: item.scope,
         quantity: item.quantity,
         uom: item.uom,
-        name: item.name
+        name: item.name,
       })),
     }));
 
@@ -251,7 +253,7 @@ const getScopePdf = async (req, res) => {
       method: "post",
       url: apiUrl,
       data: {
-        scopes: processed
+        scopes: processed,
       },
       responseType: "stream",
       maxContentLength: Infinity,
@@ -268,10 +270,76 @@ const getScopePdf = async (req, res) => {
     axiosResponse.data.pipe(res);
   } catch (error) {
     console.error("Error generating scope PDF:", error);
-    res.status(500).json({ message: "Error generating scope PDF", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error generating scope PDF", error: error.message });
   }
 };
 
+const IT_TEAM_USER_ID = new mongoose.Types.ObjectId("6839a4086356310d4e15f6fd");
+
+const ensureProjectScope = async (req, res) => {
+  try {
+    const projects = await projectModells.find({}).select({ _id: 1 }).lean();
+
+    if (!projects.length) {
+      return res.status(404).json({ message: "No projects found" });
+    }
+
+    const categories = await materialcategoryModel
+      .find({ status: { $ne: "inactive" } })
+      .select({ _id: 1, name: 1 })
+      .lean();
+
+    const itemsTemplate = categories.map((c) => ({
+      item_id: c._id,
+      name: c.name || "",
+      pr_status: false,
+    }));
+
+    let createdCount = 0;
+    let skippedCount = 0;
+
+    for (const project of projects) {
+      const exists = await scopeModel
+        .findOne({ project_id: project._id })
+        .lean();
+
+      if (exists) {
+        skippedCount++;
+        continue;
+      }
+
+      await scopeModel.create({
+        project_id: project._id,
+        items: itemsTemplate, 
+        createdBy: IT_TEAM_USER_ID,
+        status_history: [],
+        current_status: {
+          status: "open",
+          remarks: null,
+          user_id: null,
+        },
+      });
+
+      createdCount++;
+    }
+
+    return res.status(201).json({
+      message: "Scopes ensured for all projects",
+      totalProjects: projects.length,
+      created: createdCount,
+      skipped: skippedCount,
+      itemsPerScope: itemsTemplate.length,
+    });
+  } catch (err) {
+    console.error("ensureAllProjectScopes error:", err);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+};
 
 
 module.exports = {
@@ -281,5 +349,6 @@ module.exports = {
   updateScope,
   deleteScope,
   updateScopeStatus,
-  getScopePdf
+  getScopePdf,
+  ensureProjectScope,
 };

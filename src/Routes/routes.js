@@ -3,7 +3,6 @@ const jwtMW = require("../middlewares/auth");
 const {
   addMoney,
   getCreditAmount,
-  getAllBill,
   allbill,
   credit_amount,
   deletecredit,
@@ -17,7 +16,8 @@ const {
   getProjectById,
   getProjectbyPId,
   getProjectDropwdown,
-} = require("../Controllers/ProjectController");
+  getProjectNameSearch,
+} = require("../Controllers/project.controller.js");
 const {
   userRegister,
   login,
@@ -51,14 +51,16 @@ const {
   getPOHistoryById,
   updateEditandDeliveryDate,
   updateStatusPO,
-} = require("../Controllers/purchaseOrderController");
+  getPoBasic,
+} = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
   getVendor,
   updateVendor,
   deleteVendor,
   getVendorDropwdown,
-} = require("../Controllers/addVenderController");
+  getVendorNameSearch,
+} = require("../Controllers/vendor.controller.js");
 const { additem, getItem } = require("../Controllers/itemController");
 const {
   payRrequest,
@@ -101,7 +103,9 @@ const {
   deleteBill,
   bill_approved,
   exportBills,
-} = require("../Controllers/billController");
+  getAllBill,
+  manipulatebill,
+} = require("../Controllers/bill.controller");
 const {
   subtractmoney,
   getsubtractMoney,
@@ -147,8 +151,6 @@ const {
   getCommBdRateHistory,
   getCommBDRateByOfferId,
 } = require("../Controllers/coomBDRateController");
-
-// const { createBDlead, getBDlead, editBDlead, deleteBDlead }=require("../Controllers/createBdLeadcontroller");
 
 const {
   createeBDlead,
@@ -215,7 +217,7 @@ const {
   getByIdOrLeadId,
   getexportToCsv,
   migrateProjectToHandover,
-} = require("../Controllers/handoversheetController");
+} = require("../Controllers/handoversheet.controller.js");
 const {
   addmoduleMaster,
   getmoduleMasterdata,
@@ -235,7 +237,7 @@ const {
   updateExpenseSheet,
   updateDisbursementDate,
   getExpensePdf,
-} = require("../Controllers/expenseSheetControllers/expenseSheetController");
+} = require("../Controllers/expensesheet.controller.js");
 
 const {
   createModifiedExpense,
@@ -253,7 +255,6 @@ const {
   delete_lead,
   updateLeadStatus,
 } = require("../Controllers/bdleadController");
-
 const upload = require("../middlewares/multer.js");
 
 // Admin router
@@ -302,8 +303,6 @@ router.get(
   jwtMW.authorization,
   getAllDepartment
 );
-//forget pass through resend
-// router.post("/forget-password",forgetpassword);
 
 //project router
 router.post(
@@ -330,7 +329,6 @@ router.delete(
   jwtMW.authorization,
   deleteProjectById
 );
-//delete project by id
 router.get(
   "/get-project-iD-IT/:_id",
   jwtMW.authentication,
@@ -349,6 +347,7 @@ router.get(
   jwtMW.authorization,
   getProjectDropwdown
 );
+router.get("/project-search", jwtMW.authentication, getProjectNameSearch);
 
 //addMoney APi
 router.post(
@@ -382,6 +381,7 @@ router.put(
   "/edit-pO-IT/:_id",
   jwtMW.authentication,
   jwtMW.authorization,
+  upload,
   editPO
 );
 router.get("/get-pO-IT/:_id", jwtMW.authentication, jwtMW.authorization, getPO);
@@ -396,6 +396,12 @@ router.get(
   jwtMW.authentication,
   jwtMW.authorization,
   getPaginatedPo
+);
+router.get(
+  "/get-po-basic",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  getPoBasic
 );
 router.get(
   "/get-export-po",
@@ -490,13 +496,13 @@ router.delete(
   jwtMW.authorization,
   deleteVendor
 ); //delete vendor
-
 router.get(
   "/vendor-dropdown",
   jwtMW.authentication,
   jwtMW.authorization,
   getVendorDropwdown
 );
+router.get("/vendor-search", jwtMW.authentication, getVendorNameSearch);
 
 //item
 router.post("/add-iteM-IT", jwtMW.authentication, jwtMW.authorization, additem);
@@ -660,6 +666,7 @@ router.get(
   jwtMW.authorization,
   getPaginatedBill
 );
+router.get("/bill", jwtMW.authentication, getAllBill);
 router.get(
   "/get-bill-by-id",
   jwtMW.authentication,
@@ -696,7 +703,7 @@ router.get(
   jwtMW.authorization,
   exportBills
 );
-
+router.put('/manipulatebill', manipulatebill)
 //subtractmoney-debitmoney
 router.post(
   "/debit-moneY-IT",

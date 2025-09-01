@@ -1,9 +1,9 @@
 const { default: mongoose } = require("mongoose");
 const moduleCategory = require("../Modells/modulecategory.model");
-const hanoversheetmodells = require("../Modells/handoversheetModells");
-const projectmodells = require("../Modells/projectModells");
+const hanoversheetmodells = require("../Modells/handoversheet.model");
+const projectmodells = require("../Modells/project.model");
 const { Parser } = require("json2csv");
-const handoversheetModells = require("../Modells/handoversheetModells");
+const handoversheetModells = require("../Modells/handoversheet.model");
 const userModells = require("../Modells/users/userModells");
 const materialCategoryModells = require("../Modells/materialcategory.model");
 const scopeModel = require("../Modells/scope.model");
@@ -108,6 +108,7 @@ const createhandoversheet = async function (req, res) {
       invoice_detail,
       submitted_by,
     } = req.body;
+    
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -152,6 +153,7 @@ const createhandoversheet = async function (req, res) {
     await lead.save();
     await handoversheet.save();
 
+
     // Notification for Creating Handover
 
     try {
@@ -164,7 +166,6 @@ const createhandoversheet = async function (req, res) {
     } catch (error) {
       console.log(error);
     }
-
     res.status(200).json({
       message: "Data saved successfully",
       handoversheet,
@@ -173,7 +174,6 @@ const createhandoversheet = async function (req, res) {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 const gethandoversheetdata = async function (req, res) {
   try {
@@ -242,6 +242,9 @@ const gethandoversheetdata = async function (req, res) {
       matchConditions.$and.push({ scope_status: "open" });
     }
 
+    if (hasScopeOpen) {
+      matchConditions.$and.push({ scope_status: "open" });
+    }
 
     const finalMatch = matchConditions.$and.length > 0 ? matchConditions : {};
 
@@ -298,19 +301,19 @@ const gethandoversheetdata = async function (req, res) {
           from: "scopes",
           localField: "projectInfo._id",
           foreignField: "project_id",
-          as: "scopeInfo"
-        }
+          as: "scopeInfo",
+        },
       },
       {
         $unwind: {
           path: "$scopeInfo",
-          preserveNullAndEmptyArrays: true
-        }
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $addFields: {
-          scope_status: "$scopeInfo.current_status.status"
-        }
+          scope_status: "$scopeInfo.current_status.status",
+        },
       },
       {
         $match: finalMatch,
@@ -328,61 +331,63 @@ const gethandoversheetdata = async function (req, res) {
         },
       ]);
 
-      const projectIds = matchedDocs.map((doc) => doc.project_id).filter(Boolean);
+      const projectIds = matchedDocs
+        .map((doc) => doc.project_id)
+        .filter(Boolean);
 
-      const scopes = await scopeModel.find({
-        project_id: { $in: projectIds },
-        $or: [
-          { status_history: { $exists: false } },
-          { status_history: { $size: 0 } },
-        ],
-      }).select("project_id");
+      const scopes = await scopeModel
+        .find({
+          project_id: { $in: projectIds },
+          $or: [
+            { status_history: { $exists: false } },
+            { status_history: { $size: 0 } },
+          ],
+        })
+        .select("project_id");
 
       const pendingScopeIds = scopes.map((s) => s.project_id.toString());
 
       pipeline.push({
         $match: {
           "projectInfo._id": {
-            $in: pendingScopeIds.map(id => new mongoose.Types.ObjectId(id)),
+            $in: pendingScopeIds.map((id) => new mongoose.Types.ObjectId(id)),
           },
         },
       });
     }
 
-    pipeline.push(
-      {
-        $facet: {
-          metadata: [{ $count: "total" }],
-          data: [
-            { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: limit },
-            {
-              $project: {
-                _id: 1,
-                id: 1,
-                createdAt: 1,
-                leadId: 1,
-                customer_details: 1,
-                scheme: "$leadDetails.scheme",
-                proposed_dc_capacity: "$project_detail.proposed_dc_capacity",
-                project_kwp: "$project_detail.project_kwp",
-                total_gst: "$other_details.total_gst",
-                service: "$other_details.service",
-                submitted_by: 1,
-                leadDetails: 1,
-                status_of_handoversheet: 1,
-                is_locked: 1,
-                comment: 1,
-                p_id: 1,
-                project_id: "$projectInfo._id",
-                scope_status: 1
-              },
+    pipeline.push({
+      $facet: {
+        metadata: [{ $count: "total" }],
+        data: [
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 1,
+              id: 1,
+              createdAt: 1,
+              leadId: 1,
+              customer_details: 1,
+              scheme: "$leadDetails.scheme",
+              proposed_dc_capacity: "$project_detail.proposed_dc_capacity",
+              project_kwp: "$project_detail.project_kwp",
+              total_gst: "$other_details.total_gst",
+              service: "$other_details.service",
+              submitted_by: 1,
+              leadDetails: 1,
+              status_of_handoversheet: 1,
+              is_locked: 1,
+              comment: 1,
+              p_id: 1,
+              project_id: "$projectInfo._id",
+              scope_status: 1,
             },
-          ],
-        },
-      }
-    );
+          },
+        ],
+      },
+    });
 
     const result = await hanoversheetmodells.aggregate(pipeline);
     const total = result[0].metadata[0]?.total || 0;
@@ -402,8 +407,6 @@ const gethandoversheetdata = async function (req, res) {
     res.status(500).json({ message: error.message });
   }
 };
-
-
 
 //edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
@@ -556,21 +559,32 @@ const updatestatus = async function (req, res) {
 
         await moduleCategoryData.save();
 
-        const allMaterialCategories = await materialCategoryModells.find();
+        const allMaterialCategories = await materialCategoryModells
+          .find(
+            { status: { $ne: "inactive" } },
+            { _id: 1, name: 1, type: 1, order: 1 }
+          )
+          .sort({ order: 1, name: 1 })
+          .lean();
 
-        const scopeData = new scopeModel({
+        const items = allMaterialCategories.map((mc) => ({
+          item_id: mc._id,
+          name: mc.name || "",
+          type: mc.type, 
+          order: Number.isFinite(mc.order) ? mc.order : 0,
+          scope: "client",
+          quantity: "",
+          uom: "",
+        }));
+
+        // 3) Instantiate and save
+        const scopeDoc = new scopeModel({
           project_id: projectData._id,
-          items: allMaterialCategories.map((mc) => ({
-            item_id: mc._id,
-            name: mc.name,
-            type: mc.type,
-            category: mc.category,
-            order: mc.order
-          })),
+          items,
           createdBy: req.user.userId,
         });
 
-        await scopeData.save();
+        await scopeDoc.save();
 
         return res.status(200).json({
           message:
@@ -597,21 +611,6 @@ const updatestatus = async function (req, res) {
     } catch (error) {
       console.log(error);
     }
-
-    // Notification for Engineering and Accounts  After Approved handoversheet 
-
-    // if( updatedHandoversheet.status_of_handoversheet === "Approved" ){
-
-    //   try {
-    //     senders = "all person from Engineering and Accounts ";
-    //     workflow = 'handover-submit';
-    //     data ={
-    //       message: `Handover Sheet Status Updated Of Lead ${updatedHandoversheet.id}`
-    //     }
-    //   } catch (error) {
-
-    //   }
-
     return res.status(200).json({
       message: "Status updated",
       handoverSheet: updatedHandoversheet,
@@ -665,7 +664,6 @@ const getByIdOrLeadId = async function (req, res) {
 };
 
 //sercher api
-
 const search = async function (req, res) {
   const letter = req.params.letter;
   try {

@@ -1,4 +1,4 @@
-const handoversheet = require("../../Modells/handoversheetModells");
+const handoversheet = require("../../Modells/handoversheet.model");
 const task = require("../../Modells/bdleads/task");
 const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
 const userModells = require("../../Modells/users/userModells");

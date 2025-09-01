@@ -1,6 +1,5 @@
-const { request } = require("express");
-const projectModells = require("../Modells/projectModells");
-const handoversheetModells = require("../Modells/handoversheetModells");
+const projectModells = require("../Modells/project.model");
+const handoversheetModells = require("../Modells/handoversheet.model");
 
 const createProject = async function (req, res) {
   try {
@@ -11,7 +10,6 @@ const createProject = async function (req, res) {
       email,
       number,
       alt_number,
-
       billing_address,
       site_address,
       state,
@@ -165,7 +163,6 @@ const getallproject = async function (req, res) {
 };
 
 //Get Project by ID
-
 const getProjectById = async function (req, res) {
   try {
     const id = req.params._id;
@@ -213,7 +210,7 @@ const getProjectDropwdown = async (req, res) => {
   try {
     const projects = await projectModells.find(
       {},
-      { p_id: 1, name: 1, code: 1 , p_group: 1, customer: 1}
+      { p_id: 1, name: 1, code: 1, p_group: 1, customer: 1 }
     );
     res.status(200).json({
       message: "Projects fetched successfully",
@@ -227,6 +224,53 @@ const getProjectDropwdown = async (req, res) => {
   }
 };
 
+const getProjectNameSearch = async (req, res) => {
+  try {
+    const { search = "", page = 1, limit = 7 } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
+
+    const filter = search
+      ? { name: { $regex: search.trim().replace(/\s+/g, ".*"), $options: "i" } }
+      : {};
+    const projection = { _id: 1, name: 1, code: 1, site_address: 1 };
+    const sort = { code: 1 };
+    const skip = (pageNum - 1) * pageSize;
+
+    const [items, total] = await Promise.all([
+      projectModells
+        .find(filter, projection)
+        .sort(sort)
+        .skip(skip)
+        .limit(pageSize),
+      projectModells.countDocuments(filter),
+    ]);
+
+    const totalPages = Math.ceil(total / pageSize) || 1;
+    const hasMore = pageNum < totalPages;
+
+    res.status(200).json({
+      message: "Project retrieved Successfully",
+      data: items,
+      pagination: {
+        search,
+        page: pageNum,
+        pageSize,
+        total,
+        totalPages,
+        hasMore,
+        nextPage: hasMore ? pageNum + 1 : null,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error searching Project",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createProject,
   updateProject,
@@ -235,4 +279,5 @@ module.exports = {
   getProjectById,
   getProjectbyPId,
   getProjectDropwdown,
+  getProjectNameSearch,
 };

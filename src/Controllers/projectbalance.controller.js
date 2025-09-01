@@ -1,8 +1,8 @@
 const Project = require("../../Modells/projectModells");
-const AddMoney = require("../../Modells/addMoneyModells");
-const payRequest = require("../../Modells/payRequestModells");
-const AdjustmentRequest = require("../../Modells/adjustmentRequestModells");
-const subtractMoneyModells = require("../../Modells/debitMoneyModells");
+const AddMoney = require("../Modells/addMoneyModells");
+const payRequest = require("../Modells/payRequestModells");
+const AdjustmentRequest = require("../Modells/adjustmentRequestModells");
+const subtractMoneyModells = require("../Modells/debitMoneyModells");
 
 const getProjectBalance = async (req, res) => {
   try {

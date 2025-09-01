@@ -1,4 +1,4 @@
-const TaskCounterSchema = require("../Modells/Globals/taskCounter");
+const TaskCounterSchema = require("../Modells/taskcounter.model");
 const tasksModells = require("../Modells/task.model");
 const User = require("../Modells/users/userModells");
 const { Parser } = require("json2csv");

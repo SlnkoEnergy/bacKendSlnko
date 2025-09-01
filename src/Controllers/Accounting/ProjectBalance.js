@@ -1,4 +1,4 @@
-const projectModells = require("../../Modells/projectModells");
+const projectModells = require("../../Modells/project.model");
 const { Parser } = require("json2csv");
 
 const projectBalance = async (req, res) => {

@@ -1,4 +1,4 @@
-const vendorModells = require("../Modells/vendorModells");
+const vendorModells = require("../Modells/vendor.model");
 
 const addVendor = async function (req, res) {
   try {
@@ -83,7 +83,6 @@ const updateVendor = async function (req, res) {
 };
 
 // Delete Vendor
-
 const deleteVendor = async function (req, res) {
   let _id = req.params._id;
   try {
@@ -115,10 +114,58 @@ const getVendorDropwdown = async (req, res) => {
   }
 };
 
+const getVendorNameSearch = async (req, res) => {
+  try {
+    const { search = "", page = 1, limit = 7 } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.min(Math.max(parseInt(limit, 7) || 7, 1), 100);
+
+    const filter = {};
+    const term = (search || "").trim();
+    if (term) {
+      const safe = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(safe, "i");
+      filter.$or = [{ name: regex }, { Beneficiary_Name: regex }];
+    }
+
+    const [vendors, total] = await Promise.all([
+      vendorModells
+        .find(filter, { name: 1, Beneficiary_Name: 1 })
+        .sort({ name: 1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .lean(),
+      vendorModells.countDocuments(filter),
+    ]);
+
+    const totalPages = Math.max(Math.ceil(total / limitNum), 1);
+
+    res.status(200).json({
+      message: "Vendors fetched successfully",
+      data: vendors,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasPrev: pageNum > 1,
+        hasNext: pageNum < totalPages,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   addVendor,
   getVendor,
   updateVendor,
   deleteVendor,
   getVendorDropwdown,
+  getVendorNameSearch,
 };
