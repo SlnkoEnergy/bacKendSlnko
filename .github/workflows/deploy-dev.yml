@@ -28,20 +28,3 @@ jobs:
             docker build -t prod_api_development .
             docker run --name prod_api_development -p 5002:8080 -d --env-file .env.dev prod_api_development
           EOF
-
-
-        #         - name: Deploy via SSH
-        # run: |
-        #   ssh -o StrictHostKeyChecking=no ${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }} << 'EOF'
-        #     cd ~/Protrac/bacKendSlnko && git checkout development
-        #     git pull origin development
-
-        #     # start Redis if not running
-        #     docker ps | grep protrac-redis || docker run -d --name protrac-redis -p 6379:6379 redis:7-alpine
-
-        #     docker stop prod_api_development || true
-        #     docker rm prod_api_development || true
-        #     docker build -t prod_api_development .
-        #     docker run --name prod_api_development -p 5002:8080 -d --env-file .env.dev prod_api_development
-        #   EOF
-
