@@ -243,7 +243,6 @@ const editPO = async function (req, res) {
       $set: { ...payload },
     };
 
-    
     if (currStatus === "approval_rejected") {
       updateOps.$push = {
         status_history: {
@@ -262,8 +261,6 @@ const editPO = async function (req, res) {
     const update = await purchaseOrderModells
       .findByIdAndUpdate(id, updateOps, { new: true })
       .lean();
-    
-      
 
     const pohistory = {
       po_number: update.po_number,
@@ -387,11 +384,10 @@ const getPOByPONumber = async (req, res) => {
       };
     }
 
-     const poDoc = await purchaseOrderModells
+    const poDoc = await purchaseOrderModells
       .findOne(query)
       .populate("submitted_By", "_id name")
       .lean();
-
 
     if (!poDoc) {
       return res.status(404).json({ msg: "Purchase Order not found" });
@@ -528,6 +524,7 @@ const getallpodetail = async function (req, res) {
   try {
     const { po_number } = req.query;
 
+    // If no po_number, return list of POs
     if (!po_number) {
       const poList = await purchaseOrderModells
         .find({}, { po_number: 1, _id: 0 })
@@ -538,12 +535,13 @@ const getallpodetail = async function (req, res) {
       });
     }
 
+    // Load PO
     const selectedPo = await purchaseOrderModells.findOne({ po_number }).lean();
-
     if (!selectedPo) {
       return res.status(404).json({ message: "PO not found" });
     }
 
+    // Total po_value (handles string/number)
     const poAggregate = await purchaseOrderModells.aggregate([
       { $match: { po_number } },
       {
@@ -553,27 +551,70 @@ const getallpodetail = async function (req, res) {
         },
       },
     ]);
+    const po_value = poAggregate.length ? poAggregate[0].total_po_value : 0;
 
-    const po_value = poAggregate.length > 0 ? poAggregate[0].total_po_value : 0;
-
-    let itemName = "";
+    // ---- Resolve item names from MaterialCategory ----
+    // Collect category ObjectIds from item[]
+    const categoryIds = [];
     if (Array.isArray(selectedPo.item)) {
-      itemName = selectedPo.item.map((i) => i.product_name).join(", ");
-    } else if (mongoose.Types.ObjectId.isValid(selectedPo.item)) {
-      const itemDoc = await materialCategoryModells
-        .findById(selectedPo.item)
-        .lean();
-      itemName = itemDoc?.name || "";
-    } else if (typeof selectedPo.item === "string") {
-      itemName = selectedPo.item;
+      for (const it of selectedPo.item) {
+        const id = it?.category;
+        if (id) {
+          if (id instanceof mongoose.Types.ObjectId) {
+            categoryIds.push(id);
+          } else if (
+            typeof id === "string" &&
+            mongoose.Types.ObjectId.isValid(id)
+          ) {
+            categoryIds.push(new mongoose.Types.ObjectId(id));
+          }
+        }
+      }
     }
 
+    // Find category names for collected ids
+    let categoryNameById = new Map();
+    if (categoryIds.length) {
+      const cats = await materialCategoryModells
+        .find({ _id: { $in: categoryIds } }, { name: 1 })
+        .lean();
+      for (const c of cats) {
+        if (c?._id && c?.name) categoryNameById.set(String(c._id), c.name);
+      }
+    }
+
+    // Build item string: prefer category.name, else product_name, else ""
+    const itemNames = [];
+    if (Array.isArray(selectedPo.item)) {
+      for (const it of selectedPo.item) {
+        let name = "";
+        const catId = it?.category;
+        if (catId) {
+          const key = String(
+            catId instanceof mongoose.Types.ObjectId
+              ? catId
+              : new mongoose.Types.ObjectId(catId)
+          );
+          name = categoryNameById.get(key) || "";
+        }
+        if (!name && typeof it?.product_name === "string") {
+          name = it.product_name.trim();
+        }
+        if (name) itemNames.push(name);
+      }
+    }
+    // Remove duplicates while preserving order
+    const seen = new Set();
+    const deduped = itemNames.filter((n) =>
+      seen.has(n) ? false : (seen.add(n), true)
+    );
+    const itemName = deduped.join(", ");
+
+    // ---- Vendor details (unchanged) ----
     let vendorDetails = {};
     if (selectedPo.vendor) {
       const matchedVendor = await vendorModells
-        .findOne({
-          name: selectedPo.vendor,
-        })
+        .findOne({ name: selectedPo.vendor })
         .lean();
       if (matchedVendor) {
         vendorDetails = {
@@ -585,6 +626,7 @@ const getallpodetail = async function (req, res) {
       }
     }
 
+    // ---- Approved payments sum ----
     const approvedPayments = await payRequestModells.aggregate([
       { $match: { po_number, approved: "Approved" } },
       {
@@ -594,17 +636,19 @@ const getallpodetail = async function (req, res) {
         },
       },
     ]);
-    const totalAdvancePaid =
-      approvedPayments.length > 0 ? approvedPayments[0].totalAdvancePaid : 0;
+    const totalAdvancePaid = approvedPayments.length
+      ? approvedPayments[0].totalAdvancePaid
+      : 0;
 
     const po_balance = po_value - totalAdvancePaid;
 
+    // ---- Final response (same keys) ----
     return res.status(200).json({
       p_id: selectedPo.p_id,
       po_number: selectedPo.po_number,
       po_value,
       vendor: selectedPo.vendor,
-      item: itemName,
+      item: itemName, // resolved MaterialCategory names (fallback to product_name)
       total_advance_paid: totalAdvancePaid,
       po_balance,
       ...vendorDetails,
@@ -737,12 +781,12 @@ const getPaginatedPo = async (req, res) => {
         case "Delivered":
           baseEq["current_status.status"] = "delivered";
           break;
-          case "Short Quantity":
-          matchStage["current_status.status"] = "short_quantity";
+        case "Short Quantity":
+          baseEq["current_status.status"] = "short_quantity";
           break;
-          case "Partially Delivered":
-          matchStage["current_status.status"] = "partially_delivered";
-        
+        case "Partially Delivered":
+          baseEq["current_status.status"] = "partially_delivered";
+
         default:
           break;
       }
@@ -799,7 +843,23 @@ const getPaginatedPo = async (req, res) => {
         },
       },
       ...(status ? [{ $match: { partial_billing: status } }] : []),
-
+      {
+        $lookup: {
+          from: "purchaserequests", // collection name of PurchaseRequest
+          let: { prId: "$pr_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$prId"] } } },
+            { $project: { _id: 1, pr_no: 1 } }, // only what you need
+          ],
+          as: "prDoc",
+        },
+      },
+      {
+        $addFields: {
+          pr_id: { $ifNull: [{ $arrayElemAt: ["$prDoc._id", 0] }, "$pr_id"] },
+          pr_no: { $arrayElemAt: ["$prDoc.pr_no", 0] },
+        },
+      },
       {
         $lookup: {
           from: "materialcategories",
@@ -851,17 +911,8 @@ const getPaginatedPo = async (req, res) => {
           vendor: 1,
           date: 1,
           po_value: 1,
-          po_basic: {
-            $convert: {
-              input: "$po_basic",
-              to: "double",
-              onError: 0,
-              onNull: 0,
-            },
-          },
-          gst: {
-            $convert: { input: "$gst", to: "double", onError: 0, onNull: 0 },
-          },
+          po_basic: 1,
+          gst: 1,
           amount_paid: 1,
           total_billed: 1,
           partial_billing: 1,
@@ -872,6 +923,8 @@ const getPaginatedPo = async (req, res) => {
           current_status: 1,
           status_history: 1,
           category_names: "$resolvedCatNames",
+          pr_id: 1, // <-- added
+          pr_no: 1, // <-- added
         },
       },
     ];
@@ -1237,6 +1290,7 @@ const moverecovery = async function (req, res) {
     res.status(500).json({ message: "Error deleting item" + error });
   }
 };
+
 //Export-CSV
 const exportCSV = async function (req, res) {
   try {
@@ -1290,7 +1344,7 @@ const deletePO = async function (req, res) {
   }
 };
 
-// //gtpo test
+
 const updateEditandDeliveryDate = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1599,7 +1653,6 @@ const getPoBasic = async (req, res) => {
   }
 };
 
-
 //get All PO With
 module.exports = {
   addPo,
@@ -1619,5 +1672,5 @@ module.exports = {
   getPOHistoryById,
   updateEditandDeliveryDate,
   updateStatusPO,
-  getPoBasic
+  getPoBasic,
 };
