@@ -43,15 +43,7 @@ const addMaterialCategory = async (req, res) => {
       const newScopeItem = {
         item_id: new mongoose.Types.ObjectId(newMaterialCategory._id),
         name: newMaterialCategory.name,
-        type: newMaterialCategory.type,                     
-        category: newMaterialCategory.category_code,       
-        scope: "client",                                
-        quantity: "",
-        uom: "",
-        order:
-          typeof newMaterialCategory.order === "number"
-            ? newMaterialCategory.order
-            : 0,
+        type: newMaterialCategory.type,                                                          
         pr_status: false,
       };
 
@@ -370,13 +362,11 @@ const getMaterialCategoryById = async (req, res) => {
 const updateMaterialCategory = async (req, res) => {
   try {
     const { name, description, fields, type, status } = req.body;
-    const id = req.params._id;
+    const id = req.params._id || req.params.id; 
     const userId = req.user?.userId;
 
     if (!id) {
-      return res
-        .status(400)
-        .json({ message: "Material Category ID is required" });
+      return res.status(400).json({ message: "Material Category ID is required" });
     }
 
     const updatedMaterialCategory = await materialCategory.findByIdAndUpdate(
@@ -389,12 +379,31 @@ const updateMaterialCategory = async (req, res) => {
       return res.status(404).json({ message: "Material Category not found" });
     }
 
-    res.status(200).json({
+    let scopesUpdated = 0;
+
+    if (String(updatedMaterialCategory.status).toLowerCase() === "active") {
+      const newScopeItem = {
+        item_id: new mongoose.Types.ObjectId(updatedMaterialCategory._id),
+        name: updatedMaterialCategory.name,
+        type: updatedMaterialCategory.type,             
+        pr_status: false,
+      };
+
+      const result = await scopeModel.updateMany(
+        { "items.item_id": { $ne: updatedMaterialCategory._id } },
+        { $push: { items: newScopeItem } }
+      );
+
+      scopesUpdated = result?.modifiedCount || 0;
+    }
+
+    return res.status(200).json({
       message: "Material Category updated successfully",
       data: updatedMaterialCategory,
+      scopesUpdated, 
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Error updating Material Category",
       error: error.message,
     });
