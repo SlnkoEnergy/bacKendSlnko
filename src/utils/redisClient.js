@@ -6,8 +6,7 @@ let ready = false;
 async function getRedis() {
   if (client && ready) return client;
 
-  // ✅ default to the Docker network host if env is missing
-  const url = (process.env.REDIS_URL && process.env.REDIS_URL.trim()) || "redis://protrac-redis:6379";
+  const url = (process.env.REDIS_URL && process.env.REDIS_URL.trim());
 
   client = createClient({
     url,
