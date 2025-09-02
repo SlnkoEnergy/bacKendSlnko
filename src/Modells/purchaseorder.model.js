@@ -108,7 +108,7 @@ const purchaseOrderSchema = new mongoose.Schema(
     },
     delivery_type: {
       type: String,
-      enum: ["afor", "slnko", "client"],
+      enum: ["for", "slnko", "client"],
     },
     attachments: [
       {

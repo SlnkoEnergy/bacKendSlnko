@@ -14,6 +14,7 @@ const addMaterialCategory = async (req, res) => {
       });
     }
 
+    // Generate sequential category code
     const counter = await Counter.findOneAndUpdate(
       { name: "material_category_code" },
       { $inc: { seq: 1 } },
@@ -25,10 +26,10 @@ const addMaterialCategory = async (req, res) => {
     const newMaterialCategory = new materialCategory({
       name,
       description,
-      type,
+      type,                 
       category_code: categoryCode,
       fields,
-      status,
+      status,              
       order,
       createdBy: userId,
       updatedBy: userId,
@@ -36,17 +37,37 @@ const addMaterialCategory = async (req, res) => {
 
     await newMaterialCategory.save();
 
-    res.status(201).json({
+    let scopesUpdated = 0;
+
+    if (String(newMaterialCategory.status).toLowerCase() === "active") {
+      const newScopeItem = {
+        item_id: new mongoose.Types.ObjectId(newMaterialCategory._id),
+        name: newMaterialCategory.name,
+        type: newMaterialCategory.type,                                                          
+        pr_status: false,
+      };
+
+      const result = await scopeModel.updateMany(
+        { "items.item_id": { $ne: newMaterialCategory._id } },
+        { $push: { items: newScopeItem } }
+      );
+
+      scopesUpdated = result?.modifiedCount || 0;
+    }
+
+    return res.status(201).json({
       message: "Material Category added successfully",
       data: newMaterialCategory,
+      scopesUpdated,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Error adding Material Category",
       error: error.message,
     });
   }
 };
+
 
 const getAllMaterialCategories = async (req, res) => {
   try {
@@ -122,6 +143,7 @@ const getAllMaterialCategories = async (req, res) => {
   }
 };
 
+
 const namesearchOfMaterialCategories = async (req, res) => {
   try {
     const {
@@ -132,47 +154,23 @@ const namesearchOfMaterialCategories = async (req, res) => {
       project_id,
     } = req.query;
 
-    const statusQ = (req.query.status || "").trim().toLowerCase(); // NEW
     const prFlag = String(pr).toLowerCase() === "true";
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
     const skip = (pageNum - 1) * pageSize;
 
-    // ---- baseline: NEVER return inactive ----
-    const alwaysActiveFilter = { status: { $ne: "inactive" } };
-    if (statusQ === "inactive") {
-      return res.status(200).json({
-        message: "Material categories retrieved successfully",
-        data: [],
-        pagination: {
-          search,
-          page: pageNum,
-          pageSize,
-          total: 0,
-          totalPages: 1,
-          hasMore: false,
-          nextPage: null,
-        },
-        meta: {
-          filteredByProjectScope: false,
-          scopeType: null,
-          reason: "inactive_excluded",
-        },
-      });
-    } else if (statusQ === "active") {
-      // If client explicitly asks for active, enforce it.
-      alwaysActiveFilter.status = "active";
-    }
-
-    const baseFilter = search
-      ? {
-          ...alwaysActiveFilter,
-          name: {
-            $regex: search.trim().replace(/\s+/g, ".*"),
-            $options: "i",
-          },
-        }
-      : { ...alwaysActiveFilter };
+    // 🔒 Hard-enforce active only
+    const baseFilter = {
+      status: "active",
+      ...(search
+        ? {
+            name: {
+              $regex: search.trim().replace(/\s+/g, ".*"),
+              $options: "i",
+            },
+          }
+        : {}),
+    };
 
     let scopeIds = null;
 
@@ -205,7 +203,7 @@ const namesearchOfMaterialCategories = async (req, res) => {
             nextPage: null,
           },
           meta: {
-            filteredByProjectScope: false,
+            filteredByProjectScope: true,
             scopeType: "slnko",
             reason: !scopeDoc
               ? "no_scope_for_project"
@@ -264,11 +262,9 @@ const namesearchOfMaterialCategories = async (req, res) => {
   }
 };
 
-
 const getAllMaterialCategoriesDropdown = async (req, res) => {
   try {
     const { project_id } = req.query;
-    const statusQ = (req.query.status || "").trim().toLowerCase(); 
 
     if (!project_id) {
       return res.status(400).json({ message: "Project ID is required" });
@@ -276,13 +272,7 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(project_id)) {
       return res.status(400).json({ message: "Invalid project ID" });
     }
-    if (statusQ === "inactive") {
-      return res.status(200).json({
-        message: "Material Categories retrieved successfully",
-        data: [],
-        meta: { reason: "inactive_excluded" },
-      });
-    }
+
     const scopeData = await scopeModel
       .findOne(
         { project_id: new mongoose.Types.ObjectId(project_id) },
@@ -318,12 +308,11 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
       });
     }
 
+    // 🔒 Hard-enforce active only
     const query = {
       _id: { $in: slnkoItemIds.map((id) => new mongoose.Types.ObjectId(id)) },
-      status: { $ne: "inactive" },
+      status: "active",
     };
- 
-    if (statusQ === "active") query.status = "active";
 
     const categories = await materialCategory
       .find(query, "_id name")
@@ -343,7 +332,7 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
   }
 };
 
-// Get Material Categories By Id
+
 const getMaterialCategoryById = async (req, res) => {
   try {
     const { id } = req.query;
@@ -369,17 +358,15 @@ const getMaterialCategoryById = async (req, res) => {
   }
 };
 
-// Update material category
+
 const updateMaterialCategory = async (req, res) => {
   try {
     const { name, description, fields, type, status } = req.body;
-    const id = req.params._id;
+    const id = req.params._id || req.params.id; 
     const userId = req.user?.userId;
 
     if (!id) {
-      return res
-        .status(400)
-        .json({ message: "Material Category ID is required" });
+      return res.status(400).json({ message: "Material Category ID is required" });
     }
 
     const updatedMaterialCategory = await materialCategory.findByIdAndUpdate(
@@ -392,18 +379,38 @@ const updateMaterialCategory = async (req, res) => {
       return res.status(404).json({ message: "Material Category not found" });
     }
 
-    res.status(200).json({
+    let scopesUpdated = 0;
+
+    if (String(updatedMaterialCategory.status).toLowerCase() === "active") {
+      const newScopeItem = {
+        item_id: new mongoose.Types.ObjectId(updatedMaterialCategory._id),
+        name: updatedMaterialCategory.name,
+        type: updatedMaterialCategory.type,             
+        pr_status: false,
+      };
+
+      const result = await scopeModel.updateMany(
+        { "items.item_id": { $ne: updatedMaterialCategory._id } },
+        { $push: { items: newScopeItem } }
+      );
+
+      scopesUpdated = result?.modifiedCount || 0;
+    }
+
+    return res.status(200).json({
       message: "Material Category updated successfully",
       data: updatedMaterialCategory,
+      scopesUpdated, 
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Error updating Material Category",
       error: error.message,
     });
   }
 };
-// Delete material category
+
+
 const deleteMaterialCategory = async (req, res) => {
   try {
     const id = req.params._id;
