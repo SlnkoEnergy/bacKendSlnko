@@ -122,6 +122,7 @@ const getAllMaterialCategories = async (req, res) => {
   }
 };
 
+// Only ACTIVE categories — name search + optional project scope
 const namesearchOfMaterialCategories = async (req, res) => {
   try {
     const {
@@ -132,47 +133,23 @@ const namesearchOfMaterialCategories = async (req, res) => {
       project_id,
     } = req.query;
 
-    const statusQ = (req.query.status || "").trim().toLowerCase(); // NEW
     const prFlag = String(pr).toLowerCase() === "true";
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
     const skip = (pageNum - 1) * pageSize;
 
-    // ---- baseline: NEVER return inactive ----
-    const alwaysActiveFilter = { status: { $ne: "inactive" } };
-    if (statusQ === "inactive") {
-      return res.status(200).json({
-        message: "Material categories retrieved successfully",
-        data: [],
-        pagination: {
-          search,
-          page: pageNum,
-          pageSize,
-          total: 0,
-          totalPages: 1,
-          hasMore: false,
-          nextPage: null,
-        },
-        meta: {
-          filteredByProjectScope: false,
-          scopeType: null,
-          reason: "inactive_excluded",
-        },
-      });
-    } else if (statusQ === "active") {
-      // If client explicitly asks for active, enforce it.
-      alwaysActiveFilter.status = "active";
-    }
-
-    const baseFilter = search
-      ? {
-          ...alwaysActiveFilter,
-          name: {
-            $regex: search.trim().replace(/\s+/g, ".*"),
-            $options: "i",
-          },
-        }
-      : { ...alwaysActiveFilter };
+    // 🔒 Hard-enforce active only
+    const baseFilter = {
+      status: "active",
+      ...(search
+        ? {
+            name: {
+              $regex: search.trim().replace(/\s+/g, ".*"),
+              $options: "i",
+            },
+          }
+        : {}),
+    };
 
     let scopeIds = null;
 
@@ -205,7 +182,7 @@ const namesearchOfMaterialCategories = async (req, res) => {
             nextPage: null,
           },
           meta: {
-            filteredByProjectScope: false,
+            filteredByProjectScope: true,
             scopeType: "slnko",
             reason: !scopeDoc
               ? "no_scope_for_project"
@@ -264,11 +241,9 @@ const namesearchOfMaterialCategories = async (req, res) => {
   }
 };
 
-
 const getAllMaterialCategoriesDropdown = async (req, res) => {
   try {
     const { project_id } = req.query;
-    const statusQ = (req.query.status || "").trim().toLowerCase(); 
 
     if (!project_id) {
       return res.status(400).json({ message: "Project ID is required" });
@@ -276,13 +251,7 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(project_id)) {
       return res.status(400).json({ message: "Invalid project ID" });
     }
-    if (statusQ === "inactive") {
-      return res.status(200).json({
-        message: "Material Categories retrieved successfully",
-        data: [],
-        meta: { reason: "inactive_excluded" },
-      });
-    }
+
     const scopeData = await scopeModel
       .findOne(
         { project_id: new mongoose.Types.ObjectId(project_id) },
@@ -318,12 +287,11 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
       });
     }
 
+    // 🔒 Hard-enforce active only
     const query = {
       _id: { $in: slnkoItemIds.map((id) => new mongoose.Types.ObjectId(id)) },
-      status: { $ne: "inactive" },
+      status: "active",
     };
- 
-    if (statusQ === "active") query.status = "active";
 
     const categories = await materialCategory
       .find(query, "_id name")
@@ -342,6 +310,7 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
     });
   }
 };
+
 
 // Get Material Categories By Id
 const getMaterialCategoryById = async (req, res) => {
