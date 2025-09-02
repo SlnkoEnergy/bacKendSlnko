@@ -23,8 +23,35 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }} << 'EOF'
             cd ~/Protrac/bacKendSlnko && git checkout development
             git pull origin development
+
+            # Ensure REDIS_URL is in .env.dev
+            grep -q '^REDIS_URL=' .env.dev || echo 'REDIS_URL=redis://protrac-redis:6379' >> .env.dev
+
+            # Ensure Docker network exists
+            docker network inspect protrac_net >/dev/null 2>&1 || docker network create protrac_net
+
+            # Ensure Redis is running and connected to protrac_net
+            if docker ps -a --format '{{.Names}}' | grep -q '^protrac-redis$'; then
+              docker start protrac-redis || true
+              docker network connect protrac_net protrac-redis 2>/dev/null || true
+            else
+              docker run -d --name protrac-redis \
+                --network protrac_net \
+                --restart unless-stopped \
+                redis:7-alpine
+            fi
+
+            # Stop + remove old API container
             docker stop prod_api_development || true
             docker rm prod_api_development || true
+
+            # Build new image
             docker build -t prod_api_development .
-            docker run --name prod_api_development -p 5002:8080 -d --env-file .env.dev prod_api_development
+
+            # Run new API container attached to protrac_net
+            docker run -d --name prod_api_development \
+              --env-file .env.dev \
+              --network protrac_net \
+              -p 5002:8080 \
+              prod_api_development
           EOF
