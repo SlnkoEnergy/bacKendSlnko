@@ -1,16 +1,17 @@
 const payRequestModells = require("../Modells/payRequestModells");
-const projectModells = require("../Modells/projectModells");
+const projectModells = require("../Modells/project.model");
 const holdPayment = require("../Modells/holdPaymentModells");
 const holdPaymentModells = require("../Modells/holdPaymentModells");
-const vendorModells = require("../Modells/vendorModells");
-const purchaseOrderModells = require("../Modells/purchaseOrderModells");
+const vendorModells = require("../Modells/vendor.model");
+const purchaseOrderModells = require("../Modells/purchaseorder.model");
 const { get, default: mongoose } = require("mongoose");
 const exccelDataModells = require("../Modells/excelDataModells");
 const recoverypayrequest = require("../Modells/recoveryPayrequestModells");
 const subtractMoneyModells = require("../Modells/debitMoneyModells");
 const materialCategoryModells = require("../Modells/materialcategory.model");
 const userModells = require("../Modells/users/userModells");
-const utrCounter = require("../Modells/Globals/utrCounter");
+const utrCounter = require("../Modells/utrCounter");
+
 
 const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
 const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
@@ -117,6 +118,8 @@ const payRrequest = async (req, res) => {
       p_id: Number(p_id) || project.p_id,
       pay_id,
       cr_id,
+
+      // payment body
       pay_type,
       amount_paid,
       // amt_for_customer,

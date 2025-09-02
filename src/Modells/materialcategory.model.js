@@ -4,8 +4,13 @@ const materCatergorySchema = new mongoose.Schema(
     name: { type: String, required: true },
     description: { type: String, required: true },
     type: { type: String, enum: ["supply", "execution"], required: true },
-    category:{type: String},
-    order:{type: Number},
+    category_code: { type: String, required: true },
+    product_count: { type: Number, default: 0 },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+    },
+    order: { type: Number },
     fields: [
       {
         _id: false,
