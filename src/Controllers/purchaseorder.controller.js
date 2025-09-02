@@ -17,8 +17,6 @@ const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
 const inspectionModel = require("../Modells/inspection.model");
-const billModel = require("../Modells/bill.model");
-const userModells = require("../Modells/users/userModells");
 
 const addPo = async function (req, res) {
   try {
@@ -29,6 +27,7 @@ const addPo = async function (req, res) {
       vendor,
       submitted_By,
       pr_id,
+      pr_no,
       item,
       other = "",
       partial_billing,
@@ -99,7 +98,10 @@ const addPo = async function (req, res) {
       other,
       vendor,
       submitted_By,
-      pr_id: pr_id ? new mongoose.Types.ObjectId(pr_id) : undefined,
+      pr: {
+        pr_id: pr_id ? new mongoose.Types.ObjectId(pr_id) : undefined,
+        pr_no: pr_no,
+      },
       partial_billing,
       po_basic: poBasicStr,
       gst: gstStr,
@@ -1343,7 +1345,6 @@ const deletePO = async function (req, res) {
     });
   }
 };
-
 
 const updateEditandDeliveryDate = async (req, res) => {
   try {
