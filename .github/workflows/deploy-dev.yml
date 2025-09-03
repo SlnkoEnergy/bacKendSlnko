@@ -2,76 +2,53 @@ name: Deploy to Hostinger VPS (Development)
 
 on:
   push:
-    branches:
-      - development
+    branches: [development]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Set up SSH
+      - name: SSH agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.HOSTINGER_SSH_KEY }}
 
-      - name: Deploy via SSH
+      - name: Deploy
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }} << 'EOF'
-            set -euo pipefail
+            set -e
 
             cd ~/Protrac/bacKendSlnko
             git checkout development
             git pull origin development
 
-            # Ensure Docker network exists
-            docker network inspect protrac_net >/dev/null 2>&1 || docker network create protrac_net
+            # network
+            docker network create protrac_net || true
 
-            # Recreate Redis with host port published + persistence
-            if docker ps -a --format '{{.Names}}' | grep -q '^protrac-redis$'; then
-              docker rm -f protrac-redis
-            fi
-
-            docker run -d \
-              --name protrac-redis \
+            # redis (expose to host)
+            docker rm -f protrac-redis || true
+            docker run -d --name protrac-redis \
               --network protrac_net \
               -p 6379:6379 \
               -v protrac_redis:/data \
               --restart unless-stopped \
-              redis:7-alpine \
-              --appendonly yes
+              redis:7-alpine --appendonly yes
 
-            # Ensure .env.dev has REDIS_URL pointing to host's localhost
-            if grep -q '^REDIS_URL=' .env.dev; then
-              sed -i 's|^REDIS_URL=.*|REDIS_URL=redis://host.docker.internal:6379|' .env.dev
-            else
-              echo 'REDIS_URL=redis://host.docker.internal:6379' >> .env.dev
-            fi
+            # env (force REDIS_URL to host's localhost)
+            sed -i '/^REDIS_URL=/d' .env.dev || true
+            echo 'REDIS_URL=redis://host.docker.internal:6379' >> .env.dev
 
-            # Recreate API container
-            docker stop prod_api_development || true
+            # api
             docker rm -f prod_api_development || true
-
-            # Build image
-            DOCKER_BUILDKIT=1 docker build -t prod_api_development .
-
-            # Run API: add host gateway alias so container can reach host's localhost
-            docker run -d \
-              --name prod_api_development \
+            docker build -t prod_api_development .
+            docker run -d --name prod_api_development \
               --env-file .env.dev \
               --network protrac_net \
               --add-host=host.docker.internal:host-gateway \
               -p 5002:8080 \
               --restart unless-stopped \
               prod_api_development
-
-            # Quick smoke check: resolve alias and (optional) port check
-            docker exec -it prod_api_development getent hosts host.docker.internal || true
           EOF
-
-
-
-
