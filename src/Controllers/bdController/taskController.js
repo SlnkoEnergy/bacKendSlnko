@@ -1,8 +1,6 @@
 const BDtask = require("../../Modells/bdleads/task");
 const userModells = require("../../Modells/users/userModells");
-const transformAndSaveOldLead = require("../../utils/bdLeadTransform");
-const deadleadModells = require("../../Modells/deadleadModells");
-const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
+const bdleadsModells = require("../../Modells/bdleads/bdleads.model");
 const { default: mongoose } = require("mongoose");
 const { Parser } = require("json2csv");
 const {  getnovuNotification } = require("../../utils/nouvnotification.utils");
@@ -451,37 +449,6 @@ const getNotifications = async (req, res) => {
   }
 };
 
-const migrateAllLeads = async (req, res) => {
-  try {
-    const oldLeads = await deadleadModells.find();
-    let successCount = 0;
-    let failureCount = 0;
-
-    for (const oldLead of oldLeads) {
-      try {
-        await transformAndSaveOldLead(oldLead);
-        successCount++;
-        console.log(`✅ Migrated lead with ID: ${oldLead.id}`);
-      } catch (err) {
-        failureCount++;
-        console.error(
-          `❌ Error migrating lead with ID ${oldLead.id}:`,
-          err.message
-        );
-      }
-    }
-
-    res.status(200).json({
-      message: "Migration completed",
-      successCount,
-      failureCount,
-      total: oldLeads.length,
-    });
-  } catch (error) {
-    console.error("Migration failed:", error);
-    res.status(500).json({ message: "Migration failed", error: error.message });
-  }
-};
 
 const getexportToCsv = async (req, res) => {
   try {
@@ -576,6 +543,5 @@ module.exports = {
   toggleViewTask,
   getNotifications,
   getAllTaskByAssigned,
-  migrateAllLeads,
   getexportToCsv,
 };

@@ -7,7 +7,7 @@ const handoversheetModells = require("../Modells/handoversheet.model");
 const userModells = require("../Modells/users/userModells");
 const materialCategoryModells = require("../Modells/materialcategory.model");
 const scopeModel = require("../Modells/scope.model");
-const bdleadsModells = require("../Modells/bdleads/bdleadsModells");
+const bdleadsModells = require("../Modells/bdleads/bdleads.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 

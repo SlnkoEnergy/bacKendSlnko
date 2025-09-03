@@ -56,7 +56,6 @@ const {
   toggleViewTask,
   getNotifications,
   getAllTaskByAssigned,
-  migrateAllLeads,
   getexportToCsv,
 } = require("../../Controllers/bdController/taskController");
 const jwtMW = require("../../middlewares/auth");
@@ -274,8 +273,6 @@ router.get(
   getNotesByLeadId
 );
 router.post("/lead", jwtMW.authentication, jwtMW.authorization, createBDlead);
-
-router.put("/bdleadupdate", migrateAllLeads);
 router.put(
   "/updateAssignedto",
   jwtMW.authentication,

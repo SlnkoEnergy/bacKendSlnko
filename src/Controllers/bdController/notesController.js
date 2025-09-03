@@ -1,5 +1,5 @@
 const BDnotes = require("../../Modells/bdleads/notes");
-const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
+const bdleadsModells = require("../../Modells/bdleads/bdleads.model");
 
 const createNotes = async (req, res) => {
   try {

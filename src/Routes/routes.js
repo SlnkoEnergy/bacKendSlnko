@@ -61,7 +61,6 @@ const {
   getVendorDropwdown,
   getVendorNameSearch,
 } = require("../Controllers/vendor.controller.js");
-const { additem, getItem } = require("../Controllers/itemController");
 const {
   payRrequest,
   getPaySummary,
@@ -153,56 +152,6 @@ const {
 } = require("../Controllers/coomBDRateController");
 
 const {
-  createeBDlead,
-  getBDleaddata,
-  getallinitialbdlead,
-  editinitialbdlead,
-  getinitalbdleadstreams,
-} = require("../Controllers/bdcreateControllers");
-const {
-  initialtofollowup,
-  initaltowarmup,
-  initialtodead,
-  initialtowon,
-  getallwon,
-  getallfollowup,
-  getalldead,
-  followuptoall,
-  followuptowarm,
-  followuptodead,
-  followuptowon,
-  warmuptowon,
-  warmuptodead,
-  deadtoinitial,
-  deadtofollowup,
-  deadtowarm,
-  warmtofollowup,
-  iniitalbd,
-  updateinitialbd,
-  updatefollowup,
-  updatewarm,
-  getallwarm,
-  editfollowup,
-  editwarm,
-  deletedead,
-  allbdlead,
-  wontodead,
-  deadtowon,
-  updatewon,
-  updateWonLead,
-  getwonbyleadid,
-  editwon,
-  getAllWonLeadsProject,
-} = require("../Controllers/initialbdController");
-
-const {
-  addtask,
-  getaddtask,
-  editComment,
-  gettaskHistory,
-  updatetaskstatus,
-} = require("../Controllers/addtaskbdController");
-const {
   createhandoversheet,
   gethandoversheetdata,
   edithandoversheetdata,
@@ -245,16 +194,7 @@ const {
   getModifiedExpenseById,
 } = require("../Controllers/expenseSheetControllers/ModifiedexpenseSheetController");
 
-const {
-  createlead,
-  getbdlead,
-  get_all_lead,
-  get_lead_by_id,
-  all_bd_lead,
-  update_lead,
-  delete_lead,
-  updateLeadStatus,
-} = require("../Controllers/bdleadController");
+
 const upload = require("../middlewares/multer.js");
 
 // Admin router
@@ -503,10 +443,6 @@ router.get(
   getVendorDropwdown
 );
 router.get("/vendor-search", jwtMW.authentication, getVendorNameSearch);
-
-//item
-router.post("/add-iteM-IT", jwtMW.authentication, jwtMW.authorization, additem);
-router.get("/get-iteM-IT", jwtMW.authentication, jwtMW.authorization, getItem);
 
 //pay Request api
 router.get(
@@ -884,275 +820,6 @@ router.get(
   getCommBDRateByOfferId
 );
 
-//createBdLead
-// router.post("/create-bd-lead", createBDlead);
-// router.get("/get-all-bd-lead", getBDlead);
-// router.put("/edit-bd-lead/:_id", editBDlead);
-// router.delete("/delete-bd-lead/:_id", deleteBDlead);
-
-//createBdLead
-router.post(
-  "/create-bd-lead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  createeBDlead
-);
-router.get(
-  "/get-all-bd-lead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getBDleaddata
-);
-router.put(
-  "/edit-initial-bd-lead/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  editinitialbdlead
-);
-router.get(
-  "/get-all-lead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  allbdlead
-);
-
-router.get(
-  "/all-leads-won-projects",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getAllWonLeadsProject
-);
-
-router.get(
-  "/get-initial-bd-lead-streams",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getinitalbdleadstreams
-);
-
-//initialbd lead
-router.post(
-  "/initial-to-followup",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  initialtofollowup
-);
-router.post(
-  "/inital-to-warmup",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  initaltowarmup
-);
-router.post(
-  "/inital-to-dead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  initialtodead
-);
-router.post(
-  "/initial-to-won",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  initialtowon
-);
-router.get(
-  "/get-all-won-lead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getallwon
-);
-router.get(
-  "/get-all-followup-lead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getallfollowup
-);
-router.get(
-  "/get-all-dead-lead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getalldead
-);
-router.get(
-  "/get-all-warm",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getallwarm
-);
-router.get(
-  "/get-won",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getwonbyleadid
-);
-router.put(
-  "/edit-won/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  editwon
-);
-
-//followup to all
-router.post(
-  "/followup-to-all",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  followuptoall
-);
-router.post(
-  "/followup-to-warm",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  followuptowarm
-);
-router.post(
-  "/followup-to-dead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  followuptodead
-);
-router.post(
-  "/follow-up-to-won",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  followuptowon
-);
-router.post(
-  "/warmup-to-won",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  warmuptowon
-);
-router.post(
-  "/warmup-to-followup",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  warmtofollowup
-); //warm to followup
-router.post(
-  "/warmup-to-dead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  warmuptodead
-);
-router.get(
-  "/get-all-inital-bd-lead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getallinitialbdlead
-);
-
-//Dead to all
-router.post(
-  "/dead-to-initial",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  deadtoinitial
-);
-router.post(
-  "/dead-to-followup",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  deadtofollowup
-);
-router.post(
-  "/dead-to-warm",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  deadtowarm
-);
-router.delete(
-  "/delete-dead-lead/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  deletedead
-);
-
-//won to dead
-router.post(
-  "/won-to-dead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  wontodead
-);
-// dead to won
-
-router.post(
-  "/dead-to-won",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  deadtowon
-);
-
-//add task
-router.post("/add-task", jwtMW.authentication, jwtMW.authorization, addtask);
-router.get(
-  "/get-all-task",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getaddtask
-);
-router.put(
-  "/edit-comment/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  editComment
-);
-router.get(
-  "/get-task-history",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  gettaskHistory
-);
-router.put(
-  "/update-task-status",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updatetaskstatus
-);
-
-//post bd lead
-
-router.post(
-  "/create-initial-bd-lead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  iniitalbd
-);
-router.put(
-  "/update-inital",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updateinitialbd
-);
-router.put(
-  "/update-followup",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updatefollowup
-);
-router.put(
-  "/update-warm",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updatewarm
-);
-router.put("/update-won", jwtMW.authentication, jwtMW.authorization, updatewon);
-
-//edit all bd lead
-router.put(
-  "/edit-followup/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  editfollowup
-);
-router.put(
-  "/edit-warm/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  editwarm
-);
-
 //handdoversheet
 router.post(
   "/create-hand-over-sheet",
@@ -1312,42 +979,6 @@ router.get(
   jwtMW.authorization,
   getModifiedExpenseById
 );
-//bd lead new
-router.post(
-  "/create-lead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  createlead
-);
-router.get(
-  "/all-bd-lead",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  all_bd_lead
-);
-router.get(
-  "/get-lead-by-id/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  get_lead_by_id
-);
-router.put(
-  "/update-lead/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  update_lead
-);
-router.delete(
-  "/delete-lead/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  delete_lead
-);
-router.put(
-  "/update-lead/:_id/status",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updateLeadStatus
-);
+
 
 module.exports = router;

@@ -1,6 +1,6 @@
 const handoversheet = require("../../Modells/handoversheet.model");
 const task = require("../../Modells/bdleads/task");
-const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
+const bdleadsModells = require("../../Modells/bdleads/bdleads.model");
 const userModells = require("../../Modells/users/userModells");
 const { default: mongoose } = require("mongoose");
 

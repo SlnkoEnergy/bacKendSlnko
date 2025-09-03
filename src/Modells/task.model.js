@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const updateCurrentStatusTask = require("../utils/updateCurrentStatusTask");
+const { updateCurrentStatus } = require("../utils/updateCurrentStatus");
 
 const taskSchema = new mongoose.Schema(
   {
@@ -11,13 +11,13 @@ const taskSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    type:{
-      type:String,
-      enum:["internal", "helpdesk", "project"]
+    type: {
+      type: String,
+      enum: ["internal", "helpdesk", "project"],
     },
-    sub_type:{
-      type:String,
-      enum:["changes", "issue", "new feature"]
+    sub_type: {
+      type: String,
+      enum: ["changes", "issue", "new feature"],
     },
     description: {
       type: String,
@@ -26,10 +26,18 @@ const taskSchema = new mongoose.Schema(
     deadline: {
       type: Date,
     },
-    project_id: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "projectDetail",
-    }],
+    project_id: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "projectDetail",
+      },
+    ],
+    followers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     assigned_to: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -44,7 +52,7 @@ const taskSchema = new mongoose.Schema(
       {
         status: {
           type: String,
-          enum: ["completed", "pending", "in progress", "draft"],
+          enum: ["completed", "pending", "in progress", "draft", "cancelled"],
         },
         remarks: {
           type: String,
@@ -62,7 +70,7 @@ const taskSchema = new mongoose.Schema(
     current_status: {
       status: {
         type: String,
-        enum: ["completed", "pending", "in progress", "draft"],
+        enum: ["completed", "pending", "in progress", "draft", "cancelled"],
       },
       remarks: {
         type: String,
@@ -81,7 +89,7 @@ const taskSchema = new mongoose.Schema(
 );
 
 taskSchema.pre("save", function (next) {
-  updateCurrentStatusTask(this, "status_history", "current_status");
+  updateCurrentStatus(this, "status_history", "current_status");
   next();
 });
 module.exports = mongoose.model("Tasks", taskSchema);
