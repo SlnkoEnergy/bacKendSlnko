@@ -21,37 +21,57 @@ jobs:
       - name: Deploy via SSH
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }} << 'EOF'
-            cd ~/Protrac/bacKendSlnko && git checkout development
-            git pull origin development
+            set -euo pipefail
 
-            # Ensure REDIS_URL is in .env.dev
-            grep -q '^REDIS_URL=' .env.dev || echo 'REDIS_URL=redis://protrac-redis:6379' >> .env.dev
+            cd ~/Protrac/bacKendSlnko
+            git checkout development
+            git pull origin development
 
             # Ensure Docker network exists
             docker network inspect protrac_net >/dev/null 2>&1 || docker network create protrac_net
 
-            # Ensure Redis is running and connected to protrac_net
+            # Recreate Redis with host port published + persistence
             if docker ps -a --format '{{.Names}}' | grep -q '^protrac-redis$'; then
-              docker start protrac-redis || true
-              docker network connect protrac_net protrac-redis 2>/dev/null || true
-            else
-              docker run -d --name protrac-redis \
-                --network protrac_net \
-                --restart unless-stopped \
-                redis:7-alpine
+              docker rm -f protrac-redis
             fi
 
-            # Stop + remove old API container
+            docker run -d \
+              --name protrac-redis \
+              --network protrac_net \
+              -p 6379:6379 \
+              -v protrac_redis:/data \
+              --restart unless-stopped \
+              redis:7-alpine \
+              --appendonly yes
+
+            # Ensure .env.dev has REDIS_URL pointing to host's localhost
+            if grep -q '^REDIS_URL=' .env.dev; then
+              sed -i 's|^REDIS_URL=.*|REDIS_URL=redis://host.docker.internal:6379|' .env.dev
+            else
+              echo 'REDIS_URL=redis://host.docker.internal:6379' >> .env.dev
+            fi
+
+            # Recreate API container
             docker stop prod_api_development || true
-            docker rm prod_api_development || true
+            docker rm -f prod_api_development || true
 
-            # Build new image
-            docker build -t prod_api_development .
+            # Build image
+            DOCKER_BUILDKIT=1 docker build -t prod_api_development .
 
-            # Run new API container attached to protrac_net
-            docker run -d --name prod_api_development \
+            # Run API: add host gateway alias so container can reach host's localhost
+            docker run -d \
+              --name prod_api_development \
               --env-file .env.dev \
               --network protrac_net \
+              --add-host=host.docker.internal:host-gateway \
               -p 5002:8080 \
+              --restart unless-stopped \
               prod_api_development
+
+            # Quick smoke check: resolve alias and (optional) port check
+            docker exec -it prod_api_development getent hosts host.docker.internal || true
           EOF
+
+
+
+
