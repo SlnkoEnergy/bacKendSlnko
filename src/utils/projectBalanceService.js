@@ -1,12 +1,6 @@
-// services/projectBalance.service.js (or wherever this lives)
+
 const projectModells = require("../Modells/project.model");
 
-/**
- * Safe numeric conversion expression:
- * - If value is already a number => use it.
- * - Else trim string, remove commas, convert to double.
- * - Fallback to 0 on error/null/empty.
- */
 const num = (expr) => ({
   $let: {
     vars: { v: expr },
