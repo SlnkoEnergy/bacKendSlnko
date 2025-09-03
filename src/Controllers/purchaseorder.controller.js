@@ -25,7 +25,6 @@ const addPo = async function (req, res) {
       date,
       po_number,
       vendor,
-      submitted_By,
       pr_id,
       pr_no,
       item,
@@ -97,7 +96,7 @@ const addPo = async function (req, res) {
       item: itemsSanitized,
       other,
       vendor,
-      submitted_By,
+      submitted_By:userId,
       pr: {
         pr_id: pr_id ? new mongoose.Types.ObjectId(pr_id) : undefined,
         pr_no: pr_no,
@@ -1344,13 +1343,13 @@ const updateStatusPO = async (req, res) => {
 
     await purchaseOrder.save();
 
-    const pr = await purchaseRequest.findById(purchaseOrder.pr_id).lean();
+    const pr = await purchaseRequest.findById(purchaseOrder.pr.pr_id).lean();
     if (!pr)
       return res
         .status(404)
         .json({ message: "Related Purchase Request not found" });
 
-    const allPOs = await purchaseOrderModells.find({ pr_id: pr._id }).lean();
+    const allPOs = await purchaseOrderModells.find({ "pr.pr_id": pr._id }).lean();
 
     const updatedItems = await Promise.all(
       pr.items.map(async (item) => {
