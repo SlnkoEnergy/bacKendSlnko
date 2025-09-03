@@ -1512,12 +1512,12 @@ const updateStatusPO = async (req, res) => {
         const workflow = 'purchase-order';
         let senders = [];
 
-        if (status === "approval_pending" || "po_created") {
+        if (status === "approval_pending" || status === "po_created") {
           senders = await userModells.find({
             department: "CAM"
           }).select('_id').lean().then(users => users.map(u => u._id));
         }
-        if (status === "approval_done" || "approval_rejected") {
+        if (status === "approval_done" || status === "approval_rejected") {
           senders = await userModells.find({
             $or: [
               {department: "Projects",

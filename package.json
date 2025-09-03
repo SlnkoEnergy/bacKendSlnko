@@ -39,5 +39,9 @@
     "sharp": "^0.31.3",
     "uuid": "^11.1.0",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "find-unused-exports": "^7.1.1",
+    "knip": "^5.63.0"
   }
 }
