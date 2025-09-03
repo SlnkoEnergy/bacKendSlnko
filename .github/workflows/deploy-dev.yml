@@ -2,21 +2,23 @@ name: Deploy to Hostinger VPS (Development)
 
 on:
   push:
-    branches: [development]
+    branches:
+      - development
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: SSH agent
+      - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.HOSTINGER_SSH_KEY }}
 
-      - name: Deploy
+      - name: Deploy via SSH
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }} << 'EOF'
             set -e
@@ -25,10 +27,10 @@ jobs:
             git checkout development
             git pull origin development
 
-            # network
+            # ensure docker network
             docker network create protrac_net || true
 
-            # redis (host port exposed; internal name remains protrac-redis)
+            # recreate redis (exposed to host)
             docker rm -f protrac-redis || true
             docker run -d --name protrac-redis \
               --network protrac_net \
@@ -37,11 +39,12 @@ jobs:
               --restart unless-stopped \
               redis:7-alpine --appendonly yes
 
-            # env: force INTERNAL DNS (NOT host.docker.internal)
+            # enforce REDIS_URL in .env.dev
             sed -i '/^REDIS_URL=/d' .env.dev || true
             echo 'REDIS_URL=redis://protrac-redis:6379' >> .env.dev
 
-            # api
+            # rebuild + restart api
+            docker stop prod_api_development || true
             docker rm -f prod_api_development || true
             docker build -t prod_api_development .
             docker run -d --name prod_api_development \
@@ -51,6 +54,6 @@ jobs:
               --restart unless-stopped \
               prod_api_development
 
-            # sanity check
-            docker exec -it prod_api_development sh -lc 'printenv | grep ^REDIS_URL='
+            # check env inside container
+            docker exec prod_api_development printenv | grep REDIS_URL
           EOF
