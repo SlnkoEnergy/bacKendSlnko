@@ -473,7 +473,6 @@ router.put(
   updateEditandDeliveryDate
 );
 
-router.put('/paypo', syncAllToPO);
 router.put('/pr_id', migratePrField)
 
 //Add vendor
