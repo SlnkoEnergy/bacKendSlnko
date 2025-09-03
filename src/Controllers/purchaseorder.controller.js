@@ -1575,6 +1575,154 @@ const getPoBasic = async (req, res) => {
   }
 };
 
+
+const toObjId = (v) =>
+  v && mongoose.isValidObjectId(v) ? new mongoose.Types.ObjectId(v) : null;
+
+const migratePrField = async(req, res) =>{
+  try {
+    const dryRun = String(req.query.dryRun || "false").toLowerCase() === "true";
+
+    // 1) Find candidates:
+    //    A) legacy top-level pr_id exists
+    //    B) or nested pr.pr_id exists but pr.pr_no missing/empty
+    const candidates = await purchaseOrderModells.find(
+      {
+        $or: [
+          { pr_id: { $exists: true, $ne: null } },
+          { "pr.pr_id": { $exists: true, $ne: null }, "pr.pr_no": { $in: [null, ""] } },
+        ],
+      },
+      {
+        _id: 1,
+        po_number: 1,
+        pr_id: 1,       // legacy
+        pr: 1,          // nested
+      }
+    ).lean();
+
+    if (!candidates.length) {
+      return res.status(200).json({
+        message: "No purchase orders need PR repair.",
+        matched: 0,
+        updated: 0,
+        details: [],
+        dryRun,
+      });
+    }
+
+    // 2) Collect PR ids to fetch pr_no
+    const prIdsToFetch = new Set();
+    for (const po of candidates) {
+      const possibleIds = [];
+      if (po.pr_id) possibleIds.push(String(po.pr_id));
+      if (po.pr?.pr_id) possibleIds.push(String(po.pr.pr_id));
+      for (const s of possibleIds) {
+        if (mongoose.isValidObjectId(s)) prIdsToFetch.add(s);
+      }
+    }
+
+    const prLookup = new Map();
+    if (prIdsToFetch.size) {
+      const list = Array.from(prIdsToFetch).map((s) => new mongoose.Types.ObjectId(s));
+      const prs = await purchaseRequest.find(
+        { _id: { $in: list } },
+        { _id: 1, pr_no: 1 }
+      ).lean();
+
+      for (const d of prs) prLookup.set(String(d._id), d.pr_no || "");
+    }
+
+    // 3) Build bulk ops
+    const ops = [];
+    const details = [];
+
+    for (const po of candidates) {
+      const legacy = po.pr_id;
+      const nestedId = po.pr?.pr_id;
+
+      // choose source id: nested takes priority if present, else legacy
+      const rawId = nestedId ?? legacy;
+      const asStr = rawId != null ? String(rawId) : "";
+      const objId = toObjId(asStr);
+
+      // resolve pr_no if we have a valid objId
+      const pr_no = objId ? (prLookup.get(String(objId)) || "") : "";
+
+      const update = { $set: {}, $unset: {} };
+
+      // ensure nested pr exists with pr_id
+      if (objId) {
+        update.$set["pr.pr_id"] = objId;
+      } else if (asStr) {
+        // keep string if invalid ObjectId (rare), still store it
+        update.$set["pr.pr_id"] = asStr;
+      }
+
+      // set pr_no if known (or make sure it exists as empty string)
+      update.$set["pr.pr_no"] = pr_no;
+
+      // remove legacy top-level pr_id if present
+      if (legacy !== undefined) {
+        update.$unset.pr_id = "";
+      }
+
+      // clean empty operators
+      if (!Object.keys(update.$unset).length) delete update.$unset;
+
+      ops.push({
+        updateOne: { filter: { _id: po._id }, update },
+      });
+
+      details.push({
+        po_id: String(po._id),
+        po_number: po.po_number || "",
+        legacy_pr_id_present: legacy !== undefined,
+        used_pr_id_source: nestedId ? "nested" : legacy ? "legacy" : "none",
+        pr_id_valid_objectId: !!objId,
+        pr_no_filled: pr_no ? true : false,
+      });
+    }
+
+    if (!ops.length) {
+      return res.status(200).json({
+        message: "Nothing to update after building operations.",
+        matched: candidates.length,
+        updated: 0,
+        details,
+        dryRun,
+      });
+    }
+
+    if (dryRun) {
+      return res.status(200).json({
+        message: "Dry run complete — no changes written.",
+        matched: candidates.length,
+        updated: 0,
+        details,
+        dryRun,
+      });
+    }
+
+    const bulkRes = await purchaseOrderModells.bulkWrite(ops, { ordered: false });
+
+    return res.status(200).json({
+      message: "PR links repaired (moved legacy pr_id, filled pr_no, removed legacy key).",
+      matched: candidates.length,
+      updated: bulkRes.modifiedCount ?? bulkRes.nModified ?? 0,
+      details,
+      dryRun,
+    });
+  } catch (err) {
+    console.error("repairPrLinks error:", err);
+    return res.status(500).json({
+      message: "Failed to repair PR links on purchase orders.",
+      error: err.message,
+    });
+  }
+};
+
+
 //get All PO With
 module.exports = {
   addPo,
@@ -1595,4 +1743,5 @@ module.exports = {
   updateEditandDeliveryDate,
   updateStatusPO,
   getPoBasic,
+  migratePrField
 };

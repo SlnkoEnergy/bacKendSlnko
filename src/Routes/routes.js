@@ -52,6 +52,8 @@ const {
   updateEditandDeliveryDate,
   updateStatusPO,
   getPoBasic,
+  syncAllToPO,
+  migratePrField
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -470,6 +472,8 @@ router.put(
   jwtMW.authorization,
   updateEditandDeliveryDate
 );
+
+router.put('/pr_id', migratePrField)
 
 //Add vendor
 router.post(
