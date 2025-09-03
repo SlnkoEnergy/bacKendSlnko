@@ -57,40 +57,14 @@ const jwtMW = require("../middlewares/auth");
 const upload = require("../middlewares/multer");
 
 //Engineering Modules Templates
-router.post(
-  "/create-module",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  createModule
-);
-router.get(
-  "/get-module-by-id/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getModuleById
-);
-router.get(
-  "/get-module",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getAllModule
-);
-router.put(
-  "/update-module/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updateModule
-);
-router.delete(
-  "/delete-module/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  deleteModule
-);
+router.post("/create-module", jwtMW.authentication, createModule);
+router.get("/get-module-by-id/:_id", jwtMW.authentication, getModuleById);
+router.get("/get-module", jwtMW.authentication, getAllModule);
+router.put("/update-module/:_id", jwtMW.authentication, updateModule);
+router.delete("/delete-module/:_id", jwtMW.authentication, deleteModule);
 router.put(
   "/update-template-category/:_id",
   jwtMW.authentication,
-  jwtMW.authorization,
   updateModuleTemplateCategoryId
 );
 
@@ -98,147 +72,88 @@ router.put(
 router.post(
   "/create-module-category",
   jwtMW.authentication,
-  jwtMW.authorization,
   upload,
   createModuleCategory
 );
-router.get(
-  "/get-module-category",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getModuleCategory
-);
+router.get("/get-module-category", jwtMW.authentication, getModuleCategory);
 router.get(
   "/get-module-category-id",
   jwtMW.authentication,
-  jwtMW.authorization,
   getModuleCategoryById
 );
 router.put(
   "/update-module-category",
   jwtMW.authentication,
-  jwtMW.authorization,
   upload,
   updateModuleCategory
 );
 router.put(
   "/:projectId/moduletemplate/:module_template/statusModule",
   jwtMW.authentication,
-  jwtMW.authorization,
   updateModuleCategoryStatus
 );
 router.put(
   "/:categoryId/item/:itemId/statusAttachment",
   jwtMW.authentication,
-  jwtMW.authorization,
   updateAttachmentUrl
 );
 router.put(
   "/:projectId/moduletemplate/:module_template/remarkStatus",
   jwtMW.authentication,
-  jwtMW.authorization,
   addRemarkToModuleCategory
 );
-router.put(
-  "/moduleCatgoryDB",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updateModuleCategoryDB
-);
+router.put("/moduleCatgoryDB", jwtMW.authentication, updateModuleCategoryDB);
 router.get(
   "/:projectId/moduletemplate/:module_template/statusHistory",
   jwtMW.authentication,
-  jwtMW.authorization,
   getStatusHistoryForModuleCategory
 );
 
 // Boq Categories
-router.post(
-  "/create-boq-category",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  createBoqCategory
-);
+router.post("/create-boq-category", jwtMW.authentication, createBoqCategory);
 router.get(
   "/get-boq-category-by-id/:_id",
   jwtMW.authentication,
-  jwtMW.authorization,
   getBoqCategoryById
 );
-router.get(
-  "/get-boq-category",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getBoqCategory
-);
+router.get("/get-boq-category", jwtMW.authentication, getBoqCategory);
 router.put(
   "/update-boq-category/:_id",
   jwtMW.authentication,
-  jwtMW.authorization,
   updateBoqCategory
 );
 
 // Boq Templates
-router.post(
-  "/create-boq-template",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  createBoqTemplate
-);
+router.post("/create-boq-template", jwtMW.authentication, createBoqTemplate);
 router.get(
   "/get-boq-template-by-id",
   jwtMW.authentication,
-  jwtMW.authorization,
   getBoqTemplateByTemplateId
 );
-router.get(
-  "/get-boq-template",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getBoqTemplate
-);
+router.get("/get-boq-template", jwtMW.authentication, getBoqTemplate);
 router.put(
   "/update-boq-template/:_id",
   jwtMW.authentication,
-  jwtMW.authorization,
   updateBoqTemplate
 );
 
 // Boq Projects
-router.post(
-  "/create-boq-project",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  createBoqProject
-);
-router.get(
-  "/get-all-boq-projects",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getAllBoqProject
-);
-router.get(
-  "/get-boq-project-by-id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getBoqProjectById
-);
+router.post("/create-boq-project", jwtMW.authentication, createBoqProject);
+router.get("/get-all-boq-projects", jwtMW.authentication, getAllBoqProject);
+router.get("/get-boq-project-by-id", jwtMW.authentication, getBoqProjectById);
 router.get(
   "/get-boq-project-by-project",
   jwtMW.authentication,
-  jwtMW.authorization,
   getBoqProjectByProject
 );
 router.put(
   "/:projectId/moduletemplate/:moduleTemplateId/updateBoqProject",
   jwtMW.authentication,
-  jwtMW.authorization,
   updateBoqProject
 );
 router.delete(
   "/:boqId/item/:itemId/deleteBoq",
   jwtMW.authentication,
-  jwtMW.authorization,
   deleteBoqProject
 );
 
@@ -246,69 +161,42 @@ router.delete(
 router.post(
   "/create-material-category",
   jwtMW.authentication,
-  jwtMW.authorization,
   addMaterialCategory
 );
 router.get(
   "/all-material-category",
   jwtMW.authentication,
-  jwtMW.authorization,
   getAllMaterialCategories
 );
 router.get(
   "/material-category-drop",
   jwtMW.authentication,
-  jwtMW.authorization,
   getAllMaterialCategoriesDropdown
 );
 router.get(
   "/material-category-id",
   jwtMW.authentication,
-  jwtMW.authorization,
   getMaterialCategoryById
 );
 router.put(
   "/material-category/:_id",
   jwtMW.authentication,
-  jwtMW.authorization,
   updateMaterialCategory
 );
 router.delete(
   "/delete-material-category/:_id",
   jwtMW.authentication,
-  jwtMW.authorization,
   deleteMaterialCategory
 );
 
 // Materials
-router.post(
-  "/create-material",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  createMaterial
-);
-router.get(
-  "/all-materials",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getAllMaterials
-);
-router.put(
-  "/update-material/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  updateMaterial
-);
-router.delete(
-  "/delete-material/:_id",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  deleteMaterial
-);
+router.post("/create-material", jwtMW.authentication, createMaterial);
+router.get("/all-materials", jwtMW.authentication, getAllMaterials);
+router.put("/update-material/:_id", jwtMW.authentication, updateMaterial);
+router.delete("/delete-material/:_id", jwtMW.authentication, deleteMaterial);
 router.get(
   "/get-boq-catergories",
   jwtMW.authentication,
-  jwtMW.authorization,
   getBoqCategoryByIdAndKey
 );
 
