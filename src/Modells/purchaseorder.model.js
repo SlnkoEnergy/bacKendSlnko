@@ -86,9 +86,14 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
     },
     gst: { type: String },
-    pr_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "purchaseRequest",
+    pr: {
+      pr_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "purchaseRequest",
+      },
+      pr_no: {
+        type: String,
+      },
     },
     etd: {
       type: Date,

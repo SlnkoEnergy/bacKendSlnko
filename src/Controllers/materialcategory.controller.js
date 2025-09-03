@@ -14,6 +14,7 @@ const addMaterialCategory = async (req, res) => {
       });
     }
 
+    // Generate sequential category code
     const counter = await Counter.findOneAndUpdate(
       { name: "material_category_code" },
       { $inc: { seq: 1 } },
@@ -25,10 +26,10 @@ const addMaterialCategory = async (req, res) => {
     const newMaterialCategory = new materialCategory({
       name,
       description,
-      type,
+      type,                 
       category_code: categoryCode,
       fields,
-      status,
+      status,              
       order,
       createdBy: userId,
       updatedBy: userId,
@@ -36,17 +37,37 @@ const addMaterialCategory = async (req, res) => {
 
     await newMaterialCategory.save();
 
-    res.status(201).json({
+    let scopesUpdated = 0;
+
+    if (String(newMaterialCategory.status).toLowerCase() === "active") {
+      const newScopeItem = {
+        item_id: new mongoose.Types.ObjectId(newMaterialCategory._id),
+        name: newMaterialCategory.name,
+        type: newMaterialCategory.type,                                                          
+        pr_status: false,
+      };
+
+      const result = await scopeModel.updateMany(
+        { "items.item_id": { $ne: newMaterialCategory._id } },
+        { $push: { items: newScopeItem } }
+      );
+
+      scopesUpdated = result?.modifiedCount || 0;
+    }
+
+    return res.status(201).json({
       message: "Material Category added successfully",
       data: newMaterialCategory,
+      scopesUpdated,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Error adding Material Category",
       error: error.message,
     });
   }
 };
+
 
 const getAllMaterialCategories = async (req, res) => {
   try {
@@ -122,7 +143,7 @@ const getAllMaterialCategories = async (req, res) => {
   }
 };
 
-// Only ACTIVE categories — name search + optional project scope
+
 const namesearchOfMaterialCategories = async (req, res) => {
   try {
     const {
@@ -312,7 +333,6 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
 };
 
 
-// Get Material Categories By Id
 const getMaterialCategoryById = async (req, res) => {
   try {
     const { id } = req.query;
@@ -338,17 +358,15 @@ const getMaterialCategoryById = async (req, res) => {
   }
 };
 
-// Update material category
+
 const updateMaterialCategory = async (req, res) => {
   try {
     const { name, description, fields, type, status } = req.body;
-    const id = req.params._id;
+    const id = req.params._id || req.params.id; 
     const userId = req.user?.userId;
 
     if (!id) {
-      return res
-        .status(400)
-        .json({ message: "Material Category ID is required" });
+      return res.status(400).json({ message: "Material Category ID is required" });
     }
 
     const updatedMaterialCategory = await materialCategory.findByIdAndUpdate(
@@ -361,18 +379,38 @@ const updateMaterialCategory = async (req, res) => {
       return res.status(404).json({ message: "Material Category not found" });
     }
 
-    res.status(200).json({
+    let scopesUpdated = 0;
+
+    if (String(updatedMaterialCategory.status).toLowerCase() === "active") {
+      const newScopeItem = {
+        item_id: new mongoose.Types.ObjectId(updatedMaterialCategory._id),
+        name: updatedMaterialCategory.name,
+        type: updatedMaterialCategory.type,             
+        pr_status: false,
+      };
+
+      const result = await scopeModel.updateMany(
+        { "items.item_id": { $ne: updatedMaterialCategory._id } },
+        { $push: { items: newScopeItem } }
+      );
+
+      scopesUpdated = result?.modifiedCount || 0;
+    }
+
+    return res.status(200).json({
       message: "Material Category updated successfully",
       data: updatedMaterialCategory,
+      scopesUpdated, 
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Error updating Material Category",
       error: error.message,
     });
   }
 };
-// Delete material category
+
+
 const deleteMaterialCategory = async (req, res) => {
   try {
     const id = req.params._id;
