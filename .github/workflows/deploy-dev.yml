@@ -2,13 +2,11 @@ name: Deploy to Hostinger VPS (Development)
 
 on:
   push:
-    branches:
-      - development
+    branches: [development]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -21,37 +19,31 @@ jobs:
       - name: Deploy via SSH
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }} << 'EOF'
-            cd ~/Protrac/bacKendSlnko && git checkout development
+            set -e
+            cd ~/Protrac/bacKendSlnko
+            git checkout development
             git pull origin development
 
-            # Ensure REDIS_URL is in .env.dev
-            grep -q '^REDIS_URL=' .env.dev || echo 'REDIS_URL=redis://default:u729qFDbeuurMrzeqSnl6qCepGgHn07vBwh6dbeeioojQxbTUC8vSONRMxlFgZo1@40.81.225.35:5555/0' >> .env.dev
+            # Build .env.dev fresh from secrets (no plaintext creds)
+            rm -f .env.dev
+            echo "NODE_ENV=development" >> .env.dev
+            echo "PORT=8080" >> .env.dev
+            echo "REDIS_URL=${{ secrets.REDIS_URL }}" >> .env.dev
 
-            # Ensure Docker network exists
-            docker network inspect protrac_net >/dev/null 2>&1 || docker network create protrac_net
+            # (Optional) keep the app on a named network
+            docker network create protrac_net || true
 
-            # Ensure Redis is running and connected to protrac_net
-            if docker ps -a --format '{{.Names}}' | grep -q '^protrac-redis$'; then
-              docker start protrac-redis || true
-              docker network connect protrac_net protrac-redis 2>/dev/null || true
-            else
-              docker run -d --name protrac-redis \
-                --network protrac_net \
-                --restart unless-stopped \
-                redis:7-alpine
-            fi
-
-            # Stop + remove old API container
+            # Rebuild + run API (no local Redis here)
             docker stop prod_api_development || true
-            docker rm prod_api_development || true
-
-            # Build new image
+            docker rm -f prod_api_development || true
             docker build -t prod_api_development .
-
-            # Run new API container attached to protrac_net
             docker run -d --name prod_api_development \
               --env-file .env.dev \
               --network protrac_net \
               -p 5002:8080 \
+              --restart unless-stopped \
               prod_api_development
+
+            # Sanity
+            docker exec prod_api_development printenv | grep ^REDIS_URL=
           EOF
