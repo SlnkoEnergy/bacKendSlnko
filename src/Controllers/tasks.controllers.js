@@ -63,12 +63,16 @@ const getAllTasks = async (req, res) => {
       search = "",
       status = "",
       createdAt = "",
-      deadline ="",
+      deadline = "",
       department = "",
+      assignedToName = "",
+      createdByName = "",
     } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
     const searchRegex = new RegExp(search, "i");
+    const assignedToNameRegex = assignedToName ? new RegExp(assignedToName, "i") : null;
+    const createdByNameRegex = createdByName ? new RegExp(createdByName, "i") : null;
 
     const preLookupMatch = [];
 
@@ -77,16 +81,14 @@ const getAllTasks = async (req, res) => {
       userRole === "admin" ||
       userRole === "superadmin"
     ) {
-      // No filter, show everything
+      // see everything
     } else if (userRole === "manager") {
-      const department = currentUser.department;
-      if (!department) {
-        return res
-          .status(400)
-          .json({ message: "Manager department not found." });
+      const dept = currentUser.department;
+      if (!dept) {
+        return res.status(400).json({ message: "Manager department not found." });
       }
 
-      const departmentUsers = await User.find({ department }, "_id");
+      const departmentUsers = await User.find({ department: dept }, "_id");
       const deptUserIds = departmentUsers.map((u) => u._id);
 
       preLookupMatch.push({
@@ -120,7 +122,7 @@ const getAllTasks = async (req, res) => {
       basePipeline.push({ $match: { $and: preLookupMatch } });
     }
 
-    // Common lookups
+    // Lookups
     basePipeline.push(
       {
         $lookup: {
@@ -161,14 +163,11 @@ const getAllTasks = async (req, res) => {
     if (req.query.hide_completed === "true") hideStatuses.push("completed");
     if (req.query.hide_pending === "true") hideStatuses.push("pending");
     if (req.query.hide_inprogress === "true") hideStatuses.push("in progress");
-
     if (hideStatuses.length > 0) {
-      postLookupMatch.push({
-        "current_status.status": { $nin: hideStatuses },
-      });
+      postLookupMatch.push({ "current_status.status": { $nin: hideStatuses } });
     }
 
-    // Search
+    // Text search
     if (search) {
       postLookupMatch.push({
         $or: [
@@ -188,7 +187,7 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ "current_status.status": status });
     }
 
-    // CreatedAt filter
+    // CreatedAt (single-day window)
     if (createdAt) {
       const start = new Date(createdAt);
       const end = new Date(createdAt);
@@ -196,20 +195,35 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ createdAt: { $gte: start, $lt: end } });
     }
 
-    // deadline filter
-    if(deadline) {
+    // Deadline (single-day window)
+    if (deadline) {
       const start = new Date(deadline);
       const end = new Date(deadline);
       end.setDate(end.getDate() + 1);
-      postLookupMatch.push({ deadline : {$gte: start, $lt: end }})
+      postLookupMatch.push({ deadline: { $gte: start, $lt: end } });
     }
 
-    // Department filter
+    // Department (on any assignee's department)
     if (department) {
       postLookupMatch.push({ "assigned_to.department": department });
     }
 
-    // Apply post-lookup filters
+    // NEW: Filter by assignee name (any team member in assigned_to)
+    if (assignedToNameRegex) {
+      postLookupMatch.push({
+        assigned_to: {
+          $elemMatch: { name: assignedToNameRegex },
+        },
+      });
+    }
+
+    // NEW: Filter by creator name
+    if (createdByNameRegex) {
+      postLookupMatch.push({
+        "createdBy_info.name": createdByNameRegex,
+      });
+    }
+
     if (postLookupMatch.length > 0) {
       basePipeline.push({ $match: { $and: postLookupMatch } });
     }
@@ -227,7 +241,7 @@ const getAllTasks = async (req, res) => {
           createdAt: 1,
           deadline: 1,
           priority: 1,
-          status_history:1,
+          status_history: 1,
           current_status: 1,
           project_details: {
             $map: {
@@ -285,6 +299,7 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
 
 
 // Get a task by ID
