@@ -28,7 +28,7 @@ jobs:
             # network
             docker network create protrac_net || true
 
-            # redis (expose to host)
+            # redis (host port exposed; internal name remains protrac-redis)
             docker rm -f protrac-redis || true
             docker run -d --name protrac-redis \
               --network protrac_net \
@@ -37,9 +37,9 @@ jobs:
               --restart unless-stopped \
               redis:7-alpine --appendonly yes
 
-            # env (force REDIS_URL to host's localhost)
+            # env: force INTERNAL DNS (NOT host.docker.internal)
             sed -i '/^REDIS_URL=/d' .env.dev || true
-            echo 'REDIS_URL=redis://host.docker.internal:6379' >> .env.dev
+            echo 'REDIS_URL=redis://protrac-redis:6379' >> .env.dev
 
             # api
             docker rm -f prod_api_development || true
@@ -47,8 +47,10 @@ jobs:
             docker run -d --name prod_api_development \
               --env-file .env.dev \
               --network protrac_net \
-              --add-host=host.docker.internal:host-gateway \
               -p 5002:8080 \
               --restart unless-stopped \
               prod_api_development
+
+            # sanity check
+            docker exec -it prod_api_development sh -lc 'printenv | grep ^REDIS_URL='
           EOF
