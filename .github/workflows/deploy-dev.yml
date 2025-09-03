@@ -2,11 +2,13 @@ name: Deploy to Hostinger VPS (Development)
 
 on:
   push:
-    branches: [development]
+    branches:
+      - development
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -19,24 +21,22 @@ jobs:
       - name: Deploy via SSH
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }} << 'EOF'
-            set -e
+            set -Eeuo pipefail
+
             cd ~/Protrac/bacKendSlnko
+            git fetch origin development
             git checkout development
             git pull origin development
 
-            # Build .env.dev fresh from secrets (no plaintext creds)
-            rm -f .env.dev
-            echo "NODE_ENV=development" >> .env.dev
-            echo "PORT=8080" >> .env.dev
-            echo "REDIS_URL=${{ secrets.REDIS_URL }}" >> .env.dev
+            # Ensure Docker network exists for inter-container DNS
+            docker network create protrac_net 2>/dev/null || true
 
-            # (Optional) keep the app on a named network
-            docker network create protrac_net || true
-
-            # Rebuild + run API (no local Redis here)
+            # Recreate development API (reads .env.dev)
             docker stop prod_api_development || true
-            docker rm -f prod_api_development || true
+            docker rm   prod_api_development || true
+
             docker build -t prod_api_development .
+
             docker run -d --name prod_api_development \
               --env-file .env.dev \
               --network protrac_net \
@@ -44,6 +44,6 @@ jobs:
               --restart unless-stopped \
               prod_api_development
 
-            # Sanity
-            docker exec prod_api_development printenv | grep ^REDIS_URL=
+            # Debug: confirm REDIS_URL inside the container points at dragonfly
+            docker exec prod_api_development printenv REDIS_URL || true
           EOF
