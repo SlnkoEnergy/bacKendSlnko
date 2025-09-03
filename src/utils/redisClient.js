@@ -17,7 +17,7 @@ async function getRedis() {
     client = createClient({
       url,
       socket: {
-        connectTimeout: 5000, // fail faster if unreachable
+        connectTimeout: 5000,
         reconnectStrategy: (retries) => {
           const delay = Math.min(retries * 200, 10_000);
           console.log(`[redis] reconnect attempt #${retries}, waiting ${delay}ms`);
@@ -25,21 +25,19 @@ async function getRedis() {
         },
       },
     });
-
-    // attach events **before** connecting
     client.on("ready", () => {
       ready = true;
-      console.log("[redis] ✅ connected →", url);
+      console.log("[redis] connected →", url);
     });
 
     client.on("end", () => {
       ready = false;
-      console.warn("[redis] ⚠️ disconnected");
+      console.warn("[redis]  disconnected");
     });
 
     client.on("error", (e) => {
       ready = false;
-      console.error("[redis] ❌ error:", e?.message || e);
+      console.error("[redis]  error:", e?.message || e);
     });
 
     if (!client.isOpen) {
@@ -50,8 +48,8 @@ async function getRedis() {
       console.log("[redis] Client was already open");
     }
   } catch (err) {
-    console.error("[redis] ❌ Failed to connect:", err.message || err);
-    throw err; // bubble up to caller
+    console.error("[redis]  Failed to connect:", err.message || err);
+    throw err;
   }
 
   return client;
