@@ -27,10 +27,10 @@ jobs:
             git checkout development
             git pull origin development
 
-            # ensure docker network
+            # ensure docker network exists
             docker network create protrac_net || true
 
-            # recreate redis (exposed to host)
+            # recreate redis
             docker rm -f protrac-redis || true
             docker run -d --name protrac-redis \
               --network protrac_net \
@@ -39,12 +39,11 @@ jobs:
               --restart unless-stopped \
               redis:7-alpine --appendonly yes
 
-            # enforce REDIS_URL in .env.dev
+            # enforce correct REDIS_URL in .env.dev
             sed -i '/^REDIS_URL=/d' .env.dev || true
             echo 'REDIS_URL=redis://protrac-redis:6379' >> .env.dev
 
-            # rebuild + restart api
-            docker stop prod_api_development || true
+            # rebuild + recreate api
             docker rm -f prod_api_development || true
             docker build -t prod_api_development .
             docker run -d --name prod_api_development \
@@ -54,6 +53,7 @@ jobs:
               --restart unless-stopped \
               prod_api_development
 
-            # check env inside container
+            # sanity check
             docker exec prod_api_development printenv | grep REDIS_URL
+            docker exec prod_api_development getent hosts protrac-redis
           EOF
