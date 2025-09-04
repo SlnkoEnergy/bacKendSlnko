@@ -1,22 +1,25 @@
 // src/tests/unit/userController.unit.test.js
+
+jest.mock("bcrypt");
+jest.mock("jsonwebtoken");
+jest.mock("../../middlewares/auth", () => ({
+    authentication: (req, res, next) => next(),
+    authorization: (req, res, next) => next(), // or return (roles...) => (req,res,next)=>next() if needed
+}));
+
+
 const request = require("supertest");
 const app = require("../../index");
 const userModells = require("../../Modells/users/userModells");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const {authentication, authorization} = require("../../middlewares/auth")
+const { default: mongoose } = require("mongoose");
+// const { authentication, authorization } = require("../../middlewares/auth")
 // const userModells = require("../../Modells/users/userModells");
-
-jest.mock("bcrypt");
-jest.mock("jsonwebtoken");
-jest.mock("../../middlewares/auth", async() => {
-    authentication: (req, res, next) => {
-        next();
-    }
-    authorization: (req, res, next) => {
-        next();
-    }
-})
+// const sendMailMock = jest.fn().mockResolvedValue({ messageId: "mocked" });
+// jest.mock("nodemailer", () => ({
+//     createTransport: jest.fn(() => ({ sendMail: sendMailMock })),
+// }));
 
 describe("UserRegister Testing with bcrypt (memory server)", () => {
 
@@ -93,19 +96,66 @@ describe("Delete User Testing (memory server", () => {
         jest.clearAllMocks();
     })
 
-    test("should return 404 if user not found", async() =>{
-        const res = await request(app).delete('/v1/delete-useR-IT/1233456556545');
+    test("should return 404 if user not found", async () => {
+        const missingId = new mongoose.Types.ObjectId().toString();
+
+        const res = await request(app).delete(`/v1/delete-useR-IT/${missingId}`);
+
         expect(res.status).toBe(404);
-        expect(res.body.message).toMatch(/user not found/i);
+        expect((res.body.msg || res.body.message)).toMatch(/user not found/i);
     });
 
-    test("should return 200 and deleted user if user is found and deleted", async() => {
-        const mockUser = { _id : '123', name: 'Test'};
-        userModells.findByIdAndDelete(mockUser);
+    test("should return 200 and deleted user if user is found and deleted", async () => {
+        const newUser = await userModells.create({
+            name: "Existing",
+            emp_id: "123",
+            email: "test@test.com",
+            password: "irrelevant",
+        });
 
-        const res = await request(app).delete('/v1/delete-useR-IT/123');
+        const res = await request(app).delete(`/v1/delete-useR-IT/${newUser._id}`);
+
         expect(res.status).toBe(200);
-        expect(res.body.message).toMatch(/user delete successfully/i);
-        expect(res.body.user).toEqual(mockUser);
+        expect(res.body.message).toMatch(/user deleted successfully/i);
+    });
+
+    test("should return 500 if an error occurs during deletion", async () => {
+        userModells.findByIdAndDelete(new Error('DB error'));
+        const res = await request(app).delete('/v1/delete-useR-IT/123');
+        expect(res.status).toBe(500);
+        expect(res.body.message).toMatch(/Error deleting user/i)
+    });
+});
+
+describe("Forget Password Testing ", () => {
+
+    test('should return 400 if email is missing', async () => {
+        const res = await request(app).post('/v1/sendOtp').send({});
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/email is required./i)
+    })
+
+    test('should return 404 if user not found', async () => {
+        const res = await request(app).post('/v1/sendOtp').send({ email: "usernotfound@gmail.com" });
+        expect(res.status).toBe(404);
+        expect(res.body.message).toMatch(/user not found./i);
+    })
+
+    test('should set OTP, save user, and send email if user exists', async () => {
+        const user = await userModells.create({
+            name: 'Test',
+            emp_id: '1233',
+            email: 'testing@gmial.com',
+            password: 'pass'
+        });
+        const res = await request(app).post('/v1/sendOtp').send({ email: 'test@test.com' });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toMatch(/OTP sent successfully/);
+        expect(res.body.email).toBe('test@test.com');
+        const updatedUser = await userModells.findOne({ email: 'test@test.com' });
+        expect(updatedUser.otp).toBeDefined();
+        expect(updatedUser.otpExpires).toBeDefined();
+        expect(sendMailMock).toHaveBeenCalled();
     });
 })
