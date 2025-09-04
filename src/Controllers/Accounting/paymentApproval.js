@@ -32,18 +32,18 @@ const paymentApproval = async function (req, res) {
     if (currentUser.department === "SCM" && currentUser.role === "manager") {
       accessFilter = {
         $or: [
-          { approved: "Pending", "approval_status.stage": { $nin: ["CAM", "Account"] } },
+          // { approved: "Pending", "approval_status.stage": { $nin: ["CAM", "Account"] } },
           { "approval_status.stage": "Draft" },
           { "approval_status.stage": "Credit Pending" },
         ],
       };
     } else if (
-      (currentUser.department === "Projects" || currentUser.department === "Infra") &&
+      currentUser.department === "Projects" &&
       currentUser.role === "visitor"
     ) {
       accessFilter = {
         $or: [
-          { approved: "Pending", "approval_status.stage": { $nin: ["Account"] } },
+          // { approved: "Pending", "approval_status.stage": { $nin: ["Account"] } },
           { "approval_status.stage": "CAM" },
         ],
       };
@@ -666,3 +666,4 @@ module.exports = {
   paymentApproval,
   getPoApprovalPdf,
 };
+
