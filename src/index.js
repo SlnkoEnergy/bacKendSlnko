@@ -56,7 +56,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_DEVELOPMENT_URL || process.env.MONGO_URI;
 
 const startServer = async () => {
   try {
@@ -95,4 +95,9 @@ const startServer = async () => {
   }
 };
 
-startServer();
+if (process.env.NODE_ENV !== "test" && require.main === module) {
+  startServer();
+}
+
+module.exports = app;
+

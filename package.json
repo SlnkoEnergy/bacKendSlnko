@@ -4,9 +4,17 @@
   "description": "slnko backend",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src index.js",
-    "dev": "nodemon src index.js"
+    "dev": "nodemon src index.js",
+    "test": "cross-env NODE_ENV=test jest --runInBand",
+    "test:watch": "npm test -- --watch",
+    "coverage": "npm test -- --coverage"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": [
+      "<rootDir>/src/tests/jest.setup.js"
+    ]
   },
   "author": "",
   "license": "ISC",
@@ -42,7 +50,11 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "cross-env": "^10.0.0",
     "find-unused-exports": "^7.1.1",
-    "knip": "^5.63.0"
+    "jest": "^30.1.3",
+    "knip": "^5.63.0",
+    "mongodb-memory-server": "^10.2.0",
+    "supertest": "^7.1.4"
   }
 }
