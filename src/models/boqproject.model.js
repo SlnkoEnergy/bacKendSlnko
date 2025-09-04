@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const updateAttachmentUrlStatus = require("../middlewares/engineeringMiddlewares/updateAttachementUrlStatus");
+const updateAttachmentUrlStatus = require("../middlewares/updateattachementurlstatus.middleware");
 
 const boqProjectSchema = new mongoose.Schema({
   project_id: {

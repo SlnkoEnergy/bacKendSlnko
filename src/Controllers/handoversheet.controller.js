@@ -4,10 +4,10 @@ const hanoversheetmodells = require("../models/handoversheet.model");
 const projectmodells = require("../models/project.model");
 const { Parser } = require("json2csv");
 const handoversheetModells = require("../models/handoversheet.model");
-const userModells = require("../models/users/userModells");
+const userModells = require("../models/user.model");
 const materialCategoryModells = require("../models/materialcategory.model");
 const scopeModel = require("../models/scope.model");
-const bdleadsModells = require("../models/bdleads/bdleads.model");
+const bdleadsModells = require("../models/bdleads.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 

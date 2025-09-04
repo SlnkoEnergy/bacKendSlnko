@@ -6,7 +6,7 @@ const moduleTemplates = require("../models/moduletemplate.model");
 const mongoose = require("mongoose");
 const handoversheetModells = require("../models/handoversheet.model");
 const projectModells = require("../models/project.model");
-const userModells = require("../models/users/userModells");
+const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const createModuleCategory = async (req, res) => {

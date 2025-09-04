@@ -1,5 +1,5 @@
 const { default: mongoose } = require("mongoose");
-const updateStatusGroup = require("../../utils/updateStatusGroup");
+const updateStatusGroup = require("../utils/updateStatusGroup");
 
 const groupSchema = new mongoose.Schema(
   {

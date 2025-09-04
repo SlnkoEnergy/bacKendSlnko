@@ -4,7 +4,7 @@ const {
 const BillHistory = require("../models/billHistory.model");
 const mongoose = require("mongoose");
 const ErrorHandler = require("../middlewares/error.middleware");
-const usermodel = require("../models/users/userModells");
+const usermodel = require("../models/user.model");
 
 
 const createBillHistory = catchAsyncError(async (req, res) => {

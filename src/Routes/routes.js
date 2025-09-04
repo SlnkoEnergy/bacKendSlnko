@@ -192,7 +192,7 @@ const {
   createModifiedExpense,
   getAllModifiedExpense,
   getModifiedExpenseById,
-} = require("../controllers/expenseSheetControllers/ModifiedexpenseSheetController.js");
+} = require("../controllers/modifiedexpensesheet.controller.js");
 
 const upload = require("../middlewares/multer.js");
 

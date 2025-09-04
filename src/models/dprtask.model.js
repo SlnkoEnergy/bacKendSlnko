@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const updateCurrentStatus = require("../../utils/statusUpdateUtils/updateCurrentStatus");
+const updateCurrentStatus = require("../utils/statusUpdateUtils/updateCurrentStatus");
 
 const dprTaskSchema = new mongoose.Schema(
   {

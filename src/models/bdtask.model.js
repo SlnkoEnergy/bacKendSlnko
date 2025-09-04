@@ -1,5 +1,5 @@
 const { default: mongoose } = require("mongoose");
-const taskCurrentStatus = require("../../utils/taskCurrentStatus");
+const taskCurrentStatus = require("../utils/taskCurrentStatus");
 
 const statusHistorySchema = new mongoose.Schema(
   {

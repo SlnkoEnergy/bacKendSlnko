@@ -1,16 +1,16 @@
-const userModells = require("../../models/users/userModells");
+const userModells = require("../models/user.model");
 const mongoose = require("mongoose");
 const { Parser } = require("json2csv");
-const bdleadsModells = require("../../models/bdleads/bdleads.model");
+const bdleadsModells = require("../models/bdleads.model");
 const axios = require("axios");
 const FormData = require("form-data");
-const { shouldUpdateStatus } = require("../../utils/shouldUpdateStatus");
-const group = require("../../models/bdleads/group");
-const task = require("../../models/bdleads/task");
-const groupModells = require("../../models/bdleads/group");
+const { shouldUpdateStatus } = require("../utils/shouldUpdateStatus");
+const group = require("../models/bdgroup.model");
+const task = require("../models/bdtask.model");
+const groupModells = require("../models/bdgroup.model");
 const { Novu } = require('@novu/node');
-const { getnovuNotification } = require("../../utils/nouvnotification.utils");
-const handoversheetModells = require("../../models/handoversheet.model");
+const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const handoversheetModells = require("../models/handoversheet.model");
 
 const createBDlead = async function (req, res) {
   try {

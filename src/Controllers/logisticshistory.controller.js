@@ -4,7 +4,7 @@ const {
 const LogisticHistory = require("../models/logisticshistory.model");
 const mongoose = require("mongoose");
 const ErrorHandler = require("../middlewares/error.middleware");
-const usermodel = require("../models/users/userModells");
+const usermodel = require("../models/user.model");
 
 const createLogisticHistory = catchAsyncError(async (req, res) => {
   const payload = req.body;

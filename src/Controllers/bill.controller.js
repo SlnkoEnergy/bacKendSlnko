@@ -7,7 +7,7 @@ const {
   catchAsyncError,
 } = require("../middlewares/catchasyncerror.middleware");
 const ErrorHandler = require("../middlewares/error.middleware");
-const userModells = require("../models/users/userModells");
+const userModells = require("../models/user.model");
 
 const addBill = catchAsyncError(async function (req, res, next) {
   const {

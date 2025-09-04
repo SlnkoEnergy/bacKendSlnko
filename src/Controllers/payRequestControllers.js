@@ -9,7 +9,7 @@ const exccelDataModells = require("../models/excelDataModells");
 const recoverypayrequest = require("../models/recoveryPayrequestModells");
 const subtractMoneyModells = require("../models/debitMoneyModells");
 const materialCategoryModells = require("../models/materialcategory.model");
-const userModells = require("../models/users/userModells");
+const userModells = require("../models/user.model");
 const utrCounter = require("../models/utrCounter");
 
 

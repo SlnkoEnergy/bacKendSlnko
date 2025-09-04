@@ -1,4 +1,4 @@
-const Dpr = require("../../models/dpr/dpr");
+const Dpr = require("../models/dpr.model");
 
 const createDpr = async (req, res) => {
   try {

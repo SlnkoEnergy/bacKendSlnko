@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-const updateLeadStatus = require("../../middlewares/bdLeadMiddlewares/updateLeadStatus");
-const updateAssignedTo = require("../../middlewares/bdLeadMiddlewares/updateAssignedTo");
+const updateLeadStatus = require("../middlewares/updateleadstatus.middleware");
+const updateAssignedTo = require("../middlewares/updateassignedto.middleware");
 
 const bdleadsSchema = new mongoose.Schema(
   {

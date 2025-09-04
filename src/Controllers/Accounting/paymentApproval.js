@@ -1,6 +1,6 @@
 const { default: mongoose } = require("mongoose");
 const payRequestModells = require("../../models/payRequestModells");
-const User = require("../../models/users/userModells");
+const User = require("../../models/user.model");
 const { default: axios } = require("axios");
 
 const paymentApproval = async function (req, res) {

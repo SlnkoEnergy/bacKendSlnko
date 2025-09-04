@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const updateCurrentStatusItems = require("../utils/updateCurrentStatusItems");
-const updateAttachmentUrlStatus = require("../middlewares/engineeringMiddlewares/updateAttachementUrlStatus");
+const updateAttachmentUrlStatus = require("../middlewares/updateattachementurlstatus.middleware");
 
 const moduleCategorySchema = new mongoose.Schema(
   {

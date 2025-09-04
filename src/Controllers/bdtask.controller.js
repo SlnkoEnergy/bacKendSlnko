@@ -1,9 +1,9 @@
-const BDtask = require("../../models/bdleads/task");
-const userModells = require("../../models/users/userModells");
-const bdleadsModells = require("../../models/bdleads/bdleads.model");
+const BDtask = require("../models/bdtask.model");
+const userModells = require("../models/user.model");
+const bdleadsModells = require("../models/bdleads.model");
 const { default: mongoose } = require("mongoose");
 const { Parser } = require("json2csv");
-const {  getnovuNotification } = require("../../utils/nouvnotification.utils");
+const {  getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const createTask = async (req, res) => {
   try {

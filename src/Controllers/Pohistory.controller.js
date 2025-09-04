@@ -4,7 +4,7 @@ const {
 const PoHistory = require("../models/Pohistory.model");
 const mongoose = require("mongoose");
 const ErrorHandler = require("../middlewares/error.middleware");
-const usermodel = require("../models/users/userModells");
+const usermodel = require("../models/user.model");
 const createPoHistory = catchAsyncError(async (req, res) => {
   const payload = req.body;
   const userId = req.user.userId;
