@@ -40,6 +40,15 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    location:{
+      type: String,
+    },
+    about:{
+      type: String,
+    },
+    attachment_url:{
+      type: String,
+    },
   },
   { timestamps: true }
 );
