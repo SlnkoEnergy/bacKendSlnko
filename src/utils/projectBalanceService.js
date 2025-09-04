@@ -1,7 +1,5 @@
-// src/utils/projectBalanceService.js
 const projectModells = require("../Modells/project.model");
 
-// Safe numeric converter for fields that might be strings (with commas/spaces)
 const num = (expr) => ({
   $let: {
     vars: { v: expr },
@@ -75,8 +73,39 @@ function buildPipeline({ search = "", group = "" }) {
     },
 
     // NOTE: ensure the collection name here matches your DB.
-    // If your collection is actually "billdetails", change below:
     { $lookup: { from: "biildetails", localField: "pos.po_number", foreignField: "po_number", as: "bills" } },
+
+    // ----------------- NEW: filter "paid" debits as fallback -----------------
+    {
+      $addFields: {
+        paidDebits: {
+          $filter: {
+            input: "$debits",
+            as: "d",
+            cond: {
+              $and: [
+                { $eq: ["$$d.approved", "Approved"] },
+                { $ne: ["$$d.utr", null] },
+                { $ne: ["$$d.utr", ""] },
+              ],
+            },
+          },
+        },
+      },
+    },
+    // ----------------- NEW: unified paidAmount (prefer pays) -----------------
+    {
+      $addFields: {
+        paidAmount: {
+          $cond: [
+            { $gt: [{ $size: "$pays" }, 0] },
+            { $sum: { $map: { input: "$pays",       as: "p", in: num("$$p.amount_paid") } } },
+            { $sum: { $map: { input: "$paidDebits", as: "d", in: num("$$d.amount_paid") } } },
+          ],
+        },
+      },
+    },
+    // ------------------------------------------------------------------------
 
     // ---- PO totals ----
     {
@@ -196,15 +225,18 @@ function buildPipeline({ search = "", group = "" }) {
     {
       $addFields: {
         totalAdjustment: { $round: [{ $subtract: ["$creditAdjustment", "$debitAdjustment"] }, 2] },
-        totalAmountPaid: {
-          $round: [{ $sum: { $map: { input: "$debits", as: "d", in: num("$$d.amount_paid") } } }, 2],
-        },
+
+        // ----------------- CHANGED: totalAmountPaid uses paidAmount -----------------
+        totalAmountPaid: { $round: [{ $ifNull: ["$paidAmount", 0] }, 2] },
+        // ---------------------------------------------------------------------------
+
         totalPoValue: {
           $round: [{ $sum: { $map: { input: "$pos", as: "po", in: num("$$po.po_value") } } }, 2],
         },
         totalBillValue: {
           $round: [{ $sum: { $map: { input: "$bills", as: "b", in: num("$$b.bill_value") } } }, 2],
         },
+        // (kept as-is) netAdvance & balancePayable logic
         netAdvance: {
           $round: [
             {
@@ -413,5 +445,6 @@ async function runProjectBalance({ page = 1, pageSize = 10, search = "", group =
     totals: totalsArr?.[0] || {},
   };
 }
+
 
 module.exports = { runProjectBalance };
