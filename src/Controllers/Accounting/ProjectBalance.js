@@ -1,41 +1,39 @@
 const projectModells = require("../../Modells/project.model");
 const { Parser } = require("json2csv");
 const { runProjectBalance } = require("../../utils/projectBalanceService");
-const { withPrefix } = require("../../utils/cache");
+const { withPrefix, getNamespaceVersion } = require("../../utils/cache");
 
-
-const cache = withPrefix("pb:projectBalance:v1");
+const NS = "pb:projectBalance";
+const cache = withPrefix(NS);
 const TTL = Number(process.env.REDIS_PB_TTL || process.env.REDIS_TTL_SECONDS || 120);
 
-
 const norm = (v) => String(v || "").trim().toLowerCase();
-const buildKey = ({ page, pageSize, search, group }) =>
-  `page=${page}|size=${pageSize}|search=${encodeURIComponent(norm(search))}|group=${encodeURIComponent(norm(group))}`;
+const buildKey = (ver, { page, pageSize, search, group }) =>
+  `v=${ver}|page=${page}|size=${pageSize}|search=${encodeURIComponent(norm(search))}|group=${encodeURIComponent(norm(group))}`;
 
-const projectBalance = async (req, res) => {
+async function projectBalance(req, res) {
   try {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(req.query.pageSize, 10) || 10, 1);
     const search = (req.query.search || "").trim();
     const group  = (req.query.group  || "").trim();
 
-    const key = buildKey({ page, pageSize, search, group });
+    const ver = await getNamespaceVersion(NS);
+    const key = buildKey(ver, { page, pageSize, search, group });
 
-    
     const cached = await cache.get(key);
-    if (cached) {
-      return res.json({ ...cached, _cache: { hit: true, key } });
-    }
+    if (cached) return res.json({ ...cached, _cache: { hit: true, key } });
 
     const payload = await runProjectBalance({ page, pageSize, search, group });
     await cache.set(key, payload, TTL);
-
     return res.json({ ...payload, _cache: { hit: false, key, ttl: TTL } });
   } catch (e) {
     console.error("projectBalance error:", e);
     return res.status(500).json({ message: "Internal Server Error" });
   }
-};
+}
+
+module.exports = { projectBalance };
 
 
 
