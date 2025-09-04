@@ -101,7 +101,26 @@ const projectBalance = async (req, res) => {
         },
       },
 
-      // --- PO numeric fields (already safe) ---
+   
+      {
+        $addFields: {
+          paidDebits: {
+            $filter: {
+              input: "$debits",
+              as: "d",
+              cond: {
+                $and: [
+                  { $eq: ["$$d.approved", "Approved"] },
+                  { $ne: ["$$d.utr", null] },
+                  { $ne: ["$$d.utr", ""] },
+                ],
+              },
+            },
+          },
+        },
+      },
+
+  
       {
         $addFields: {
           total_po_basic: {
@@ -160,7 +179,7 @@ const projectBalance = async (req, res) => {
         },
       },
 
-      // --- Core sums using safe converter ---
+  
       {
         $addFields: {
           totalCredit: {
@@ -317,20 +336,6 @@ const projectBalance = async (req, res) => {
               2,
             ],
           },
-          totalAmountPaid: {
-            $round: [
-              {
-                $sum: {
-                  $map: {
-                    input: "$debits",
-                    as: "d",
-                    in: toNum("$$d.amount_paid"),
-                  },
-                },
-              },
-              2,
-            ],
-          },
           totalPoValue: {
             $round: [
               {
@@ -359,37 +364,10 @@ const projectBalance = async (req, res) => {
               2,
             ],
           },
-          netAdvance: {
-            $round: [
-              {
-                $subtract: [
-                  {
-                    $sum: {
-                      $map: {
-                        input: "$pays",
-                        as: "pay",
-                        in: toNum("$$pay.amount_paid"),
-                      },
-                    },
-                  },
-                  {
-                    $sum: {
-                      $map: {
-                        input: "$bills",
-                        as: "bill",
-                        in: toNum("$$bill.bill_value"),
-                      },
-                    },
-                  },
-                ],
-              },
-              2,
-            ],
-          },
         },
       },
 
-      // --- Net balance using safe converter ---
+ 
       {
         $addFields: {
           netBalance: {
@@ -412,9 +390,7 @@ const projectBalance = async (req, res) => {
                           $filter: {
                             input: "$debits",
                             as: "d",
-                            cond: {
-                              $eq: ["$$d.paid_for", "Customer Adjustment"],
-                            },
+                            cond: { $eq: ["$$d.paid_for", "Customer Adjustment"] },
                           },
                         },
                         as: "d",
@@ -430,7 +406,65 @@ const projectBalance = async (req, res) => {
         },
       },
 
-      // --- Balances ---
+    
+      {
+        $addFields: {
+          paidAmount: {
+            $cond: [
+              { $gt: [{ $size: "$pays" }, 0] },
+              {
+                $sum: {
+                  $map: {
+                    input: "$pays",
+                    as: "p",
+                    in: toNum("$$p.amount_paid"),
+                  },
+                },
+              },
+              {
+                $sum: {
+                  $map: {
+                    input: "$paidDebits",
+                    as: "d",
+                    in: toNum("$$d.amount_paid"),
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+
+   
+      {
+        $addFields: {
+          totalAmountPaid: { $round: [{ $ifNull: ["$paidAmount", 0] }, 2] },
+          netAdvance: {
+            $round: [
+              {
+                $subtract: [
+                  { $ifNull: ["$paidAmount", 0] },
+                  { $ifNull: ["$totalBillValue", 0] },
+                ],
+              },
+              2,
+            ],
+          },
+          balancePayable: {
+            $round: [
+              {
+                $subtract: [
+                  { $ifNull: ["$total_po_with_gst", 0] },
+                  { $ifNull: ["$paidAmount", 0] },
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+   
       {
         $addFields: {
           balanceSlnko: {
@@ -451,55 +485,6 @@ const projectBalance = async (req, res) => {
           },
         },
       },
-      {
-        $addFields: {
-          balancePayable: {
-            $round: [
-              {
-                $subtract: [
-                  {
-                    $subtract: [
-                      { $ifNull: ["$total_po_with_gst", 0] },
-                      {
-                        $sum: {
-                          $map: {
-                            input: "$bills",
-                            as: "bill",
-                            in: toNum("$$bill.bill_value"),
-                          },
-                        },
-                      },
-                    ],
-                  },
-                  {
-                    $subtract: [
-                      {
-                        $sum: {
-                          $map: {
-                            input: "$pays",
-                            as: "pay",
-                            in: toNum("$$pay.amount_paid"),
-                          },
-                        },
-                      },
-                      {
-                        $sum: {
-                          $map: {
-                            input: "$bills",
-                            as: "bill",
-                            in: toNum("$$bill.bill_value"),
-                          },
-                        },
-                      },
-                    ],
-                  },
-                ],
-              },
-              2,
-            ],
-          },
-        },
-      },
 
       // --- TCS ---
       {
@@ -510,7 +495,10 @@ const projectBalance = async (req, res) => {
               then: {
                 $round: [
                   {
-                    $multiply: [{ $subtract: ["$netBalance", 5000000] }, 0.001],
+                    $multiply: [
+                      { $subtract: ["$netBalance", 5000000] },
+                      0.001,
+                    ],
                   },
                   0,
                 ],
@@ -520,6 +508,8 @@ const projectBalance = async (req, res) => {
           },
         },
       },
+
+      // --- Balance Required ---
       {
         $addFields: {
           balanceRequired: {
@@ -536,7 +526,7 @@ const projectBalance = async (req, res) => {
         },
       },
 
-      // --- Normalize project_kwp as you had ---
+      // --- Normalize project_kwp (unchanged logic) ---
       {
         $addFields: {
           project_kwp: {
@@ -580,7 +570,7 @@ const projectBalance = async (req, res) => {
         },
       },
 
-      // --- Activity dates (unchanged) ---
+      // --- Activity dates ---
       {
         $addFields: {
           latestCreditCreatedAt: {
@@ -623,11 +613,11 @@ const projectBalance = async (req, res) => {
           customerAdjustmentTotal: 1,
           availableAmount: 1,
           netBalance: 1,
-          totalAmountPaid: 1,
-          balanceSlnko: 1,
-          netAdvance: 1,
+          totalAmountPaid: 1,     
+          balanceSlnko: 1,       
+          netAdvance: 1,           
           tcs: 1,
-          balancePayable: 1,
+          balancePayable: 1,       
           total_po_with_gst: 1,
           gst_as_po_basic: 1,
           balanceRequired: 1,
@@ -652,7 +642,6 @@ const projectBalance = async (req, res) => {
         {
           $group: {
             _id: null,
-            // project_kwp is already normalized above; just sum with ifNull
             totalProjectKwp: { $sum: { $ifNull: ["$project_kwp", 0] } },
             totalCreditSum: { $sum: "$totalCredit" },
             totalDebitSum: { $sum: "$totalDebit" },
@@ -692,6 +681,7 @@ const projectBalance = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
 
 /**** export project code ****/
 
@@ -1262,6 +1252,7 @@ const exportProjectBalance = async (req, res) => {
           plantCapacity: "$project_kwp",
           totalCredit: 1,
           totalDebit: 1,
+          
           totalAdjustment: 1,
           availableAmount: 1,
           balanceSlnko: 1,
