@@ -28,33 +28,17 @@ jobs:
             git checkout development
             git pull origin development
 
-            # Ensure Docker network exists for inter-container DNS
+            # Ensure Docker network exists
             docker network create protrac_net 2>/dev/null || true
 
-     
-            if ! docker ps --format '{{.Names}}' | grep -q '^dragonfly$'; then
-              docker rm -f dragonfly 2>/dev/null || true
-              docker run -d --name dragonfly \
-                --restart unless-stopped \
-                --network protrac_net \
-                -p 127.0.0.1:6379:6379 \
-                docker.dragonflydb.io/dragonflydb/dragonfly:v1.33 \
-                --requirepass CHANGE_ME_STRONG
-            else
-              docker start dragonfly || true
-            fi
+            # Ensure Dragonfly is up (uses docker-compose.yml in this dir)
+            docker compose up -d dragonfly
+            # quick health check
+            docker exec dragonfly redis-cli -a CHANGE_ME_STRONG PING || true
 
-            # Quick health retry (avoids race on first boot)
-            for i in 1 2 3 4 5; do
-              if docker exec dragonfly redis-cli -a CHANGE_ME_STRONG PING >/dev/null 2>&1; then
-                echo "Dragonfly is ready."; break
-              fi
-              echo "Waiting for Dragonfly..."; sleep 1
-            done
-
-            # --- API: rebuild and run ---
+            # Recreate development API (reads .env.dev)
             docker rm -f prod_api_development 2>/dev/null || true
-            docker build --pull -t prod_api_development .
+            docker build -t prod_api_development .
 
             docker run -d --name prod_api_development \
               --env-file .env.dev \
@@ -63,9 +47,6 @@ jobs:
               --restart unless-stopped \
               prod_api_development
 
-            echo "REDIS_URL inside container:"
+            # Confirm API is pointing at the docker service name (not 127.0.0.1)
             docker exec prod_api_development printenv REDIS_URL || true
-
-            # --- Cleanup: remove dangling images to save disk space ---
-            docker image prune -f
           EOF
