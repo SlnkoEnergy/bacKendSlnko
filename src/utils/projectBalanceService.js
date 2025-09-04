@@ -1,6 +1,7 @@
-
+// src/utils/projectBalanceService.js
 const projectModells = require("../Modells/project.model");
 
+// Safe numeric converter for fields that might be strings (with commas/spaces)
 const num = (expr) => ({
   $let: {
     vars: { v: expr },
@@ -43,11 +44,14 @@ function buildPipeline({ search = "", group = "" }) {
   return [
     { $match: searchMatch },
 
-    // Joins
-    { $lookup: { from: "addmoneys",        localField: "p_id",  foreignField: "p_id",   as: "credits" } },
-    { $lookup: { from: "subtractmoneys",   localField: "p_id",  foreignField: "p_id",   as: "debits" } },
-    { $lookup: { from: "adjustmentrequests", localField: "p_id", foreignField: "p_id",  as: "adjustments" } },
-    { $lookup: { from: "purchaseorders",   localField: "code",  foreignField: "p_id",   as: "pos" } },
+    // Joins (adjust collection names if yours differ)
+    { $lookup: { from: "addmoneys",          localField: "p_id",  foreignField: "p_id",   as: "credits" } },
+    { $lookup: { from: "subtract moneys",     localField: "p_id",  foreignField: "p_id",   as: "debits" } },
+    { $lookup: { from: "adjustmentrequests", localField: "p_id",  foreignField: "p_id",   as: "adjustments" } },
+
+    // Projects table uses project code in po.p_id (common in your codebase)
+    { $lookup: { from: "purchaseorders",     localField: "code",  foreignField: "p_id",   as: "pos" } },
+
     {
       $lookup: {
         from: "payrequests",
@@ -59,7 +63,8 @@ function buildPipeline({ search = "", group = "" }) {
                 $and: [
                   { $in: ["$po_number", "$$poNumbers"] },
                   { $eq: ["$approved", "Approved"] },
-                  { $ne: ["$utr", null] }, { $ne: ["$utr", ""] },
+                  { $ne: ["$utr", null] },
+                  { $ne: ["$utr", ""] },
                 ],
               },
             },
@@ -68,38 +73,29 @@ function buildPipeline({ search = "", group = "" }) {
         as: "pays",
       },
     },
+
+    // NOTE: ensure the collection name here matches your DB.
+    // If your collection is actually "billdetails", change below:
     { $lookup: { from: "biildetails", localField: "pos.po_number", foreignField: "po_number", as: "bills" } },
 
-    // Numbers from strings safely
+    // ---- PO totals ----
     {
       $addFields: {
         total_po_basic: {
           $round: [
             {
               $sum: {
-                $map: {
-                  input: "$pos",
-                  as: "po",
-                  in: num("$$po.po_basic"),
-                },
+                $map: { input: "$pos", as: "po", in: num("$${po}.po_basic".replace("$${po}", "$$po")) },
               },
             },
             2,
           ],
         },
-      },
-    },
-    {
-      $addFields: {
         gst_as_po_basic: {
           $round: [
             {
               $sum: {
-                $map: {
-                  input: "$pos",
-                  as: "po",
-                  in: num("$$po.gst"),
-                },
+                $map: { input: "$pos", as: "po", in: num("$${po}.gst".replace("$${po}", "$$po")) },
               },
             },
             2,
@@ -115,43 +111,21 @@ function buildPipeline({ search = "", group = "" }) {
       },
     },
 
-    // Credit/Debit/Adjustments
+    // ---- Credit / Debit / Adjustments & computed figures ----
     {
       $addFields: {
         totalCredit: {
-          $round: [
-            {
-              $sum: {
-                $map: { input: "$credits", as: "c", in: num("$$c.cr_amount") },
-              },
-            },
-            2,
-          ],
+          $round: [{ $sum: { $map: { input: "$credits", as: "c", in: num("$$c.cr_amount") } } }, 2],
         },
         totalDebit: {
-          $round: [
-            {
-              $sum: {
-                $map: { input: "$debits", as: "d", in: num("$$d.amount_paid") },
-              },
-            },
-            2,
-          ],
+          $round: [{ $sum: { $map: { input: "$debits", as: "d", in: num("$$d.amount_paid") } } }, 2],
         },
         availableAmount: {
           $round: [
             {
               $subtract: [
-                {
-                  $sum: {
-                    $map: { input: "$credits", as: "c", in: num("$$c.cr_amount") },
-                  },
-                },
-                {
-                  $sum: {
-                    $map: { input: "$debits", as: "d", in: num("$$d.amount_paid") },
-                  },
-                },
+                { $sum: { $map: { input: "$credits", as: "c", in: num("$$c.cr_amount") } } },
+                { $sum: { $map: { input: "$debits",  as: "d", in: num("$$d.amount_paid") } } },
               ],
             },
             2,
@@ -217,89 +191,26 @@ function buildPipeline({ search = "", group = "" }) {
             2,
           ],
         },
-        totalAdjustment: {
-          $round: [
-            {
-              $subtract: [
-                {
-                  $sum: {
-                    $map: {
-                      input: {
-                        $filter: {
-                          input: "$adjustments",
-                          as: "adj",
-                          cond: { $eq: ["$$adj.adj_type", "Add"] },
-                        },
-                      },
-                      as: "a",
-                      in: { $abs: num("$$a.adj_amount") },
-                    },
-                  },
-                },
-                {
-                  $sum: {
-                    $map: {
-                      input: {
-                        $filter: {
-                          input: "$adjustments",
-                          as: "adj",
-                          cond: { $eq: ["$$adj.adj_type", "Subtract"] },
-                        },
-                      },
-                      as: "a",
-                      in: { $abs: num("$$a.adj_amount") },
-                    },
-                  },
-                },
-              ],
-            },
-            2,
-          ],
-        },
+      },
+    },
+    {
+      $addFields: {
+        totalAdjustment: { $round: [{ $subtract: ["$creditAdjustment", "$debitAdjustment"] }, 2] },
         totalAmountPaid: {
-          $round: [
-            {
-              $sum: {
-                $map: { input: "$debits", as: "d", in: num("$$d.amount_paid") },
-              },
-            },
-            2,
-          ],
+          $round: [{ $sum: { $map: { input: "$debits", as: "d", in: num("$$d.amount_paid") } } }, 2],
         },
         totalPoValue: {
-          $round: [
-            {
-              $sum: {
-                $map: { input: "$pos", as: "po", in: num("$$po.po_value") },
-              },
-            },
-            2,
-          ],
+          $round: [{ $sum: { $map: { input: "$pos", as: "po", in: num("$$po.po_value") } } }, 2],
         },
         totalBillValue: {
-          $round: [
-            {
-              $sum: {
-                $map: { input: "$bills", as: "b", in: num("$$b.bill_value") },
-              },
-            },
-            2,
-          ],
+          $round: [{ $sum: { $map: { input: "$bills", as: "b", in: num("$$b.bill_value") } } }, 2],
         },
         netAdvance: {
           $round: [
             {
               $subtract: [
-                {
-                  $sum: {
-                    $map: { input: "$pays", as: "p", in: num("$$p.amount_paid") },
-                  },
-                },
-                {
-                  $sum: {
-                    $map: { input: "$bills", as: "b", in: num("$$b.bill_value") },
-                  },
-                },
+                { $sum: { $map: { input: "$pays",  as: "p", in: num("$$p.amount_paid") } } },
+                { $sum: { $map: { input: "$bills", as: "b", in: num("$$b.bill_value") } } },
               ],
             },
             2,
@@ -308,17 +219,14 @@ function buildPipeline({ search = "", group = "" }) {
       },
     },
 
-    { // Net balance from credits minus customer adjustment debits
+    // Net balance from credits minus customer adjustment debits
+    {
       $addFields: {
         netBalance: {
           $round: [
             {
               $subtract: [
-                {
-                  $sum: {
-                    $map: { input: "$credits", as: "c", in: num("$$c.cr_amount") },
-                  },
-                },
+                { $sum: { $map: { input: "$credits", as: "c", in: num("$$c.cr_amount") } } },
                 {
                   $sum: {
                     $map: {
@@ -367,14 +275,12 @@ function buildPipeline({ search = "", group = "" }) {
                 {
                   $subtract: [
                     { $ifNull: ["$total_po_with_gst", 0] },
-                    {
-                      $sum: { $map: { input: "$bills", as: "b", in: num("$$b.bill_value") } },
-                    },
+                    { $sum: { $map: { input: "$bills", as: "b", in: num("$$b.bill_value") } } },
                   ],
                 },
                 {
                   $subtract: [
-                    { $sum: { $map: { input: "$pays", as: "p", in: num("$$p.amount_paid") } } },
+                    { $sum: { $map: { input: "$pays",  as: "p", in: num("$$p.amount_paid") } } },
                     { $sum: { $map: { input: "$bills", as: "b", in: num("$$b.bill_value") } } },
                   ],
                 },
@@ -386,7 +292,7 @@ function buildPipeline({ search = "", group = "" }) {
       },
     },
 
-    // TCS on > 50L netBalance
+    // TCS if netBalance > 50L
     {
       $addFields: {
         tcs: {
@@ -407,7 +313,7 @@ function buildPipeline({ search = "", group = "" }) {
       },
     },
 
-    // Normalize project_kwp (supports numbers or strings, converts, and auto /1000 if >100)
+    // Normalize project_kwp (auto /1000 if looks like W instead of kW)
     {
       $addFields: {
         project_kwp: {
@@ -419,11 +325,15 @@ function buildPipeline({ search = "", group = "" }) {
       },
     },
 
-    // Activity dates
+    // Activity dates for sorting
     {
       $addFields: {
-        latestCreditCreatedAt: { $max: { $map: { input: "$credits", as: "c", in: "$$c.createdAt" } } },
-        latestDebitUpdatedAt: { $max: { $map: { input: "$debits",  as: "d", in: "$$d.updatedAt" } } },
+        latestCreditCreatedAt: {
+          $max: { $map: { input: "$credits", as: "c", in: "$$c.createdAt" } },
+        },
+        latestDebitUpdatedAt: {
+          $max: { $map: { input: "$debits", as: "d", in: "$$d.updatedAt" } },
+        },
         latestActivityDate: {
           $max: [
             { $max: { $map: { input: "$credits", as: "c", in: "$$c.createdAt" } } },
@@ -460,7 +370,6 @@ async function runProjectBalance({ page = 1, pageSize = 10, search = "", group =
     { $limit: pageSize },
   ];
 
-  // base has normalized numeric 'project_kwp', so just sum it
   const totalsPipeline = [
     ...base,
     {

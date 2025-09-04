@@ -1,32 +1,42 @@
 const projectModells = require("../../Modells/project.model");
 const { Parser } = require("json2csv");
 const { runProjectBalance } = require("../../utils/projectBalanceService");
-const { cacheGet, cacheSet } = require("../../utils/pbCache");
+const { withPrefix } = require("../../utils/cache");
 
-const TTL = Number(process.env.REDIS_PB_TTL || 120);
+
+const cache = withPrefix("pb:projectBalance:v1");
+const TTL = Number(process.env.REDIS_PB_TTL || process.env.REDIS_TTL_SECONDS || 120);
+
+
+const norm = (v) => String(v || "").trim().toLowerCase();
+const buildKey = ({ page, pageSize, search, group }) =>
+  `page=${page}|size=${pageSize}|search=${encodeURIComponent(norm(search))}|group=${encodeURIComponent(norm(group))}`;
 
 const projectBalance = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 10;
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const pageSize = Math.max(parseInt(req.query.pageSize, 10) || 10, 1);
     const search = (req.query.search || "").trim();
     const group  = (req.query.group  || "").trim();
 
-    const { ver, raw } = await cacheGet({ page, pageSize, search, group });
-    if (raw) {
-      const cached = JSON.parse(raw);
-      return res.json({ ...cached, _cache: { hit: true, ver } });
+    const key = buildKey({ page, pageSize, search, group });
+
+    
+    const cached = await cache.get(key);
+    if (cached) {
+      return res.json({ ...cached, _cache: { hit: true, key } });
     }
 
     const payload = await runProjectBalance({ page, pageSize, search, group });
-    await cacheSet(ver, { page, pageSize, search, group }, payload, TTL);
+    await cache.set(key, payload, TTL);
 
-    res.json({ ...payload, _cache: { hit: false, ver, ttl: TTL } });
+    return res.json({ ...payload, _cache: { hit: false, key, ttl: TTL } });
   } catch (e) {
     console.error("projectBalance error:", e);
-    res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
 
 
 /**** export project code ****/
