@@ -1,5 +1,5 @@
 const { default: mongoose } = require("mongoose");
-const DprTask = require("../../Modells/dpr/dprTask");
+const DprTask = require("../../models/dpr/dprTask");
 
 const createDprTask = async (req, res) => {
   try {

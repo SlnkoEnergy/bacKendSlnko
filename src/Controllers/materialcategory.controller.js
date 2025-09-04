@@ -1,6 +1,6 @@
-const materialCategory = require("../Modells/materialcategory.model");
-const scopeModel = require("../Modells/scope.model");
-const Counter = require("../Modells/materialcategorycounter.model");
+const materialCategory = require("../models/materialcategory.model");
+const scopeModel = require("../models/scope.model");
+const Counter = require("../models/materialcategorycounter.model");
 const mongoose = require("mongoose");
 
 const addMaterialCategory = async (req, res) => {

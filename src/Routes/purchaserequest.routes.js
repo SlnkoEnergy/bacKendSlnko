@@ -10,7 +10,7 @@ const {
   getPurchaseRequest,
   getMaterialScope,
   fetchExcelFromBOQ,
-} = require("../Controllers/purchaserequest.controller");
+} = require("../controllers/purchaserequest.controller");
 const jwtMW = require("../middlewares/auth");
 router.post(
   "/purchase-request",

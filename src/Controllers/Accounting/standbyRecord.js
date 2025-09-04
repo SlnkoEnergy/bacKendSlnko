@@ -1,4 +1,4 @@
-const holdpayModells = require("../../Modells/holdPaymentModells");
+const holdpayModells = require("../../models/holdPaymentModells");
 
 const standbyRecord = async function (req, res) {
    try {

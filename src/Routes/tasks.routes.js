@@ -8,7 +8,7 @@ const {
   deleteTask,
   updateTaskStatus,
   exportToCsv,
-} = require("../Controllers/tasks.controllers");
+} = require("../controllers/tasks.controllers");
 const jwtMW = require("../middlewares/auth");
 
 router.post("/task", jwtMW.authentication, createTask);

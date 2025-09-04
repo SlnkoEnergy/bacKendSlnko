@@ -1,6 +1,6 @@
-const TaskCounterSchema = require("../Modells/taskcounter.model");
-const tasksModells = require("../Modells/task.model");
-const User = require("../Modells/users/userModells");
+const TaskCounterSchema = require("../models/taskcounter.model");
+const tasksModells = require("../models/task.model");
+const User = require("../models/users/userModells");
 const { Parser } = require("json2csv");
 
 const createTask = async (req, res) => {

@@ -1,16 +1,16 @@
-const payRequestModells = require("../Modells/payRequestModells");
-const projectModells = require("../Modells/project.model");
-const holdPayment = require("../Modells/holdPaymentModells");
-const holdPaymentModells = require("../Modells/holdPaymentModells");
-const vendorModells = require("../Modells/vendor.model");
-const purchaseOrderModells = require("../Modells/purchaseorder.model");
+const payRequestModells = require("../models/payRequestModells");
+const projectModells = require("../models/project.model");
+const holdPayment = require("../models/holdPaymentModells");
+const holdPaymentModells = require("../models/holdPaymentModells");
+const vendorModells = require("../models/vendor.model");
+const purchaseOrderModells = require("../models/purchaseorder.model");
 const { get, default: mongoose } = require("mongoose");
-const exccelDataModells = require("../Modells/excelDataModells");
-const recoverypayrequest = require("../Modells/recoveryPayrequestModells");
-const subtractMoneyModells = require("../Modells/debitMoneyModells");
-const materialCategoryModells = require("../Modells/materialcategory.model");
-const userModells = require("../Modells/users/userModells");
-const utrCounter = require("../Modells/utrCounter");
+const exccelDataModells = require("../models/excelDataModells");
+const recoverypayrequest = require("../models/recoveryPayrequestModells");
+const subtractMoneyModells = require("../models/debitMoneyModells");
+const materialCategoryModells = require("../models/materialcategory.model");
+const userModells = require("../models/users/userModells");
+const utrCounter = require("../models/utrCounter");
 
 
 const generateRandomCode = () => Math.floor(100 + Math.random() * 900);

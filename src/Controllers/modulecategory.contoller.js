@@ -1,12 +1,12 @@
 const { default: axios } = require("axios");
-const moduleCategory = require("../Modells/modulecategory.model");
-const projectDetail = require("../Modells/project.model");
+const moduleCategory = require("../models/modulecategory.model");
+const projectDetail = require("../models/project.model");
 const FormData = require("form-data");
-const moduleTemplates = require("../Modells/moduletemplate.model");
+const moduleTemplates = require("../models/moduletemplate.model");
 const mongoose = require("mongoose");
-const handoversheetModells = require("../Modells/handoversheet.model");
-const projectModells = require("../Modells/project.model");
-const userModells = require("../Modells/users/userModells");
+const handoversheetModells = require("../models/handoversheet.model");
+const projectModells = require("../models/project.model");
+const userModells = require("../models/users/userModells");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const createModuleCategory = async (req, res) => {

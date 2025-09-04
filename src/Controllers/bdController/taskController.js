@@ -1,6 +1,6 @@
-const BDtask = require("../../Modells/bdleads/task");
-const userModells = require("../../Modells/users/userModells");
-const bdleadsModells = require("../../Modells/bdleads/bdleads.model");
+const BDtask = require("../../models/bdleads/task");
+const userModells = require("../../models/users/userModells");
+const bdleadsModells = require("../../models/bdleads/bdleads.model");
 const { default: mongoose } = require("mongoose");
 const { Parser } = require("json2csv");
 const {  getnovuNotification } = require("../../utils/nouvnotification.utils");

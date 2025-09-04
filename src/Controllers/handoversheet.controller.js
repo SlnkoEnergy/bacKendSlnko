@@ -1,13 +1,13 @@
 const { default: mongoose } = require("mongoose");
-const moduleCategory = require("../Modells/modulecategory.model");
-const hanoversheetmodells = require("../Modells/handoversheet.model");
-const projectmodells = require("../Modells/project.model");
+const moduleCategory = require("../models/modulecategory.model");
+const hanoversheetmodells = require("../models/handoversheet.model");
+const projectmodells = require("../models/project.model");
 const { Parser } = require("json2csv");
-const handoversheetModells = require("../Modells/handoversheet.model");
-const userModells = require("../Modells/users/userModells");
-const materialCategoryModells = require("../Modells/materialcategory.model");
-const scopeModel = require("../Modells/scope.model");
-const bdleadsModells = require("../Modells/bdleads/bdleads.model");
+const handoversheetModells = require("../models/handoversheet.model");
+const userModells = require("../models/users/userModells");
+const materialCategoryModells = require("../models/materialcategory.model");
+const scopeModel = require("../models/scope.model");
+const bdleadsModells = require("../models/bdleads/bdleads.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 

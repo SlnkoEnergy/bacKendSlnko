@@ -1,9 +1,9 @@
-const projetcModells = require("../Modells/project.model");
-const purchaseorderModells = require("../Modells/purchaseorder.model");
-const billModells = require("../Modells/bill.model");
-const debitmoneyModells = require("../Modells/debitMoneyModells");
-const payrequestModells = require("../Modells/payRequestModells");
-const addMoneyModells = require("../Modells/addMoneyModells");
+const projetcModells = require("../models/project.model");
+const purchaseorderModells = require("../models/purchaseorder.model");
+const billModells = require("../models/bill.model");
+const debitmoneyModells = require("../models/debitMoneyModells");
+const payrequestModells = require("../models/payRequestModells");
+const addMoneyModells = require("../models/addMoneyModells");
 
 
 //total project credit amount for all project

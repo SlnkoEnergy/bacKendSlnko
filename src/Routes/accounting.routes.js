@@ -2,23 +2,23 @@ const router = require("express").Router();
 const {
   paymentApproved,
   utrSubmission,
-} = require("../Controllers/Accounting/approvedPayment");
+} = require("../controllers/Accounting/approvedPayment");
 const {
   getCustomerPaymentSummary,
-} = require("../Controllers/Accounting/customerpaymentSummary");
+} = require("../controllers/Accounting/customerpaymentSummary");
 const {
   paymentApproval,
   getPoApprovalPdf,
-} = require("../Controllers/Accounting/paymentApproval");
+} = require("../controllers/Accounting/paymentApproval");
 const {
   paymentHistory,
   exportDebitHistoryCsv,
-} = require("../Controllers/Accounting/paymentHistory");
+} = require("../controllers/Accounting/paymentHistory");
 const {
   projectBalance,
   exportProjectBalance,
-} = require("../Controllers/Accounting/ProjectBalance");
-const { standbyRecord } = require("../Controllers/Accounting/standbyRecord");
+} = require("../controllers/Accounting/ProjectBalance");
+const { standbyRecord } = require("../controllers/Accounting/standbyRecord");
 const jwtMW = require("../middlewares/auth");
 
 router.get("/approved-payment", jwtMW.authentication, paymentApproved);

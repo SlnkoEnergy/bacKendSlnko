@@ -5,7 +5,7 @@ const {
   getBoqCategoryById,
   createBoqCategory,
   getBoqCategoryByIdAndKey,
-} = require("../Controllers/boqcategory.controllers");
+} = require("../controllers/boqcategory.controllers");
 const {
   deleteBoqProject,
   updateBoqProject,
@@ -13,13 +13,13 @@ const {
   getAllBoqProject,
   createBoqProject,
   getBoqProjectByProject,
-} = require("../Controllers/boqproject.controllers");
+} = require("../controllers/boqproject.controllers");
 const {
   updateBoqTemplate,
   getBoqTemplate,
   createBoqTemplate,
   getBoqTemplateByTemplateId,
-} = require("../Controllers/boqtemplate.controllers");
+} = require("../controllers/boqtemplate.controllers");
 const {
   updateAttachmentUrl,
   updateModuleCategoryStatus,
@@ -30,7 +30,7 @@ const {
   addRemarkToModuleCategory,
   updateModuleCategoryDB,
   getStatusHistoryForModuleCategory,
-} = require("../Controllers/modulecategory.contoller");
+} = require("../controllers/modulecategory.contoller");
 const {
   updateModuleTemplateCategoryId,
   deleteModule,
@@ -38,7 +38,7 @@ const {
   getAllModule,
   getModuleById,
   createModule,
-} = require("../Controllers/moduletemplate.controller");
+} = require("../controllers/moduletemplate.controller");
 const {
   addMaterialCategory,
   getAllMaterialCategories,
@@ -46,13 +46,13 @@ const {
   deleteMaterialCategory,
   getMaterialCategoryById,
   getAllMaterialCategoriesDropdown,
-} = require("../Controllers/materialcategory.controller");
+} = require("../controllers/materialcategory.controller");
 const {
   createMaterial,
   getAllMaterials,
   updateMaterial,
   deleteMaterial,
-} = require("../Controllers/material.controller");
+} = require("../controllers/material.controller");
 const jwtMW = require("../middlewares/auth");
 const upload = require("../middlewares/multer");
 

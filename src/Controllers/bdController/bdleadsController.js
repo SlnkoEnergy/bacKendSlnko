@@ -1,7 +1,7 @@
-const handoversheet = require("../../Modells/handoversheet.model");
-const task = require("../../Modells/bdleads/task");
-const bdleadsModells = require("../../Modells/bdleads/bdleads.model");
-const userModells = require("../../Modells/users/userModells");
+const handoversheet = require("../../models/handoversheet.model");
+const task = require("../../models/bdleads/task");
+const bdleadsModells = require("../../models/bdleads/bdleads.model");
+const userModells = require("../../models/users/userModells");
 const { default: mongoose } = require("mongoose");
 
 const getLeadSummary = async (req, res) => {

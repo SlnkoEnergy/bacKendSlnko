@@ -1,6 +1,6 @@
 const { default: mongoose } = require("mongoose");
-const BoqTemplate = require("../Modells/boqtemplate.model");
-const ModuleTemplate = require("../Modells/moduletemplate.model");
+const BoqTemplate = require("../models/boqtemplate.model");
+const ModuleTemplate = require("../models/moduletemplate.model");
 
 const createBoqTemplate = async(req, res) => {
     try {

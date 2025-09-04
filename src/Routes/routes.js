@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const jwtMW = require("../middlewares/auth");
+const jwtMW = require("../middlewares/auth.js");
 const {
   addMoney,
   getCreditAmount,
@@ -7,7 +7,7 @@ const {
   credit_amount,
   deletecredit,
   deleteCreditAmount,
-} = require("../Controllers/addMoneyController");
+} = require("../controllers/addMoneyController.js");
 const {
   createProject,
   updateProject,
@@ -17,7 +17,7 @@ const {
   getProjectbyPId,
   getProjectDropwdown,
   getProjectNameSearch,
-} = require("../Controllers/project.controller.js");
+} = require("../controllers/project.controller.js");
 const {
   userRegister,
   login,
@@ -32,7 +32,7 @@ const {
   editUser,
   getAllDepartment,
   finalizeBdLogin,
-} = require("../Controllers/userController");
+} = require("../controllers/userController.js");
 
 const {
   addPo,
@@ -52,7 +52,7 @@ const {
   updateEditandDeliveryDate,
   updateStatusPO,
   getPoBasic,
-} = require("../Controllers/purchaseorder.controller");
+} = require("../controllers/purchaseorder.controller.js");
 const {
   addVendor,
   getVendor,
@@ -60,7 +60,7 @@ const {
   deleteVendor,
   getVendorDropwdown,
   getVendorNameSearch,
-} = require("../Controllers/vendor.controller.js");
+} = require("../controllers/vendor.controller.js");
 const {
   payRrequest,
   getPaySummary,
@@ -85,13 +85,13 @@ const {
   getExcelDataById,
   getpy,
   getTrashPayment,
-} = require("../Controllers/payRequestControllers");
+} = require("../controllers/payRequestControllers.js");
 
 const {
   addAdjustmentRequest,
   getAdjustmentRequest,
   deleteAdjustmentRequest,
-} = require("../Controllers/adjustmentRequestController");
+} = require("../controllers/adjustmentRequestController.js");
 
 const {
   addBill,
@@ -104,14 +104,14 @@ const {
   exportBills,
   getAllBill,
   manipulatebill,
-} = require("../Controllers/bill.controller");
+} = require("../controllers/bill.controller.js");
 const {
   subtractmoney,
   getsubtractMoney,
   deleteDebitMoney,
   recoveryDebit,
   deleteSubtractMoney,
-} = require("../Controllers/subtractMoneyController");
+} = require("../controllers/subtractMoneyController.js");
 
 const {
   all_project_balance,
@@ -121,27 +121,27 @@ const {
   total_project_billValue,
   project_credit_amount,
   project_debit_amount,
-} = require("../Controllers/balanceController");
+} = require("../controllers/balanceController.js");
 
 const {
   createOffer,
   getCommOffer,
   editOffer,
   deleteOffer,
-} = require("../Controllers/commOfferController");
+} = require("../controllers/commOfferController.js");
 
 const {
   addCommRate,
   getCommRate,
   editCommRate,
   deleteCommRate,
-} = require("../Controllers/commRateController");
+} = require("../controllers/commRateController.js");
 
 const {
   addCommScmRate,
   editCommScmRate,
   getCommScmRate,
-} = require("../Controllers/commScmRateController");
+} = require("../controllers/commScmRateController.js");
 const {
   addCommBDRate,
   editCommBDRate,
@@ -149,7 +149,7 @@ const {
   deleteCommBDRate,
   getCommBdRateHistory,
   getCommBDRateByOfferId,
-} = require("../Controllers/coomBDRateController");
+} = require("../controllers/coomBDRateController.js");
 
 const {
   createhandoversheet,
@@ -166,13 +166,13 @@ const {
   getByIdOrLeadId,
   getexportToCsv,
   migrateProjectToHandover,
-} = require("../Controllers/handoversheet.controller.js");
+} = require("../controllers/handoversheet.controller.js");
 const {
   addmoduleMaster,
   getmoduleMasterdata,
   editmodulemaster,
   deletemodulemaster,
-} = require("../Controllers/moduleMasterController");
+} = require("../controllers/moduleMasterController.js");
 // const { deleteOne } = require("../Modells/moduleMasterModells");
 
 const {
@@ -186,13 +186,13 @@ const {
   updateExpenseSheet,
   updateDisbursementDate,
   getExpensePdf,
-} = require("../Controllers/expensesheet.controller.js");
+} = require("../controllers/expensesheet.controller.js");
 
 const {
   createModifiedExpense,
   getAllModifiedExpense,
   getModifiedExpenseById,
-} = require("../Controllers/expenseSheetControllers/ModifiedexpenseSheetController");
+} = require("../controllers/expenseSheetControllers/ModifiedexpenseSheetController.js");
 
 const upload = require("../middlewares/multer.js");
 

@@ -1,4 +1,4 @@
-const conmmOfferModells =require("../Modells/commOfferModells");
+const conmmOfferModells =require("../models/commOfferModells");
 
 
 // Create a new commOffer

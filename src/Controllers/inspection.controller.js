@@ -2,14 +2,14 @@
 const {
   catchAsyncError,
 } = require("../middlewares/catchasyncerror.middleware");
-const Inspection = require("../Modells/inspection.model");
+const Inspection = require("../models/inspection.model");
 const ErrorHandler = require("../middlewares/error.middleware");
 const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
 const { nextInspectionCode } = require("../utils/inspection.utils");
-const purchaseOrderModel = require("../Modells/purchaseorder.model");
+const purchaseOrderModel = require("../models/purchaseorder.model");
 
 const createInspection = catchAsyncError(async (req, res) => {
   const userId = req.user?.userId;

@@ -1,5 +1,5 @@
-const commScmRateModells = require("../Modells/commScmRateModells");
-const commScmRateHistoryModells = require("../Modells/commScmRateHistoryModells");  
+const commScmRateModells = require("../models/commScmRateModells");
+const commScmRateHistoryModells = require("../models/commScmRateHistoryModells");  
 
 //add commScmRate
 const addCommScmRate = async function (req, res) {

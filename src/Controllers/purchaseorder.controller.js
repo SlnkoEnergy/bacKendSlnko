@@ -1,22 +1,22 @@
-const purchaseOrderModells = require("../Modells/purchaseorder.model");
-const recoveryPurchaseOrder = require("../Modells/recoveryPurchaseOrderModells");
-const pohisttoryModells = require("../Modells/pohistoryModells");
+const purchaseOrderModells = require("../models/purchaseorder.model");
+const recoveryPurchaseOrder = require("../models/recoveryPurchaseOrderModells");
+const pohisttoryModells = require("../models/pohistoryModells");
 const { Parser } = require("json2csv");
 const fs = require("fs");
 const path = require("path");
 const { default: mongoose } = require("mongoose");
-const materialCategoryModells = require("../Modells/materialcategory.model");
+const materialCategoryModells = require("../models/materialcategory.model");
 const {
   getLowerPriorityStatus,
 } = require("../utils/updatePurchaseRequestStatus");
-const purchaseRequest = require("../Modells/purchaserequest.model");
-const payRequestModells = require("../Modells/payRequestModells");
-const vendorModells = require("../Modells/vendor.model");
+const purchaseRequest = require("../models/purchaserequest.model");
+const payRequestModells = require("../models/payRequestModells");
+const vendorModells = require("../models/vendor.model");
 const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
-const inspectionModel = require("../Modells/inspection.model");
+const inspectionModel = require("../models/inspection.model");
 
 const addPo = async function (req, res) {
   try {

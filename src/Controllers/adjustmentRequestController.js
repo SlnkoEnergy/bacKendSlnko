@@ -1,4 +1,4 @@
-const adjustmentRequestModells = require("../Modells/adjustmentRequestModells");  
+const adjustmentRequestModells = require("../models/adjustmentRequestModells");  
 
 
 //add adjustment request
