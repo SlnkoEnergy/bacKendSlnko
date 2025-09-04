@@ -455,6 +455,7 @@ const getAllUserByDepartment = async (req, res) => {
 const editUser = async function (req, res) {
   const userId = req.params._id;
 
+  // Pick only allowed fields; ignore undefined so we do partial updates
   const {
     name,
     emp_id,
@@ -467,35 +468,59 @@ const editUser = async function (req, res) {
     attachment_url,  // NEW
   } = req.body;
 
-  try {
-    const update = compact({
-      name,
-      emp_id,
-      email,
-      phone,
-      department,
-      role,
-      location,        // NEW
-      about,           // NEW
-      attachment_url,  // NEW
-    });
+  // Build update object (remove undefined)
+  const compact = (obj = {}) =>
+    Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 
-    const updatedUser = await userModells.findByIdAndUpdate(
-      userId,
-      update,
-      { new: true, runValidators: true }
-    ).select("-password -otp -otpExpires");
+  // Optional: trim strings
+  const trimIfStr = (v) => (typeof v === "string" ? v.trim() : v);
+
+  const update = compact({
+    name: trimIfStr(name),
+    emp_id: trimIfStr(emp_id),
+    email: trimIfStr(email),
+    phone, // let mongoose cast Number if your schema expects Number
+    department: trimIfStr(department),
+    role: trimIfStr(role),
+    location: trimIfStr(location),
+    about: trimIfStr(about),
+    attachment_url: trimIfStr(attachment_url),
+  });
+
+  if (Object.keys(update).length === 0) {
+    return res.status(400).json({ message: "No fields to update." });
+  }
+
+  try {
+    const updatedUser = await userModells
+      .findByIdAndUpdate(
+        userId,
+        { $set: update }, // <- use $set
+        {
+          new: true,             // return the updated doc
+          runValidators: true,   // run schema validators on update
+          context: "query",      // needed for some validators
+        }
+      )
+      .select("-password -otp -otpExpires");
 
     if (!updatedUser) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "User updated successfully",
       user: updatedUser,
     });
   } catch (error) {
-    res
+    // Handle duplicate key errors (email / emp_id)
+    if (error?.code === 11000) {
+      const fields = Object.keys(error.keyPattern || {});
+      return res
+        .status(409)
+        .json({ message: `Duplicate value for: ${fields.join(", ")}` });
+    }
+    return res
       .status(500)
       .json({ message: "Error updating user", error: error.message });
   }
