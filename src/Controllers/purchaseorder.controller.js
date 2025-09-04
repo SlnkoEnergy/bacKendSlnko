@@ -681,10 +681,15 @@ const getPaginatedPo = async (req, res) => {
     const skip = (page - 1) * pageSize;
 
     const search = (req.query.search || "").trim();
-    const status = (req.query.status || "").trim(); 
+    const status = (req.query.status || "").trim();
     const filter = (req.query.filter || "").trim();
 
-    const parseCustomDate = (dateStr) => (dateStr ? new Date(Date.parse(dateStr)) : null);
+    const parseCustomDate = (dateStr) => {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      return isNaN(d) ? null : d;
+    };
+
     const createdFrom = parseCustomDate(req.query.createdFrom);
     const createdTo = parseCustomDate(req.query.createdTo);
     const etdFrom = parseCustomDate(req.query.etdFrom);
@@ -701,30 +706,39 @@ const getPaginatedPo = async (req, res) => {
     if (search) {
       const searchRegex = new RegExp(search, "i");
       andClauses.push({
-        $or: [{ p_id: { $regex: searchRegex } }, { po_number: { $regex: searchRegex } }, { vendor: { $regex: searchRegex } }],
+        $or: [
+          { p_id: { $regex: searchRegex } },
+          { po_number: { $regex: searchRegex } },
+          { vendor: { $regex: searchRegex } },
+        ],
       });
     }
 
     if (req.query.item_id) {
       const idStr = String(req.query.item_id);
-      const maybeId = mongoose.isValidObjectId(idStr) ? new mongoose.Types.ObjectId(idStr) : idStr;
+      const maybeId = mongoose.isValidObjectId(idStr)
+        ? new mongoose.Types.ObjectId(idStr)
+        : idStr;
       andClauses.push({ "item.category": maybeId });
     }
 
     if (req.query.pr_id) {
       const idStr = String(req.query.pr_id);
-      const maybeId = mongoose.isValidObjectId(idStr) ? new mongoose.Types.ObjectId(idStr) : idStr;
+      const maybeId = mongoose.isValidObjectId(idStr)
+        ? new mongoose.Types.ObjectId(idStr)
+        : idStr;
       andClauses.push({ "pr.pr_id": maybeId });
     }
 
     const baseEq = {
       ...(req.query.project_id && { p_id: req.query.project_id }),
 
+      // created date range uses dateObj (computed below)
       ...(createdFrom || createdTo
         ? {
             dateObj: {
-              ...(createdFrom ? { $gte: new Date(createdFrom) } : {}),
-              ...(createdTo ? { $lte: new Date(createdTo) } : {}),
+              ...(createdFrom ? { $gte: createdFrom } : {}),
+              ...(createdTo ? { $lte: createdTo } : {}),
             },
           }
         : {}),
@@ -791,18 +805,40 @@ const getPaginatedPo = async (req, res) => {
 
     const preMatch = andClauses.length ? { $and: andClauses, ...baseEq } : baseEq;
 
-    const pipeline = [
-      {
-        $addFields: {
-          dateObj: {
-            $cond: [
-              { $eq: [{ $type: "$date" }, "string"] },
-              { $dateFromString: { dateString: "$date", format: "%Y-%m-%d" } },
-              "$date",
+    // Reusable first stage: safe compute dateObj from possibly empty/invalid strings
+    const safeDateObjStage = {
+      $addFields: {
+        dateObj: {
+          $switch: {
+            branches: [
+              // Parse only when it's a non-empty string
+              {
+                case: {
+                  $and: [
+                    { $eq: [{ $type: "$date" }, "string"] },
+                    { $gt: [{ $strLenCP: "$date" }, 0] },
+                  ],
+                },
+                then: {
+                  $dateFromString: {
+                    dateString: "$date",
+                    format: "%Y-%m-%d", // change if your stored format differs
+                    onError: null,
+                    onNull: null,
+                  },
+                },
+              },
+              // Already a BSON Date
+              { case: { $eq: [{ $type: "$date" }, "date"] }, then: "$date" },
             ],
+            default: null,
           },
         },
       },
+    };
+
+    const pipeline = [
+      safeDateObjStage,
 
       { $match: preMatch },
 
@@ -820,7 +856,11 @@ const getPaginatedPo = async (req, res) => {
       {
         $addFields: {
           partial_billing: {
-            $cond: [{ $gte: ["$total_billed_num", "$po_value_num"] }, "Fully Billed", "Bill Pending"],
+            $cond: [
+              { $gte: ["$total_billed_num", "$po_value_num"] },
+              "Fully Billed",
+              "Bill Pending",
+            ],
           },
         },
       },
@@ -837,10 +877,14 @@ const getPaginatedPo = async (req, res) => {
       },
       {
         $addFields: {
-          resolvedCatNames: { $map: { input: "$categoryData", as: "c", in: "$$c.name" } },
+          resolvedCatNames: {
+            $map: { input: "$categoryData", as: "c", in: "$$c.name" },
+          },
         },
       },
-      ...(itemSearch ? [{ $match: { resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } } } }] : []),
+      ...(itemSearch
+        ? [{ $match: { resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } } } }]
+        : []),
 
       { $sort: { createdAt: -1, po_number: 1 } },
       { $skip: skip },
@@ -881,17 +925,7 @@ const getPaginatedPo = async (req, res) => {
     ];
 
     const countPipeline = [
-      {
-        $addFields: {
-          dateObj: {
-            $cond: [
-              { $eq: [{ $type: "$date" }, "string"] },
-              { $dateFromString: { dateString: "$date", format: "%Y-%m-%d" } },
-              "$date",
-            ],
-          },
-        },
-      },
+      safeDateObjStage,
       { $match: preMatch },
       {
         $addFields: {
@@ -906,7 +940,11 @@ const getPaginatedPo = async (req, res) => {
       {
         $addFields: {
           partial_billing: {
-            $cond: [{ $gte: ["$total_billed_num", "$po_value_num"] }, "Fully Billed", "Bill Pending"],
+            $cond: [
+              { $gte: ["$total_billed_num", "$po_value_num"] },
+              "Fully Billed",
+              "Bill Pending",
+            ],
           },
         },
       },
@@ -920,10 +958,14 @@ const getPaginatedPo = async (req, res) => {
       },
       {
         $addFields: {
-          resolvedCatNames: { $map: { input: "$categoryData", as: "c", in: "$$c.name" } },
+          resolvedCatNames: {
+            $map: { input: "$categoryData", as: "c", in: "$$c.name" },
+          },
         },
       },
-      ...(itemSearch ? [{ $match: { resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } } } }] : []),
+      ...(itemSearch
+        ? [{ $match: { resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } } } }]
+        : []),
       ...(status ? [{ $match: { partial_billing: status } }] : []),
       { $count: "total" },
     ];
@@ -938,7 +980,11 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-            .toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+            .toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
             .replace(/ /g, "/")
         : "";
 
@@ -957,7 +1003,6 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
-
 
 const getExportPo = async (req, res) => {
   try {
