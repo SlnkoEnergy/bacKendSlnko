@@ -2,22 +2,59 @@ const express = require("express");
 const mongoose = require("mongoose");
 const app = express();
 const routes = require("../src/Routes/routes");
-const engineeringRoutes = require("../src/Routes/engineering/engineeringRoutes");
-const bdleadsRoutes = require("../src/Routes/bdleadDashboard/bdleadDashboardRoutes");
-const dprRoutes = require("../src/Routes/dpr/dprRoutes");
-const purchaseRoutes = require("../src/Routes/purchaseRequest/purchaseRequestRoutes");
-const taskRoutes = require("../src/Routes/tasks/tasks");
+const engineeringRoutes = require("./Routes/engineering.routes");
+const bdleadsRoutes = require("../src/Routes/bdleads.routes");
+const dprRoutes = require("../src/Routes/dpr.routes");
+const purchaseRoutes = require("../src/Routes/purchaserequest.routes");
+const taskRoutes = require("./Routes/tasks.routes");
+const accountingRoutes = require("../src/Routes/accounting.routes");
+const scopeRoutes = require("../src/Routes/scope.routes");
+const productRoutes = require("../src/Routes/products.routes");
+const logisticRoutes = require("../src/Routes/logistics.routes");
+const historyRoutes = require("./Routes/Pohistory.routes");
+const billRoutes = require("../src/Routes/bill.routes");
+const inspectionRoutes = require("../src/Routes/inspection.routes");
 const cors = require("cors");
 const { config } = require("dotenv");
+const cookieParser = require("cookie-parser");
+const Sentry = require("@sentry/node");
+const Tracing = require("@sentry/tracing");
+require("../src/utils/cron/inactivelead.cron.utils");
+require("../src/utils/cron/movetotrash.cron.utils");
 
-config({
-  path: "./.env",
+Sentry.init({
+  dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",
+  integrations: [
+    new Sentry.Integrations.Http({ tracing: true }),
+    new Tracing.Integrations.Express({ app }),
+  ],
+  send_default_pii: true,
+  tracesSampleRate: 1.0,
 });
 
-app.use(cors({ origin: "*" }));
+config({ path: "./.env" });
+
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",")
+  : [];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+app.use(Sentry.Handlers.requestHandler());
+app.use(Sentry.Handlers.tracingHandler());
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 const PORT = process.env.PORT;
 const db = process.env.DB_URL; 
 
@@ -30,14 +67,21 @@ const startServer = async () => {
     app.use("/v1/engineering", engineeringRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);
     app.use("/v1/dpr", dprRoutes);
-    app.use("/v1/purchaseRequest",purchaseRoutes);
+    app.use("/v1/purchaseRequest", purchaseRoutes);
     app.use("/v1/tasks", taskRoutes);
+    app.use("/v1/accounting", accountingRoutes);
+    app.use("/v1/scope", scopeRoutes);
+    app.use("/v1/products", productRoutes);
+    app.use("/v1/logistics", logisticRoutes);
+    app.use("/v1/history", historyRoutes);
+    app.use("/v1/bill", billRoutes);
+    app.use("/v1/inspection", inspectionRoutes);
 
-    // Start the server
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);
     });
 
+    app.use(Sentry.Handlers.errorHandler());
     process.on("SIGINT", () => {
       console.log("Gracefully shutting down...");
       mongoose.connection.close(() => {
@@ -51,5 +95,4 @@ const startServer = async () => {
   }
 };
 
-// Start the server
 startServer();

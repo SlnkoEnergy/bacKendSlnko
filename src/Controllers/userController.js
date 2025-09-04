@@ -1,9 +1,11 @@
-const userModells = require("../Modells/userModells");
+const userModells = require("../Modells/users/userModells");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
-const { config } = require("dotenv");
+const getSystemIdentifier = require("../utils/generateSystemIdentifier");
 const getEmailTemplate = require("../utils/emailTemplate");
+const session = require("../Modells/users/session");
+const getSessionVerfication = require("../utils/sessionVerification");
 
 //user Registration
 
@@ -83,7 +85,7 @@ const forgettpass = async function (req, res) {
 
     const otp = Math.floor(100000 + Math.random() * 900000);
     user.otp = otp;
-    user.otpExpires = Date.now() + 15 * 60 * 1000; // OTP valid for 15 minutes
+    user.otpExpires = Date.now() + 15 * 60 * 1000; 
     await user.save();
 
     // Configure the email transporter
@@ -197,25 +199,19 @@ const verifyandResetPassword = async (req, res) => {
   }
 };
 
-//Login
 const login = async function (req, res) {
   try {
-    const { name, emp_id, email, password } = req.body;
+    const { name, emp_id, email, password, latitude, longitude, fullAddress } = req.body;
 
     if (!password) {
       return res.status(400).json({ msg: "Password is required" });
     }
 
-    // Combine all identity fields into a single search term
     const identity = name || emp_id || email;
-
     if (!identity) {
-      return res
-        .status(400)
-        .json({ msg: "Enter any of username, emp_id, or email" });
+      return res.status(400).json({ msg: "Enter any of username, emp_id, or email" });
     }
 
-    // Search user where ANY of the fields match the identity value
     const user = await userModells.findOne({
       $or: [{ name: identity }, { emp_id: identity }, { email: identity }],
     });
@@ -229,13 +225,133 @@ const login = async function (req, res) {
       return res.status(401).json({ msg: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.PASSKEY);
+    
+    if (user.department === "BD" || name === "Shantanu Sameer" || emp_id === "SE-187" || email === "shantanu.sameer12@gmail.com") {
+      const { device_id, ip } = await getSystemIdentifier(req, res);
+      const registeredDevice = await session.findOne({
+        user_id: user._id,
+        "device_info.device_id": device_id,
+      });
 
+      if (!registeredDevice) {
+        // Generate OTP
+        const otp = Math.floor(100000 + Math.random() * 900000);
+        const otpExpires = Date.now() + 5 * 60 * 1000; 
+
+        user.otp = otp;
+        user.otpExpires = otpExpires;
+        await user.save();
+
+        const transport = nodemailer.createTransport({
+          host: process.env.EMAIL_HOST,
+          port: parseInt(process.env.EMAIL_PORT),
+          secure: process.env.EMAIL_SECURE === "true",
+          service: process.env.EMAIL_SERVICE,
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+          },
+        });
+
+        await transport.sendMail({
+          from: `"SLnko Energy Alert" <${process.env.EMAIL_USER}>`,
+          to: `${process.env.EMAIL_ADMIN}`,
+          subject: `Unauthorized Device Login Attempt for ${user.name}`,
+          html: getSessionVerfication(otp, user.emp_id,user.name,device_id, ip, latitude, longitude, fullAddress),
+        });
+
+        return res.status(403).json({
+          message: "Unrecognized device. OTP has been sent for verification.",
+          email: user.email,
+        });
+      }
+
+      await session.create({
+        user_id: user._id,
+        device_info: {
+          device_id,
+          ip,
+          latitude,
+          longitude,
+        },
+        login_time: new Date(),
+      });
+    }
+
+    const token = jwt.sign({ userId: user._id }, process.env.PASSKEY);
     return res.status(200).json({ token, userId: user._id });
   } catch (error) {
-    res.status(500).json({ msg: "Server error: " + error.message });
+    res.status(500).json({ message: "Internal Server error", error: error.message });
   }
 };
+
+const finalizeBdLogin = async (req, res) => {
+  try {
+    const { email, latitude, longitude, fullAddress } = req.body;
+    const { device_id, ip } = await getSystemIdentifier(req, res);
+
+    const user = await userModells.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    await session.create({
+      user_id: user._id,
+      device_info: {
+        device_id,
+        ip,
+        latitude,
+        longitude,
+      },
+      login_time: new Date(),
+    });
+
+    const token = jwt.sign({ userId: user._id }, process.env.PASSKEY);
+    return res.status(200).json({ token, userId: user._id });
+  } catch (error) {
+    console.error("Finalize BD Login Error:", error);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+const logout = async (req, res) => {
+  try {
+    const userId = req.user.userId; 
+    
+    const user = await userModells.findById(userId);
+    if(!user){
+      return res.status(404).json({
+        message:"User Not Found"
+      })
+    }
+    
+    const isBD = user.department === "BD"
+    
+    if(isBD){
+      const { device_id, ip } = await getSystemIdentifier(req, res); 
+      const sessionToUpdate = await session.findOne({
+        user_id: userId,
+        "device_info.device_id": device_id,
+        logout_time: { $exists: false },
+      });
+    
+
+      if (!sessionToUpdate) {
+        return res.status(404).json({ message: "No active session found." });
+      }
+  
+      sessionToUpdate.logout_time = new Date();
+      await sessionToUpdate.save();
+    }
+
+    return res.status(200).json({ message: "Logged out successfully." });
+  } catch (err) {
+    console.error("Logout error:", err);
+    return res.status(500).json({ message: "Internal server error.", error: err.message });
+  }
+};
+
 
 //get-all-user
 const getalluser = async function (req, res) {
@@ -284,7 +400,32 @@ const getAllUserByDepartment = async (req, res) => {
       error:error.message
      })
    }
-}
+};
+
+//edit user
+const editUser = async function (req, res) {
+  const userId = req.params._id;
+  const { name, emp_id, email, phone, department, role } = req.body;
+
+  try {
+    const updatedUser = await userModells.findByIdAndUpdate(
+      userId,
+      { name, emp_id, email, phone, department, role },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({
+      message: "User updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error updating user", error: error.message });
+  }
+};
 
 const getAllDepartment = async (req, res) => {
   try {
@@ -297,6 +438,7 @@ const getAllDepartment = async (req, res) => {
 module.exports = {
   userRegister,
   login,
+  logout,
   getalluser,
   forgettpass,
   verifyOtp,
@@ -304,5 +446,7 @@ module.exports = {
   deleteUser,
   getSingleUser,
   getAllUserByDepartment,
-  getAllDepartment
+  editUser,
+  getAllDepartment,
+  finalizeBdLogin
 };
