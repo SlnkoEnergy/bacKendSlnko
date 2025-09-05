@@ -33,6 +33,7 @@ async function projectBalance(req, res) {
   }
 }
 
+
 /**** export project code ****/
 const exportProjectBalance = async (req, res) => {
   try {
@@ -548,7 +549,7 @@ const exportProjectBalance = async (req, res) => {
         },
       },
 
-       {
+      {
         $addFields: {
           project_kwp: {
             $let: {
@@ -601,6 +602,7 @@ const exportProjectBalance = async (req, res) => {
           plantCapacity: "$project_kwp",
           totalCredit: 1,
           totalDebit: 1,
+          
           totalAdjustment: 1,
           availableAmount: 1,
           balanceSlnko: 1,

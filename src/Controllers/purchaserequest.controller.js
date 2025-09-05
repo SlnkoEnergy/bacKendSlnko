@@ -441,7 +441,7 @@ const getPurchaseRequestById = async (req, res) => {
       return res.status(404).json({ message: "Purchase Request not found" });
     }
 
-    const purchaseOrders = await purchaseOrderModells.find({ pr_id: id });
+    const purchaseOrders = await purchaseOrderModells.find({ "pr.pr_id": id });
 
     let overallTotalPOValue = 0;
     let overallTotalNumberOfPO = 0;

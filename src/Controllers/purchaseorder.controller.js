@@ -27,8 +27,8 @@ const addPo = async function (req, res) {
       date,
       po_number,
       vendor,
-      submitted_By,
       pr_id,
+      pr_no,
       item,
       other = "",
       partial_billing,
@@ -98,8 +98,11 @@ const addPo = async function (req, res) {
       item: itemsSanitized,
       other,
       vendor,
-      submitted_By,
-      pr_id: pr_id ? new mongoose.Types.ObjectId(pr_id) : undefined,
+      submitted_By:userId,
+      pr: {
+        pr_id: pr_id ? new mongoose.Types.ObjectId(pr_id) : undefined,
+        pr_no: pr_no,
+      },
       partial_billing,
       po_basic: poBasicStr,
       gst: gstStr,
@@ -244,7 +247,6 @@ const editPO = async function (req, res) {
       $set: { ...payload },
     };
 
-    
     if (currStatus === "approval_rejected") {
       updateOps.$push = {
         status_history: {
@@ -263,8 +265,6 @@ const editPO = async function (req, res) {
     const update = await purchaseOrderModells
       .findByIdAndUpdate(id, updateOps, { new: true })
       .lean();
-    
-      
 
     const pohistory = {
       po_number: update.po_number,
@@ -388,11 +388,10 @@ const getPOByPONumber = async (req, res) => {
       };
     }
 
-     const poDoc = await purchaseOrderModells
+    const poDoc = await purchaseOrderModells
       .findOne(query)
       .populate("submitted_By", "_id name")
       .lean();
-
 
     if (!poDoc) {
       return res.status(404).json({ msg: "Purchase Order not found" });
@@ -565,7 +564,6 @@ const getallpo = async function (req, res) {
   }
 };
 
-
 const getallpodetail = async function (req, res) {
   try {
     const { po_number } = req.query;
@@ -707,8 +705,6 @@ const getallpodetail = async function (req, res) {
   }
 };
 
-
-
 const getallpoNumber = async function (req, res) {
   try {
     const po_numbers = await purchaseOrderModells.find();
@@ -723,22 +719,26 @@ const getallpoNumber = async function (req, res) {
 
 const getPaginatedPo = async (req, res) => {
   try {
-    // -------- pagination & inputs --------
-    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const pageSize = Math.max(parseInt(req.query.pageSize, 10) || 10, 1);
+    const page = parseInt(req.query.page, 10) || 1;
+    const pageSize = parseInt(req.query.pageSize, 10) || 10;
     const skip = (page - 1) * pageSize;
 
     const search = (req.query.search || "").trim();
-    const billingStatus = (req.query.status || "").trim(); // "Fully Billed" | "Bill Pending" | ""
-    const filter = (req.query.filter || "").trim();        // custom status filters
+    const status = (req.query.status || "").trim();
+    const filter = (req.query.filter || "").trim();
 
-    const parseCustomDate = (s) => (s ? new Date(Date.parse(s)) : null);
-    const createdFrom   = parseCustomDate(req.query.createdFrom);
-    const createdTo     = parseCustomDate(req.query.createdTo);
-    const etdFrom       = parseCustomDate(req.query.etdFrom);
-    const etdTo         = parseCustomDate(req.query.etdTo);
-    const deliveryFrom  = parseCustomDate(req.query.deliveryFrom);
-    const deliveryTo    = parseCustomDate(req.query.deliveryTo);
+    const parseCustomDate = (dateStr) => {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      return isNaN(d) ? null : d;
+    };
+
+    const createdFrom = parseCustomDate(req.query.createdFrom);
+    const createdTo = parseCustomDate(req.query.createdTo);
+    const etdFrom = parseCustomDate(req.query.etdFrom);
+    const etdTo = parseCustomDate(req.query.etdTo);
+    const deliveryFrom = parseCustomDate(req.query.deliveryFrom);
+    const deliveryTo = parseCustomDate(req.query.deliveryTo);
 
     const itemSearch =
       typeof req.query.itemSearch === "string" ? req.query.itemSearch.trim() : "";
@@ -760,13 +760,19 @@ const getPaginatedPo = async (req, res) => {
 
     // Filter by category id inside items (works if item is an array of objects having category)
     if (req.query.item_id) {
-      const itemId = req.query.item_id;
-      const maybeObjId = mongoose.isValidObjectId(itemId)
-        ? new mongoose.Types.ObjectId(itemId)
-        : null;
-      andClauses.push({
-        $or: [{ "item.category": maybeObjId }, { "item.category": itemId }],
-      });
+      const idStr = String(req.query.item_id);
+      const maybeId = mongoose.isValidObjectId(idStr)
+        ? new mongoose.Types.ObjectId(idStr)
+        : idStr;
+      andClauses.push({ "item.category": maybeId });
+    }
+
+    if (req.query.pr_id) {
+      const idStr = String(req.query.pr_id);
+      const maybeId = mongoose.isValidObjectId(idStr)
+        ? new mongoose.Types.ObjectId(idStr)
+        : idStr;
+      andClauses.push({ "pr.pr_id": maybeId });
     }
 
     // Filter by pr_id (support both ObjectId and string stored in DB)
@@ -783,6 +789,34 @@ const getPaginatedPo = async (req, res) => {
     // Base equality / direct-field constraints
     const baseEq = {
       ...(req.query.project_id && { p_id: req.query.project_id }),
+
+      // created date range uses dateObj (computed below)
+      ...(createdFrom || createdTo
+        ? {
+            dateObj: {
+              ...(createdFrom ? { $gte: createdFrom } : {}),
+              ...(createdTo ? { $lte: createdTo } : {}),
+            },
+          }
+        : {}),
+
+      ...(etdFrom || etdTo
+        ? {
+            etd: {
+              ...(etdFrom ? { $gte: etdFrom } : {}),
+              ...(etdTo ? { $lte: etdTo } : {}),
+            },
+          }
+        : {}),
+
+      ...(deliveryFrom || deliveryTo
+        ? {
+            delivery_date: {
+              ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
+              ...(deliveryTo ? { $lte: deliveryTo } : {}),
+            },
+          }
+        : {}),
     };
 
     // Filter shortcuts on current_status.status
@@ -825,45 +859,40 @@ const getPaginatedPo = async (req, res) => {
 
     const preMatch = andClauses.length ? { $and: andClauses, ...baseEq } : baseEq;
 
-    // -------- helper builders for common stages --------
-    const addComputedDatesStage = {
+    // Reusable first stage: safe compute dateObj from possibly empty/invalid strings
+    const safeDateObjStage = {
       $addFields: {
-        // normalize PO "date" into dateObj
         dateObj: {
-          $cond: [
-            { $eq: [{ $type: "$date" }, "string"] },
-            { $dateFromString: { dateString: "$date", format: "%Y-%m-%d" } },
-            "$date",
-          ],
-        },
-        // normalize etd into etdObj
-        etdObj: {
           $switch: {
             branches: [
-              { case: { $eq: [{ $type: "$etd" }, "date"] }, then: "$etd" },
+              // Parse only when it's a non-empty string
               {
-                case: { $eq: [{ $type: "$etd" }, "string"] },
-                then: { $dateFromString: { dateString: "$etd", onError: null, onNull: null } },
+                case: {
+                  $and: [
+                    { $eq: [{ $type: "$date" }, "string"] },
+                    { $gt: [{ $strLenCP: "$date" }, 0] },
+                  ],
+                },
+                then: {
+                  $dateFromString: {
+                    dateString: "$date",
+                    format: "%Y-%m-%d", // change if your stored format differs
+                    onError: null,
+                    onNull: null,
+                  },
+                },
               },
-            ],
-            default: null,
-          },
-        },
-        // normalize delivery_date into deliveryObj
-        deliveryObj: {
-          $switch: {
-            branches: [
-              { case: { $eq: [{ $type: "$delivery_date" }, "date"] }, then: "$delivery_date" },
-              {
-                case: { $eq: [{ $type: "$delivery_date" }, "string"] },
-                then: { $dateFromString: { dateString: "$delivery_date", onError: null, onNull: null } },
-              },
+              // Already a BSON Date
+              { case: { $eq: [{ $type: "$date" }, "date"] }, then: "$date" },
             ],
             default: null,
           },
         },
       },
     };
+
+    const pipeline = [
+      safeDateObjStage,
 
     // Date range matches AFTER computing *_Obj fields
     const postMatchClauses = [];
@@ -908,7 +937,6 @@ const getPaginatedPo = async (req, res) => {
       addComputedDatesStage,
       { $match: preMatch },
 
-      // numeric conversions for billing calc
       {
         $addFields: {
           total_billed_num: {
@@ -919,6 +947,7 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
+
       {
         $addFields: {
           partial_billing: {
@@ -930,7 +959,8 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-      ...(billingStatus ? [{ $match: { partial_billing: billingStatus } }] : []),
+
+      ...(status ? [{ $match: { partial_billing: status } }] : []),
 
       // apply post date filters (after computed fields)
       ...(postMatchClauses.length ? [{ $match: { $and: postMatchClauses } }] : []),
@@ -949,7 +979,7 @@ const getPaginatedPo = async (req, res) => {
           resolvedCatNames: { $map: { input: "$categoryData", as: "c", in: "$$c.name" } },
         },
       },
-      ...(itemSearchRegex
+      ...(itemSearch
         ? [{ $match: { resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } } } }]
         : []),
 
@@ -986,20 +1016,8 @@ const getPaginatedPo = async (req, res) => {
           po_value: {
             $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
           },
-          pr_id_str: {
-            $cond: [
-              { $eq: [{ $type: "$pr_id" }, "objectId"] },
-              { $toString: "$pr_id" },
-              "$pr_id",
-            ],
-          },
         },
       },
-
-      // DROP temp fields in their own stage (so $project can be inclusion-only)
-      { $unset: ["prIdForLookup", "pr"] },
-
-      // final inclusion-only projection (no exclusions!)
       {
         $project: {
           _id: 1,
@@ -1010,12 +1028,8 @@ const getPaginatedPo = async (req, res) => {
           vendor: 1,
           date: 1,
           po_value: 1,
-          po_basic: {
-            $convert: { input: "$po_basic", to: "double", onError: 0, onNull: 0 },
-          },
-          gst: {
-            $convert: { input: "$gst", to: "double", onError: 0, onNull: 0 },
-          },
+          po_basic: 1,
+          gst: 1,
           amount_paid: 1,
           total_billed: 1,
           partial_billing: 1,
@@ -1026,13 +1040,14 @@ const getPaginatedPo = async (req, res) => {
           current_status: 1,
           status_history: 1,
           category_names: "$resolvedCatNames",
+          pr_id: "$pr.pr_id",
+          pr_no: "$pr.pr_no",
         },
       },
     ];
 
-    // ---------- COUNT PIPELINE ----------
     const countPipeline = [
-      addComputedDatesStage,
+      safeDateObjStage,
       { $match: preMatch },
       {
         $addFields: {
@@ -1070,7 +1085,7 @@ const getPaginatedPo = async (req, res) => {
           resolvedCatNames: { $map: { input: "$categoryData", as: "c", in: "$$c.name" } },
         },
       },
-      ...(itemSearchRegex
+      ...(itemSearch
         ? [{ $match: { resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } } } }]
         : []),
       { $count: "total" },
@@ -1365,6 +1380,7 @@ const moverecovery = async function (req, res) {
     res.status(500).json({ message: "Error deleting item" + error });
   }
 };
+
 //Export-CSV
 const exportCSV = async function (req, res) {
   try {
@@ -1418,7 +1434,6 @@ const deletePO = async function (req, res) {
   }
 };
 
-// //gtpo test
 const updateEditandDeliveryDate = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1461,33 +1476,56 @@ const updateEditandDeliveryDate = async (req, res) => {
 
 const updateStatusPO = async (req, res) => {
   try {
-    const { status, remarks, id, new_po_number } = req.body;
+    const { status, remarks, id, new_po_number, po_number } = req.body;
+
     if (!id) return res.status(404).json({ message: "ID is required" });
-    if (!status && !remarks)
+    if (!status && !remarks) {
       return res
         .status(404)
         .json({ message: "Status and remarks are required" });
-
-    let query = [{ po_number: id }];
-    if (mongoose.isValidObjectId(id)) {
-      query.push({ _id: id });
     }
+
+    const query = [{ po_number: id }];
+    if (mongoose.isValidObjectId(id)) query.push({ _id: id });
 
     const purchaseOrder = await purchaseOrderModells.findOne({ $or: query });
     if (!purchaseOrder)
       return res.status(404).json({ message: "Purchase Order not found" });
 
+    const incomingPoNumberRaw =
+      typeof new_po_number !== "undefined" ? new_po_number : po_number;
+
+    if (incomingPoNumberRaw != null) {
+      const incomingPoNumber = String(incomingPoNumberRaw).trim();
+      if (!incomingPoNumber) {
+        return res.status(400).json({ message: "po_number cannot be empty" });
+      }
+
+      const duplicate = await purchaseOrderModells
+        .findOne({
+          po_number: incomingPoNumber,
+          _id: { $ne: purchaseOrder._id },
+        })
+        .select("_id")
+        .lean();
+
+      if (duplicate) {
+        return res
+          .status(409)
+          .json({ message: `PO number "${incomingPoNumber}" already exists` });
+      }
+
+      purchaseOrder.po_number = incomingPoNumber;
+    }
+    
     purchaseOrder.status_history.push({
       status,
       remarks,
       user_id: req.user.userId,
     });
+
     if (status === "material_ready") {
       purchaseOrder.material_ready_date = new Date();
-    }
-
-    if (new_po_number) {
-      purchaseOrder.po_number = new_po_number;
     }
 
     if (status === "ready_to_dispatch") {
@@ -1496,16 +1534,29 @@ const updateStatusPO = async (req, res) => {
 
     await purchaseOrder.save();
 
-    const pr = await purchaseRequest.findById(purchaseOrder.pr_id).lean();
-    if (!pr)
-      return res
-        .status(404)
-        .json({ message: "Related Purchase Request not found" });
+    if (!purchaseOrder?.pr?.pr_id) {
+      return res.status(201).json({
+        message:
+          "Purchase Order Status Updated (no related PR found to evaluate)",
+        data: purchaseOrder,
+      });
+    }
 
-    const allPOs = await purchaseOrderModells.find({ pr_id: pr._id }).lean();
+    const pr = await purchaseRequest.findById(purchaseOrder.pr.pr_id).lean();
+    if (!pr) {
+      return res.status(201).json({
+        message:
+          "Purchase Order Status Updated (related PR not found to evaluate)",
+        data: purchaseOrder,
+      });
+    }
+
+    const allPOs = await purchaseOrderModells
+      .find({ "pr.pr_id": pr._id })
+      .lean();
 
     const updatedItems = await Promise.all(
-      pr.items.map(async (item) => {
+      (pr.items || []).map(async (item) => {
         const itemIdStr = String(item.item_id);
 
         const relevantPOs = allPOs.filter((po) => {
@@ -1575,7 +1626,7 @@ const updateStatusPO = async (req, res) => {
     res.status(201).json({
       message: "Purchase Order Status Updated and PR Item Statuses Evaluated",
       data: purchaseOrder,
-    });
+    })
   } catch (error) {
     return res.status(500).json({
       message: "Internal Server Error",
@@ -1583,6 +1634,7 @@ const updateStatusPO = async (req, res) => {
     });
   }
 };
+
 
 const getPoBasic = async (req, res) => {
   try {
@@ -1767,7 +1819,6 @@ const getPoBasic = async (req, res) => {
   }
 };
 
-
 //get All PO With
 module.exports = {
   addPo,
@@ -1787,5 +1838,5 @@ module.exports = {
   getPOHistoryById,
   updateEditandDeliveryDate,
   updateStatusPO,
-  getPoBasic
+  getPoBasic,
 };
