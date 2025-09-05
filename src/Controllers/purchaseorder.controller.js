@@ -1353,33 +1353,56 @@ const updateEditandDeliveryDate = async (req, res) => {
 
 const updateStatusPO = async (req, res) => {
   try {
-    const { status, remarks, id, new_po_number } = req.body;
+    const { status, remarks, id, new_po_number, po_number } = req.body;
+
     if (!id) return res.status(404).json({ message: "ID is required" });
-    if (!status && !remarks)
+    if (!status && !remarks) {
       return res
         .status(404)
         .json({ message: "Status and remarks are required" });
-
-    let query = [{ po_number: id }];
-    if (mongoose.isValidObjectId(id)) {
-      query.push({ _id: id });
     }
+
+    const query = [{ po_number: id }];
+    if (mongoose.isValidObjectId(id)) query.push({ _id: id });
 
     const purchaseOrder = await purchaseOrderModells.findOne({ $or: query });
     if (!purchaseOrder)
       return res.status(404).json({ message: "Purchase Order not found" });
 
+    const incomingPoNumberRaw =
+      typeof new_po_number !== "undefined" ? new_po_number : po_number;
+
+    if (incomingPoNumberRaw != null) {
+      const incomingPoNumber = String(incomingPoNumberRaw).trim();
+      if (!incomingPoNumber) {
+        return res.status(400).json({ message: "po_number cannot be empty" });
+      }
+
+      const duplicate = await purchaseOrderModells
+        .findOne({
+          po_number: incomingPoNumber,
+          _id: { $ne: purchaseOrder._id },
+        })
+        .select("_id")
+        .lean();
+
+      if (duplicate) {
+        return res
+          .status(409)
+          .json({ message: `PO number "${incomingPoNumber}" already exists` });
+      }
+
+      purchaseOrder.po_number = incomingPoNumber;
+    }
+    
     purchaseOrder.status_history.push({
       status,
       remarks,
       user_id: req.user.userId,
     });
+
     if (status === "material_ready") {
       purchaseOrder.material_ready_date = new Date();
-    }
-
-    if (new_po_number) {
-      purchaseOrder.po_number = new_po_number;
     }
 
     if (status === "ready_to_dispatch") {
@@ -1388,16 +1411,29 @@ const updateStatusPO = async (req, res) => {
 
     await purchaseOrder.save();
 
-    const pr = await purchaseRequest.findById(purchaseOrder.pr.pr_id).lean();
-    if (!pr)
-      return res
-        .status(404)
-        .json({ message: "Related Purchase Request not found" });
+    if (!purchaseOrder?.pr?.pr_id) {
+      return res.status(201).json({
+        message:
+          "Purchase Order Status Updated (no related PR found to evaluate)",
+        data: purchaseOrder,
+      });
+    }
 
-    const allPOs = await purchaseOrderModells.find({ "pr.pr_id": pr._id }).lean();
+    const pr = await purchaseRequest.findById(purchaseOrder.pr.pr_id).lean();
+    if (!pr) {
+      return res.status(201).json({
+        message:
+          "Purchase Order Status Updated (related PR not found to evaluate)",
+        data: purchaseOrder,
+      });
+    }
+
+    const allPOs = await purchaseOrderModells
+      .find({ "pr.pr_id": pr._id })
+      .lean();
 
     const updatedItems = await Promise.all(
-      pr.items.map(async (item) => {
+      (pr.items || []).map(async (item) => {
         const itemIdStr = String(item.item_id);
 
         const relevantPOs = allPOs.filter((po) => {
@@ -1424,7 +1460,7 @@ const updateStatusPO = async (req, res) => {
 
     await purchaseRequest.findByIdAndUpdate(pr._id, { items: updatedItems });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Purchase Order Status Updated and PR Item Statuses Evaluated",
       data: purchaseOrder,
     });
@@ -1435,6 +1471,7 @@ const updateStatusPO = async (req, res) => {
     });
   }
 };
+
 
 const getPoBasic = async (req, res) => {
   try {
