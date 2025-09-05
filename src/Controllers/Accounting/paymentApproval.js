@@ -626,6 +626,7 @@ const getPoApprovalPdf = async function (req, res) {
           vendor: 1,
           dbt_date: 1,
           comment: 1,
+          po_number:1,
           amt_for_customer: "$amount_paid",
         },
       },
