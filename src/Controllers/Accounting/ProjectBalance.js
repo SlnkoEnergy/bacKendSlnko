@@ -33,10 +33,6 @@ async function projectBalance(req, res) {
   }
 }
 
-module.exports = { projectBalance };
-
-
-
 /**** export project code ****/
 const exportProjectBalance = async (req, res) => {
   try {
