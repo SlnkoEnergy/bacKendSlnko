@@ -348,7 +348,7 @@ const getLeadCounts = async (req, res) => {
       (user.department === "BD" && user.role === "manager");
 
     const regionalAccessMap = {
-      "Shambhavi Gupta": ["rajasthan"],
+      "Shambhavi Gupta": ["rajasthan", "telangana"],
       "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
       "Navin Kumar Gautam": ["rajasthan"],
       "Ketan Kumar Jha": ["madhya pradesh"],
