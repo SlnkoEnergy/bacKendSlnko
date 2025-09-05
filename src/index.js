@@ -21,6 +21,11 @@ const Sentry = require("@sentry/node");
 const Tracing = require("@sentry/tracing");
 require("../src/utils/cron/inactivelead.cron.utils");
 require("../src/utils/cron/movetotrash.cron.utils");
+const {
+  initRedis,
+  isRedisReady,
+  quitRedis,
+} = require("../src/utils/redisClient");
 
 Sentry.init({
   dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",
@@ -63,6 +68,13 @@ const startServer = async () => {
     await mongoose.connect(db, {});
     console.log("SlnkoEnergy database is connected");
 
+    try {
+      await initRedis();
+      console.log("Redis ready?", isRedisReady());
+    } catch (e) {
+      console.warn("Redis init failed:", e.message);
+    }
+
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);
@@ -82,8 +94,15 @@ const startServer = async () => {
     });
 
     app.use(Sentry.Handlers.errorHandler());
-    process.on("SIGINT", () => {
+
+    process.on("SIGINT", async () => {
       console.log("Gracefully shutting down...");
+      try {
+        await quitRedis();
+        console.log("Redis connection closed");
+      } catch (e) {
+        console.warn("Redis close error:", e.message);
+      }
       mongoose.connection.close(() => {
         console.log("MongoDB connection closed");
         process.exit(0);

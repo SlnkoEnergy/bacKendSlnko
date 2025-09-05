@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.33
+    container_name: dragonfly
+    command: ["--requirepass", "${DFLY_PASSWORD:-changeme}"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - dragonfly_data:/data
+    restart: unless-stopped
+    networks:
+      - protrac_net
+
+volumes:
+  dragonfly_data:
+
+networks:
+  protrac_net:
+    external: true

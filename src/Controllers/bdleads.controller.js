@@ -177,7 +177,7 @@ const getAllLeads = async (req, res) => {
     const query = {};
 
     const regionalAccessMap = {
-      "Shambhavi Gupta": ["rajasthan"],
+      "Shambhavi Gupta": ["rajasthan", "telangana"],
       "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
       "Navin Kumar Gautam": ["rajasthan"],
       "Ketan Kumar Jha": ["madhya pradesh"],
@@ -185,7 +185,6 @@ const getAllLeads = async (req, res) => {
       "Om Utkarsh": ["rajasthan"],
       "Abhishek Sawhney": ["chhattisgarh"],
       "Sankalp Choudhary": ["chhattisgarh"]
-
     };
 
 
@@ -349,7 +348,7 @@ const getLeadCounts = async (req, res) => {
       (user.department === "BD" && user.role === "manager");
 
     const regionalAccessMap = {
-      "Shambhavi Gupta": ["rajasthan"],
+      "Shambhavi Gupta": ["rajasthan", "telangana"],
       "Vibhav Upadhyay": ["rajasthan", "uttar pradesh"],
       "Navin Kumar Gautam": ["rajasthan"],
       "Ketan Kumar Jha": ["madhya pradesh"],
