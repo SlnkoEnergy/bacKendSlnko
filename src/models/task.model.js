@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { updateCurrentStatus } = require("../utils/updateCurrentStatus");
+const updateStatus = require("../utils/updatestatus.utils");
 
 const taskSchema = new mongoose.Schema(
   {
@@ -48,6 +48,31 @@ const taskSchema = new mongoose.Schema(
       type: String,
       enum: ["1", "2", "3"],
     },
+    comments: [
+      {
+        remarks: {
+          type: String,
+        },
+        user_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      },
+    ],
+    attachments: [
+      {
+        name: {
+          type: String,
+        },
+        url: {
+          type: String,
+        },
+        user_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      },
+    ],
     status_history: [
       {
         status: {
@@ -89,7 +114,7 @@ const taskSchema = new mongoose.Schema(
 );
 
 taskSchema.pre("save", function (next) {
-  updateCurrentStatus(this, "status_history", "current_status");
+  updateStatus(this, "pending");
   next();
 });
 module.exports = mongoose.model("Tasks", taskSchema);

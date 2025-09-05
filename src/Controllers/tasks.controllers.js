@@ -71,8 +71,12 @@ const getAllTasks = async (req, res) => {
 
     const skip = (Number(page) - 1) * Number(limit);
     const searchRegex = new RegExp(search, "i");
-    const assignedToNameRegex = assignedToName ? new RegExp(assignedToName, "i") : null;
-    const createdByNameRegex = createdByName ? new RegExp(createdByName, "i") : null;
+    const assignedToNameRegex = assignedToName
+      ? new RegExp(assignedToName, "i")
+      : null;
+    const createdByNameRegex = createdByName
+      ? new RegExp(createdByName, "i")
+      : null;
 
     const preLookupMatch = [];
 
@@ -85,7 +89,9 @@ const getAllTasks = async (req, res) => {
     } else if (userRole === "manager") {
       const dept = currentUser.department;
       if (!dept) {
-        return res.status(400).json({ message: "Manager department not found." });
+        return res
+          .status(400)
+          .json({ message: "Manager department not found." });
       }
 
       const departmentUsers = await User.find({ department: dept }, "_id");
@@ -300,8 +306,6 @@ const getAllTasks = async (req, res) => {
   }
 };
 
-
-
 // Get a task by ID
 const getTaskById = async (req, res) => {
   try {
@@ -321,21 +325,141 @@ const getTaskById = async (req, res) => {
   }
 };
 
-// Update a task
+async function uploadFiles(files, folderPath) {
+  const uploaded = [];
+
+  for (const file of files || []) {
+    const mimeType = mime.lookup(file.originalname) || file.mimetype || "application/octet-stream";
+    let buffer = file.buffer;
+
+    // Compress images (like in createExpense)
+    if (mimeType.startsWith("image/")) {
+      const ext = mime.extension(mimeType);
+      if (ext === "jpeg" || ext === "jpg") {
+        buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+      } else if (ext === "png") {
+        buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
+      } else if (ext === "webp") {
+        buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
+      } else {
+        buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+      }
+    }
+
+    const form = new FormData();
+    form.append("file", buffer, {
+      filename: file.originalname,
+      contentType: mimeType,
+    });
+
+    const uploadUrl = `${UPLOAD_API}?containerName=${encodeURIComponent(
+      UPLOAD_CONTAINER
+    )}&foldername=${encodeURIComponent(folderPath)}`;
+
+    const resp = await axios.post(uploadUrl, form, {
+      headers: form.getHeaders(),
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+
+    const data = resp.data;
+    const url = Array.isArray(data) && data.length > 0
+      ? data[0]
+      : data.url || data.fileUrl || (data.data && data.data.url) || null;
+
+    if (url) {
+      uploaded.push({ name: file.originalname, url });
+    } else {
+      console.warn(`No URL returned for ${file.originalname}`);
+    }
+  }
+
+  return uploaded;
+}
+
 const updateTask = async (req, res) => {
   try {
-    const task = await tasksModells
-      .findByIdAndUpdate(req.params.id, req.body, { new: true })
-      .populate("assigned_to")
-      .populate("createdBy");
-    if (!task) {
-      return res.status(404).json({ error: "Task not found" });
+    const id = req.params.id;
+
+    // Accept either raw JSON body or body.data (stringified JSON) like your expense handler
+    const body =
+      typeof req.body.data === "string" ? JSON.parse(req.body.data) :
+      req.body.data ? req.body.data :
+      req.body;
+
+    // Fetch task first so we can compute folder path (and 404 early)
+    const existing = await tasksModells.findById(id).select("taskCode");
+    if (!existing) return res.status(404).json({ error: "Task not found" });
+
+    const userId = req.user?.userId;
+
+    const setFields = { ...body };
+    delete setFields.comment;
+    delete setFields.remarks;        
+    delete setFields.attachments;    
+    delete setFields.comments;     
+    delete setFields.data;          
+
+    let uploaded = [];
+    if (req.files && req.files.length > 0) {
+      const folderPath = `Tasks/${existing.taskCode}`.replace(/ /g, "_");
+      uploaded = await uploadFiles(req.files, folderPath);
     }
+
+    const pushOps = {};
+    const commentText = body.comment || body.remarks;
+    if (commentText) {
+      pushOps.comments = {
+        remarks: commentText,
+        user_id: userId || undefined,
+      };
+    }
+    if (uploaded.length) {
+      const toAttach = uploaded.map((u) => ({
+        name: u.name,
+        url: u.url,
+        user_id: userId || undefined,
+      }));
+      pushOps.attachments = { $each: toAttach };
+    }
+
+    const updateDoc = {};
+    if (Object.keys(setFields).length) updateDoc.$set = setFields;
+    if (pushOps.comments && pushOps.attachments) {
+      updateDoc.$push = {
+        comments: pushOps.comments,
+        attachments: pushOps.attachments,
+      };
+    } else if (pushOps.comments) {
+      updateDoc.$push = { comments: pushOps.comments };
+    } else if (pushOps.attachments) {
+      updateDoc.$push = { attachments: pushOps.attachments };
+    }
+
+    if (!updateDoc.$set && !updateDoc.$push) {
+      const unchanged = await tasksModells
+        .findById(id)
+        .populate("assigned_to")
+        .populate("createdBy")
+        .populate("comments.user_id")
+        .populate("attachments.user_id");
+      return res.status(200).json(unchanged);
+    }
+
+    const task = await tasksModells
+      .findByIdAndUpdate(id, updateDoc, { new: true })
+      .populate("assigned_to")
+      .populate("createdBy")
+      .populate("comments.user_id")
+      .populate("attachments.user_id");
+
     res.status(200).json(task);
   } catch (err) {
+    console.error("updateTask error:", err);
     res.status(400).json({ error: err.message });
   }
 };
+
 
 const updateTaskStatus = async (req, res) => {
   try {
@@ -424,7 +548,7 @@ const exportToCsv = async (req, res) => {
           : "N/A",
         Project: task.project_id?.[0]?.name || "N/A",
         "Project Code": task.project_id?.[0]?.code || "N/A",
-         AssignedTo:
+        AssignedTo:
           task.assigned_to?.map((user) => user.name).join(", ") || "N/A",
         Priority: task.priority,
         StatusHistory: statusHistory || "N/A",
