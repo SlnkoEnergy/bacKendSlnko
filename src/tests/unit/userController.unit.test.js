@@ -612,7 +612,7 @@ describe("Finalize BD Login", () => {
   });
 });
 
-describe("Logout", () => {
+describe("Logout Testing", () => {
   test("404 or 500 when user missing / not found", async () => {
     const res = await request(app).put("/v1/logout").send();
     expect([404, 500]).toContain(res.status);
