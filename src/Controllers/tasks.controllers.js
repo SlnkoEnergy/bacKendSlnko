@@ -2,6 +2,11 @@ const TaskCounterSchema = require("../models/taskcounter.model");
 const tasksModells = require("../models/task.model");
 const User = require("../models/user.model");
 const { Parser } = require("json2csv");
+const sanitizeHtml = require("sanitize-html");
+const axios = require("axios");
+const FormData = require("form-data");
+const sharp = require("sharp");
+const mime = require("mime-types");
 
 const createTask = async (req, res) => {
   try {
@@ -315,7 +320,9 @@ const getTaskById = async (req, res) => {
       .populate("createdBy", "_id name")
       .populate("project_id", "code name")
       .populate("current_status.user_id", "_id name")
-      .populate("status_history.user_id", "_id name");
+      .populate("status_history.user_id", "_id name")
+      .populate("comments.user_id", "_id name")
+      .populate("attachments.user_id", "_id name")
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
@@ -329,32 +336,30 @@ async function uploadFiles(files, folderPath) {
   const uploaded = [];
 
   for (const file of files || []) {
-    const mimeType = mime.lookup(file.originalname) || file.mimetype || "application/octet-stream";
-    let buffer = file.buffer;
+    const origMime = file.mimetype || mime.lookup(file.originalname) || "application/octet-stream";
+    const origExt  = mime.extension(origMime) || (file.originalname.split(".").pop() || "").toLowerCase();
 
-    // Compress images (like in createExpense)
-    if (mimeType.startsWith("image/")) {
-      const ext = mime.extension(mimeType);
-      if (ext === "jpeg" || ext === "jpg") {
-        buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
-      } else if (ext === "png") {
-        buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
-      } else if (ext === "webp") {
-        buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
-      } else {
-        buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
-      }
+    let outBuffer = file.buffer;
+    let outExt = origExt;
+    let outMime = origMime;
+
+    if (origMime.startsWith("image/")) {
+      let target = ["jpeg","jpg","png","webp"].includes(origExt) ? origExt : "jpeg";
+      if (target === "jpg") target = "jpeg";
+
+      if (target === "jpeg") { outBuffer = await sharp(outBuffer).jpeg({ quality: 40 }).toBuffer(); outExt = "jpg";  outMime = "image/jpeg"; }
+      else if (target === "png") { outBuffer = await sharp(outBuffer).png({ compressionLevel: 9 }).toBuffer(); outExt = "png"; outMime = "image/png"; }
+      else if (target === "webp") { outBuffer = await sharp(outBuffer).webp({ quality: 40 }).toBuffer(); outExt = "webp"; outMime = "image/webp"; }
     }
 
-    const form = new FormData();
-    form.append("file", buffer, {
-      filename: file.originalname,
-      contentType: mimeType,
-    });
+    const base = file.originalname.replace(/\.[^/.]+$/, "");
+    const finalName = `${base}.${outExt}`;
 
-    const uploadUrl = `${UPLOAD_API}?containerName=${encodeURIComponent(
-      UPLOAD_CONTAINER
-    )}&foldername=${encodeURIComponent(folderPath)}`;
+    const form = new FormData();
+    // If your external UPLOAD_API expects a different field name, change "file" here.
+    form.append("file", outBuffer, { filename: finalName, contentType: outMime });
+
+    const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
 
     const resp = await axios.post(uploadUrl, form, {
       headers: form.getHeaders(),
@@ -367,53 +372,89 @@ async function uploadFiles(files, folderPath) {
       ? data[0]
       : data.url || data.fileUrl || (data.data && data.data.url) || null;
 
-    if (url) {
-      uploaded.push({ name: file.originalname, url });
-    } else {
-      console.warn(`No URL returned for ${file.originalname}`);
-    }
+    if (url) uploaded.push({ name: finalName, url });
+    else console.warn(`No URL returned for ${finalName}`);
   }
 
   return uploaded;
 }
 
+
+const SANITIZE_CFG = {
+  allowedTags: [
+    "div","p","br","span","strong","b","em","i","u","s","strike",
+    "ul","ol","li","a","blockquote","code","pre"
+  ],
+  allowedAttributes: {
+    a: ["href","name","target","rel"],
+    span: ["style"],
+    div: ["style"],
+    p: ["style"],
+  },
+  allowedStyles: {
+    "*": {
+      "color": [/^.*$/],
+      "background-color": [/^.*$/],
+      "text-decoration": [/^.*$/],
+      "font-weight": [/^.*$/],
+      "font-style": [/^.*$/],
+    },
+  },
+  transformTags: {
+    a: (tagName, attribs) => ({
+      tagName: "a",
+      attribs: { ...attribs, rel: "noopener noreferrer", target: "_blank" },
+    }),
+  },
+  textFilter: (text) => (text.length > 100000 ? text.slice(0, 100000) : text),
+};
+
 const updateTask = async (req, res) => {
   try {
     const id = req.params.id;
 
-    // Accept either raw JSON body or body.data (stringified JSON) like your expense handler
     const body =
-      typeof req.body.data === "string" ? JSON.parse(req.body.data) :
-      req.body.data ? req.body.data :
-      req.body;
+      typeof req.body?.data === "string" ? JSON.parse(req.body.data) :
+      req.body?.data ? req.body.data :
+      req.body || {};
 
-    // Fetch task first so we can compute folder path (and 404 early)
     const existing = await tasksModells.findById(id).select("taskCode");
     if (!existing) return res.status(404).json({ error: "Task not found" });
 
-    const userId = req.user?.userId;
+    const userId = req.user?.userId || req.user?._id;
 
     const setFields = { ...body };
     delete setFields.comment;
-    delete setFields.remarks;        
-    delete setFields.attachments;    
-    delete setFields.comments;     
-    delete setFields.data;          
+    delete setFields.remarks;
+    delete setFields.attachments;
+    delete setFields.comments;
+    delete setFields.data;
+    delete setFields._id;        
+    delete setFields.createdAt;  
+    delete setFields.updatedAt;
 
+    // Handle uploads (if any)
     let uploaded = [];
-    if (req.files && req.files.length > 0) {
+    if (Array.isArray(req.files) && req.files.length > 0) {
       const folderPath = `Tasks/${existing.taskCode}`.replace(/ /g, "_");
       uploaded = await uploadFiles(req.files, folderPath);
     }
 
+    // Build push operators
     const pushOps = {};
-    const commentText = body.comment || body.remarks;
-    if (commentText) {
-      pushOps.comments = {
-        remarks: commentText,
-        user_id: userId || undefined,
-      };
+    const commentRaw = body.comment ?? body.remarks;
+
+    if (commentRaw && String(commentRaw).trim()) {
+      const cleanHtml = sanitizeHtml(String(commentRaw), SANITIZE_CFG);
+      if (cleanHtml && cleanHtml.trim()) {
+        pushOps.comments = {
+          remarks: cleanHtml,      
+          user_id: userId || undefined,
+          createdAt: new Date(),   
+        };
+      }
     }
+
     if (uploaded.length) {
       const toAttach = uploaded.map((u) => ({
         name: u.name,
@@ -425,6 +466,7 @@ const updateTask = async (req, res) => {
 
     const updateDoc = {};
     if (Object.keys(setFields).length) updateDoc.$set = setFields;
+
     if (pushOps.comments && pushOps.attachments) {
       updateDoc.$push = {
         comments: pushOps.comments,
@@ -453,10 +495,10 @@ const updateTask = async (req, res) => {
       .populate("comments.user_id")
       .populate("attachments.user_id");
 
-    res.status(200).json(task);
+    return res.status(200).json(task);
   } catch (err) {
     console.error("updateTask error:", err);
-    res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
   }
 };
 
