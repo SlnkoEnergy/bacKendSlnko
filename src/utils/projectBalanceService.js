@@ -1,4 +1,4 @@
-const projectModells = require("../Modells/project.model");
+const projectModells = require("../models/project.model");
 
 const num = (expr) => ({
   $let: {

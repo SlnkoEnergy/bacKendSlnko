@@ -8,7 +8,7 @@ const modulecategory = require("../models/modulecategory.model");
 const scopeModel = require("../models/scope.model");
 const axios = require("axios");
 const XLSX = require("xlsx");
-const userModells = require("../Modells/users/userModells");
+const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const CreatePurchaseRequest = async (req, res) => {

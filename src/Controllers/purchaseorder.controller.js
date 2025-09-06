@@ -16,9 +16,9 @@ const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
-const userModells = require("../Modells/users/userModells");
+const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
-const inspectionModel = require("../Modells/inspection.model");
+const inspectionModel = require("../models/inspection.model");
 
 const addPo = async function (req, res) {
   try {
@@ -744,7 +744,6 @@ const getPaginatedPo = async (req, res) => {
       typeof req.query.itemSearch === "string" ? req.query.itemSearch.trim() : "";
     const itemSearchRegex = itemSearch ? new RegExp(itemSearch, "i") : null;
 
-    // -------- dynamic $match pre-clauses (raw fields only) --------
     const andClauses = [];
 
     if (search) {
@@ -758,7 +757,6 @@ const getPaginatedPo = async (req, res) => {
       });
     }
 
-    // Filter by category id inside items (works if item is an array of objects having category)
     if (req.query.item_id) {
       const idStr = String(req.query.item_id);
       const maybeId = mongoose.isValidObjectId(idStr)
@@ -775,18 +773,6 @@ const getPaginatedPo = async (req, res) => {
       andClauses.push({ "pr.pr_id": maybeId });
     }
 
-    // Filter by pr_id (support both ObjectId and string stored in DB)
-    if (req.query.pr_id) {
-      const prId = req.query.pr_id;
-      const maybeObjId = mongoose.isValidObjectId(prId)
-        ? new mongoose.Types.ObjectId(prId)
-        : null;
-      andClauses.push({
-        $or: [{ pr_id: maybeObjId }, { pr_id: prId }],
-      });
-    }
-
-    // Base equality / direct-field constraints
     const baseEq = {
       ...(req.query.project_id && { p_id: req.query.project_id }),
 
@@ -819,7 +805,6 @@ const getPaginatedPo = async (req, res) => {
         : {}),
     };
 
-    // Filter shortcuts on current_status.status
     if (filter) {
       switch (filter) {
         case "Approval Pending":
@@ -830,15 +815,19 @@ const getPaginatedPo = async (req, res) => {
           break;
         case "ETD Pending":
           baseEq["current_status.status"] = "po_created";
+          baseEq["etd"] = null;
           break;
         case "ETD Done":
           baseEq["current_status.status"] = "po_created";
+          baseEq["etd"] = { $ne: null };
           break;
         case "Material Ready":
           baseEq["current_status.status"] = "material_ready";
+          baseEq["material_ready_date"] = { $ne: null };
           break;
         case "Ready to Dispatch":
           baseEq["current_status.status"] = "ready_to_dispatch";
+          baseEq["dispatch_date"] = { $ne: null };
           break;
         case "Out for Delivery":
           baseEq["current_status.status"] = "out_for_delivery";
@@ -894,47 +883,6 @@ const getPaginatedPo = async (req, res) => {
     const pipeline = [
       safeDateObjStage,
 
-    // Date range matches AFTER computing *_Obj fields
-    const postMatchClauses = [];
-    if (createdFrom || createdTo) {
-      const r = {};
-      if (createdFrom) r.$gte = createdFrom;
-      if (createdTo)   r.$lte = createdTo;
-      postMatchClauses.push({ dateObj: r });
-    }
-    if (etdFrom || etdTo) {
-      const r = {};
-      if (etdFrom) r.$gte = etdFrom;
-      if (etdTo)   r.$lte = etdTo;
-      postMatchClauses.push({ etdObj: r });
-    }
-    if (deliveryFrom || deliveryTo) {
-      const r = {};
-      if (deliveryFrom) r.$gte = deliveryFrom;
-      if (deliveryTo)   r.$lte = deliveryTo;
-      postMatchClauses.push({ deliveryObj: r });
-    }
-
-    // Handle "ETD Pending"/"ETD Done" after conversion
-    if (filter === "ETD Pending") {
-      postMatchClauses.push({
-        $or: [
-          { etdObj: null },
-          {
-            $expr: {
-              $eq: [{ $strLenCP: { $ifNull: ["$etd", ""] } }, 0],
-            },
-          },
-        ],
-      });
-    }
-    if (filter === "ETD Done") {
-      postMatchClauses.push({ etdObj: { $ne: null } });
-    }
-
-    // ---------- MAIN PIPELINE ----------
-    const pipeline = [
-      addComputedDatesStage,
       { $match: preMatch },
 
       {
@@ -962,10 +910,6 @@ const getPaginatedPo = async (req, res) => {
 
       ...(status ? [{ $match: { partial_billing: status } }] : []),
 
-      // apply post date filters (after computed fields)
-      ...(postMatchClauses.length ? [{ $match: { $and: postMatchClauses } }] : []),
-
-      // category names (for itemSearch on category)
       {
         $lookup: {
           from: "materialcategories",
@@ -976,7 +920,9 @@ const getPaginatedPo = async (req, res) => {
       },
       {
         $addFields: {
-          resolvedCatNames: { $map: { input: "$categoryData", as: "c", in: "$$c.name" } },
+          resolvedCatNames: {
+            $map: { input: "$categoryData", as: "c", in: "$$c.name" },
+          },
         },
       },
       ...(itemSearch
@@ -987,29 +933,6 @@ const getPaginatedPo = async (req, res) => {
       { $skip: skip },
       { $limit: pageSize },
 
-      // -------- JOIN PurchaseRequest to fetch pr_no --------
-      {
-        $addFields: {
-          prIdForLookup: {
-            $convert: { input: "$pr_id", to: "objectId", onError: null, onNull: null },
-          },
-        },
-      },
-      {
-        $lookup: {
-          from: "purchaserequests", // collection for model "PurchaseRequest"
-          localField: "prIdForLookup",
-          foreignField: "_id",
-          as: "pr",
-        },
-      },
-      {
-        $addFields: {
-          pr_no: { $ifNull: [{ $first: "$pr.pr_no" }, null] },
-        },
-      },
-
-      // safe coercions for output
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
@@ -1022,8 +945,6 @@ const getPaginatedPo = async (req, res) => {
         $project: {
           _id: 1,
           po_number: 1,
-          pr_id: "$pr_id_str",
-          pr_no: 1,
           p_id: 1,
           vendor: 1,
           date: 1,
@@ -1070,8 +991,6 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-      ...(billingStatus ? [{ $match: { partial_billing: billingStatus } }] : []),
-      ...(postMatchClauses.length ? [{ $match: { $and: postMatchClauses } }] : []),
       {
         $lookup: {
           from: "materialcategories",
@@ -1082,12 +1001,15 @@ const getPaginatedPo = async (req, res) => {
       },
       {
         $addFields: {
-          resolvedCatNames: { $map: { input: "$categoryData", as: "c", in: "$$c.name" } },
+          resolvedCatNames: {
+            $map: { input: "$categoryData", as: "c", in: "$$c.name" },
+          },
         },
       },
       ...(itemSearch
         ? [{ $match: { resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } } } }]
         : []),
+      ...(status ? [{ $match: { partial_billing: status } }] : []),
       { $count: "total" },
     ];
 
@@ -1098,10 +1020,9 @@ const getPaginatedPo = async (req, res) => {
 
     const total = countResult[0]?.total || 0;
 
-    // -------- response formatting --------
-    const formatDate = (d) =>
-      d
-        ? new Date(d)
+    const formatDate = (date) =>
+      date
+        ? new Date(date)
             .toLocaleDateString("en-GB", {
               day: "2-digit",
               month: "short",
