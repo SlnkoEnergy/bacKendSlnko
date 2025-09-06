@@ -1,4 +1,5 @@
 const userModells = require("../Modells/users/userModells");
+const { default: mongoose } = require("mongoose");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
@@ -6,10 +7,16 @@ const getSystemIdentifier = require("../utils/generateSystemIdentifier");
 const getEmailTemplate = require("../utils/emailTemplate");
 const session = require("../Modells/users/session");
 const getSessionVerfication = require("../utils/sessionVerification");
+const axios = require("axios");
+const FormData = require("form-data");
+const sharp = require("sharp");
+const mime = require("mime-types");
 
-// helper: remove undefined keys for partial updates
+// helpers used below
 const compact = (obj = {}) =>
   Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+
+const trimIfStr = (v) => (typeof v === "string" ? v.trim() : v);
 
 // ===============================
 // User Registration
@@ -453,78 +460,162 @@ const getAllUserByDepartment = async (req, res) => {
 // Edit User (admin-side)
 // ===============================
 const editUser = async function (req, res) {
-  const userId = req.params._id;
-
-  // Pick only allowed fields; ignore undefined so we do partial updates
-  const {
-    name,
-    emp_id,
-    email,
-    phone,
-    department,
-    role,
-    location,        // NEW
-    about,           // NEW
-    attachment_url,  // NEW
-  } = req.body;
-
-  // Build update object (remove undefined)
-  const compact = (obj = {}) =>
-    Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
-
-  // Optional: trim strings
-  const trimIfStr = (v) => (typeof v === "string" ? v.trim() : v);
-
-  const update = compact({
-    name: trimIfStr(name),
-    emp_id: trimIfStr(emp_id),
-    email: trimIfStr(email),
-    phone, // let mongoose cast Number if your schema expects Number
-    department: trimIfStr(department),
-    role: trimIfStr(role),
-    location: trimIfStr(location),
-    about: trimIfStr(about),
-    attachment_url: trimIfStr(attachment_url),
-  });
-
-  if (Object.keys(update).length === 0) {
-    return res.status(400).json({ message: "No fields to update." });
-  }
-
   try {
+    const userId = req.params._id || req.params.id;
+    if (!userId) return res.status(400).json({ message: "id is required" });
+    if (!mongoose.isValidObjectId(userId))
+      return res.status(400).json({ message: "invalid id" });
+
+    // body supports multipart "data" (stringified) or plain JSON
+    const bodyData =
+      typeof req.body?.data === "string"
+        ? JSON.parse(req.body.data)
+        : req.body?.data || req.body || {};
+
+    const {
+      name,
+      emp_id,
+      email,
+      phone,
+      department,
+      role,
+      location,
+      about,
+      attachment_url, // allow clearing: ""
+    } = bodyData;
+
+    const update = compact({
+      name: trimIfStr(name),
+      emp_id: trimIfStr(emp_id),
+      email: trimIfStr(email),
+      phone,
+      department: trimIfStr(department),
+      role: trimIfStr(role),
+      location: trimIfStr(location),
+      about: trimIfStr(about),
+      attachment_url: trimIfStr(attachment_url),
+    });
+
+    // ---------- FILE UPLOAD (mirror your Logistic/PO style) ----------
+    // Your frontend sends files as: fd.append("files", file)
+    // We also tolerate "avatar" or any other field name.
+    let fileBuf = null;
+    let originalName = null;
+    let guessedMime = null;
+
+    if (req.file?.buffer) {
+      fileBuf = req.file.buffer;
+      originalName = req.file.originalname || "file";
+      guessedMime =
+        mime.lookup(originalName) || req.file.mimetype || "application/octet-stream";
+    } else if (Array.isArray(req.files) && req.files.length) {
+      // prefer the one with fieldname "files", else take the first
+      const theFile =
+        req.files.find((f) => f.fieldname === "files") ||
+        req.files.find((f) => f.fieldname === "avatar") ||
+        req.files[0];
+      if (theFile?.buffer) {
+        fileBuf = theFile.buffer;
+        originalName = theFile.originalname || "file";
+        guessedMime =
+          mime.lookup(originalName) || theFile.mimetype || "application/octet-stream";
+      }
+    }
+
+    if (fileBuf) {
+      // compress images like you do elsewhere
+      try {
+        if (guessedMime && guessedMime.startsWith("image/")) {
+          const ext = mime.extension(guessedMime);
+          if (ext === "jpeg" || ext === "jpg") {
+            fileBuf = await sharp(fileBuf).jpeg({ quality: 40 }).toBuffer();
+          } else if (ext === "png") {
+            fileBuf = await sharp(fileBuf).png({ quality: 40 }).toBuffer();
+          } else if (ext === "webp") {
+            fileBuf = await sharp(fileBuf).webp({ quality: 40 }).toBuffer();
+          } else {
+            fileBuf = await sharp(fileBuf).jpeg({ quality: 40 }).toBuffer();
+          }
+        }
+      } catch (e) {
+        console.warn("Avatar compression failed, using original buffer:", e?.message);
+      }
+
+      // upload to your blob service (same as PO/Logistics)
+      const folderPath = `users/${userId}`;
+      const form = new FormData();
+      form.append("file", fileBuf, {
+        filename: originalName,
+        contentType: guessedMime || "application/octet-stream",
+      });
+
+      const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(
+        folderPath
+      )}`;
+
+      try {
+        const up = await axios.post(uploadUrl, form, {
+          headers: form.getHeaders(),
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+        });
+        const d = up.data;
+        const uploadedUrl =
+          (Array.isArray(d) && d[0]) ||
+          d.url ||
+          d.fileUrl ||
+          (d.data && d.data.url) ||
+          null;
+
+        if (uploadedUrl) {
+          update.attachment_url = uploadedUrl; // DB has a single string field
+        } else {
+          console.warn("No URL returned from upload API.");
+        }
+      } catch (e) {
+        console.error("Avatar upload failed:", e?.message);
+      }
+    }
+
+    // If neither body fields nor a successful upload, bail out
+    // right before:
+if (Object.keys(update).length === 0) {
+  // If client tried to send a file but upload failed, say that explicitly
+  if (Array.isArray(req.files) && req.files.length) {
+    return res.status(502).json({ message: "Avatar upload failed" });
+  }
+  return res.status(400).json({ message: "No fields to update." });
+}
+
+
     const updatedUser = await userModells
       .findByIdAndUpdate(
         userId,
-        { $set: update }, // <- use $set
-        {
-          new: true,             // return the updated doc
-          runValidators: true,   // run schema validators on update
-          context: "query",      // needed for some validators
-        }
+        { $set: update },
+        { new: true, runValidators: true, context: "query" }
       )
       .select("-password -otp -otpExpires");
 
-    if (!updatedUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!updatedUser) return res.status(404).json({ message: "User not found" });
 
     return res.status(200).json({
       message: "User updated successfully",
       user: updatedUser,
     });
   } catch (error) {
-    // Handle duplicate key errors (email / emp_id)
     if (error?.code === 11000) {
       const fields = Object.keys(error.keyPattern || {});
       return res
         .status(409)
         .json({ message: `Duplicate value for: ${fields.join(", ")}` });
     }
+    console.error("editUser error:", error);
     return res
       .status(500)
       .json({ message: "Error updating user", error: error.message });
   }
 };
+
 
 // ===============================
 // Get distinct departments

@@ -294,7 +294,7 @@ router.get(
 router.put(
   "/edit-user/:_id",
   jwtMW.authentication,
-  jwtMW.authorization,
+  upload,
   editUser
 );
 
