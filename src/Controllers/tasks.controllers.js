@@ -67,7 +67,6 @@ const createTask = async (req, res) => {
   }
 };
 
-
 //get all tasks
 const getAllTasks = async (req, res) => {
   try {
@@ -300,7 +299,6 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
-
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
@@ -660,6 +658,376 @@ const exportToCsv = async (req, res) => {
   }
 };
 
+
+//Task Dashboard
+const taskCards = async (req, res) => {
+  try {
+    const { startDate, endDate, department, user_id } = req.query;
+
+    const match = {};
+
+    // date filter (createdAt range)
+    if (startDate && endDate) {
+      match.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    }
+
+    // department filter (if your User has department field)
+    if (department) {
+      match.$or = [
+        { "assigned_to.department": department },
+        { "createdBy.department": department },
+      ];
+    }
+
+    // user filter
+    if (user_id) {
+      match.$or = [
+        { createdBy: user_id },
+        { assigned_to: user_id },
+      ];
+    }
+
+    // aggregation pipeline
+    const result = await tasksModells.aggregate([
+      { $match: match },
+
+      {
+        $facet: {
+          pending: [
+            { $match: { "current_status.status": "pending" } },
+            { $count: "count" },
+          ],
+          completed: [
+            { $match: { "current_status.status": "completed" } },
+            { $count: "count" },
+          ],
+          inProgress: [
+            { $match: { "current_status.status": "in progress" } },
+            { $count: "count" },
+          ],
+          cancelled: [
+            { $match: { "current_status.status": "cancelled" } },
+            { $count: "count" },
+          ],
+          assigned: [
+            {
+              $match: {
+                $or: [
+                  { createdBy: user_id ? new mongoose.Types.ObjectId(user_id) : null },
+                  { assigned_to: user_id ? new mongoose.Types.ObjectId(user_id) : null },
+                ],
+              },
+            },
+            { $count: "count" },
+          ],
+        },
+      },
+
+      {
+        $project: {
+          pending: { $arrayElemAt: ["$pending.count", 0] },
+          completed: { $arrayElemAt: ["$completed.count", 0] },
+          inProgress: { $arrayElemAt: ["$inProgress.count", 0] },
+          cancelled: { $arrayElemAt: ["$cancelled.count", 0] },
+          assigned: { $arrayElemAt: ["$assigned.count", 0] },
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      message: "Task cards fetched successfully",
+      data: result[0] || {
+        pending: 0,
+        completed: 0,
+        inProgress: 0,
+        cancelled: 0,
+        assigned: 0,
+      },
+    });
+  } catch (error) {
+    console.error("taskCards error:", error);
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+const myTasks = async (req, res) => {
+  try {
+    const { department, member } = req.query;
+    const today = new Date();
+
+    let match = {};
+
+    // Department filter
+    if (department) {
+      const usersInDept = await User.find({ department }).select("_id");
+      const userIds = usersInDept.map((u) => u._id.toString());
+
+      match.$or = [
+        { createdBy: { $in: userIds } },
+        { assigned_to: { $in: userIds } },
+      ];
+    }
+
+    // Member filter
+    if (member) {
+      if (!match.$or) match.$or = [];
+      match.$or.push({ createdBy: member });
+      match.$or.push({ assigned_to: { $in: [member] } });
+    }
+
+    // Fetch tasks with filters
+    const tasks = await tasksModells.find(match)
+      .populate("createdBy", "name emp_id department")
+      .select("title description deadline createdBy assigned_to current_status")
+      .sort({ deadline: 1 });
+
+    // Separate overdue and upcoming
+    const overdue = [];
+    const upcoming = [];
+
+    tasks.forEach((task) => {
+      if (task.deadline && task.deadline < today) {
+        overdue.push(task);
+      } else {
+        upcoming.push(task);
+      }
+    });
+
+    return res.status(200).json({
+      overdue,
+      upcoming,
+    });
+  } catch (error) {
+    console.error("myTasks error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+const myCancelled = async (req, res) => {
+  try {
+    const { department, member } = req.query;
+
+    let match = { "current_status.status": "cancelled" };
+
+    // Department filter
+    if (department) {
+      const usersInDept = await User.find({ department }).select("_id");
+      const userIds = usersInDept.map((u) => u._id.toString());
+
+      match.$or = [
+        { createdBy: { $in: userIds } },
+        { assigned_to: { $in: userIds } },
+      ];
+    }
+
+    // Member filter
+    if (member) {
+      if (!match.$or) match.$or = [];
+      match.$or.push({ createdBy: member });
+      match.$or.push({ assigned_to: { $in: [member] } });
+    }
+
+    // Fetch only cancelled tasks
+    const cancelledTasks = await tasksModells.find(match)
+      .populate("createdBy", "name emp_id department")
+      .select("title description deadline createdBy assigned_to current_status")
+      .sort({ deadline: 1 });
+
+    return res.status(200).json({
+      cancelled: cancelledTasks,
+    });
+  } catch (error) {
+    console.error("myIssues error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+const myWorkItemsToday = async (req, res) => {
+  try {
+    const { department, member } = req.query;
+
+    // Start and end of today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    let match = {
+      deadline: { $gte: todayStart, $lte: todayEnd },
+      "current_status.status": { $ne: "cancelled" },
+    };
+
+    // Department filter
+    if (department) {
+      const usersInDept = await User.find({ department }).select("_id");
+      const userIds = usersInDept.map((u) => u._id.toString());
+
+      match.$or = [
+        { createdBy: { $in: userIds } },
+        { assigned_to: { $in: userIds } },
+      ];
+    }
+
+    // Member filter
+    if (member) {
+      if (!match.$or) match.$or = [];
+      match.$or.push({ createdBy: member });
+      match.$or.push({ assigned_to: { $in: [member] } });
+    }
+
+    // Fetch tasks due today
+    const tasksToday = await tasksModells.find(match)
+      .populate("createdBy", "name emp_id department")
+      .select("title description deadline createdBy assigned_to current_status")
+      .sort({ deadline: 1 });
+
+    return res.status(200).json({
+      today: tasksToday,
+    });
+  } catch (error) {
+    console.error("myWorkItemsToday error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+}
+
+const myOverdueWorkItems = async (req, res) => {
+  try {
+    const { department, member } = req.query;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let match = {
+      deadline: { $lt: today }, // overdue
+      "current_status.status": { $ne: "cancelled" }, // exclude cancelled
+    };
+
+    // Department filter
+    if (department) {
+      const usersInDept = await User.find({ department }).select("_id");
+      const userIds = usersInDept.map((u) => u._id.toString());
+
+      match.$or = [
+        { createdBy: { $in: userIds } },
+        { assigned_to: { $in: userIds } },
+      ];
+    }
+
+    // Member filter
+    if (member) {
+      if (!match.$or) match.$or = [];
+      match.$or.push({ createdBy: member });
+      match.$or.push({ assigned_to: { $in: [member] } });
+    }
+
+    // Fetch overdue tasks
+    const tasks = await tasksModells.find(match)
+      .populate("createdBy", "name emp_id department")
+      .select("title description deadline createdBy assigned_to current_status")
+      .sort({ deadline: 1 });
+
+    // Add lateBy (days)
+    const tasksWithLate = tasks.map((task) => {
+      const deadline = new Date(task.deadline);
+      const diffDays = Math.ceil(
+        (today.getTime() - deadline.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      return {
+        ...task.toObject(),
+        lateBy: diffDays,
+      };
+    });
+
+    return res.status(200).json({
+      overdue: tasksWithLate,
+    });
+  } catch (error) {
+    console.error("myOverdueWorkItems error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+const taskStatusFunnel = async (req, res) => {
+  try {
+    const { department, member } = req.query;
+
+    let match = {};
+
+    // Department filter
+    if (department) {
+      const usersInDept = await User.find({ department }).select("_id");
+      const userIds = usersInDept.map((u) => u._id.toString());
+
+      match.$or = [
+        { createdBy: { $in: userIds } },
+        { assigned_to: { $in: userIds } },
+      ];
+    }
+
+    // Member filter
+    if (member) {
+      if (!match.$or) match.$or = [];
+      match.$or.push({ createdBy: member });
+      match.$or.push({ assigned_to: { $in: [member] } });
+    }
+
+    const result = await tasksModells.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: "$current_status.status",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Normalize counts
+    const counts = {
+      pending: 0,
+      inprogress: 0,
+      completed: 0,
+      cancelled: 0,
+    };
+
+    result.forEach((r) => {
+      const status = r._id?.toLowerCase();
+      if (status && counts.hasOwnProperty(status)) {
+        counts[status] = r.count;
+      }
+    });
+
+    const total =
+      counts.pending +
+      counts.inprogress +
+      counts.completed +
+      counts.cancelled;
+
+    return res.status(200).json({
+      total,
+      ...counts,
+    });
+  } catch (error) {
+    console.error("taskStatusFunnel error:", error);
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
 module.exports = {
   createTask,
   getAllTasks,
@@ -668,4 +1036,12 @@ module.exports = {
   deleteTask,
   updateTaskStatus,
   exportToCsv,
+
+  //Task Dashboard
+  taskCards,
+  myTasks,
+  myCancelled,
+  myWorkItemsToday,
+  myOverdueWorkItems,
+  taskStatusFunnel
 };
