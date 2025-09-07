@@ -23,11 +23,26 @@ const createTask = async (req, res) => {
 
     if (team) {
       const users = await User.find({ department: team }, "_id");
-      const teamUserIds = users.map((user) => user._id.toString());
+      const teamUserIds = users.map((u) => u._id.toString());
       assignedUserIds = [...assignedUserIds, ...teamUserIds];
     }
 
-    assignedUserIds = [...new Set(assignedUserIds)];
+    assignedUserIds = [...new Set(assignedUserIds.map((id) => id.toString()))];
+
+    let followers = [...assignedUserIds];
+
+    const managers = await User.find(
+      { _id: { $in: assignedUserIds }, manager: { $exists: true } },
+      "manager"
+    ).populate("manager", "_id role");
+
+    managers.forEach((m) => {
+      if (m.manager && m.manager.role === "manager") {
+        followers.push(m.manager._id.toString());
+      }
+    });
+
+    followers = [...new Set(followers)];
 
     const counter = await TaskCounterSchema.findOneAndUpdate(
       { createdBy: userId },
@@ -40,6 +55,7 @@ const createTask = async (req, res) => {
     const task = new tasksModells({
       ...req.body,
       assigned_to: assignedUserIds,
+      followers,
       createdBy: userId,
       taskCode,
     });
@@ -50,6 +66,7 @@ const createTask = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
+
 
 //get all tasks
 const getAllTasks = async (req, res) => {
@@ -84,51 +101,23 @@ const getAllTasks = async (req, res) => {
       : null;
 
     const preLookupMatch = [];
-
     if (
       currentUser.emp_id === "SE-013" ||
       userRole === "admin" ||
       userRole === "superadmin"
     ) {
-      // see everything
-    } else if (userRole === "manager") {
-      const dept = currentUser.department;
-      if (!dept) {
-        return res
-          .status(400)
-          .json({ message: "Manager department not found." });
-      }
 
-      const departmentUsers = await User.find({ department: dept }, "_id");
-      const deptUserIds = departmentUsers.map((u) => u._id);
-
-      preLookupMatch.push({
-        $or: [
-          { assigned_to: { $in: deptUserIds } },
-          { createdBy: { $in: deptUserIds } },
-        ],
-      });
-    } else if (userRole === "visitor") {
-      const projCamUsers = await User.find(
-        { department: { $in: ["Projects", "CAM"] } },
-        "_id"
-      );
-      const projCamUserIds = projCamUsers.map((u) => u._id);
-
-      preLookupMatch.push({
-        $or: [
-          { assigned_to: { $in: projCamUserIds } },
-          { createdBy: { $in: projCamUserIds } },
-        ],
-      });
     } else {
+
       preLookupMatch.push({
-        $or: [{ assigned_to: currentUser._id }, { createdBy: currentUser._id }],
+        $or: [
+          { createdBy: currentUser._id },
+          { followers: currentUser._id },
+        ],
       });
     }
 
     const basePipeline = [];
-
     if (preLookupMatch.length > 0) {
       basePipeline.push({ $match: { $and: preLookupMatch } });
     }
@@ -219,7 +208,7 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ "assigned_to.department": department });
     }
 
-    // NEW: Filter by assignee name (any team member in assigned_to)
+    // Filter by assignee name
     if (assignedToNameRegex) {
       postLookupMatch.push({
         assigned_to: {
@@ -228,7 +217,7 @@ const getAllTasks = async (req, res) => {
       });
     }
 
-    // NEW: Filter by creator name
+    // Filter by creator name
     if (createdByNameRegex) {
       postLookupMatch.push({
         "createdBy_info.name": createdByNameRegex,
@@ -280,6 +269,7 @@ const getAllTasks = async (req, res) => {
             _id: "$createdBy_info._id",
             name: "$createdBy_info.name",
           },
+          followers: 1,
         },
       },
       { $sort: { createdAt: -1 } },
@@ -310,6 +300,7 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
@@ -458,7 +449,7 @@ const updateTask = async (req, res) => {
           ? req.body.data
           : req.body || {};
 
-    const existing = await tasksModells.findById(id).select("taskCode");
+    const existing = await tasksModells.findById(id).select("taskCode assigned_to followers");
     if (!existing) return res.status(404).json({ error: "Task not found" });
 
     const userId = req.user?.userId || req.user?._id;
@@ -505,6 +496,18 @@ const updateTask = async (req, res) => {
       pushOps.attachments = { $each: toAttach };
     }
 
+    // Followers update if assigned_to changed
+    if (setFields.assigned_to) {
+      const assignedArr = Array.isArray(setFields.assigned_to)
+        ? setFields.assigned_to.map((id) => id.toString())
+        : [setFields.assigned_to.toString()];
+
+      const existingFollowers = existing.followers.map((f) => f.toString());
+      const newFollowers = [...new Set([...existingFollowers, ...assignedArr])];
+
+      setFields.followers = newFollowers;
+    }
+
     const updateDoc = {};
     if (Object.keys(setFields).length) updateDoc.$set = setFields;
 
@@ -542,6 +545,7 @@ const updateTask = async (req, res) => {
     return res.status(400).json({ error: err.message });
   }
 };
+
 
 const updateTaskStatus = async (req, res) => {
   try {
