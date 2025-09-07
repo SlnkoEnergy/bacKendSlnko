@@ -322,7 +322,7 @@ const getTaskById = async (req, res) => {
       .populate("current_status.user_id", "_id name")
       .populate("status_history.user_id", "_id name")
       .populate("comments.user_id", "_id name")
-      .populate("attachments.user_id", "_id name")
+      .populate("attachments.user_id", "_id name");
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
@@ -336,20 +336,39 @@ async function uploadFiles(files, folderPath) {
   const uploaded = [];
 
   for (const file of files || []) {
-    const origMime = file.mimetype || mime.lookup(file.originalname) || "application/octet-stream";
-    const origExt  = mime.extension(origMime) || (file.originalname.split(".").pop() || "").toLowerCase();
+    const origMime =
+      file.mimetype ||
+      mime.lookup(file.originalname) ||
+      "application/octet-stream";
+    const origExt =
+      mime.extension(origMime) ||
+      (file.originalname.split(".").pop() || "").toLowerCase();
 
     let outBuffer = file.buffer;
     let outExt = origExt;
     let outMime = origMime;
 
     if (origMime.startsWith("image/")) {
-      let target = ["jpeg","jpg","png","webp"].includes(origExt) ? origExt : "jpeg";
+      let target = ["jpeg", "jpg", "png", "webp"].includes(origExt)
+        ? origExt
+        : "jpeg";
       if (target === "jpg") target = "jpeg";
 
-      if (target === "jpeg") { outBuffer = await sharp(outBuffer).jpeg({ quality: 40 }).toBuffer(); outExt = "jpg";  outMime = "image/jpeg"; }
-      else if (target === "png") { outBuffer = await sharp(outBuffer).png({ compressionLevel: 9 }).toBuffer(); outExt = "png"; outMime = "image/png"; }
-      else if (target === "webp") { outBuffer = await sharp(outBuffer).webp({ quality: 40 }).toBuffer(); outExt = "webp"; outMime = "image/webp"; }
+      if (target === "jpeg") {
+        outBuffer = await sharp(outBuffer).jpeg({ quality: 40 }).toBuffer();
+        outExt = "jpg";
+        outMime = "image/jpeg";
+      } else if (target === "png") {
+        outBuffer = await sharp(outBuffer)
+          .png({ compressionLevel: 9 })
+          .toBuffer();
+        outExt = "png";
+        outMime = "image/png";
+      } else if (target === "webp") {
+        outBuffer = await sharp(outBuffer).webp({ quality: 40 }).toBuffer();
+        outExt = "webp";
+        outMime = "image/webp";
+      }
     }
 
     const base = file.originalname.replace(/\.[^/.]+$/, "");
@@ -357,7 +376,10 @@ async function uploadFiles(files, folderPath) {
 
     const form = new FormData();
     // If your external UPLOAD_API expects a different field name, change "file" here.
-    form.append("file", outBuffer, { filename: finalName, contentType: outMime });
+    form.append("file", outBuffer, {
+      filename: finalName,
+      contentType: outMime,
+    });
 
     const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
 
@@ -368,9 +390,10 @@ async function uploadFiles(files, folderPath) {
     });
 
     const data = resp.data;
-    const url = Array.isArray(data) && data.length > 0
-      ? data[0]
-      : data.url || data.fileUrl || (data.data && data.data.url) || null;
+    const url =
+      Array.isArray(data) && data.length > 0
+        ? data[0]
+        : data.url || data.fileUrl || (data.data && data.data.url) || null;
 
     if (url) uploaded.push({ name: finalName, url });
     else console.warn(`No URL returned for ${finalName}`);
@@ -379,21 +402,36 @@ async function uploadFiles(files, folderPath) {
   return uploaded;
 }
 
-
 const SANITIZE_CFG = {
   allowedTags: [
-    "div","p","br","span","strong","b","em","i","u","s","strike",
-    "ul","ol","li","a","blockquote","code","pre"
+    "div",
+    "p",
+    "br",
+    "span",
+    "strong",
+    "b",
+    "em",
+    "i",
+    "u",
+    "s",
+    "strike",
+    "ul",
+    "ol",
+    "li",
+    "a",
+    "blockquote",
+    "code",
+    "pre",
   ],
   allowedAttributes: {
-    a: ["href","name","target","rel"],
+    a: ["href", "name", "target", "rel"],
     span: ["style"],
     div: ["style"],
     p: ["style"],
   },
   allowedStyles: {
     "*": {
-      "color": [/^.*$/],
+      color: [/^.*$/],
       "background-color": [/^.*$/],
       "text-decoration": [/^.*$/],
       "font-weight": [/^.*$/],
@@ -414,9 +452,11 @@ const updateTask = async (req, res) => {
     const id = req.params.id;
 
     const body =
-      typeof req.body?.data === "string" ? JSON.parse(req.body.data) :
-      req.body?.data ? req.body.data :
-      req.body || {};
+      typeof req.body?.data === "string"
+        ? JSON.parse(req.body.data)
+        : req.body?.data
+          ? req.body.data
+          : req.body || {};
 
     const existing = await tasksModells.findById(id).select("taskCode");
     if (!existing) return res.status(404).json({ error: "Task not found" });
@@ -429,14 +469,15 @@ const updateTask = async (req, res) => {
     delete setFields.attachments;
     delete setFields.comments;
     delete setFields.data;
-    delete setFields._id;        
-    delete setFields.createdAt;  
+    delete setFields._id;
+    delete setFields.createdAt;
     delete setFields.updatedAt;
 
     // Handle uploads (if any)
     let uploaded = [];
     if (Array.isArray(req.files) && req.files.length > 0) {
-      const folderPath = `Tasks/${existing.taskCode}`.replace(/ /g, "_");
+      const safeTaskCode = existing.taskCode.replace(/[\/ ]/g, "_");
+      const folderPath = `Tasks/${safeTaskCode}`;
       uploaded = await uploadFiles(req.files, folderPath);
     }
 
@@ -448,9 +489,9 @@ const updateTask = async (req, res) => {
       const cleanHtml = sanitizeHtml(String(commentRaw), SANITIZE_CFG);
       if (cleanHtml && cleanHtml.trim()) {
         pushOps.comments = {
-          remarks: cleanHtml,      
+          remarks: cleanHtml,
           user_id: userId || undefined,
-          createdAt: new Date(),   
+          createdAt: new Date(),
         };
       }
     }
@@ -501,7 +542,6 @@ const updateTask = async (req, res) => {
     return res.status(400).json({ error: err.message });
   }
 };
-
 
 const updateTaskStatus = async (req, res) => {
   try {
