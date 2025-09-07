@@ -2,11 +2,13 @@ name: Deploy to Hostinger VPS (Development)
 
 on:
   push:
-    branches: [development]
+    branches:
+      - development
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -18,7 +20,7 @@ jobs:
 
       - name: Deploy via SSH
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }} << "EOF"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }} << 'EOF'
             set -Eeuo pipefail
 
             cd ~/Protrac/bacKendSlnko
@@ -26,36 +28,25 @@ jobs:
             git checkout development
             git pull --rebase origin development
 
-            # Ensure Docker network exists
+            # Ensure Docker network exists for inter-container DNS
             docker network create protrac_net 2>/dev/null || true
 
-            # Read Dragonfly password from .env.dev (kept on server)
-            DFLY_PASSWORD=$(grep -E '^DFLY_PASSWORD=' .env.dev | cut -d= -f2- | tr -d '\r')
-            if [ -z "$DFLY_PASSWORD" ]; then
-              echo "DFLY_PASSWORD missing in .env.dev"; exit 1
+     
+            if ! docker ps --format '{{.Names}}' | grep -q '^dragonfly$'; then
+              docker rm -f dragonfly 2>/dev/null || true
+             docker run -d --name dragonfly \
+              --restart unless-stopped \
+              --network protrac_net \
+              -p 127.0.0.1:6379:6379 \
+              ghcr.io/dragonflydb/dragonfly:latest \
+              --dbfilename=dump \
+              --requirepass CHANGE_ME_STRONG
+            else
+              docker start dragonfly || true
             fi
 
-            # Ensure data volume exists
-            docker volume create dragonfly_data >/dev/null
 
-            # Start/replace Dragonfly (binds to 127.0.0.1:6379 on host; open as 'dragonfly:6379' in protrac_net)
-            docker rm -f dragonfly 2>/dev/null || true
-            docker run -d --name dragonfly \
-              --restart unless-stopped \
-              --network protrac_net \ß
-              -p 127.0.0.1:6379:6379 \
-              -v dragonfly_data:/data \
-              ghcr.io/dragonflydb/dragonfly:latest \
-              --dir=/data \
-              --dbfilename=dump \
-              --maxmemory=4gb \
-              --requirepass "$DFLY_PASSWORD"
-
-            # Health check Dragonfly from the same network
-            docker run --rm --network protrac_net redis:7-alpine \
-              redis-cli -h dragonfly -a "$DFLY_PASSWORD" PING | grep -q PONG
-
-            # --- API: rebuild and run (reads .env.dev) ---
+            # --- API: rebuild and run ---
             docker rm -f prod_api_development 2>/dev/null || true
             docker build --pull -t prod_api_development .
 
@@ -68,4 +59,5 @@ jobs:
 
             echo "REDIS_URL inside container:"
             docker exec prod_api_development printenv REDIS_URL || true
+
           EOF
