@@ -5,6 +5,7 @@ const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
 const sanitizeHtml = require("sanitize-html");
+const { default: mongoose } = require("mongoose");
 
 const createPost = async (req, res) => {
   try {
@@ -378,27 +379,52 @@ const removeFollowers = async (req, res) => {
     const projFilter = { project_id };
 
     const subDocIds = [];
-    const userIds = [];
+    const userIdsObj = [];
+    const userIdsStr = [];
 
     for (const f of followers) {
+      if (!f) continue;
       if (typeof f === "string") {
-        try { userIds.push(new mongoose.Types.ObjectId(f)); } catch {}
+        if (mongoose.isValidObjectId(f)) {
+          userIdsObj.push(new mongoose.Types.ObjectId(f));
+        } else {
+          userIdsStr.push(String(f));
+        }
         continue;
       }
-      if (f && f._id) {
-        try { subDocIds.push(new mongoose.Types.ObjectId(String(f._id))); } catch {}
+
+      if (f._id) {
+        if (mongoose.isValidObjectId(f._id)) {
+          subDocIds.push(new mongoose.Types.ObjectId(String(f._id)));
+        } else {
+          subDocIds.push(String(f._id));
+        }
       }
-      if (f && f.user_id) {
-        try { userIds.push(new mongoose.Types.ObjectId(String(f.user_id))); } catch {}
+      if (f.user_id) {
+        if (mongoose.isValidObjectId(f.user_id)) {
+          userIdsObj.push(new mongoose.Types.ObjectId(String(f.user_id)));
+        } else {
+          userIdsStr.push(String(f.user_id));
+        }
       }
     }
 
     const pullConds = [];
-    if (subDocIds.length) pullConds.push({ _id: { $in: subDocIds } });
-    if (userIds.length)  pullConds.push({ user_id: { $in: userIds } });
+    if (subDocIds.length) {
+      const objIds = subDocIds.filter(
+        (v) => v instanceof mongoose.Types.ObjectId
+      );
+      const strIds = subDocIds.filter((v) => typeof v === "string");
+      if (objIds.length) pullConds.push({ _id: { $in: objIds } });
+      if (strIds.length) pullConds.push({ _id: { $in: strIds } });
+    }
+    if (userIdsObj.length) pullConds.push({ user_id: { $in: userIdsObj } });
+    if (userIdsStr.length) pullConds.push({ user_id: { $in: userIdsStr } });
 
     if (!pullConds.length) {
-      return res.status(400).json({ message: "No valid follower identifiers provided" });
+      return res
+        .status(400)
+        .json({ message: "No valid follower identifiers provided" });
     }
 
     const pullExpr = pullConds.length === 1 ? pullConds[0] : { $or: pullConds };
@@ -416,14 +442,16 @@ const removeFollowers = async (req, res) => {
       return res.status(404).json({ message: "Post not found for project" });
     }
 
-    return res
-      .status(200)
-      .json({ message: "Followers removed successfully", data: updated });
+    return res.status(200).json({
+      message: "Followers removed successfully",
+      data: updated,
+    });
   } catch (error) {
     console.error("removeFollowers error:", error);
-    return res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error?.message || String(error) });
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error?.message || String(error),
+    });
   }
 };
 
@@ -433,5 +461,5 @@ module.exports = {
   updatePost,
   deletePost,
   addFollowers,
-  removeFollowers
+  removeFollowers,
 };
