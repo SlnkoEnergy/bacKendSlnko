@@ -9,6 +9,7 @@ const materialCategoryModells = require("../models/materialcategory.model");
 const scopeModel = require("../models/scope.model");
 const bdleadsModells = require("../models/bdleads.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const postsModel = require("../models/posts.model");
 
 
 const migrateProjectToHandover = async (req, res) => {
@@ -583,8 +584,14 @@ const updatestatus = async function (req, res) {
           items,
           createdBy: req.user.userId,
         });
-
+      
         await scopeDoc.save();
+
+        const posts = new postsModel({
+          project_id: projectData._id,
+        });
+
+        await posts.save();
 
         return res.status(200).json({
           message:

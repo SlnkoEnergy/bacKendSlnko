@@ -8,7 +8,17 @@ const PostSchema = new mongoose.Schema(
     },
     comments: [
       {
-        type: String,
+        comment: {
+          type: String,
+        },
+        user_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        updatedAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
     ],
     followers: [
@@ -17,20 +27,30 @@ const PostSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
         },
+        updatedAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
     ],
-    attachment: {
-      name: {
-        type: String,
+    attachment: [
+      {
+        name: {
+          type: String,
+        },
+        url: {
+          type: String,
+        },
+        user_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        updatedAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
-      url: {
-        type: String,
-      },
-    },
-    created_by: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
+    ],
   },
   { timestamps: true }
 );

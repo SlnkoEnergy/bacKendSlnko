@@ -4,6 +4,7 @@ const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
+const sanitizeHtml = require("sanitize-html");
 
 const createPost = async (req, res) => {
   try {
@@ -14,7 +15,9 @@ const createPost = async (req, res) => {
 
     const { project_id, comments, created_by } = data;
     if (!project_id || !created_by) {
-      return res.status(400).json({ message: "project_id and created_by required" });
+      return res
+        .status(400)
+        .json({ message: "project_id and created_by required" });
     }
 
     // fetch project code
@@ -88,10 +91,14 @@ const createPost = async (req, res) => {
       await post.save();
     }
 
-    return res.status(201).json({ message: "Post saved successfully", data: post });
+    return res
+      .status(201)
+      .json({ message: "Post saved successfully", data: post });
   } catch (err) {
     console.error("createPost error:", err);
-    return res.status(500).json({ message: "Internal Server Error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: err.message });
   }
 };
 
@@ -104,59 +111,152 @@ const getPosts = async (req, res) => {
       filter.project_id = project_id;
     }
 
-    const posts = await postsModel.find(filter)
+    const posts = await postsModel
+      .find(filter)
       .populate("project_id", "code name")
-      .populate("created_by", "name emp_id")
-      .populate("followers.user_id", "name emp_id")
+      .populate("comments.user_id", "_id name")
+      .populate("followers.user_id", "_id name")
+      .populate("attachment.user_id", "_id name")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({ data: posts });
   } catch (err) {
     console.error("getPosts error:", err);
-    return res.status(500).json({ message: "Internal Server Error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: err.message });
   }
 };
+
+const SANITIZE_CFG = {
+  allowedTags: [
+    "div",
+    "p",
+    "br",
+    "span",
+    "strong",
+    "b",
+    "em",
+    "i",
+    "u",
+    "s",
+    "strike",
+    "ul",
+    "ol",
+    "li",
+    "a",
+    "blockquote",
+    "code",
+    "pre",
+  ],
+  allowedAttributes: {
+    a: ["href", "name", "target", "rel"],
+    span: ["style"],
+    div: ["style"],
+    p: ["style"],
+  },
+  allowedSchemes: ["http", "https", "mailto", "tel"],
+  allowedSchemesAppliedToAttributes: ["href", "src", "cite"],
+  allowedStyles: {
+    "*": {
+      color: [/^.+$/],
+      "background-color": [/^.+$/],
+      "text-decoration": [/^.+$/],
+      "font-weight": [/^.+$/],
+      "font-style": [/^.+$/],
+    },
+  },
+  transformTags: {
+    a: (tagName, attribs) => ({
+      tagName: "a",
+      attribs: { ...attribs, rel: "noopener noreferrer", target: "_blank" },
+    }),
+  },
+  textFilter: (text) => (text.length > 100000 ? text.slice(0, 100000) : text),
+};
+
+function linkify(text) {
+  return String(text || "").replace(
+    /(?<!["'=])(https?:\/\/[^\s<]+)/g,
+    (m) => `<a href="${m}">${m}</a>`
+  );
+}
+
+function sanitizeRich(input) {
+  const linkified = linkify(input);
+  return sanitizeHtml(linkified, SANITIZE_CFG).trim();
+}
 
 const updatePost = async (req, res) => {
   try {
     const { project_id } = req.query;
-    const data =
-      typeof req.body.data === "string"
-        ? JSON.parse(req.body.data)
-        : req.body.data || {};
-
-    const { comments } = data;
-
     if (!project_id) {
-      return res.status(400).json({ message: "project_id is required in query" });
+      return res
+        .status(400)
+        .json({ message: "project_id is required in query" });
     }
 
+    let data = req.body?.data;
+    if (typeof data === "string") {
+      try {
+        data = JSON.parse(data);
+      } catch {
+        return res
+          .status(400)
+          .json({ message: "Invalid JSON in 'data' field" });
+      }
+    } else if (typeof data !== "object" || data === null) {
+      data = {};
+    }
+
+    const rawComment =
+      (typeof data.comment === "string" && data.comment) ||
+      (typeof data.comments === "string" && data.comments) ||
+      (typeof req.body.comment === "string" && req.body.comment) ||
+      "";
+
+    // sanitize incoming rich text
+    const safeComment = sanitizeRich(rawComment);
     const post = await postsModel.findOne({ project_id });
-    if (!post) return res.status(404).json({ message: "Post not found for project" });
+    if (!post)
+      return res.status(404).json({ message: "Post not found for project" });
 
-    // Push new comment if present
-    if (comments) {
-      post.comments.push(comments);
+    if (safeComment) {
+      post.comments.push({
+        comment: safeComment, // store sanitized HTML
+        user_id: req.user?.userId || undefined,
+      });
     }
 
-    // Handle attachments upload
-    if (req.files && req.files.length > 0) {
+    // handle attachments (array push)
+    if (Array.isArray(req.files) && req.files.length > 0) {
       const project = await projectModel.findById(project_id).select("code");
-      const folderPath = `Posts/${project.code.replace(/ /g, "_")}`;
+      if (!project)
+        return res.status(404).json({ message: "Project not found" });
+
+      const folderPath = `Posts/${String(project.code || "")
+        .replace(/[\/ ]/g, "_")
+        .replace(/_+/g, "_")
+        .trim()}`;
 
       for (const file of req.files) {
-        const mimeType = mime.lookup(file.originalname) || file.mimetype;
         let buffer = file.buffer;
+        const mimeType =
+          mime.lookup(file.originalname) ||
+          file.mimetype ||
+          "application/octet-stream";
 
-        if (mimeType.startsWith("image/")) {
-          const extension = mime.extension(mimeType);
-          if (extension === "jpeg" || extension === "jpg") {
-            buffer = await sharp(buffer).jpeg({ quality: 50 }).toBuffer();
-          } else if (extension === "png") {
-            buffer = await sharp(buffer).png({ quality: 50 }).toBuffer();
-          } else {
-            buffer = await sharp(buffer).jpeg({ quality: 50 }).toBuffer();
+        try {
+          if (mimeType.startsWith("image/")) {
+            const ext = (mime.extension(mimeType) || "").toLowerCase();
+            if (ext === "jpeg" || ext === "jpg")
+              buffer = await sharp(buffer).jpeg({ quality: 50 }).toBuffer();
+            else if (ext === "png")
+              buffer = await sharp(buffer).png({ quality: 50 }).toBuffer();
+            else buffer = await sharp(buffer).jpeg({ quality: 50 }).toBuffer();
           }
+        } catch {
+          /* keep original buffer on compression failure */
         }
 
         const form = new FormData();
@@ -165,40 +265,49 @@ const updatePost = async (req, res) => {
           contentType: mimeType,
         });
 
-        const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${folderPath}`;
+        const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
         const response = await axios.post(uploadUrl, form, {
           headers: form.getHeaders(),
           maxContentLength: Infinity,
           maxBodyLength: Infinity,
         });
 
-        const respData = response.data;
+        const resp = response.data;
         const url =
-          Array.isArray(respData) && respData.length > 0
-            ? respData[0]
-            : respData.url ||
-              respData.fileUrl ||
-              (respData.data && respData.data.url) ||
-              null;
+          (Array.isArray(resp) && resp[0]) ||
+          resp?.url ||
+          resp?.fileUrl ||
+          resp?.data?.url ||
+          null;
+        if (!url)
+          return res
+            .status(502)
+            .json({ message: "Upload service did not return a file URL" });
 
-        if (url) {
-          if (!post.attachments) post.attachments = [];
-          post.attachments.push({ name: file.originalname, url });
-        }
+        post.attachment.push({
+          name: file.originalname,
+          url,
+          user_id: req.user?.userId || undefined,
+          updatedAt: new Date(),
+        });
       }
     }
 
     await post.save();
 
-    const updated = await postsModel.findOne({ project_id })
-      .populate("project_id")
-      .populate("created_by")
-      .populate("followers.user_id");
+    const updated = await postsModel
+      .findOne({ project_id })
+      .populate("project_id", "_id code name")
+      .populate("followers.user_id", "_id name")
+      .populate("comments.user_id", "_id name");
 
     return res.status(200).json({ message: "Post updated", data: updated });
   } catch (err) {
     console.error("updatePost error:", err);
-    return res.status(500).json({ message: "Internal Server Error", error: err.message });
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: err?.message || String(err),
+    });
   }
 };
 
@@ -211,7 +320,9 @@ const deletePost = async (req, res) => {
     return res.status(200).json({ message: "Post deleted" });
   } catch (err) {
     console.error("deletePost error:", err);
-    return res.status(500).json({ message: "Internal Server Error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: err.message });
   }
 };
 
@@ -224,32 +335,103 @@ const addFollowers = async (req, res) => {
       return res.status(400).json({ message: "project_id required in query" });
     }
     if (!Array.isArray(followers) || followers.length === 0) {
-      return res.status(400).json({ message: "followers must be a non-empty array" });
+      return res
+        .status(400)
+        .json({ message: "followers must be a non-empty array" });
     }
 
     const post = await postsModel.findOne({ project_id });
-    if (!post) return res.status(404).json({ message: "Post not found for project" });
+    if (!post)
+      return res.status(404).json({ message: "Post not found for project" });
 
-    const existingFollowers = post.followers.map(f => f.user_id.toString());
-    const newFollowers = followers.filter(uid => !existingFollowers.includes(uid));
+    const existingFollowers = post.followers.map((f) => f.user_id.toString());
+    const newFollowers = followers.filter(
+      (uid) => !existingFollowers.includes(uid)
+    );
 
     if (newFollowers.length > 0) {
-      post.followers.push(...newFollowers.map(uid => ({ user_id: uid })));
+      post.followers.push(...newFollowers.map((uid) => ({ user_id: uid })));
       await post.save();
     }
 
     return res.status(200).json({ message: "Followers added", data: post });
   } catch (err) {
     console.error("addFollowers error:", err);
-    return res.status(500).json({ message: "Internal Server Error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: err.message });
   }
 };
 
+const removeFollowers = async (req, res) => {
+  try {
+    const { project_id } = req.query;
+    const { followers } = req.body;
+
+    if (!project_id) {
+      return res.status(400).json({ message: "project_id is required" });
+    }
+    if (!Array.isArray(followers) || followers.length === 0) {
+      return res.status(400).json({ message: "followers array is required" });
+    }
+
+    const projFilter = { project_id };
+
+    const subDocIds = [];
+    const userIds = [];
+
+    for (const f of followers) {
+      if (typeof f === "string") {
+        try { userIds.push(new mongoose.Types.ObjectId(f)); } catch {}
+        continue;
+      }
+      if (f && f._id) {
+        try { subDocIds.push(new mongoose.Types.ObjectId(String(f._id))); } catch {}
+      }
+      if (f && f.user_id) {
+        try { userIds.push(new mongoose.Types.ObjectId(String(f.user_id))); } catch {}
+      }
+    }
+
+    const pullConds = [];
+    if (subDocIds.length) pullConds.push({ _id: { $in: subDocIds } });
+    if (userIds.length)  pullConds.push({ user_id: { $in: userIds } });
+
+    if (!pullConds.length) {
+      return res.status(400).json({ message: "No valid follower identifiers provided" });
+    }
+
+    const pullExpr = pullConds.length === 1 ? pullConds[0] : { $or: pullConds };
+
+    const updated = await postsModel
+      .findOneAndUpdate(
+        projFilter,
+        { $pull: { followers: pullExpr } },
+        { new: true }
+      )
+      .populate("followers.user_id", "_id name")
+      .populate("project_id", "_id code name");
+
+    if (!updated) {
+      return res.status(404).json({ message: "Post not found for project" });
+    }
+
+    return res
+      .status(200)
+      .json({ message: "Followers removed successfully", data: updated });
+  } catch (error) {
+    console.error("removeFollowers error:", error);
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error?.message || String(error) });
+  }
+};
 
 module.exports = {
   createPost,
   getPosts,
   updatePost,
   deletePost,
-  addFollowers
+  addFollowers,
+  removeFollowers
 };
