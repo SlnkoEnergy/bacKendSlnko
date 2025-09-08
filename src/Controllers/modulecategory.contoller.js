@@ -275,7 +275,7 @@ const updateModuleCategory = async (req, res) => {
 
     const projectCodeData = await projectDetail
       .findById(projectId || moduleData.project_id)
-      .select("code");
+      .select("code name");
 
     const projectCode = projectCodeData?.code?.replace(/\//g, "_");
     if (!projectCode) {
@@ -380,7 +380,11 @@ const updateModuleCategory = async (req, res) => {
         .then(users => users.map(u => u._id));
 
       const data = {
-        message: `document uploded For Project ID: ${projectCodeData.code} and Project Name: ${projectCodeData.name}`
+        message: `A document has been successfully uploaded for
+        Project ID: ${projectCodeData.code}
+        Project Name: ${projectCodeData.name}.
+        Kindly review it at you convenience.`,
+        link: `/overview?page=1&project_id=${projectId}`
       }
 
       await getnovuNotification(workflow, senders, data);
@@ -474,11 +478,17 @@ const updateModuleCategoryStatus = async (req, res) => {
       let data = {};
       if (text) {
         data = {
-          message: `project ID : ${project_detail.code} project name: ${project_detail.name} file has been on ${status} with this message: ${text}`
+          message: `Project Update
+          Project ID: ${project_detail.code} 
+          Project Name: ${project_detail.name} 
+          Status: ${status}
+          Note: ${text}`,
+          link: `/overview?page=1&project_id=${projectId}`
         }
       } else {
         data = {
-          message: `project ID : ${project_detail.code} project name: ${project_detail.name} file has been ${status} `
+          message: `A file related to Project [${project_detail.code}] - ${project_detail.name}  has been ${status}. `,
+          link: `/overview?page=1&project_id=${projectId}`
         }
       }
 

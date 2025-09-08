@@ -647,7 +647,7 @@ const updateAssignedTo = async (req, res) => {
     try {
       for (const lead of leads) {
 
-        const workflow = 'all-notification';
+        const workflow = 'lead';
         const alluser = await userModells.find({
           $or: [
             { department: 'admin' },
@@ -660,11 +660,13 @@ const updateAssignedTo = async (req, res) => {
         const senders = [...new Set([...alluser, assigned])];
         const data = {
           message: `Lead ${lead.id} transferred to ${assign.name}`,
-          link: 'leads'
+          link: `leadProfile?id=${lead._id}`,
+          type: "sales",
+          link1: `/sales`,
         }
 
-        await getnovuNotification(workflow, senders, data);
-
+        const resps = await getnovuNotification(workflow, senders, data);
+        console.log(resps);
       }
     } catch (error) {
       console.log(error);

@@ -51,7 +51,9 @@ const createTask = async (req, res) => {
       const senders = assigned_to;
       const data = {
         message: `New task created for Lead #${lead.id}`,
-        link: `leadProfile?id=${lead._id}`
+        link: `leadProfile?id=${lead._id}`,
+        type: "sales",
+        link1: "/sales",
       }
       await getnovuNotification(workflow, senders, data);
 
@@ -97,7 +99,9 @@ const updateStatus = async (req, res) => {
       const senders = [task?.user_id];
       const data = {
         message: `Task ${task.title} for Lead ${lead?.id} updated to status: ${status}`,
-        link:`leadProfile?id=${lead._id}`
+        link:`leadProfile?id=${lead._id}`,
+        type: "sales",
+        link1: "/sales",
       }
       await getnovuNotification(workflow, senders, data);
     } catch (error) {
@@ -109,7 +113,9 @@ const updateStatus = async (req, res) => {
       const senders = [task?.user_id];
       const data = {
         message: `Task ${task.title} for Lead ${lead?.id} updated to status: ${status}`,
-        link: `leadProfile?id=${lead._id}`
+        link: `leadProfile?id=${lead._id}`,
+        type: "sales",
+        link1: "/sales",
       }
       await getnovuNotification(workflow, senders, data);
     } catch (error) {
