@@ -88,16 +88,14 @@ const getAllTasks = async (req, res) => {
       department = "",
       assignedToName = "",
       createdByName = "",
+      /** NEW: priority filter */
+      priorityFilter = "",
     } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
     const searchRegex = new RegExp(search, "i");
-    const assignedToNameRegex = assignedToName
-      ? new RegExp(assignedToName, "i")
-      : null;
-    const createdByNameRegex = createdByName
-      ? new RegExp(createdByName, "i")
-      : null;
+    const assignedToNameRegex = assignedToName ? new RegExp(assignedToName, "i") : null;
+    const createdByNameRegex = createdByName ? new RegExp(createdByName, "i") : null;
 
     const preLookupMatch = [];
     if (
@@ -105,14 +103,10 @@ const getAllTasks = async (req, res) => {
       userRole === "admin" ||
       userRole === "superadmin"
     ) {
-
+      // full access
     } else {
-
       preLookupMatch.push({
-        $or: [
-          { createdBy: currentUser._id },
-          { followers: currentUser._id },
-        ],
+        $or: [{ createdBy: currentUser._id }, { followers: currentUser._id }],
       });
     }
 
@@ -171,7 +165,6 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({
         $or: [
           { title: searchRegex },
-          { description: searchRegex },
           { taskCode: searchRegex },
           { "project_details.code": searchRegex },
           { "project_details.name": searchRegex },
@@ -210,18 +203,37 @@ const getAllTasks = async (req, res) => {
     // Filter by assignee name
     if (assignedToNameRegex) {
       postLookupMatch.push({
-        assigned_to: {
-          $elemMatch: { name: assignedToNameRegex },
-        },
+        assigned_to: { $elemMatch: { name: assignedToNameRegex } },
       });
     }
 
     // Filter by creator name
     if (createdByNameRegex) {
-      postLookupMatch.push({
-        "createdBy_info.name": createdByNameRegex,
-      });
+      postLookupMatch.push({ "createdBy_info.name": createdByNameRegex });
     }
+
+    /** ---------------- NEW: Priority filter (1|2|3) ---------------- */
+    if (priorityFilter !== "" && priorityFilter !== undefined) {
+      // Accept: "1", 1, "1,3", ["1","3"], [1,3]
+      let priorities = [];
+      if (Array.isArray(priorityFilter)) {
+        priorities = priorityFilter.map((v) => String(v));
+      } else if (typeof priorityFilter === "string") {
+        priorities = priorityFilter.split(/[,\s]+/).filter(Boolean).map(String);
+      } else {
+        priorities = [String(priorityFilter)];
+      }
+
+      // only allow valid values and convert to schema type (string)
+      priorities = priorities.filter((p) => ["1", "2", "3"].includes(p));
+
+      if (priorities.length === 1) {
+        postLookupMatch.push({ priority: priorities[0] });
+      } else if (priorities.length > 1) {
+        postLookupMatch.push({ priority: { $in: priorities } });
+      }
+    }
+    /** ---------------------------------------------------------------- */
 
     if (postLookupMatch.length > 0) {
       basePipeline.push({ $match: { $and: postLookupMatch } });
@@ -264,10 +276,7 @@ const getAllTasks = async (req, res) => {
               },
             },
           },
-          createdBy: {
-            _id: "$createdBy_info._id",
-            name: "$createdBy_info.name",
-          },
+          createdBy: { _id: "$createdBy_info._id", name: "$createdBy_info.name" },
           followers: 1,
         },
       },
@@ -288,7 +297,7 @@ const getAllTasks = async (req, res) => {
     res.status(200).json({
       totalTasks: totalCount,
       page: Number(page),
-      totalPages: Math.ceil(totalCount / limit),
+      totalPages: Math.ceil(totalCount / Number(limit)),
       tasks,
     });
   } catch (err) {
@@ -299,6 +308,7 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
@@ -311,7 +321,8 @@ const getTaskById = async (req, res) => {
       .populate("current_status.user_id", "_id name")
       .populate("status_history.user_id", "_id name")
       .populate("comments.user_id", "_id name")
-      .populate("attachments.user_id", "_id name");
+      .populate("attachments.user_id", "_id name")
+      .populate("followers", "_id name")
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
@@ -911,8 +922,8 @@ const myOverdueWorkItems = async (req, res) => {
     today.setHours(0, 0, 0, 0);
 
     let match = {
-      deadline: { $lt: today }, // overdue
-      "current_status.status": { $ne: "cancelled" }, // exclude cancelled
+      deadline: { $lt: today }, 
+      "current_status.status": { $ne: "cancelled" }, 
     };
 
     // Department filter
