@@ -40,6 +40,8 @@ const addPo = async function (req, res) {
       updated_on,
       initial_status,
       delivery_type,
+      isSales,
+      sales_Details,
     } = req.body;
 
     const userId = req.user.userId;
@@ -65,6 +67,7 @@ const addPo = async function (req, res) {
       quantity: String(it.quantity ?? "0"),
       cost: String(it.cost ?? "0"),
     }));
+    const isSalesFlag = isSales === true || isSales === "true";
 
     const toNum = (v) => {
       const n = Number(v);
@@ -112,6 +115,8 @@ const addPo = async function (req, res) {
       dispatch_date: null,
       material_ready_date: null,
       delivery_type,
+      ...(isSalesFlag ? { isSales: true } : {}),
+      ...(isSalesFlag && Array.isArray(sales_Details) ? { sales_Details } : {}),
     });
 
     newPO.status_history.push({
@@ -243,7 +248,6 @@ const editPO = async function (req, res) {
       $set: { ...payload },
     };
 
-    
     if (currStatus === "approval_rejected") {
       updateOps.$push = {
         status_history: {
@@ -262,8 +266,6 @@ const editPO = async function (req, res) {
     const update = await purchaseOrderModells
       .findByIdAndUpdate(id, updateOps, { new: true })
       .lean();
-    
-      
 
     const pohistory = {
       po_number: update.po_number,
@@ -387,11 +389,10 @@ const getPOByPONumber = async (req, res) => {
       };
     }
 
-     const poDoc = await purchaseOrderModells
+    const poDoc = await purchaseOrderModells
       .findOne(query)
       .populate("submitted_By", "_id name")
       .lean();
-
 
     if (!poDoc) {
       return res.status(404).json({ msg: "Purchase Order not found" });
@@ -523,7 +524,6 @@ const getallpo = async function (req, res) {
     res.status(500).json({ msg: "Error fetching data", error: error.message });
   }
 };
-
 
 const getallpodetail = async function (req, res) {
   try {
@@ -666,8 +666,6 @@ const getallpodetail = async function (req, res) {
   }
 };
 
-
-
 const getallpoNumber = async function (req, res) {
   try {
     const po_numbers = await purchaseOrderModells.find();
@@ -788,12 +786,12 @@ const getPaginatedPo = async (req, res) => {
         case "Delivered":
           baseEq["current_status.status"] = "delivered";
           break;
-          case "Short Quantity":
+        case "Short Quantity":
           matchStage["current_status.status"] = "short_quantity";
           break;
-          case "Partially Delivered":
+        case "Partially Delivered":
           matchStage["current_status.status"] = "partially_delivered";
-        
+
         default:
           break;
       }
@@ -1247,6 +1245,131 @@ const getExportPo = async (req, res) => {
   }
 };
 
+const updateSalesPO = async (req, res) => {
+  try {
+    const { po_number } = req.query;
+    const { remarks } = req.body;
+
+    if (!po_number) {
+      return res.status(400).json({ message: "po_number is required" });
+    }
+    if (!remarks || remarks.trim() === "") {
+      return res
+        .status(400)
+        .json({ message: "Remarks are required to update Sales PO" });
+    }
+
+    const po = await purchaseOrderModells.findOne({ po_number });
+    if (!po) {
+      return res
+        .status(404)
+        .json({ message: "PO not found with this PO number" });
+    }
+    if (!po.isSales) {
+      return res.status(400).json({ message: "This PO is not a Sales PO" });
+    }
+
+    const safePoNumber = String(po.po_number || "").replace(/ /g, "_");
+    const folderPath = `Account/PO/${safePoNumber}`;
+    const uploadedAttachments = [];
+
+    // If files exist, upload & compress images
+    if (req.files && req.files.length) {
+      for (const file of req.files) {
+        const attachment_name = file.originalname || "file";
+        const mimeType =
+          mime.lookup(attachment_name) ||
+          file.mimetype ||
+          "application/octet-stream";
+        let buffer = file.buffer;
+
+        if (mimeType.startsWith("image/")) {
+          const ext = mime.extension(mimeType);
+          try {
+            if (ext === "jpeg" || ext === "jpg") {
+              buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+            } else if (ext === "png") {
+              buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
+            } else if (ext === "webp") {
+              buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
+            } else {
+              buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+            }
+          } catch (e) {
+            console.warn(
+              "Image compression failed, using original buffer:",
+              e?.message
+            );
+          }
+        }
+
+        // Upload file
+        const form = new FormData();
+        form.append("file", buffer, {
+          filename: attachment_name,
+          contentType: mimeType,
+        });
+
+        const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(
+          folderPath
+        )}`;
+
+        let url = null;
+        try {
+          const response = await axios.post(uploadUrl, form, {
+            headers: form.getHeaders(),
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+          });
+
+          const respData = response.data;
+          url =
+            Array.isArray(respData) && respData.length > 0
+              ? respData[0]
+              : respData.url ||
+                respData.fileUrl ||
+                (respData.data && respData.data.url) ||
+                null;
+        } catch (e) {
+          console.error("Upload failed for:", attachment_name, e?.message);
+        }
+
+        if (url) {
+          uploadedAttachments.push({
+            attachment_url: url,
+            attachment_name,
+          });
+        } else {
+          console.warn(`No URL found for uploaded file ${attachment_name}`);
+        }
+      }
+    }
+
+    // Always push sales_Details (even if only remarks are present)
+    po.sales_Details.push({
+      remarks,
+      attachments: uploadedAttachments,
+      converted_at: new Date(),
+      user_id: req.user?._id || null,
+    });
+
+    await po.save();
+
+    return res.status(200).json({
+      message: uploadedAttachments.length
+        ? "Sales PO updated with attachments"
+        : "Sales PO updated (remarks only, no attachments)",
+      data: po,
+    });
+  } catch (error) {
+    console.error("Error updating Sales PO:", error.message);
+    return res.status(500).json({
+      message: "Error updating Sales PO",
+      error: error.message,
+    });
+  }
+};
+
 //Move-Recovery
 const moverecovery = async function (req, res) {
   const { _id } = req.params._id;
@@ -1650,7 +1773,6 @@ const getPoBasic = async (req, res) => {
   }
 };
 
-
 //get All PO With
 module.exports = {
   addPo,
@@ -1670,5 +1792,6 @@ module.exports = {
   getPOHistoryById,
   updateEditandDeliveryDate,
   updateStatusPO,
-  getPoBasic
+  getPoBasic,
+  updateSalesPO,
 };

@@ -437,6 +437,7 @@ const paymentApproval = async function (req, res) {
           credit_remarks: "$credit.credit_remarks",
           credit_user_name: "$creditUser.name",
           totalCredited: { $ifNull: [{ $arrayElemAt: ["$creditData.totalCredit", 0] }, 0] },
+          totalDebited: { $ifNull: [{ $arrayElemAt: ["$debitData.totalDebit", 0] }, 0] },
           totalPaid: { $ifNull: [{ $arrayElemAt: ["$creditBalanceData.totalPaid", 0] }, 0] },
           creditBalance: 1,
           pay_type: {

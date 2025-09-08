@@ -52,6 +52,7 @@ const {
   updateEditandDeliveryDate,
   updateStatusPO,
   getPoBasic,
+  updateSalesPO,
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -470,6 +471,13 @@ router.put(
   jwtMW.authorization,
   updateEditandDeliveryDate
 );
+router.put(
+  "/sales-update",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  upload,
+  updateSalesPO
+);
 
 //Add vendor
 router.post(
@@ -703,7 +711,7 @@ router.get(
   jwtMW.authorization,
   exportBills
 );
-router.put('/manipulatebill', manipulatebill)
+router.put("/manipulatebill", manipulatebill);
 //subtractmoney-debitmoney
 router.post(
   "/debit-moneY-IT",
