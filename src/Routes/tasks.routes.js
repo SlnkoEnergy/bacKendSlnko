@@ -8,6 +8,8 @@ const {
   deleteTask,
   updateTaskStatus,
   exportToCsv,
+  createSubTask,
+  updateSubTaskStatus,
 } = require("../controllers/tasks.controllers");
 const jwtMW = require("../middlewares/auth");
 const upload = require("../middlewares/multer");
@@ -19,4 +21,5 @@ router.put("/task/:id", jwtMW.authentication,upload, updateTask);
 router.delete("/task/:id", jwtMW.authentication, deleteTask);
 router.put("/:id/updateTaskStatus", jwtMW.authentication, updateTaskStatus);
 router.post("/exportTocsv", jwtMW.authentication, exportToCsv);
+router.put('/subtask/:taskId', jwtMW.authentication, createSubTask);
 module.exports = router;

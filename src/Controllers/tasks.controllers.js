@@ -7,6 +7,7 @@ const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
+const { default: mongoose } = require("mongoose");
 
 const createTask = async (req, res) => {
   try {
@@ -94,8 +95,12 @@ const getAllTasks = async (req, res) => {
 
     const skip = (Number(page) - 1) * Number(limit);
     const searchRegex = new RegExp(search, "i");
-    const assignedToNameRegex = assignedToName ? new RegExp(assignedToName, "i") : null;
-    const createdByNameRegex = createdByName ? new RegExp(createdByName, "i") : null;
+    const assignedToNameRegex = assignedToName
+      ? new RegExp(assignedToName, "i")
+      : null;
+    const createdByNameRegex = createdByName
+      ? new RegExp(createdByName, "i")
+      : null;
 
     const preLookupMatch = [];
     if (
@@ -219,7 +224,10 @@ const getAllTasks = async (req, res) => {
       if (Array.isArray(priorityFilter)) {
         priorities = priorityFilter.map((v) => String(v));
       } else if (typeof priorityFilter === "string") {
-        priorities = priorityFilter.split(/[,\s]+/).filter(Boolean).map(String);
+        priorities = priorityFilter
+          .split(/[,\s]+/)
+          .filter(Boolean)
+          .map(String);
       } else {
         priorities = [String(priorityFilter)];
       }
@@ -276,7 +284,10 @@ const getAllTasks = async (req, res) => {
               },
             },
           },
-          createdBy: { _id: "$createdBy_info._id", name: "$createdBy_info.name" },
+          createdBy: {
+            _id: "$createdBy_info._id",
+            name: "$createdBy_info.name",
+          },
           followers: 1,
         },
       },
@@ -309,7 +320,6 @@ const getAllTasks = async (req, res) => {
   }
 };
 
-
 // Get a task by ID
 const getTaskById = async (req, res) => {
   try {
@@ -323,6 +333,8 @@ const getTaskById = async (req, res) => {
       .populate("comments.user_id", "_id name")
       .populate("attachments.user_id", "_id name")
       .populate("followers", "_id name")
+      .populate("sub_tasks.assigned_to", "_id name")
+      .populate("sub_tasks.createdBy", "_id name");
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
@@ -458,7 +470,9 @@ const updateTask = async (req, res) => {
           ? req.body.data
           : req.body || {};
 
-    const existing = await tasksModells.findById(id).select("taskCode assigned_to followers");
+    const existing = await tasksModells
+      .findById(id)
+      .select("taskCode assigned_to followers");
     if (!existing) return res.status(404).json({ error: "Task not found" });
 
     const userId = req.user?.userId || req.user?._id;
@@ -554,7 +568,6 @@ const updateTask = async (req, res) => {
     return res.status(400).json({ error: err.message });
   }
 };
-
 
 const updateTaskStatus = async (req, res) => {
   try {
@@ -669,6 +682,46 @@ const exportToCsv = async (req, res) => {
   }
 };
 
+const createSubTask = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    let { assigned_to = [], deadline } = req.body;
+
+    const task = await tasksModells.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+
+    if (!Array.isArray(assigned_to)) assigned_to = [assigned_to];
+    assigned_to = assigned_to
+      .filter(Boolean)
+      .map((v) => (mongoose.isValidObjectId(v) ? v : String(v)));
+
+    if (assigned_to.length === 0) {
+      return res.status(400).json({ message: "assigned_to must be a non-empty array" });
+    }
+
+    const newSubtask = {
+      assigned_to,                        
+      ...(deadline ? { deadline } : {}),
+      createdBy: req.user?.userId || null, 
+    };
+
+    task.sub_tasks.push(newSubtask);
+    await task.save();
+
+    return res.status(200).json({
+      message: "Subtask created successfully",
+      task,
+    });
+  } catch (error) {
+    console.error("Error creating subtask:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
+  }
+};
 
 //Task Dashboard
 const taskCards = async (req, res) => {
@@ -695,10 +748,7 @@ const taskCards = async (req, res) => {
 
     // user filter
     if (user_id) {
-      match.$or = [
-        { createdBy: user_id },
-        { assigned_to: user_id },
-      ];
+      match.$or = [{ createdBy: user_id }, { assigned_to: user_id }];
     }
 
     // aggregation pipeline
@@ -727,8 +777,16 @@ const taskCards = async (req, res) => {
             {
               $match: {
                 $or: [
-                  { createdBy: user_id ? new mongoose.Types.ObjectId(user_id) : null },
-                  { assigned_to: user_id ? new mongoose.Types.ObjectId(user_id) : null },
+                  {
+                    createdBy: user_id
+                      ? new mongoose.Types.ObjectId(user_id)
+                      : null,
+                  },
+                  {
+                    assigned_to: user_id
+                      ? new mongoose.Types.ObjectId(user_id)
+                      : null,
+                  },
                 ],
               },
             },
@@ -760,7 +818,9 @@ const taskCards = async (req, res) => {
     });
   } catch (error) {
     console.error("taskCards error:", error);
-    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
@@ -790,7 +850,8 @@ const myTasks = async (req, res) => {
     }
 
     // Fetch tasks with filters
-    const tasks = await tasksModells.find(match)
+    const tasks = await tasksModells
+      .find(match)
       .populate("createdBy", "name emp_id department")
       .select("title description deadline createdBy assigned_to current_status")
       .sort({ deadline: 1 });
@@ -845,7 +906,8 @@ const myCancelled = async (req, res) => {
     }
 
     // Fetch only cancelled tasks
-    const cancelledTasks = await tasksModells.find(match)
+    const cancelledTasks = await tasksModells
+      .find(match)
       .populate("createdBy", "name emp_id department")
       .select("title description deadline createdBy assigned_to current_status")
       .sort({ deadline: 1 });
@@ -897,7 +959,8 @@ const myWorkItemsToday = async (req, res) => {
     }
 
     // Fetch tasks due today
-    const tasksToday = await tasksModells.find(match)
+    const tasksToday = await tasksModells
+      .find(match)
       .populate("createdBy", "name emp_id department")
       .select("title description deadline createdBy assigned_to current_status")
       .sort({ deadline: 1 });
@@ -912,7 +975,7 @@ const myWorkItemsToday = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 const myOverdueWorkItems = async (req, res) => {
   try {
@@ -922,8 +985,8 @@ const myOverdueWorkItems = async (req, res) => {
     today.setHours(0, 0, 0, 0);
 
     let match = {
-      deadline: { $lt: today }, 
-      "current_status.status": { $ne: "cancelled" }, 
+      deadline: { $lt: today },
+      "current_status.status": { $ne: "cancelled" },
     };
 
     // Department filter
@@ -945,7 +1008,8 @@ const myOverdueWorkItems = async (req, res) => {
     }
 
     // Fetch overdue tasks
-    const tasks = await tasksModells.find(match)
+    const tasks = await tasksModells
+      .find(match)
       .populate("createdBy", "name emp_id department")
       .select("title description deadline createdBy assigned_to current_status")
       .sort({ deadline: 1 });
@@ -1024,10 +1088,7 @@ const taskStatusFunnel = async (req, res) => {
     });
 
     const total =
-      counts.pending +
-      counts.inprogress +
-      counts.completed +
-      counts.cancelled;
+      counts.pending + counts.inprogress + counts.completed + counts.cancelled;
 
     return res.status(200).json({
       total,
@@ -1035,7 +1096,9 @@ const taskStatusFunnel = async (req, res) => {
     });
   } catch (error) {
     console.error("taskStatusFunnel error:", error);
-    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
@@ -1047,12 +1110,12 @@ module.exports = {
   deleteTask,
   updateTaskStatus,
   exportToCsv,
-
+  createSubTask,
   //Task Dashboard
   taskCards,
   myTasks,
   myCancelled,
   myWorkItemsToday,
   myOverdueWorkItems,
-  taskStatusFunnel
+  taskStatusFunnel,
 };
