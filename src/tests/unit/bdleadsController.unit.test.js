@@ -1,643 +1,722 @@
 // NEW FILE: src/tests/unit/dashboard.controllers.unit.test.js
 const mongoose = require("mongoose");
-
-// ---- Mock all DB models used by the controllers ----
-jest.mock("../../Modells/handoversheet.model", () => ({
-    countDocuments: jest.fn(),
-    aggregate: jest.fn(),
-    find: jest.fn(),
-}));
-jest.mock("../../Modells/bdleads/task", () => ({
-    aggregate: jest.fn(),
-    countDocuments: jest.fn(),
-}));
-jest.mock("../../Modells/bdleads/bdleadsModells", () => ({
-    countDocuments: jest.fn(),
-    aggregate: jest.fn(),
-    find: jest.fn(),
-}));
-// jest.mock("../../Modells/users/userModells", () => ({
-//     findById: jest.fn(),
-// }));
+const request = require("supertest");
 
 jest.mock("../../middlewares/auth", () => ({
-    authentication: (req, res, next) => {
+    authentication: (req, _res, next) => {
         const id = req.headers["x-test-user-id"];
         if (id) req.user = { userId: id };
         next();
     },
-    authorization: (req, res, next) => next(),
+    authorization: (_req, _res, next) => next(),
 }));
 
-let Users;
-let Leads;
-let Handovers;
+// Models & app
+const Users = require("../../Modells/users/userModells");
+const Leads = require("../../Modells/bdleads/bdleadsModells");
+const Handovers = require("../../Modells/handoversheet.model");
+const app = require("../../index");
 
-const d = (s) => new Date(s);
-
-// ---- Import mocks & controller under test ----
-// const handoversheet = require("../../Modells/handoversheet.model");
-// const task = require("../../Modells/bdleads/task");
-// const bdleadsModells = require("../../Modells/bdleads/bdleadsModells");
-// const userModells = require("../../Modells/users/userModells");
-const request = require("supertest");
-const app = require("../../index")
-Users = require("../../Modells/users/userModells");
-Leads = require("../../Modells/bdleads/bdleadsModells");
-Handovers = require("../../Modells/handoversheet.model");
-
+// ---------- Helpers ----------
+const unique = () => Math.random().toString(36).slice(2, 8);
 
 async function seedUser({
-  _id,
-  name,
-  department = "Accounts",
-  role = "member",
-  emp_id = "SE-TEST",
-  password = "Test@12345", // plain text is fine for tests unless your model hashes it in pre-save
-  email,
-}) {
-  return Users.create({
     _id,
     name,
-    department,
-    role,
+    department = "Accounts",
+    role = "member",
     emp_id,
-    password,
-    email: email || `${_id}@x.test`,
-  });
+    password = "Test@12345",
+    email,
+}) {
+    const id = _id || new mongoose.Types.ObjectId();
+    const emp = emp_id || `SE-TEST-${id.toString().slice(-4)}-${unique()}`;
+    const mail = email || `${id}@x.test`;
+    return Users.create({
+        _id: id,
+        name,
+        department,
+        role,
+        emp_id: emp,
+        password,
+        email: mail,
+    });
 }
 
-async function seedLeads({ count, userId, createdAt }) {
-    const docs = Array.from({ length: count }).map(() => ({
-        current_assigned: { user_id: new mongoose.Types.ObjectId(userId) },
+function makeLeadDoc({
+    userId,
+    createdAt,
+    sourceFrom = "Marketing",
+    statusName = "initial",
+    projectCapacity = "5 kWp",
+}) {
+    const from =
+        typeof sourceFrom === "string" && sourceFrom.trim().length
+            ? sourceFrom
+            : "Others";
+
+    return {
+        name: "Seed Test Lead",
+        company_name: "Acme Solar Pvt Ltd",
+        contact_details: { email: "seed@example.com", mobile: ["9876543210"] },
+        group: "BD",
+        address: {
+            village: "Kothrud",
+            district: "Pune",
+            state: "Maharashtra",
+            postalCode: "411038",
+            country: "India",
+        },
+        project_details: {
+            capacity: projectCapacity, // required (non-empty)
+            distance_from_substation: { unit: "km", value: "3" },
+            available_land: { unit: "km", value: "2" },
+            tarrif: "INR 6.5",
+            land_type: "Private",
+            scheme: "PM-KUSUM",
+        },
+        expected_closing_date: createdAt,
+        source: { from, sub_source: "Campaign" }, // required
+        comments: "Seeded via unit test", // required
+
+        current_status: {
+            name: statusName,
+            stage: "",
+            remarks: "created",
+            user_id: userId,
+        },
+        current_assigned: { user_id: userId, status: statusName },
+
+        submitted_by: userId,
+        status_of_handoversheet: "false",
+        handover_lock: "unlock",
+        leadAging: 0,
+        inactivedate: createdAt,
+
         createdAt,
-    }));
-    return Leads.insertMany(docs);
+        updatedAt: createdAt,
+    };
+}
+
+async function seedLeads({ count, userId, createdAt, sourceFrom }) {
+    const docs = [];
+    for (let i = 0; i < count; i++) {
+        docs.push(await Leads.create(makeLeadDoc({ userId, createdAt, sourceFrom })));
+    }
+    return docs;
 }
 
 async function seedOtherLeads({ count, createdAt }) {
     const otherId = new mongoose.Types.ObjectId();
-    const docs = Array.from({ length: count }).map(() => ({
-        current_assigned: { user_id: otherId },
-        createdAt,
-    }));
-    return Leads.insertMany(docs);
+    return seedLeads({ count, userId: otherId, createdAt });
 }
 
+// Ensure payment field matches controller: other_details.total_gst
 async function seedHandovers({
     count,
     submittedBy,
     createdAt,
-    kwps = [], // numbers in W (strings), will be divided by 1000 inside pipeline
-    services = [], // numeric strings
-}) {
-    const docs = Array.from({ length: count }).map((_, i) => ({
-        createdAt,
-        other_details: {
-            submitted_by_BD: submittedBy,
-            service: (services[i] ?? services[0] ?? "0").toString(),
-        },
-        project_detail: {
-            project_kwp: (kwps[i] ?? kwps[0] ?? "0").toString(),
-        },
-    }));
-    return Handovers.insertMany(docs);
-}
-
-async function seedOtherHandovers({
-    count,
-    createdAt,
     kwps = [],
-    services = [],
+    services = [], // we’ll copy to total_gst too
 }) {
-    const docs = Array.from({ length: count }).map((_, i) => ({
-        createdAt,
-        other_details: {
-            submitted_by_BD: "Someone Else",
-            service: (services[i] ?? services[0] ?? "0").toString(),
-        },
-        project_detail: {
-            project_kwp: (kwps[i] ?? kwps[0] ?? "0").toString(),
-        },
-    }));
+    const docs = Array.from({ length: count }).map((_, i) => {
+        const s = (services[i] ?? services[0] ?? "0").toString();
+        return {
+            createdAt,
+            other_details: {
+                submitted_by_BD: submittedBy,
+                service: s,
+                total_gst: s, // controller reads this
+            },
+            project_detail: {
+                project_kwp: (kwps[i] ?? kwps[0] ?? "0").toString(),
+            },
+        };
+    });
     return Handovers.insertMany(docs);
 }
 
-// const {
-//     getLeadSummary,
-//     getLeadSource,
-//     taskDashboard,
-//     leadSummary,
-//     leadconversationrate,
-//     leadFunnel,
-//     leadWonAndLost,
-// } = require("../../Controllers/dashboard"); // <-- adjust if needed
+async function seedOtherHandovers({ count, createdAt, kwps = [], services = [] }) {
+    const docs = Array.from({ length: count }).map((_, i) => {
+        const s = (services[i] ?? services[0] ?? "0").toString();
+        return {
+            createdAt,
+            other_details: {
+                submitted_by_BD: "Someone Else",
+                service: s,
+                total_gst: s,
+            },
+            project_detail: { project_kwp: (kwps[i] ?? kwps[0] ?? "0").toString() },
+        };
+    });
+    return Handovers.insertMany(docs);
+}
 
-// ---- Helpers ----
-const makeRes = () => {
-    const res = {};
-    res.status = jest.fn(() => res);
-    res.json = jest.fn(() => res);
-    return res;
-};
-
-// const setUser = (user) => {
-//     // userModells.findById returns a Query-like object with .lean()
-//     userModells.findById.mockReturnValue({
-//         lean: jest.fn().mockResolvedValue(user),
-//     });
-// };
+// Quiet console noise from expected 500s
+let consoleErrorSpy;
+beforeAll(() => {
+    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => { });
+});
+afterAll(() => {
+    if (consoleErrorSpy) consoleErrorSpy.mockRestore();
+});
 
 beforeEach(() => {
     jest.clearAllMocks();
 });
 
+
 describe("getLeadSummary", () => {
     test("404 when user not found", async () => {
-
         const fakeUserId = new mongoose.Types.ObjectId().toString();
-
         const res = await request(app)
             .get("/v1/bddashboard/summary")
-            .set("x-test-user-id", fakeUserId)
-            .send();
+            .set("x-test-user-id", fakeUserId);
 
         expect(res.statusCode).toBe(404);
         expect(res.body?.message).toMatch(/user not found/i);
     });
 
     test("200 returns summary for NON-privileged user (filters by assignment/name)", async () => {
-        // Fixed window for determinism
         const startDate = "2025-02-01T00:00:00.000Z";
         const endDate = "2025-02-28T23:59:59.999Z";
-        const prevMid = "2025-01-15T10:00:00.000Z";
-        const currMid = "2025-02-15T10:00:00.000Z";
+        const prevMid = new Date("2025-01-15T10:00:00.000Z");
+        const currMid = new Date("2025-02-15T10:00:00.000Z");
 
         const userId = new mongoose.Types.ObjectId();
         await seedUser({ _id: userId, name: "Normal User", department: "Accounts", role: "member" });
 
-        // Leads (only those assigned to the user should count)
-        await seedLeads({ count: 10, userId, createdAt: d(currMid) }); // current
-        await seedLeads({ count: 5, userId, createdAt: d(prevMid) });  // previous
-        await seedOtherLeads({ count: 3, createdAt: d(currMid) });     // other users (ignore)
-        await seedOtherLeads({ count: 1, createdAt: d(prevMid) });     // ignore
+        await seedLeads({ count: 10, userId, createdAt: currMid });
+        await seedLeads({ count: 5, userId, createdAt: prevMid });
+        await seedOtherLeads({ count: 3, createdAt: currMid });
+        await seedOtherLeads({ count: 1, createdAt: prevMid });
 
-        // Handovers (only those submitted_by_BD === user's name should count)
-        // Current: 4 items → project_kwp sum 12500 → 12.5; services sum 5.6M
         await seedHandovers({
             count: 4,
             submittedBy: "Normal User",
-            createdAt: d(currMid),
+            createdAt: currMid,
             kwps: ["5000", "4000", "2000", "1500"],
             services: ["2000000", "1800000", "1200000", "600000"],
         });
-        // Previous: 2 items → project_kwp sum 7000 → 7; services sum 2.8M
         await seedHandovers({
             count: 2,
             submittedBy: "Normal User",
-            createdAt: d(prevMid),
+            createdAt: prevMid,
             kwps: ["4000", "3000"],
-            services: ["1800000", "1000000"], // sums to 2.8M
+            services: ["1800000", "1000000"],
         });
-        // Other user's handovers (ignored for non-privileged)
         await seedOtherHandovers({
             count: 1,
-            createdAt: d(currMid),
+            createdAt: currMid,
             kwps: ["2500"],
             services: ["1000000"],
         });
         await seedOtherHandovers({
             count: 1,
-            createdAt: d(prevMid),
+            createdAt: prevMid,
             kwps: ["1000"],
             services: ["500000"],
         });
 
         const res = await request(app)
-            .get("/v1/summary")
+            .get("/v1/bddashboard/summary")
             .set("x-test-user-id", userId.toString())
-            .query({ startDate, endDate })
-            .send();
+            .query({ startDate, endDate });
 
-        expect(res.statusCode).toBe(200);
-        expect(res.headers["content-type"]).toMatch(/json/i);
+        expect(res.status).toBe(200);
         const body = res.body;
 
-        // Leads
         expect(body.total_leads).toBe(10);
         expect(body.total_leads_change_percentage).toBe(100);
-
-        // Conversion
-        expect(body.conversion_rate_percentage).toBeCloseTo(40, 2); // 4/10 * 100
-        expect(body.conversion_rate_change_percentage).toBeCloseTo(0, 2); // prev 2/5 * 100 = 40
-
-        // Assigned tasks (kwp/1000)
+        expect(body.conversion_rate_percentage).toBeCloseTo(40, 2);
+        expect(body.conversion_rate_change_percentage).toBeCloseTo(0, 2);
         expect(body.total_assigned_tasks).toBe("12.50");
-        expect(body.total_assigned_tasks_change_percentage).toBeCloseTo(78.57, 2); // (12.5-7)/7*100
-
-        // Amount earned (sum(service)/1e7)
-        expect(body.amount_earned).toBeCloseTo(0.56, 2); // 5.6M / 10M
+        expect(body.total_assigned_tasks_change_percentage).toBeCloseTo(78.57, 2);
+        expect(body.amount_earned).toBeCloseTo(0.56, 2);
         expect(body.amount_earned_change_percentage).toBe(100);
     });
 
+    test("returns 500 when bdleads count fails", async () => {
+        const userId = new mongoose.Types.ObjectId();
+        await seedUser({ _id: userId, name: "Error User" });
 
-    // test("200 returns summary for non-privileged user", async () => {
-    //     setUser({ _id: "U2", name: "Normal User", department: "Accounts", role: "member" });
+        const spyCount = jest
+            .spyOn(Leads, "countDocuments")
+            .mockRejectedValueOnce(new Error("DB failed"));
 
-    //     // bd leads – current, previous
-    //     bdleadsModells.countDocuments
-    //         .mockResolvedValueOnce(10) // current totalLeads
-    //         .mockResolvedValueOnce(5); // prevTotalLeads
+        const res = await request(app)
+            .get("/v1/bddashboard/summary")
+            .set("x-test-user-id", userId.toString())
+            .query({ range: "1 week" });
 
-    //     // handovers – current, previous
-    //     handoversheet.countDocuments
-    //         .mockResolvedValueOnce(4) // totalHandovers
-    //         .mockResolvedValueOnce(2); // prevHandovers
+        expect(res.status).toBe(500);
+        expect(res.body?.message).toMatch(/internal server error/i);
 
-    //     // handovers aggregate for KWP (current, prev)
-    //     handoversheet.aggregate
-    //         .mockResolvedValueOnce([{ total: 12.5 }]) // currentKwp
-    //         .mockResolvedValueOnce([{ total: 7 }]) // prevKwp
-    //         // earnings (current, prev)
-    //         .mockResolvedValueOnce([{ total: 5600000 }]) // current earning
-    //         .mockResolvedValueOnce([{ total: 2800000 }]); // prev earning
+        spyCount.mockRestore();
+    });
+});
 
-    //     const req = { user: { userId: "U2" }, query: { range: "1 month" } };
-    //     const res = makeRes();
+describe("getLeadSource", () => {
+    test("404 when user not found", async () => {
+        const fakeUserId = new mongoose.Types.ObjectId().toString();
 
-    //     await getLeadSummary(req, res);
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-source")
+            .set("x-test-user-id", fakeUserId);
 
-    //     expect(res.status).not.toHaveBeenCalled(); // default 200
-    //     const body = res.json.mock.calls[0][0];
+        expect(res.statusCode).toBe(404);
+        expect(res.body?.message).toMatch(/user not found/i);
+    });
 
-    //     expect(body.total_leads).toBe(10);
-    //     expect(body.total_leads_change_percentage).toBe(100); // (10-5)/5 * 100
-    //     expect(body.conversion_rate_percentage).toBe(40); // 4/10 * 100
-    //     expect(body.conversion_rate_change_percentage).toBe(0); // 40 vs 40
+    test("200 returns percentages by source (non-privileged user)", async () => {
+        const userId = new mongoose.Types.ObjectId();
+        await seedUser({ _id: userId, name: "Normal", department: "Accounts", role: "member" });
 
-    //     expect(body.total_assigned_tasks).toBe("12.50"); // toFixed(2) string
-    //     expect(body.total_assigned_tasks_change_percentage).toBe(78.57); // (12.5-7)/7*100
+        const createdAt = new Date(Date.now() - 7 * 24 * 3600 * 1000);
 
-    //     expect(body.amount_earned).toBe(0.56); // 5.6M / 10M
-    //     expect(body.amount_earned_change_percentage).toBe(100);
-    // });
+        const push = (n, src) => seedLeads({ count: n, userId, createdAt, sourceFrom: src });
+        await push(5, "Social Media");
+        await push(4, "Marketing");
+        await push(7, "IVR/My Operator");
+        await push(2, "Referred by");
+        await push(2, null); // becomes "Others"
 
-    // test("500 on unexpected error", async () => {
-    //     setUser({ _id: "U3", name: "X", department: "Accounts", role: "member" });
-    //     bdleadsModells.countDocuments.mockRejectedValue(new Error("DB failed"));
+        const otherUser = new mongoose.Types.ObjectId();
+        await Leads.create([
+            makeLeadDoc({ userId: otherUser, createdAt, sourceFrom: "Marketing" }),
+            makeLeadDoc({ userId: otherUser, createdAt, sourceFrom: "Social Media" }),
+        ]);
 
-    //     const req = { user: { userId: "U3" }, query: { range: "1 week" } };
-    //     const res = makeRes();
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-source")
+            .set("x-test-user-id", userId.toString())
+            .query({ range: "1 month" });
 
-    //     await getLeadSummary(req, res);
+        expect(res.statusCode).toBe(200);
+        const map = new Map(res.body.lead_sources.map((x) => [x.source, x.percentage]));
+        expect(map.get("Social Media")).toBeCloseTo(25, 2);
+        expect(map.get("Marketing")).toBeCloseTo(20, 2);
+        expect(map.get("IVR/My Operator")).toBeCloseTo(35, 2);
+        expect(map.get("Referred by")).toBeCloseTo(10, 2);
+        expect(map.get("Others")).toBeCloseTo(10, 2);
+    });
 
-    //     expect(res.status).toHaveBeenCalledWith(500);
-    //     expect(res.json.mock.calls[0][0].message).toMatch(/internal server error/i);
+    test("500 on aggregation error", async () => {
+        const userId = new mongoose.Types.ObjectId();
+        await seedUser({ _id: userId, name: "Z", department: "Accounts", role: "member" });
+
+        const spy = jest.spyOn(Leads, "aggregate").mockRejectedValueOnce(new Error("agg broke"));
+
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-source")
+            .set("x-test-user-id", userId.toString())
+            .query({ startDate: "2025-01-01", endDate: "2025-01-31" });
+
+        expect(res.statusCode).toBe(500);
+        expect(res.body?.message).toMatch(/internal server error/i);
+
+        spy.mockRestore();
+    });
+});
+
+describe("taskDashboard", () => {
+    test("404 when user not found", async () => {
+        const fakeUserId = new mongoose.Types.ObjectId();
+
+        const res = await request(app)
+            .get("/v1/bddashboard/taskdashboard")
+            .set("x-test-user-id", fakeUserId.toString())
+            .query({ range: "1 week" });
+
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ message: "User not found" });
+    });
+
+    test("200 returns per-member summary for non-privileged user", async () => {
+        const userId = new mongoose.Types.ObjectId();
+        await seedUser({ _id: userId, name: "Normal", department: "Accounts", role: "member" });
+
+        const res = await request(app)
+            .get("/v1/bddashboard/taskdashboard")
+            .set("x-test-user-id", userId.toString())
+            .query({ range: "1 month" });
+
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveProperty("per_member_task_summary");
+        expect(Array.isArray(res.body.per_member_task_summary)).toBe(true);
+    });
+
+    test("500 when aggregation throws error", async () => {
+        const userId = new mongoose.Types.ObjectId();
+        await seedUser({ _id: userId, name: "Normal", department: "Accounts", role: "member" });
+
+        const task = require("../../Modells/bdleads/task");
+        const spy = jest.spyOn(task, "aggregate").mockRejectedValueOnce(new Error("DB failure"));
+
+        const res = await request(app)
+            .get("/v1/bddashboard/taskdashboard")
+            .set("x-test-user-id", userId.toString())
+            .query({ range: "1 week" });
+
+        expect(res.status).toBe(500);
+        expect(res.body).toHaveProperty("message", "Internal server error");
+
+        spy.mockRestore();
+    });
+});
+
+describe("leadSummary", () => {
+    test("404 when user not found", async () => {
+        const fakeUserId = new mongoose.Types.ObjectId();
+
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-summary")
+            .set("x-test-user-id", fakeUserId.toString())
+            .query({ range: "today" });
+
+        expect(res.status).toBe(404);
+        expect(res.body).toHaveProperty("message", "User not found");
+    });
+
+    test("200 maps counts per status", async () => {
+        const user = await seedUser({
+            name: "Member",
+            department: "Accounts",
+            role: "member",
+        });
+
+        // Seed leads WITHIN January 2025 and assigned to this user
+        await Leads.create([
+            makeLeadDoc({ userId: user._id, createdAt: new Date("2025-01-05"), statusName: "initial" }),
+            makeLeadDoc({ userId: user._id, createdAt: new Date("2025-01-10"), statusName: "initial" }),
+            makeLeadDoc({ userId: user._id, createdAt: new Date("2025-01-12"), statusName: "follow up" }),
+            makeLeadDoc({ userId: user._id, createdAt: new Date("2025-01-15"), statusName: "warm" }),
+            makeLeadDoc({ userId: user._id, createdAt: new Date("2025-01-20"), statusName: "won" }),
+            makeLeadDoc({ userId: user._id, createdAt: new Date("2025-01-25"), statusName: "dead" }),
+        ]);
+
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-summary")
+            .set("x-test-user-id", user._id.toString())
+            .query({ startDate: "2025-01-01", endDate: "2025-01-31" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.lead_status_summary).toEqual({
+            initial_leads: 2,
+            followup_leads: 1,
+            warm_leads: 1,
+            won_leads: 1,
+            dead_leads: 1,
+        });
+        expect(res.body.filter_used.from).toMatch(/2025-01-/);
+    });
+
+    test("500 on aggregation error", async () => {
+        const user = await seedUser({
+            name: "Member2",
+            department: "Accounts",
+            role: "member",
+        });
+
+        const spy = jest.spyOn(Leads, "aggregate").mockRejectedValueOnce(new Error("DB failed"));
+
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-summary")
+            .set("x-test-user-id", user._id.toString())
+            .query({ range: "week" });
+
+        expect(res.status).toBe(500);
+        expect(res.body).toHaveProperty("message", "Internal server error");
+
+        spy.mockRestore();
+    });
+});
+
+describe("leadconversationrate", () => {
+    test("400 when no range and no custom dates", async () => {
+        const userId = new mongoose.Types.ObjectId();
+        await seedUser({ _id: userId, name: "N", department: "Accounts", role: "member" });
+
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-conversation")
+            .set("x-test-user-id", userId.toString()); // no range, no dates
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body?.message).toMatch(/valid date range/i);
+    });
+
+    test("404 when user not found", async () => {
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-conversation")
+            .set("x-test-user-id", new mongoose.Types.ObjectId().toString())
+            .query({ range: "1 week" });
+
+        expect(res.statusCode).toBe(404);
+    });
+
+    test("200 returns totals and conversion rate", async () => {
+        const userId = new mongoose.Types.ObjectId();
+        await seedUser({ _id: userId, name: "Acc", department: "Accounts", role: "member" });
+
+        const createdAt = new Date(Date.now() - 2 * 24 * 3600 * 1000);
+
+        await seedLeads({ count: 10, userId, createdAt, sourceFrom: "Marketing" });
+        await seedHandovers({
+            count: 4,
+            submittedBy: "Acc",
+            createdAt,
+            kwps: ["1000", "2000", "1500", "500"],
+            services: ["100000", "200000", "150000", "50000"],
+        });
+
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-conversation")
+            .set("x-test-user-id", userId.toString())
+            .query({ range: "1 week" });
+
+        expect(res.statusCode).toBe(200);
+        const body = res.body;
+        expect(body.total_leads).toBe(10);
+        expect(body.total_handovers).toBe(4);
+        expect(body.conversion_rate_percentage).toBeCloseTo(40, 2);
+    });
+
+    test("500 on error", async () => {
+        const userId = new mongoose.Types.ObjectId();
+        await seedUser({ _id: userId, name: "Acc", department: "Accounts", role: "member" });
+
+        const spy = jest.spyOn(Leads, "aggregate").mockRejectedValueOnce(new Error("agg err"));
+
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-conversation")
+            .set("x-test-user-id", userId.toString())
+            .query({ range: "1 month" });
+
+        expect(res.statusCode).toBe(500);
+        expect(res.body?.message).toMatch(/internal server error/i);
+
+        spy.mockRestore();
+    });
+});
+
+describe("leadFunnel", () => {
+    test("400 when missing range and dates", async () => {
+        const userId = new mongoose.Types.ObjectId();
+        await seedUser({ _id: userId, name: "N", department: "Accounts", role: "member" });
+
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-funnel")
+            .set("x-test-user-id", userId.toString()); // no range, no dates
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body?.message).toMatch(/valid date range/i);
+    });
+
+    test("404 when user not found", async () => {
+        const res = await request(app)
+            .get("/v1/bddashboard/lead-funnel")
+            .set("x-test-user-id", new mongoose.Types.ObjectId().toString())
+            .query({ range: "1 week" });
+
+        expect(res.statusCode).toBe(404);
+        expect(res.body?.message).toMatch(/user not found/i);
+    });
+
+    // test("200 returns funnel with lead counts and capacity + payment", async () => {
+    //     const userId = new mongoose.Types.ObjectId();
+    //     await seedUser({ _id: userId, name: "Normal", department: "Accounts", role: "member" });
+
+    //     const startDate = "2025-01-01T00:00:00.000Z";
+    //     const endDate = "2025-01-31T23:59:59.999Z";
+    //     const mid = new Date("2025-01-15T10:00:00.000Z");
+
+    //     await Leads.create([
+    //         makeLeadDoc({ userId, createdAt: mid, statusName: "initial", projectCapacity: "5 kWp" }),
+    //         makeLeadDoc({ userId, createdAt: mid, statusName: "initial", projectCapacity: "3.5kWp" }),
+    //         makeLeadDoc({ userId, createdAt: mid, statusName: "follow up", projectCapacity: "2.0" }),
+    //         // warm: none
+    //         makeLeadDoc({ userId, createdAt: mid, statusName: "won", projectCapacity: "10" }),
+    //         // capacity cannot be blank — use "0"
+    //         makeLeadDoc({ userId, createdAt: mid, statusName: "dead", projectCapacity: "0" }),
+    //     ]);
+
+    //     await seedHandovers({
+    //         count: 2,
+    //         submittedBy: "Normal",
+    //         createdAt: mid,
+    //         kwps: ["1000", "500"],
+    //         services: ["10000", "5000"], // will populate total_gst as well
+    //     });
+
+    //     const res = await request(app)
+    //         .get("/v1/bddashboard/lead-funnel")
+    //         .set("x-test-user-id", userId.toString())
+    //         .query({ startDate, endDate, fields: "lead,capacity" });
+
+    //     expect(res.statusCode).toBe(200);
+    //     const body = res.body;
+
+    //     expect(body.initial.count).toBe(2);
+    //     expect(body.initial.capacity).toBeCloseTo(8.5, 2);
+
+    //     expect(body["follow up"].count).toBe(1);
+    //     expect(body["follow up"].capacity).toBeCloseTo(2.0, 2);
+
+    //     expect(body.warm.count).toBe(0);
+    //     expect(body.warm.capacity).toBeCloseTo(0.0, 2);
+
+    //     expect(body.won.count).toBe(1);
+    //     expect(body.won.capacity).toBeCloseTo(10.0, 2);
+
+    //     expect(body.dead.count).toBe(1);
+    //     expect(body.dead.capacity).toBeCloseTo(0.0, 2);
+
+    //     expect(body.payment).toBe(15000);
     // });
 });
 
-// describe("getLeadSource", () => {
-//     test("404 when user not found", async () => {
-//         setUser(null);
-//         const req = { user: { userId: "U1" }, query: { range: "1 month" } };
-//         const res = makeRes();
+describe("leadWonAndLost", () => {
+    test("404 when user not found", async () => {
+        const fakeUserId = new mongoose.Types.ObjectId().toString();
 
-//         await getLeadSource(req, res);
-//         expect(res.status).toHaveBeenCalledWith(404);
-//         expect(res.json.mock.calls[0][0].message).toMatch(/user not found/i);
-//     });
+        const res = await request(app)
+            .get("/v1/bddashboard/wonandlost")
+            .set("x-test-user-id", fakeUserId)
+            .query({ startDate: "2025-01-01", endDate: "2025-03-31" });
 
-//     test("200 returns percentages by source", async () => {
-//         setUser({ _id: "U4", name: "Normal", department: "Accounts", role: "member" });
+        expect(res.statusCode).toBe(404);
+        expect(res.body?.message).toMatch(/user not found/i);
+    });
 
-//         // Controller's pipeline ends with project -> [{ sources: [{source, percentage}, ...] }]
-//         bdleadsModells.aggregate.mockResolvedValueOnce([
-//             {
-//                 sources: [
-//                     { source: "Social Media", percentage: 25.0 },
-//                     { source: "Marketing", percentage: 20.0 },
-//                     { source: "IVR/My Operator", percentage: 35.0 },
-//                     { source: "Referred by", percentage: 10.0 },
-//                     { source: null, percentage: 10.0 }, // Will roll into "Others"
-//                 ],
-//             },
-//         ]);
+    test("200 returns correct totals, percentages, and monthly data (non-privileged user)", async () => {
+        const userId = new mongoose.Types.ObjectId();
+        const userName = "Normal";
+        await seedUser({ _id: userId, name: userName, department: "Accounts", role: "member" });
 
-//         const req = { user: { userId: "U4" }, query: { range: "1 month" } };
-//         const res = makeRes();
+        const startDate = "2025-01-01T00:00:00.000Z";
+        const endDate = "2025-03-31T23:59:59.999Z";
+        const janMid = new Date("2025-01-15T10:00:00.000Z");
+        const febMid = new Date("2025-02-10T10:00:00.000Z");
 
-//         await getLeadSource(req, res);
+        await Leads.create([
+            // January
+            makeLeadDoc({ userId, createdAt: janMid, statusName: "initial", projectCapacity: "5 kWp" }),
+            makeLeadDoc({ userId, createdAt: janMid, statusName: "initial", projectCapacity: "3.5 kWp" }),
+            makeLeadDoc({ userId, createdAt: janMid, statusName: "follow up", projectCapacity: "2.0" }),
+            makeLeadDoc({ userId, createdAt: janMid, statusName: "warm", projectCapacity: "1.0" }),
+            makeLeadDoc({ userId, createdAt: janMid, statusName: "dead", projectCapacity: "0" }),
+            makeLeadDoc({ userId, createdAt: janMid, statusName: "won", projectCapacity: "10" }),
+            // February
+            makeLeadDoc({ userId, createdAt: febMid, statusName: "initial", projectCapacity: "2.0" }),
+            makeLeadDoc({ userId, createdAt: febMid, statusName: "dead", projectCapacity: "0" }),
+            makeLeadDoc({ userId, createdAt: febMid, statusName: "won", projectCapacity: "1.0" }),
+            makeLeadDoc({ userId, createdAt: febMid, statusName: "won", projectCapacity: "1.5" }),
+        ]);
 
-//         const body = res.json.mock.calls[0][0];
-//         expect(body.lead_sources).toBeTruthy();
-//         const map = new Map(body.lead_sources.map((x) => [x.source, x.percentage]));
+        const otherUser = new mongoose.Types.ObjectId();
+        await Leads.create([
+            makeLeadDoc({ userId: otherUser, createdAt: janMid, sourceFrom: "Social Media", statusName: "won", projectCapacity: "5" }),
+            makeLeadDoc({ userId: otherUser, createdAt: febMid, sourceFrom: "Social Media", statusName: "dead", projectCapacity: "0" }),
+        ]);
 
-//         expect(map.get("Social Media")).toBeCloseTo(25, 2);
-//         expect(map.get("Marketing")).toBeCloseTo(20, 2);
-//         expect(map.get("IVR/My Operator")).toBeCloseTo(35, 2);
-//         expect(map.get("Referred by")).toBeCloseTo(10, 2);
-//         expect(map.get("Others")).toBeCloseTo(10, 2);
-//     });
+        await seedHandovers({
+            count: 4,
+            submittedBy: userName,
+            createdAt: janMid,
+            kwps: ["1000", "500", "250", "250"],
+            services: ["10000", "5000", "2000", "3000"],
+        });
+        await seedOtherHandovers({
+            count: 2,
+            createdAt: febMid,
+            kwps: ["1000", "500"],
+            services: ["10000", "5000"],
+        });
 
-//     test("500 on error", async () => {
-//         setUser({ _id: "U5", name: "Z", department: "Accounts", role: "member" });
-//         bdleadsModells.aggregate.mockRejectedValue(new Error("agg broke"));
+        const res = await request(app)
+            .get("/v1/bddashboard/wonandlost")
+            .set("x-test-user-id", userId.toString())
+            .query({ startDate, endDate });
 
-//         const req = { user: { userId: "U5" }, query: { startDate: "2025-01-01", endDate: "2025-01-31" } };
-//         const res = makeRes();
+        expect(res.statusCode).toBe(200);
+        const body = res.body;
 
-//         await getLeadSource(req, res);
-//         expect(res.status).toHaveBeenCalledWith(500);
-//     });
-// });
+        expect(body.total_leads).toBe(10);
+        expect(body.active_leads).toBe(5);
+        expect(body.lost_leads).toBe(2);
+        expect(body.won_leads).toBe(3);
+        expect(body.won_leads_percentage).toBeCloseTo(30.0, 2);
+        expect(body.lost_leads_percentage).toBeCloseTo(20.0, 2);
+        expect(body.conversion_rate_percentage).toBeCloseTo(40.0, 2);
 
-// describe("taskDashboard", () => {
-//     test("404 when user not found", async () => {
-//         setUser(null);
-//         const req = { user: { userId: "U1" }, query: { range: "1 week" } };
-//         const res = makeRes();
+        const jan = body.monthly_data.find((m) => m.month === "Jan");
+        const feb = body.monthly_data.find((m) => m.month === "Feb");
+        const mar = body.monthly_data.find((m) => m.month === "Mar");
 
-//         await taskDashboard(req, res);
-//         expect(res.status).toHaveBeenCalledWith(404);
-//     });
+        expect(jan).toBeTruthy();
+        expect(feb).toBeTruthy();
+        expect(mar).toBeTruthy();
 
-//     test("200 returns per-member summary for non-privileged user", async () => {
-//         setUser({ _id: new mongoose.Types.ObjectId(), name: "Normal", department: "Accounts", role: "member" });
+        expect(jan.won_percentage).toBeCloseTo(20.0, 2);
+        expect(jan.lost_percentage).toBeCloseTo(20.0, 2);
 
-//         task.aggregate.mockResolvedValueOnce([
-//             { user_id: "U9", name: "Normal", assigned_tasks: 4, completed_tasks: 1 },
-//         ]);
+        expect(feb.won_percentage).toBeCloseTo(100.0, 2);
+        expect(feb.lost_percentage).toBeCloseTo(50.0, 2);
 
-//         const req = { user: { userId: "U9" }, query: { range: "1 month" } };
-//         const res = makeRes();
+        expect(mar.won_percentage).toBeCloseTo(0.0, 2);
+        expect(mar.lost_percentage).toBeCloseTo(0.0, 2);
 
-//         await taskDashboard(req, res);
+        expect(body.isPrivilegedUser).toBe(false);
+    });
 
-//         const body = res.json.mock.calls[0][0];
-//         expect(body.per_member_task_summary).toHaveLength(1);
-//         expect(body.per_member_task_summary[0].assigned_tasks).toBe(4);
-//     });
+    test("200 privileged user sees all leads", async () => {
+        const adminId = new mongoose.Types.ObjectId();
+        await seedUser({ _id: adminId, name: "Admin", department: "admin", role: "member" });
 
-//     test("200 returns multiple entries for privileged user", async () => {
-//         setUser({ _id: "ADM1", name: "Admin", department: "admin", role: "member" });
-//         task.aggregate.mockResolvedValueOnce([
-//             { user_id: "A", name: "A", assigned_tasks: 2, completed_tasks: 1 },
-//             { user_id: "B", name: "B", assigned_tasks: 5, completed_tasks: 3 },
-//         ]);
+        const startDate = "2025-02-01T00:00:00.000Z";
+        const endDate = "2025-02-28T23:59:59.999Z";
+        const febMid = new Date("2025-02-10T10:00:00.000Z");
 
-//         const req = { user: { userId: "ADM1" }, query: { range: "1 week" } };
-//         const res = makeRes();
+        const u1 = new mongoose.Types.ObjectId();
+        const u2 = new mongoose.Types.ObjectId();
+        await seedUser({ _id: u1, name: "A", department: "BD", role: "member" });
+        await seedUser({ _id: u2, name: "B", department: "Accounts", role: "member" });
 
-//         await taskDashboard(req, res);
-//         const body = res.json.mock.calls[0][0];
-//         expect(body.per_member_task_summary).toHaveLength(2);
-//     });
-// });
+        await Leads.create([
+            makeLeadDoc({ userId: u1, createdAt: febMid, statusName: "initial", projectCapacity: "1" }),
+            makeLeadDoc({ userId: u2, createdAt: febMid, statusName: "won", projectCapacity: "1" }),
+            makeLeadDoc({ userId: u2, createdAt: febMid, statusName: "dead", projectCapacity: "0" }),
+        ]);
 
-// describe("leadSummary", () => {
-//     test("404 when user not found", async () => {
-//         setUser(null);
-//         const req = { user: { userId: "X" }, query: { range: "today" } };
-//         const res = makeRes();
+        const res = await request(app)
+            .get("/v1/bddashboard/wonandlost")
+            .set("x-test-user-id", adminId.toString())
+            .query({ startDate, endDate });
 
-//         await leadSummary(req, res);
-//         expect(res.status).toHaveBeenCalledWith(404);
-//     });
+        expect(res.statusCode).toBe(200);
+        const body = res.body;
 
-//     test("200 maps counts per status", async () => {
-//         setUser({ _id: "U7", name: "Member", department: "Accounts", role: "member" });
-//         bdleadsModells.aggregate.mockResolvedValueOnce([
-//             { _id: "initial", count: 3 },
-//             { _id: "follow up", count: 2 },
-//             { _id: "warm", count: 4 },
-//             { _id: "won", count: 1 },
-//             { _id: "dead", count: 5 },
-//         ]);
+        expect(body.total_leads).toBe(3);
+        expect(body.won_leads).toBe(1);
+        expect(body.lost_leads).toBe(1);
+        expect(body.active_leads).toBe(1);
+        expect(body.isPrivilegedUser).toBe(true);
+    });
 
-//         const req = { user: { userId: "U7" }, query: { startDate: "2025-01-01", endDate: "2025-01-31" } };
-//         const res = makeRes();
+    test("500 on unexpected error (countDocuments throws)", async () => {
+        const userId = new mongoose.Types.ObjectId();
+        await seedUser({ _id: userId, name: "ErrUser", department: "Accounts", role: "member" });
 
-//         await leadSummary(req, res);
+        const spy = jest.spyOn(Leads, "countDocuments").mockRejectedValueOnce(new Error("DB failed"));
 
-//         const body = res.json.mock.calls[0][0];
-//         expect(body.lead_status_summary.initial_leads).toBe(3);
-//         expect(body.lead_status_summary.followup_leads).toBe(2);
-//         expect(body.lead_status_summary.warm_leads).toBe(4);
-//         expect(body.lead_status_summary.won_leads).toBe(1);
-//         expect(body.lead_status_summary.dead_leads).toBe(5);
-//         expect(body.filter_used.from).toMatch(/2025-01-/);
-//     });
+        const res = await request(app)
+            .get("/v1/bddashboard/wonandlost")
+            .set("x-test-user-id", userId.toString())
+            .query({ range: "1 week" });
 
-//     test("500 on error", async () => {
-//         setUser({ _id: "U8", name: "Member", department: "Accounts", role: "member" });
-//         bdleadsModells.aggregate.mockRejectedValue(new Error("oops"));
+        expect(res.statusCode).toBe(500);
+        expect(res.body?.message).toMatch(/internal server error/i);
 
-//         const req = { user: { userId: "U8" }, query: { range: "week" } };
-//         const res = makeRes();
-
-//         await leadSummary(req, res);
-//         expect(res.status).toHaveBeenCalledWith(500);
-//     });
-// });
-
-// describe("leadconversationrate", () => {
-//     test("400 when no range and no custom dates", async () => {
-//         setUser({ _id: "U1", name: "N", department: "Accounts", role: "member" });
-//         const req = { user: { userId: "U1" }, query: {} };
-//         const res = makeRes();
-
-//         await leadconversationrate(req, res);
-//         expect(res.status).toHaveBeenCalledWith(400);
-//         expect(res.json.mock.calls[0][0].message).toMatch(/valid date range/i);
-//     });
-
-//     test("404 when user not found", async () => {
-//         setUser(null);
-//         const req = { user: { userId: "Z" }, query: { range: "1 week" } };
-//         const res = makeRes();
-
-//         await leadconversationrate(req, res);
-//         expect(res.status).toHaveBeenCalledWith(404);
-//     });
-
-//     test("200 returns totals and conversion rate", async () => {
-//         setUser({ _id: "U2", name: "Acc", department: "Accounts", role: "member" });
-
-//         bdleadsModells.aggregate.mockResolvedValueOnce([{ totalLeads: 10 }]);
-//         handoversheet.countDocuments.mockResolvedValueOnce(4);
-
-//         const req = { user: { userId: "U2" }, query: { range: "1 week" } };
-//         const res = makeRes();
-
-//         await leadconversationrate(req, res);
-
-//         const body = res.json.mock.calls[0][0];
-//         expect(body.total_leads).toBe(10);
-//         expect(body.total_handovers).toBe(4);
-//         expect(body.conversion_rate_percentage).toBeCloseTo(40, 2);
-//     });
-
-//     test("500 on error", async () => {
-//         setUser({ _id: "U3", name: "Acc", department: "Accounts", role: "member" });
-//         bdleadsModells.aggregate.mockRejectedValue(new Error("agg err"));
-
-//         const req = { user: { userId: "U3" }, query: { range: "1 month" } };
-//         const res = makeRes();
-
-//         await leadconversationrate(req, res);
-//         expect(res.status).toHaveBeenCalledWith(500);
-//     });
-// });
-
-// describe("leadFunnel", () => {
-//     test("400 when missing range and dates", async () => {
-//         setUser({ _id: "U1", name: "N", department: "Accounts", role: "member" });
-//         const req = { user: { userId: "U1" }, query: {} };
-//         const res = makeRes();
-
-//         await leadFunnel(req, res);
-//         expect(res.status).toHaveBeenCalledWith(400);
-//     });
-
-//     test("404 when user not found", async () => {
-//         setUser(null);
-//         const req = { user: { userId: "U1" }, query: { range: "1 week" } };
-//         const res = makeRes();
-
-//         await leadFunnel(req, res);
-//         expect(res.status).toHaveBeenCalledWith(404);
-//     });
-
-//     test("200 returns funnel with lead counts and capacity + payment", async () => {
-//         setUser({ _id: "U2", name: "Normal", department: "Accounts", role: "member" });
-
-//         // The controller loops stages: ["initial", "follow up", "warm", "won", "dead"]
-//         // It calls bdleadsModells.find(stageFilter) per stage -> respond in order:
-//         bdleadsModells.find
-//             // initial (count 2, caps 5 + 3.5)
-//             .mockResolvedValueOnce([{ capacity: "5 kWp" }, { capacity: "3.5kWp" }])
-//             // follow up (count 1, cap 2)
-//             .mockResolvedValueOnce([{ capacity: "2.0" }])
-//             // warm (count 0)
-//             .mockResolvedValueOnce([])
-//             // won (count 1, cap 10)
-//             .mockResolvedValueOnce([{ capacity: "10" }])
-//             // dead (count 1, cap blank)
-//             .mockResolvedValueOnce([{ capacity: "" }]);
-
-//         // For payment block (handovers within date range)
-//         handoversheet.find.mockResolvedValueOnce([
-//             { other_details: { total_gst: "10000" } },
-//             { other_details: { total_gst: "5000" } },
-//         ]);
-
-//         const req = {
-//             user: { userId: "U2" },
-//             query: { startDate: "2025-01-01", endDate: "2025-01-31", fields: "lead,capacity" },
-//         };
-//         const res = makeRes();
-
-//         await leadFunnel(req, res);
-//         const body = res.json.mock.calls[0][0];
-
-//         expect(body.initial.count).toBe(2);
-//         expect(body.initial.capacity).toBeCloseTo(8.5, 2);
-//         expect(body["follow up"].count).toBe(1);
-//         expect(body["follow up"].capacity).toBeCloseTo(2.0, 2);
-//         expect(body.won.count).toBe(1);
-//         expect(body.won.capacity).toBeCloseTo(10.0, 2);
-//         expect(body.dead.count).toBe(1);
-//         expect(body.dead.capacity).toBeCloseTo(0.0, 2);
-//         expect(body.payment).toBe(15000);
-//     });
-// });
-
-// describe("leadWonAndLost", () => {
-//     test("404 when user not found", async () => {
-//         setUser(null);
-//         const req = { user: { userId: "U1" }, query: { startDate: "2025-01-01", endDate: "2025-03-31" } };
-//         const res = makeRes();
-
-//         await leadWonAndLost(req, res);
-//         expect(res.status).toHaveBeenCalledWith(404);
-//     });
-
-//     test("200 returns totals, percentages, conversion and monthly data", async () => {
-//         setUser({ _id: "U2", name: "Normal", department: "Accounts", role: "member" });
-
-//         // countDocuments for statuses (order in controller):
-//         // won, follow up, warm, dead, initial
-//         bdleadsModells.countDocuments
-//             .mockResolvedValueOnce(2) // wonCount
-//             .mockResolvedValueOnce(3) // followUpCount
-//             .mockResolvedValueOnce(5) // warmCount
-//             .mockResolvedValueOnce(4) // deadCount
-//             .mockResolvedValueOnce(6); // initialCount
-
-//         // handovers + tasks (tasks not used in calc, but present)
-//         handoversheet.countDocuments.mockResolvedValueOnce(8);
-//         task.countDocuments.mockResolvedValueOnce(42);
-
-//         // aggregateByStatus is called for "won", "follow up", "warm", "dead", "initial"
-//         // We inspect the first pipeline stage's $match.current_status.name to branch:
-//         bdleadsModells.aggregate.mockImplementation((pipeline) => {
-//             const status = pipeline?.[0]?.$match?.["current_status.name"];
-//             if (status === "won") {
-//                 return Promise.resolve([
-//                     { _id: { month: 1, year: 2025 }, count: 2 },
-//                     { _id: { month: 2, year: 2025 }, count: 1 },
-//                 ]);
-//             }
-//             if (status === "dead") {
-//                 return Promise.resolve([
-//                     { _id: { month: 1, year: 2025 }, count: 1 },
-//                     { _id: { month: 2, year: 2025 }, count: 2 },
-//                 ]);
-//             }
-//             if (status === "follow up") {
-//                 return Promise.resolve([
-//                     { _id: { month: 1, year: 2025 }, count: 3 },
-//                     { _id: { month: 2, year: 2025 }, count: 2 },
-//                 ]);
-//             }
-//             if (status === "warm") {
-//                 return Promise.resolve([
-//                     { _id: { month: 1, year: 2025 }, count: 2 },
-//                     { _id: { month: 2, year: 2025 }, count: 2 },
-//                 ]);
-//             }
-//             if (status === "initial") {
-//                 return Promise.resolve([
-//                     { _id: { month: 1, year: 2025 }, count: 5 },
-//                     { _id: { month: 2, year: 2025 }, count: 1 },
-//                 ]);
-//             }
-//             return Promise.resolve([]);
-//         });
-
-//         const req = {
-//             user: { userId: "U2" },
-//             query: { startDate: "2025-01-01", endDate: "2025-03-31" },
-//         };
-//         const res = makeRes();
-
-//         await leadWonAndLost(req, res);
-
-//         const body = res.json.mock.calls[0][0];
-//         expect(body.total_leads).toBe(20); // 2 + 3 + 5 + 4 + 6
-//         expect(body.active_leads).toBe(14); // follow up + warm + initial
-//         expect(body.lost_leads).toBe(4);
-//         expect(body.won_leads).toBe(2);
-//         expect(body.won_leads_percentage).toBeCloseTo(10.0, 2);
-//         expect(body.lost_leads_percentage).toBeCloseTo(20.0, 2);
-//         expect(body.conversion_rate_percentage).toBeCloseTo(40.0, 2); // 8 / 20 * 100
-
-//         expect(Array.isArray(body.monthly_data)).toBe(true);
-//         expect(body.monthly_data.length).toBeGreaterThanOrEqual(3); // Jan–Mar
-//         // We can spot check the first month (Jan)
-//         const jan = body.monthly_data.find((m) => m.month === "Jan");
-//         expect(jan).toBeTruthy();
-//         expect(jan.won_percentage).toBeGreaterThanOrEqual(0);
-//         expect(jan.lost_percentage).toBeGreaterThanOrEqual(0);
-//     });
-// });
+        spy.mockRestore();
+    });
+});
