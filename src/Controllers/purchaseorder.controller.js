@@ -1247,111 +1247,129 @@ const getExportPo = async (req, res) => {
 
 const updateSalesPO = async (req, res) => {
   try {
-    const { po_number } = req.query;
-    const { remarks } = req.body;
+    const { id } = req.params;
+    const { remarks } = req.body || {};
 
-    if (!po_number) {
-      return res.status(400).json({ message: "po_number is required" });
-    }
-    if (!remarks || remarks.trim() === "") {
+    if (!id) return res.status(400).json({ message: "_id is required" });
+    if (!remarks || String(remarks).trim() === "") {
       return res
         .status(400)
         .json({ message: "Remarks are required to update Sales PO" });
     }
 
-    const po = await purchaseOrderModells.findOne({ po_number });
-    if (!po) {
-      return res
-        .status(404)
-        .json({ message: "PO not found with this PO number" });
-    }
-    if (!po.isSales) {
+    const po = await purchaseOrderModells.findById(id);
+    if (!po) return res.status(404).json({ message: "PO not found" });
+    if (!po.isSales)
       return res.status(400).json({ message: "This PO is not a Sales PO" });
-    }
 
-    const safePoNumber = String(po.po_number || "").replace(/ /g, "_");
-    const folderPath = `Account/PO/${safePoNumber}`;
+    const safePo = (s) =>
+      String(s || "")
+        .trim()
+        .replace(/[\/\s]+/g, "_");
+    const folderPath = `Account/PO/${safePo(po.po_number)}`;
+    const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
+
+    //     console.log(
+    //   "MULTER FILES ->",
+    //   (req.file ? 1 : 0) + (Array.isArray(req.files) ? req.files.length : 0),
+    //   Array.isArray(req.files)
+    //     ? req.files.map(f => ({ name: f.originalname, size: f.size, hasBuffer: !!f.buffer }))
+    //     : req.file
+    //     ? [{ name: req.file.originalname, size: req.file.size, hasBuffer: !!req.file.buffer }]
+    //     : []
+    // );
+
+    const files = req.file
+      ? [req.file]
+      : Array.isArray(req.files)
+        ? req.files
+        : req.files && typeof req.files === "object"
+          ? Object.values(req.files).flat()
+          : [];
+
     const uploadedAttachments = [];
 
-    // If files exist, upload & compress images
-    if (req.files && req.files.length) {
-      for (const file of req.files) {
-        const attachment_name = file.originalname || "file";
-        const mimeType =
-          mime.lookup(attachment_name) ||
-          file.mimetype ||
-          "application/octet-stream";
-        let buffer = file.buffer;
+    for (const file of files) {
+      const attachment_name = file.originalname || "file";
+      const mimeType =
+        mime.lookup(attachment_name) ||
+        file.mimetype ||
+        "application/octet-stream";
 
-        if (mimeType.startsWith("image/")) {
+      let buffer =
+        file.buffer || (file.path ? fs.readFileSync(file.path) : null);
+      if (!buffer) continue;
+
+      if (mimeType.startsWith("image/")) {
+        try {
           const ext = mime.extension(mimeType);
-          try {
-            if (ext === "jpeg" || ext === "jpg") {
-              buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
-            } else if (ext === "png") {
-              buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
-            } else if (ext === "webp") {
-              buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
-            } else {
-              buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
-            }
-          } catch (e) {
-            console.warn(
-              "Image compression failed, using original buffer:",
-              e?.message
-            );
-          }
+          if (ext === "jpeg" || ext === "jpg")
+            buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+          else if (ext === "png")
+            buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
+          else if (ext === "webp")
+            buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
+          else buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+        } catch (e) {
+          console.warn(
+            "Image compression failed, using original buffer:",
+            e?.message
+          );
         }
+      }
 
-        // Upload file
-        const form = new FormData();
-        form.append("file", buffer, {
-          filename: attachment_name,
-          contentType: mimeType,
+      const form = new FormData();
+      form.append("file", buffer, {
+        filename: attachment_name,
+        contentType: mimeType,
+      });
+
+      try {
+        const resp = await axios.post(uploadUrl, form, {
+          headers: form.getHeaders(),
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
         });
 
-        const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(
-          folderPath
-        )}`;
-
-        let url = null;
-        try {
-          const response = await axios.post(uploadUrl, form, {
-            headers: form.getHeaders(),
-            maxContentLength: Infinity,
-            maxBodyLength: Infinity,
-          });
-
-          const respData = response.data;
-          url =
-            Array.isArray(respData) && respData.length > 0
-              ? respData[0]
-              : respData.url ||
-                respData.fileUrl ||
-                (respData.data && respData.data.url) ||
-                null;
-        } catch (e) {
-          console.error("Upload failed for:", attachment_name, e?.message);
-        }
+        const data = resp?.data || null;
+        const url =
+          (Array.isArray(data) && data[0]) ||
+          data?.url ||
+          data?.fileUrl ||
+          data?.data?.url ||
+          null;
 
         if (url) {
-          uploadedAttachments.push({
-            attachment_url: url,
-            attachment_name,
-          });
+          uploadedAttachments.push({ attachment_url: url, attachment_name });
         } else {
-          console.warn(`No URL found for uploaded file ${attachment_name}`);
+          console.warn(`No URL returned for ${attachment_name}`);
         }
+      } catch (e) {
+        console.error(
+          "Upload failed:",
+          attachment_name,
+          e.response?.status,
+          e.response?.data || e.message
+        );
       }
     }
 
-    // Always push sales_Details (even if only remarks are present)
+    const userId = req.user?.userId || req.user?._id || null;
+    if (!Array.isArray(po.sales_Details)) po.sales_Details = [];
     po.sales_Details.push({
-      remarks,
+      remarks: String(remarks).trim(),
       attachments: uploadedAttachments,
       converted_at: new Date(),
-      user_id: req.user?._id || null,
+      user_id: userId,
     });
+
+    if (uploadedAttachments.length) {
+      if (!Array.isArray(po.attachments)) po.attachments = [];
+      po.attachments.push(...uploadedAttachments);
+    }
+
+    po.markModified("sales_Details");
+    po.markModified("attachments");
 
     await po.save();
 
@@ -1362,11 +1380,10 @@ const updateSalesPO = async (req, res) => {
       data: po,
     });
   } catch (error) {
-    console.error("Error updating Sales PO:", error.message);
-    return res.status(500).json({
-      message: "Error updating Sales PO",
-      error: error.message,
-    });
+    console.error("Error updating Sales PO:", error);
+    return res
+      .status(500)
+      .json({ message: "Error updating Sales PO", error: error.message });
   }
 };
 

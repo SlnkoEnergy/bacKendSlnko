@@ -472,7 +472,7 @@ router.put(
   updateEditandDeliveryDate
 );
 router.put(
-  "/sales-update",
+  "/sales-update/:id",
   jwtMW.authentication,
   jwtMW.authorization,
   upload,

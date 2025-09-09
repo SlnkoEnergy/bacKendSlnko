@@ -8,8 +8,12 @@ const salesDetailSchema = new mongoose.Schema(
     remarks: { type: String, required: true },
     attachments: [
       {
-        attachment_url: String,
-        attachment_name: String,
+        attachment_url: {
+          type: String,
+        },
+        attachment_name: {
+          type: String,
+        },
       },
     ],
     converted_at: { type: Date, default: Date.now },
