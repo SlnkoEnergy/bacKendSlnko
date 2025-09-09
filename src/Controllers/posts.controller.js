@@ -6,6 +6,7 @@ const sharp = require("sharp");
 const mime = require("mime-types");
 const sanitizeHtml = require("sanitize-html");
 const { default: mongoose } = require("mongoose");
+const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const createPost = async (req, res) => {
   try {
@@ -63,9 +64,9 @@ const createPost = async (req, res) => {
         Array.isArray(respData) && respData.length > 0
           ? respData[0]
           : respData.url ||
-            respData.fileUrl ||
-            (respData.data && respData.data.url) ||
-            null;
+          respData.fileUrl ||
+          (respData.data && respData.data.url) ||
+          null;
 
       if (url) {
         uploadedAttachment = { name: file.originalname, url };
@@ -301,6 +302,30 @@ const updatePost = async (req, res) => {
       .populate("project_id", "_id code name")
       .populate("followers.user_id", "_id name")
       .populate("comments.user_id", "_id name");
+
+    const project_details = await projectModel.findById(project_id).select("name code");
+
+    if (post.followers.length > 0) {
+      try {
+        const workflow = "post";
+        let data;
+
+        if (safeComment) {
+          data = {
+            message: `You have a new update regarding ${project_details.name}: ${safeComment}`
+          }
+        } else {
+          data = {
+            message: `You have a new update regarding ${project_details.name}`,
+          }
+        }
+        const senders = post.followers.map(item => item.user_id);
+        await getnovuNotification(workflow, senders, data);
+
+      } catch (error) {
+        console.log(error);
+      }
+    }
 
     return res.status(200).json({ message: "Post updated", data: updated });
   } catch (err) {
