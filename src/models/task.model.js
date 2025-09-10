@@ -123,10 +123,12 @@ const taskSchema = new mongoose.Schema(
     },
     sub_tasks: [
       {
-        assigned_to: [{
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        }],
+        assigned_to: [
+          {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+        ],
         deadline: {
           type: Date,
         },
