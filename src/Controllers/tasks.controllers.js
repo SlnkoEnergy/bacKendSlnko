@@ -860,6 +860,74 @@ const parseCsv = (s) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
+const parseCsvObjectIds = (v) => parseCsv(v).map(safeObjectId).filter(Boolean);
+
+function parseWindow(s = "25m") {
+  const m = String(s)
+    .trim()
+    .match(/^(\d+)\s*(m|h)$/i);
+  if (!m) return 25 * 60 * 1000;
+  const n = parseInt(m[1], 10);
+  const unit = m[2].toLowerCase();
+  return unit === "h" ? n * 60 * 60 * 1000 : n * 60 * 1000;
+}
+
+// IST midnight -> UTC Date
+function getISTStartOfTodayUTC(now = new Date()) {
+  const IST_OFFSET_MIN = 330; // +05:30
+  const istMs = now.getTime() + IST_OFFSET_MIN * 60 * 1000;
+  const ist = new Date(istMs);
+  ist.setHours(0, 0, 0, 0);
+  return new Date(ist.getTime() - IST_OFFSET_MIN * 60 * 1000);
+}
+
+function formatIST_HHMM(date) {
+  return new Date(date).toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+/* ---------- utils ---------- */
+function parseWindow(s = "25m") {
+  const m = String(s)
+    .trim()
+    .match(/^(\d+)\s*(m|h)$/i);
+  if (!m) return 25 * 60 * 1000;
+  const n = parseInt(m[1], 10);
+  return m[2].toLowerCase() === "h" ? n * 3600 * 1000 : n * 60 * 1000;
+}
+
+// IST midnight -> UTC Date
+function getISTStartOfTodayUTC(now = new Date()) {
+  const IST_OFFSET_MIN = 330; // +05:30
+  const istMs = now.getTime() + IST_OFFSET_MIN * 60 * 1000;
+  const ist = new Date(istMs);
+  ist.setHours(0, 0, 0, 0);
+  return new Date(ist.getTime() - IST_OFFSET_MIN * 60 * 1000);
+}
+
+function formatIST_HHMM(date) {
+  return new Date(date).toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+const escRx = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const parseDateOrNull = (v) => {
+  try {
+    return v ? new Date(v) : null;
+  } catch {
+    return null;
+  }
+};
+
+/* ---------- controller ---------- */
 const taskCards = async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.userId);
@@ -1179,65 +1247,6 @@ const taskCards = async (req, res) => {
   }
 };
 
-const parseCsvObjectIds = (v) => parseCsv(v).map(safeObjectId).filter(Boolean);
-
-function parseWindow(s = "25m") {
-  const m = String(s)
-    .trim()
-    .match(/^(\d+)\s*(m|h)$/i);
-  if (!m) return 25 * 60 * 1000;
-  const n = parseInt(m[1], 10);
-  const unit = m[2].toLowerCase();
-  return unit === "h" ? n * 60 * 60 * 1000 : n * 60 * 1000;
-}
-
-// IST midnight -> UTC Date
-function getISTStartOfTodayUTC(now = new Date()) {
-  const IST_OFFSET_MIN = 330; // +05:30
-  const istMs = now.getTime() + IST_OFFSET_MIN * 60 * 1000;
-  const ist = new Date(istMs);
-  ist.setHours(0, 0, 0, 0);
-  return new Date(ist.getTime() - IST_OFFSET_MIN * 60 * 1000);
-}
-
-function formatIST_HHMM(date) {
-  return new Date(date).toLocaleTimeString("en-GB", {
-    timeZone: "Asia/Kolkata",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-/* ---------- utils ---------- */
-function parseWindow(s = "25m") {
-  const m = String(s)
-    .trim()
-    .match(/^(\d+)\s*(m|h)$/i);
-  if (!m) return 25 * 60 * 1000;
-  const n = parseInt(m[1], 10);
-  return m[2].toLowerCase() === "h" ? n * 3600 * 1000 : n * 60 * 1000;
-}
-
-// IST midnight -> UTC Date
-function getISTStartOfTodayUTC(now = new Date()) {
-  const IST_OFFSET_MIN = 330; // +05:30
-  const istMs = now.getTime() + IST_OFFSET_MIN * 60 * 1000;
-  const ist = new Date(istMs);
-  ist.setHours(0, 0, 0, 0);
-  return new Date(ist.getTime() - IST_OFFSET_MIN * 60 * 1000);
-}
-
-function formatIST_HHMM(date) {
-  return new Date(date).toLocaleTimeString("en-GB", {
-    timeZone: "Asia/Kolkata",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-/* ---------- controller ---------- */
 const myTasks = async function (req, res) {
   try {
     const {
@@ -1248,7 +1257,7 @@ const myTasks = async function (req, res) {
       departments = "",
       createdById,
       window = "25m",
-      assignedToId, // <-- already in your query
+      assignedToId,
       q,
     } = req.query;
 
@@ -1322,6 +1331,7 @@ const myTasks = async function (req, res) {
           $or: [
             { createdBy: safeObjectId(currentUserId) },
             { subtask_creator_ids: safeObjectId(currentUserId) },
+            { followers: currentUser._id },
           ],
         },
       });
@@ -1598,6 +1608,7 @@ const activityFeed = async function (req, res) {
           $or: [
             { createdBy: safeObjectId(currentUserId) },
             { subtask_creator_ids: safeObjectId(currentUserId) },
+            { followers: currentUser._id },
           ],
         },
       });
@@ -1729,33 +1740,20 @@ const activityFeed = async function (req, res) {
       .json({ message: "Server error", error: err.message });
   }
 };
-const escRx = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const parseDateOrNull = (v) => {
-  try {
-    return v ? new Date(v) : null;
-  } catch {
-    return null;
-  }
-};
+
 const getUserPerformance = async (req, res) => {
   try {
     const {
-      // target (optional) — if none provided, returns list for all allowed users
       userId,
       name,
       q,
-
-      // filters
       from,
       to,
       deadlineFrom,
       deadlineTo,
-
-      // options
       includeSubtasks = "true",
     } = req.query;
 
-    /* ---------- requester ---------- */
     const currentUserId = req.user?.userId;
     const currentUser = await User.findById(currentUserId)
       .select("name role emp_id department")
@@ -1768,7 +1766,6 @@ const getUserPerformance = async (req, res) => {
     const isPrivileged =
       empId === "SE-013" || userRole === "admin" || userRole === "superadmin";
 
-    /* ---------- common filters ---------- */
     const createdAtMatch = {};
     const fFrom = parseDateOrNull(from);
     const fTo = parseDateOrNull(to);
@@ -1787,11 +1784,22 @@ const getUserPerformance = async (req, res) => {
     const wantsSubtasks = String(includeSubtasks) !== "false";
     const now = new Date();
 
-    /* =======================================================================
-       MODE A: SINGLE USER (userId or name/q provided)
-       ======================================================================= */
+    // helper expression to "arrify" any field
+    const ARRIFY = (fieldExpr) => ({
+      $let: {
+        vars: { a: fieldExpr },
+        in: {
+          $cond: [
+            { $isArray: "$$a" },
+            "$$a",
+            { $cond: [{ $eq: ["$$a", null] }, [], ["$$a"]] },
+          ],
+        },
+      },
+    });
+
+    /* ======================= MODE A: SINGLE USER ======================= */
     if (userId || (name ?? q)) {
-      // -------- resolve target user --------
       let targetUser, targetUserId;
 
       if (userId) {
@@ -1811,21 +1819,17 @@ const getUserPerformance = async (req, res) => {
             .json({ message: "Provide userId or name (q) to search" });
         }
         const rx = new RegExp(escRx(nameQuery), "i");
-        const userFindFilter = { name: rx };
-        // (optional) restrict to manager's dept on search:
-        // if (userRole === "manager") userFindFilter.department = currentUser.department || undefined;
-
-        targetUser = await User.findOne(userFindFilter)
+        targetUser = await User.findOne({ name: rx })
           .select("name avatar department")
           .lean();
-        if (!targetUser)
+        if (!targetUser) {
           return res
             .status(404)
             .json({ message: "No user matched the provided name" });
+        }
         targetUserId = targetUser._id;
       }
 
-      // ACL: regular can only query themselves
       if (
         !isPrivileged &&
         userRole !== "manager" &&
@@ -1840,7 +1844,14 @@ const getUserPerformance = async (req, res) => {
         pipeline.push({ $match: { createdAt: createdAtMatch } });
       if (deadlineMatch) pipeline.push({ $match: { deadline: deadlineMatch } });
 
-      // collect sub_assignee_ids from subtasks
+      // Normalize top-level assigned_to to array
+      pipeline.push({
+        $addFields: {
+          assigned_to_arr: ARRIFY("$assigned_to"),
+        },
+      });
+
+      // Reduce sub_tasks and collect normalized assignee ids
       pipeline.push({
         $addFields: {
           sub_assignee_ids: {
@@ -1848,14 +1859,16 @@ const getUserPerformance = async (req, res) => {
               input: { $ifNull: ["$sub_tasks", []] },
               initialValue: [],
               in: {
-                $setUnion: ["$$value", { $ifNull: ["$$this.assigned_to", []] }],
+                $setUnion: [
+                  "$$value",
+                  ARRIFY("$$this.assigned_to"), // <--- normalize each subtask.assigned_to
+                ],
               },
             },
           },
         },
       });
 
-      // lookups for manager scoping
       pipeline.push(
         {
           $lookup: {
@@ -1874,7 +1887,7 @@ const getUserPerformance = async (req, res) => {
         {
           $lookup: {
             from: "users",
-            localField: "assigned_to",
+            localField: "assigned_to_arr", // safe
             foreignField: "_id",
             as: "assigned_to_users",
           },
@@ -1889,13 +1902,11 @@ const getUserPerformance = async (req, res) => {
         }
       );
 
-      // manager scope (doc-level)
       if (userRole === "manager") {
         let effectiveDept = currentUser?.department || "";
         const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
         if (camNames.has(String(currentUser?.name || "")))
           effectiveDept = "CAM Team";
-
         if (effectiveDept) {
           pipeline.push({
             $match: {
@@ -1909,11 +1920,10 @@ const getUserPerformance = async (req, res) => {
         }
       }
 
-      // assignment flags for target user
       pipeline.push({
         $addFields: {
           isAssignedTask: {
-            $in: [targetUserId, { $ifNull: ["$assigned_to", []] }],
+            $in: [targetUserId, { $ifNull: ["$assigned_to_arr", []] }],
           },
           isAssignedSubtask: wantsSubtasks
             ? { $in: [targetUserId, { $ifNull: ["$sub_assignee_ids", []] }] }
@@ -1921,7 +1931,6 @@ const getUserPerformance = async (req, res) => {
         },
       });
 
-      // keep only docs where target appears
       pipeline.push(
         {
           $addFields: {
@@ -1931,7 +1940,6 @@ const getUserPerformance = async (req, res) => {
         { $match: { isAssigned: true } }
       );
 
-      // normalize status + delayed/completed flags
       pipeline.push(
         {
           $addFields: {
@@ -1958,7 +1966,6 @@ const getUserPerformance = async (req, res) => {
         }
       );
 
-      // group totals
       pipeline.push({
         $group: {
           _id: null,
@@ -2051,16 +2058,21 @@ const getUserPerformance = async (req, res) => {
       });
     }
 
-    /* =======================================================================
-       MODE B: LIST (no userId and no name/q) → return all allowed users
-       ======================================================================= */
+    /* ======================= MODE B: LIST (ALL USERS) ======================= */
     const pipeline = [];
 
     if (Object.keys(createdAtMatch).length)
       pipeline.push({ $match: { createdAt: createdAtMatch } });
     if (deadlineMatch) pipeline.push({ $match: { deadline: deadlineMatch } });
 
-    // compute sub_assignee_ids and union of assignees
+    // Normalize top-level assigned_to
+    pipeline.push({
+      $addFields: {
+        assigned_to_arr: ARRIFY("$assigned_to"),
+      },
+    });
+
+    // Collect normalized subtask assignees
     pipeline.push({
       $addFields: {
         sub_assignee_ids: {
@@ -2068,14 +2080,13 @@ const getUserPerformance = async (req, res) => {
             input: { $ifNull: ["$sub_tasks", []] },
             initialValue: [],
             in: {
-              $setUnion: ["$$value", { $ifNull: ["$$this.assigned_to", []] }],
+              $setUnion: ["$$value", ARRIFY("$$this.assigned_to")],
             },
           },
         },
       },
     });
 
-    // lookups for manager scoping (doc-level)
     pipeline.push(
       {
         $lookup: {
@@ -2091,7 +2102,7 @@ const getUserPerformance = async (req, res) => {
       {
         $lookup: {
           from: "users",
-          localField: "assigned_to",
+          localField: "assigned_to_arr",
           foreignField: "_id",
           as: "assigned_to_users",
         },
@@ -2111,7 +2122,6 @@ const getUserPerformance = async (req, res) => {
       const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
       if (camNames.has(String(currentUser?.name || "")))
         effectiveDept = "CAM Team";
-
       if (effectiveDept) {
         pipeline.push({
           $match: {
@@ -2125,7 +2135,6 @@ const getUserPerformance = async (req, res) => {
       }
     }
 
-    // Normalize status, completion, delay
     pipeline.push(
       {
         $addFields: {
@@ -2152,31 +2161,29 @@ const getUserPerformance = async (req, res) => {
       }
     );
 
-    // Build union of assignees for overall (deduplicated per task doc)
+    // Build union of assignees using normalized arrays
     pipeline.push({
       $addFields: {
         union_assignees: wantsSubtasks
           ? {
               $setUnion: [
-                { $ifNull: ["$assigned_to", []] },
+                { $ifNull: ["$assigned_to_arr", []] },
                 { $ifNull: ["$sub_assignee_ids", []] },
               ],
             }
-          : { $ifNull: ["$assigned_to", []] },
+          : { $ifNull: ["$assigned_to_arr", []] },
       },
     });
 
-    // explode per assignee (per task doc → at most one record per user due to setUnion)
     pipeline.push({
       $unwind: { path: "$union_assignees", preserveNullAndEmptyArrays: false },
     });
 
-    // For each (task, user) row compute whether user was task-assigned and/or subtask-assigned
     pipeline.push({
       $addFields: {
         assigneeId: "$union_assignees",
         isAssignedTaskUser: {
-          $in: ["$union_assignees", { $ifNull: ["$assigned_to", []] }],
+          $in: ["$union_assignees", { $ifNull: ["$assigned_to_arr", []] }],
         },
         isAssignedSubtaskUser: wantsSubtasks
           ? {
@@ -2186,12 +2193,10 @@ const getUserPerformance = async (req, res) => {
       },
     });
 
-    // Non-privileged non-manager can only see themselves in the list
     if (!isPrivileged && userRole !== "manager") {
       pipeline.push({ $match: { assigneeId: safeObjectId(currentUserId) } });
     }
 
-    // Join user info for each assignee and (optionally) filter user set by manager dept as well
     pipeline.push(
       {
         $lookup: {
@@ -2209,12 +2214,10 @@ const getUserPerformance = async (req, res) => {
       const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
       if (camNames.has(String(currentUser?.name || "")))
         effectiveDept = "CAM Team";
-      if (effectiveDept) {
+      if (effectiveDept)
         pipeline.push({ $match: { "u.department": effectiveDept } });
-      }
     }
 
-    // Group per user
     pipeline.push({
       $group: {
         _id: "$assigneeId",
@@ -2252,7 +2255,6 @@ const getUserPerformance = async (req, res) => {
       },
     });
 
-    // Optional sort: completion ratio desc, then assigned desc
     pipeline.push({
       $addFields: {
         completionPct: {
@@ -2264,6 +2266,7 @@ const getUserPerformance = async (req, res) => {
         },
       },
     });
+
     pipeline.push({ $sort: { completionPct: -1, assigned: -1, name: 1 } });
 
     const rows = await tasksModells.aggregate(pipeline);
@@ -2315,7 +2318,7 @@ const getProjectsByState = async (req, res) => {
   try {
     const { from, to, deadlineFrom, deadlineTo } = req.query;
 
-    // ---- current user & ACL
+    // --- requester
     const currentUserId = req.user?.userId;
     const currentUser = await User.findById(currentUserId)
       .select("name role emp_id department")
@@ -2328,7 +2331,7 @@ const getProjectsByState = async (req, res) => {
     const isPrivileged =
       empId === "SE-013" || userRole === "admin" || userRole === "superadmin";
 
-    // ---- date filters
+    // --- dates
     const createdAtMatch = {};
     const fFrom = parseDateOrNull(from);
     const fTo = parseDateOrNull(to);
@@ -2344,19 +2347,35 @@ const getProjectsByState = async (req, res) => {
       if (dTo) deadlineMatch.$lte = dTo;
     }
 
-    // ---- pipeline
+    // small helper to coerce any value to an array
+    const ARRIFY = (expr) => ({
+      $let: {
+        vars: { a: expr },
+        in: {
+          $cond: [
+            { $isArray: "$$a" },
+            "$$a",
+            { $cond: [{ $eq: ["$$a", null] }, [], ["$$a"]] },
+          ],
+        },
+      },
+    });
+
     const pipeline = [];
 
-    // createdAt range
-    if (Object.keys(createdAtMatch).length) {
+    if (Object.keys(createdAtMatch).length)
       pipeline.push({ $match: { createdAt: createdAtMatch } });
-    }
-    // deadline range
-    if (deadlineMatch) {
-      pipeline.push({ $match: { deadline: deadlineMatch } });
-    }
+    if (deadlineMatch) pipeline.push({ $match: { deadline: deadlineMatch } });
 
-    // collect subtask assignees for ACL
+    // Normalize top-level assigned_to and project_id to arrays
+    pipeline.push({
+      $addFields: {
+        assigned_to_arr: ARRIFY("$assigned_to"),
+        project_ids_arr: ARRIFY("$project_id"),
+      },
+    });
+
+    // Collect normalized subtask assignees (avoid ObjectId vs array problems)
     pipeline.push({
       $addFields: {
         sub_assignee_ids: {
@@ -2364,12 +2383,21 @@ const getProjectsByState = async (req, res) => {
             input: { $ifNull: ["$sub_tasks", []] },
             initialValue: [],
             in: {
-              $setUnion: ["$$value", { $ifNull: ["$$this.assigned_to", []] }],
+              $setUnion: [
+                "$$value",
+                ARRIFY("$${this}.assigned_to".replace("${this}", "this")), // will be inlined below
+              ],
             },
           },
         },
       },
     });
+    // NOTE: some Node versions dislike the string replace above, so use this
+    // version instead if you prefer explicit expression:
+    pipeline[
+      pipeline.length - 1
+    ].$addFields.sub_assignee_ids.$reduce.in.$setUnion[1] =
+      ARRIFY("$$this.assigned_to");
 
     // lookups for ACL scoping (manager dept)
     pipeline.push(
@@ -2387,7 +2415,7 @@ const getProjectsByState = async (req, res) => {
       {
         $lookup: {
           from: "users",
-          localField: "assigned_to",
+          localField: "assigned_to_arr", // use normalized
           foreignField: "_id",
           as: "assigned_to_users",
         },
@@ -2403,14 +2431,15 @@ const getProjectsByState = async (req, res) => {
     );
 
     // ACL
+    const me = safeObjectId(currentUserId);
     if (!isPrivileged && userRole !== "manager") {
-      const me = safeObjectId(currentUserId);
       pipeline.push({
         $match: {
           $or: [
             { createdBy: me },
-            { assigned_to: me },
-            { sub_assignee_ids: me },
+            { assigned_to_arr: me }, // membership on normalized array
+            { sub_assignee_ids: me }, // membership on array
+            { followers: me }, // <- include followers as requested
           ],
         },
       });
@@ -2433,22 +2462,21 @@ const getProjectsByState = async (req, res) => {
       }
     }
 
-    // Only tasks that have a project attached
-    pipeline.push({ $match: { project_id: { $exists: true, $ne: [] } } });
+    // Only tasks with any project(s)
+    pipeline.push({ $match: { project_ids_arr: { $ne: [] } } });
 
-    // Unwind project_id and fetch projectDetail to read its state
+    // Unwind normalized project IDs and join to read state
     pipeline.push(
-      { $unwind: "$project_id" },
+      { $unwind: "$project_ids_arr" },
       {
         $lookup: {
-          from: "projectdetails", // collection name for model "projectDetail"
-          localField: "project_id",
+          from: "projectdetails", // collection for model projectDetail
+          localField: "project_ids_arr",
           foreignField: "_id",
           as: "project",
         },
       },
       { $unwind: { path: "$project", preserveNullAndEmptyArrays: false } },
-      // ignore projects without state
       { $match: { "project.state": { $exists: true, $ne: null, $ne: "" } } }
     );
 
@@ -2456,11 +2484,11 @@ const getProjectsByState = async (req, res) => {
     pipeline.push({
       $group: {
         _id: "$project.state",
-        projects: { $addToSet: "$project._id" }, // dedupe by project
+        projects: { $addToSet: "$project._id" },
       },
     });
 
-    // turn set size into count
+    // Turn set size into count
     pipeline.push({
       $project: {
         _id: 0,
@@ -2469,7 +2497,6 @@ const getProjectsByState = async (req, res) => {
       },
     });
 
-    // sort highest first, then alpha
     pipeline.push({ $sort: { count: -1, state: 1 } });
 
     const rows = await tasksModells.aggregate(pipeline);
@@ -2486,10 +2513,10 @@ const getProjectsByState = async (req, res) => {
 
     return res.status(200).json({
       totalProjects,
-      distribution, // [{ state, count, pct }]
+      distribution,
       labels: distribution.map((d) => d.state),
-      series: distribution.map((d) => d.pct), // for donut %
-      counts: distribution.map((d) => d.count), // raw counts (legends)
+      series: distribution.map((d) => d.pct),
+      counts: distribution.map((d) => d.count),
       filters: {
         from: fFrom || null,
         to: fTo || null,
@@ -2507,16 +2534,14 @@ const getProjectsByState = async (req, res) => {
 
 const getAgingByResolution = async (req, res) => {
   try {
-    const {
-      from, to, deadlineFrom, deadlineTo,
-      uptoDays = "30",
-    } = req.query;
+    const { from, to, deadlineFrom, deadlineTo, uptoDays = "30" } = req.query;
 
     const currentUserId = req.user?.userId;
     const currentUser = await User.findById(currentUserId)
       .select("name role emp_id department")
       .lean();
-    if (!currentUser) return res.status(404).json({ message: "User not found" });
+    if (!currentUser)
+      return res.status(404).json({ message: "User not found" });
 
     const userRole = currentUser?.role || "user";
     const empId = currentUser?.emp_id || "";
@@ -2546,11 +2571,16 @@ const getAgingByResolution = async (req, res) => {
     const pipeline = [];
 
     // date filters (createdAt)
-    if (Object.keys(createdAtMatch).length) pipeline.push({ $match: { createdAt: createdAtMatch } });
+    if (Object.keys(createdAtMatch).length)
+      pipeline.push({ $match: { createdAt: createdAtMatch } });
 
     // require a deadline, optional deadline range
     const deadlineFilter = { deadline: { $type: "date" } };
-    if (deadlineMatch) deadlineFilter.deadline = { ...deadlineFilter.deadline, ...deadlineMatch };
+    if (deadlineMatch)
+      deadlineFilter.deadline = {
+        ...deadlineFilter.deadline,
+        ...deadlineMatch,
+      };
     pipeline.push({ $match: deadlineFilter });
 
     // subtask creators (for ACL like your other endpoints)
@@ -2576,7 +2606,9 @@ const getAgingByResolution = async (req, res) => {
           as: "createdBy_info",
         },
       },
-      { $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
+      },
       {
         $lookup: {
           from: "users",
@@ -2603,6 +2635,7 @@ const getAgingByResolution = async (req, res) => {
             { createdBy: safeObjectId(currentUserId) },
             { subtask_creator_ids: safeObjectId(currentUserId) },
             { assigned_to: safeObjectId(currentUserId) },
+            { followers: currentUser._id },
           ],
         },
       });
@@ -2612,7 +2645,8 @@ const getAgingByResolution = async (req, res) => {
     if (userRole === "manager") {
       let effectiveDept = currentUser?.department || "";
       const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
-      if (camNames.has(String(currentUser?.name || ""))) effectiveDept = "CAM Team";
+      if (camNames.has(String(currentUser?.name || "")))
+        effectiveDept = "CAM Team";
 
       if (effectiveDept) {
         pipeline.push({
@@ -2631,9 +2665,15 @@ const getAgingByResolution = async (req, res) => {
     pipeline.push(
       {
         $addFields: {
-          statusLower: { $toLower: { $ifNull: ["$current_status.status", ""] } },
+          statusLower: {
+            $toLower: { $ifNull: ["$current_status.status", ""] },
+          },
           ageDaysRaw: {
-            $dateDiff: { startDate: "$createdAt", endDate: "$deadline", unit: "day" },
+            $dateDiff: {
+              startDate: "$createdAt",
+              endDate: "$deadline",
+              unit: "day",
+            },
           },
         },
       },
@@ -2646,7 +2686,10 @@ const getAgingByResolution = async (req, res) => {
           normStatus: {
             $switch: {
               branches: [
-                { case: { $eq: ["$statusLower", "in progress"] }, then: "pending" },
+                {
+                  case: { $eq: ["$statusLower", "in progress"] },
+                  then: "pending",
+                },
                 { case: { $eq: ["$statusLower", "draft"] }, then: "pending" },
               ],
               default: "$statusLower",
@@ -2678,9 +2721,15 @@ const getAgingByResolution = async (req, res) => {
       {
         $group: {
           _id: "$bucket",
-          completed: { $sum: { $cond: [{ $eq: ["$normStatus", "completed"] }, 1, 0] } },
-          pending:   { $sum: { $cond: [{ $eq: ["$normStatus", "pending"] },   1, 0] } },
-          cancelled: { $sum: { $cond: [{ $eq: ["$normStatus", "cancelled"] }, 1, 0] } },
+          completed: {
+            $sum: { $cond: [{ $eq: ["$normStatus", "completed"] }, 1, 0] },
+          },
+          pending: {
+            $sum: { $cond: [{ $eq: ["$normStatus", "pending"] }, 1, 0] },
+          },
+          cancelled: {
+            $sum: { $cond: [{ $eq: ["$normStatus", "cancelled"] }, 1, 0] },
+          },
         },
       },
       { $sort: { _id: 1 } }
@@ -2696,7 +2745,11 @@ const getAgingByResolution = async (req, res) => {
       .forEach((t) => {
         const hit = raw.find((r) => Number(r._id) === Number(t));
         statsByBucket[t] = hit
-          ? { completed: hit.completed, pending: hit.pending, cancelled: hit.cancelled }
+          ? {
+              completed: hit.completed,
+              pending: hit.pending,
+              cancelled: hit.cancelled,
+            }
           : { ...zeros };
       });
 
@@ -2736,9 +2789,12 @@ const getAgingByResolution = async (req, res) => {
     });
   } catch (err) {
     console.error("getAgingByResolution error:", err);
-    return res.status(500).json({ message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
+
 module.exports = {
   createTask,
   getAllTasks,
@@ -2754,5 +2810,5 @@ module.exports = {
   activityFeed,
   getUserPerformance,
   getProjectsByState,
-  getAgingByResolution
+  getAgingByResolution,
 };
