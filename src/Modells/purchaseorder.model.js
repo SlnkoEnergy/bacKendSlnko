@@ -194,7 +194,7 @@ const purchaseOrderSchema = new mongoose.Schema(
         ref: "User",
       },
     },
-    isSales: { type: Boolean, default: true },
+    isSales: { type: Boolean, default: false },
     sales_Details: [salesDetailSchema],
   },
   { timestamps: true }

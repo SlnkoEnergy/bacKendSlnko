@@ -67,7 +67,7 @@ const addPo = async function (req, res) {
       quantity: String(it.quantity ?? "0"),
       cost: String(it.cost ?? "0"),
     }));
-    const isSalesFlag = isSales === true || isSales === "true";
+    const isSalesFlag = isSales === false;
 
     const toNum = (v) => {
       const n = Number(v);
@@ -115,7 +115,7 @@ const addPo = async function (req, res) {
       dispatch_date: null,
       material_ready_date: null,
       delivery_type,
-      ...(isSalesFlag ? { isSales: true } : {}),
+      ...(isSalesFlag ? { isSales: false } : {}),
       ...(isSalesFlag && Array.isArray(sales_Details) ? { sales_Details } : {}),
     });
 
@@ -1259,33 +1259,21 @@ const updateSalesPO = async (req, res) => {
 
     const po = await purchaseOrderModells.findById(id);
     if (!po) return res.status(404).json({ message: "PO not found" });
-    if (!po.isSales)
-      return res.status(400).json({ message: "This PO is not a Sales PO" });
+    // if (!po.isSales)
+    //   return res.status(400).json({ message: "This PO is not a Sales PO" });
 
     const safePo = (s) =>
-      String(s || "")
-        .trim()
-        .replace(/[\/\s]+/g, "_");
+      String(s || "").trim().replace(/[\/\s]+/g, "_");
     const folderPath = `Account/PO/${safePo(po.po_number)}`;
     const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
-
-    //     console.log(
-    //   "MULTER FILES ->",
-    //   (req.file ? 1 : 0) + (Array.isArray(req.files) ? req.files.length : 0),
-    //   Array.isArray(req.files)
-    //     ? req.files.map(f => ({ name: f.originalname, size: f.size, hasBuffer: !!f.buffer }))
-    //     : req.file
-    //     ? [{ name: req.file.originalname, size: req.file.size, hasBuffer: !!req.file.buffer }]
-    //     : []
-    // );
 
     const files = req.file
       ? [req.file]
       : Array.isArray(req.files)
-        ? req.files
-        : req.files && typeof req.files === "object"
-          ? Object.values(req.files).flat()
-          : [];
+      ? req.files
+      : req.files && typeof req.files === "object"
+      ? Object.values(req.files).flat()
+      : [];
 
     const uploadedAttachments = [];
 
@@ -1333,7 +1321,7 @@ const updateSalesPO = async (req, res) => {
 
         const data = resp?.data || null;
         const url =
-          (Array.isArray(data) && data[0]) ||
+          (Array.isArray(data) && (typeof data[0] === "string" ? data[0] : data[0]?.url)) ||
           data?.url ||
           data?.fileUrl ||
           data?.data?.url ||
@@ -1363,20 +1351,17 @@ const updateSalesPO = async (req, res) => {
       user_id: userId,
     });
 
-    if (uploadedAttachments.length) {
-      if (!Array.isArray(po.attachments)) po.attachments = [];
-      po.attachments.push(...uploadedAttachments);
-    }
+    po.isSales = true;
 
+ 
     po.markModified("sales_Details");
-    po.markModified("attachments");
 
     await po.save();
 
     return res.status(200).json({
       message: uploadedAttachments.length
-        ? "Sales PO updated with attachments"
-        : "Sales PO updated (remarks only, no attachments)",
+        ? "Sales PO updated with attachments (isSales=true)"
+        : "Sales PO updated (remarks only, isSales=true)",
       data: po,
     });
   } catch (error) {
@@ -1386,7 +1371,6 @@ const updateSalesPO = async (req, res) => {
       .json({ message: "Error updating Sales PO", error: error.message });
   }
 };
-
 //Move-Recovery
 const moverecovery = async function (req, res) {
   const { _id } = req.params._id;
