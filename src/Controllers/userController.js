@@ -62,9 +62,9 @@ const userRegister = async function (req, res) {
       department,
       role,
       password: hashedPassword,
-      location,        // NEW
-      about,           // NEW
-      attachment_url,  // NEW
+      location,        
+      about,           
+      attachment_url,
     });
 
     await newuser.save();
@@ -434,19 +434,19 @@ const getSingleUser = async function (req, res) {
 // ===============================
 // Get All Users By Department (light projection)
 // ===============================
+
 const getAllUserByDepartment = async (req, res) => {
   try {
-    const projection = "_id name";
+    const projection = "_id name attachment_url"; // <-- added attachment_url
     const { department } = req.query;
 
-    let query = {};
-    if (department) {
-      query.department = department;
-    }
+    const query = {};
+    if (department) query.department = department;
+
     const data = await userModells.find(query, projection);
     res.status(200).json({
       message: "All user fetched successfully",
-      data: data,
+      data,
     });
   } catch (error) {
     res.status(500).json({
@@ -455,6 +455,7 @@ const getAllUserByDepartment = async (req, res) => {
     });
   }
 };
+
 
 // ===============================
 // Edit User (admin-side)
@@ -481,7 +482,7 @@ const editUser = async function (req, res) {
       role,
       location,
       about,
-      attachment_url, // allow clearing: ""
+      attachment_url, 
     } = bodyData;
 
     const update = compact({
