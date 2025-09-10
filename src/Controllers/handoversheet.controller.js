@@ -1,14 +1,15 @@
 const { default: mongoose } = require("mongoose");
-const moduleCategory = require("../Modells/modulecategory.model");
-const hanoversheetmodells = require("../Modells/handoversheet.model");
-const projectmodells = require("../Modells/project.model");
+const moduleCategory = require("../models/modulecategory.model");
+const hanoversheetmodells = require("../models/handoversheet.model");
+const projectmodells = require("../models/project.model");
 const { Parser } = require("json2csv");
-const handoversheetModells = require("../Modells/handoversheet.model");
-const userModells = require("../Modells/users/userModells");
-const materialCategoryModells = require("../Modells/materialcategory.model");
-const scopeModel = require("../Modells/scope.model");
-const bdleadsModells = require("../Modells/bdleads/bdleadsModells");
+const handoversheetModells = require("../models/handoversheet.model");
+const userModells = require("../models/user.model");
+const materialCategoryModells = require("../models/materialcategory.model");
+const scopeModel = require("../models/scope.model");
+const bdleadsModells = require("../models/bdleads.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const postsModel = require("../models/posts.model");
 
 
 const migrateProjectToHandover = async (req, res) => {
@@ -583,8 +584,14 @@ const updatestatus = async function (req, res) {
           items,
           createdBy: req.user.userId,
         });
-
+      
         await scopeDoc.save();
+
+        const posts = new postsModel({
+          project_id: projectData._id,
+        });
+
+        await posts.save();
 
         return res.status(200).json({
           message:

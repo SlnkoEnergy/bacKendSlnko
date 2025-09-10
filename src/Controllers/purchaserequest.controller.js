@@ -1,13 +1,15 @@
 const mongoose = require("mongoose");
-const PurchaseRequest = require("../Modells/purchaserequest.model");
-const PurchaseRequestCounter = require("../Modells/purchaserequestcounter.model");
-const Project = require("../Modells/project.model");
-const purchaseOrderModells = require("../Modells/purchaseorder.model");
-const materialCategoryModells = require("../Modells/materialcategory.model");
-const modulecategory = require("../Modells/modulecategory.model");
-const scopeModel = require("../Modells/scope.model");
+const PurchaseRequest = require("../models/purchaserequest.model");
+const PurchaseRequestCounter = require("../models/purchaserequestcounter.model");
+const Project = require("../models/project.model");
+const purchaseOrderModells = require("../models/purchaseorder.model");
+const materialCategoryModells = require("../models/materialcategory.model");
+const modulecategory = require("../models/modulecategory.model");
+const scopeModel = require("../models/scope.model");
 const axios = require("axios");
 const XLSX = require("xlsx");
+const userModells = require("../models/user.model");
+const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const CreatePurchaseRequest = async (req, res) => {
   try {
@@ -50,6 +52,35 @@ const CreatePurchaseRequest = async (req, res) => {
       { arrayFilters: [{ "elem.item_id": { $in: itemIds } }] }
     );
 
+    // Notification to SCM  on  Purchase Request Create
+
+    try {
+      const workflow = 'purchase-order';
+      let senders = [];
+
+
+
+      senders = await userModells.find({
+        $or: [
+          {
+            department: "Projects",
+            role: "visitor"
+          },
+
+          { department: "SCM" }
+        ]
+
+      }).select('_id').lean().then(users => users.map(u => u._id));
+
+      const data = {
+        message: `A Purchase Order has been created for Project ID ${project.name}. Kindly review the details and proceed with the necessary actions.`,
+        link: `/add_po?mode=edit&_id`
+      }
+      await getnovuNotification(workflow, senders, data);
+
+    } catch (error) {
+      console.log(error);
+    }
     return res.status(201).json({
       message: "Purchase Request Created Successfully",
       data: newPurchaseRequest,
@@ -167,16 +198,16 @@ const getAllPurchaseRequest = async (req, res) => {
 
       ...(search
         ? [
-            {
-              $match: {
-                $or: [
-                  { pr_no: searchRegex },
-                  { "project_id.code": searchRegex },
-                  { "project_id.name": searchRegex },
-                ],
-              },
+          {
+            $match: {
+              $or: [
+                { pr_no: searchRegex },
+                { "project_id.code": searchRegex },
+                { "project_id.name": searchRegex },
+              ],
             },
-          ]
+          },
+        ]
         : []),
 
       ...(itemSearch
@@ -189,15 +220,15 @@ const getAllPurchaseRequest = async (req, res) => {
 
       ...(createdFrom && createdTo
         ? [
-            {
-              $match: {
-                createdAt: {
-                  $gte: new Date(createdFrom),
-                  $lte: new Date(createdTo),
-                },
+          {
+            $match: {
+              createdAt: {
+                $gte: new Date(createdFrom),
+                $lte: new Date(createdTo),
               },
             },
-          ]
+          },
+        ]
         : []),
 
       // Shape back to one doc per PR
@@ -321,31 +352,31 @@ const getAllPurchaseRequest = async (req, res) => {
       // ---------- ETD range filter (any PO with etd in range) ----------
       ...(etdFrom && etdTo
         ? [
-            {
-              $match: {
-                $expr: {
-                  $gt: [
-                    {
-                      $size: {
-                        $filter: {
-                          input: "$pos",
-                          as: "p",
-                          cond: {
-                            $and: [
-                              { $ne: ["$$p.etd", null] },
-                              { $gte: ["$$p.etd", new Date(etdFrom)] },
-                              { $lte: ["$$p.etd", new Date(etdTo)] },
-                            ],
-                          },
+          {
+            $match: {
+              $expr: {
+                $gt: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: "$pos",
+                        as: "p",
+                        cond: {
+                          $and: [
+                            { $ne: ["$$p.etd", null] },
+                            { $gte: ["$$p.etd", new Date(etdFrom)] },
+                            { $lte: ["$$p.etd", new Date(etdTo)] },
+                          ],
                         },
                       },
                     },
-                    0,
-                  ],
-                },
+                  },
+                  0,
+                ],
               },
             },
-          ]
+          },
+        ]
         : []),
 
       { $sort: { createdAt: -1 } },
@@ -410,7 +441,7 @@ const getPurchaseRequestById = async (req, res) => {
       return res.status(404).json({ message: "Purchase Request not found" });
     }
 
-    const purchaseOrders = await purchaseOrderModells.find({ pr_id: id });
+    const purchaseOrders = await purchaseOrderModells.find({ "pr.pr_id": id });
 
     let overallTotalPOValue = 0;
     let overallTotalNumberOfPO = 0;
@@ -751,9 +782,9 @@ async function fetchExcelFromBOQ(req, res) {
         ? val
         : typeof val === "string"
           ? val
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
           : [];
 
     // tokenize a cell by common separators: "/", ",", "&" (with spaces)

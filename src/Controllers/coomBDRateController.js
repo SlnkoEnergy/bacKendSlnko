@@ -1,6 +1,6 @@
-const CommBDRate = require('../Modells/commBDRateModells');
-const CommBdRateHistory = require('../Modells/commBdRateHistoryModells');
-const CommOffer = require("../Modells/commOfferModells");
+const CommBDRate = require('../models/commBDRateModells');
+const CommBdRateHistory = require('../models/commBdRateHistoryModells');
+const CommOffer = require("../models/commOfferModells");
 
 //add commBDRate
 const addCommBDRate = async function (req, res) {

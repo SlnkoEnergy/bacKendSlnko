@@ -1,5 +1,5 @@
-const billModel = require("../Modells/bill.model");
-const purchaseOrderModel = require("../Modells/purchaseorder.model");
+const billModel = require("../models/bill.model");
+const purchaseOrderModel = require("../models/purchaseorder.model");
 const moment = require("moment");
 const mongoose = require("mongoose");
 const { Parser } = require("json2csv");
@@ -7,7 +7,7 @@ const {
   catchAsyncError,
 } = require("../middlewares/catchasyncerror.middleware");
 const ErrorHandler = require("../middlewares/error.middleware");
-const userModells = require("../Modells/users/userModells");
+const userModells = require("../models/user.model");
 
 const addBill = catchAsyncError(async function (req, res, next) {
   const {

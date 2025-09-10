@@ -1,8 +1,8 @@
-const CreditModel = require("../../Modells/addMoneyModells");
-const DebitModel = require("../../Modells/debitMoneyModells");
-const AdjustmentModel = require("../../Modells/adjustmentRequestModells");
-const ClientModel = require("../../Modells/purchaseorder.model");
-const ProjectModel = require("../../Modells/project.model");
+const CreditModel = require("../../models/addMoneyModells");
+const DebitModel = require("../../models/debitMoneyModells");
+const AdjustmentModel = require("../../models/adjustmentRequestModells");
+const ClientModel = require("../../models/purchaseorder.model");
+const ProjectModel = require("../../models/project.model");
 const { Parser } = require("json2csv");
 
 const getCustomerPaymentSummary = async (req, res) => {

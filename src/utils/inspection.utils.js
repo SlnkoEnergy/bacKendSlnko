@@ -1,4 +1,4 @@
-const Inspection = require("../Modells/inspectioncounter.model");
+const Inspection = require("../models/inspectioncounter.model");
 function indianFYString(date = new Date()) {
   const d = new Date(date);
   const fyStartYear = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;

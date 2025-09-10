@@ -1,6 +1,6 @@
 const { default: mongoose } = require("mongoose");
-const payRequestModells = require("../../Modells/payRequestModells");
-const User = require("../../Modells/users/userModells");
+const payRequestModells = require("../../models/payRequestModells");
+const User = require("../../models/user.model");
 const { default: axios } = require("axios");
 
 const paymentApproval = async function (req, res) {
@@ -626,6 +626,7 @@ const getPoApprovalPdf = async function (req, res) {
           vendor: 1,
           dbt_date: 1,
           comment: 1,
+          po_number:1,
           amt_for_customer: "$amount_paid",
         },
       },

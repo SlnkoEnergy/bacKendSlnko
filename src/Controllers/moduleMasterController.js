@@ -1,4 +1,4 @@
-const modeulemsateerModel = require("../Modells/moduleMasterModells");
+const modeulemsateerModel = require("../models/moduleMasterModells");
 
 const addmoduleMaster = async function (req, res) {
   try {
