@@ -98,7 +98,7 @@ const addPo = async function (req, res) {
       item: itemsSanitized,
       other,
       vendor,
-      submitted_By:userId,
+      submitted_By: userId,
       pr: {
         pr_id: pr_id ? new mongoose.Types.ObjectId(pr_id) : undefined,
         pr_no: pr_no,
@@ -424,9 +424,9 @@ const getPOByPONumber = async (req, res) => {
       // Fetch missing category names
       const catDocs = catIdSet.size
         ? await materialCategoryModells
-            .find({ _id: { $in: Array.from(catIdSet) } })
-            .select({ name: 1 })
-            .lean()
+          .find({ _id: { $in: Array.from(catIdSet) } })
+          .select({ name: 1 })
+          .lean()
         : [];
 
       const catMap = new Map(
@@ -489,7 +489,8 @@ const getPOByPONumber = async (req, res) => {
         const key = String(cat);
         return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
       }
-      return it;})
+      return it;
+    })
     const inspectionCount = await inspectionModel.countDocuments({
       po_number: poDoc.po_number,
     });
@@ -779,29 +780,29 @@ const getPaginatedPo = async (req, res) => {
       // created date range uses dateObj (computed below)
       ...(createdFrom || createdTo
         ? {
-            dateObj: {
-              ...(createdFrom ? { $gte: createdFrom } : {}),
-              ...(createdTo ? { $lte: createdTo } : {}),
-            },
-          }
+          dateObj: {
+            ...(createdFrom ? { $gte: createdFrom } : {}),
+            ...(createdTo ? { $lte: createdTo } : {}),
+          },
+        }
         : {}),
 
       ...(etdFrom || etdTo
         ? {
-            etd: {
-              ...(etdFrom ? { $gte: etdFrom } : {}),
-              ...(etdTo ? { $lte: etdTo } : {}),
-            },
-          }
+          etd: {
+            ...(etdFrom ? { $gte: etdFrom } : {}),
+            ...(etdTo ? { $lte: etdTo } : {}),
+          },
+        }
         : {}),
 
       ...(deliveryFrom || deliveryTo
         ? {
-            delivery_date: {
-              ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
-              ...(deliveryTo ? { $lte: deliveryTo } : {}),
-            },
-          }
+          delivery_date: {
+            ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
+            ...(deliveryTo ? { $lte: deliveryTo } : {}),
+          },
+        }
         : {}),
     };
 
@@ -1023,12 +1024,12 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-            .replace(/ /g, "/")
+          .toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+          .replace(/ /g, "/")
         : "";
 
     const data = result.map((it) => ({ ...it, date: formatDate(it.date) }));
@@ -1438,7 +1439,7 @@ const updateStatusPO = async (req, res) => {
 
       purchaseOrder.po_number = incomingPoNumber;
     }
-    
+
     purchaseOrder.status_history.push({
       status,
       remarks,
@@ -1503,16 +1504,18 @@ const updateStatusPO = async (req, res) => {
     );
 
     await purchaseRequest.findByIdAndUpdate(pr._id, { items: updatedItems });
+    const sendBy_id = req.user.userId;
+    const sendBy_Name = await userModells.findById(sendBy_id);
 
     // Notification on Status Change to Approval Pending
 
     if (status === "approval_pending" || status === "approval_done" || status === "approval_rejected" || status === "po_created") {
 
       let text = "";
-      if(status === "approval_pending") text = "Approval Pending";
-      if(status === "approval_done") text = "Approval Done";
-      if(status === "approval_rejected") text = "Approval Rejected";
-      if(status === "po_created") text = "Po Created";
+      if (status === "approval_pending") text = "Approval Pending";
+      if (status === "approval_done") text = "Approval Done";
+      if (status === "approval_rejected") text = "Approval Rejected";
+      if (status === "po_created") text = "Po Created";
 
       try {
         const workflow = 'purchase-order';
@@ -1526,17 +1529,21 @@ const updateStatusPO = async (req, res) => {
         if (status === "approval_done" || status === "approval_rejected") {
           senders = await userModells.find({
             $or: [
-              {department: "Projects",
-              role: "visitor"},
+              {
+                department: "Projects",
+                role: "visitor"
+              },
 
-              {department: "SCM"}
+              { department: "SCM" }
             ]
-            
+
           }).select('_id').lean().then(users => users.map(u => u._id));
         }
         const data = {
-          message: `Purchase Order for Project ID ${purchaseOrder.p_id} is now marked as ${text}. Please review and take necessary action `,
-          link : `/add_po?mode=edit&_id=${purchaseOrder._id}`
+          Module: purchaseOrder.p_id,
+          sendBy_Name: sendBy_Name.name,
+          message: `Purchase Order is now marked as ${text}`,
+          link: `/add_po?mode=edit&_id=${purchaseOrder._id}`
         }
         await getnovuNotification(workflow, senders, data);
 

@@ -157,11 +157,15 @@ const createhandoversheet = async function (req, res) {
 
     // Notification for Creating Handover
 
+    
+
     try {
       const workflow = 'handover-submit';
       const Ids = await userModells.find({ department: 'Internal', role: 'manager' }).select('_id').lean().then(users => users.map(u => u._id));
       const data = {
-        message: `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`
+        Module: "Handover Submit",
+        sendBy_Name: user?.name,
+        message: `Handover Submited for Lead ${lead.id} on ${new Date().toLocaleString()}.`
       }
       await getnovuNotification(workflow, Ids, data);
     } catch (error) {
@@ -611,6 +615,8 @@ const updatestatus = async function (req, res) {
       senders = [owner._id];
       workflow = 'handover-submit';
       data = {
+        Module : "Handover Status",
+        sendBy_Name : owner.name,
         message: `Handover Sheet status updated for Lead #${updatedHandoversheet.id}`,
       }
 

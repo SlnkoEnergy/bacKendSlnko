@@ -7,6 +7,7 @@ const mime = require("mime-types");
 const sanitizeHtml = require("sanitize-html");
 const { default: mongoose } = require("mongoose");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const userModel = require("../models/user.model");
 
 const createPost = async (req, res) => {
   try {
@@ -198,6 +199,8 @@ const updatePost = async (req, res) => {
         .json({ message: "project_id is required in query" });
     }
 
+    const sendBy_id = req.user.userId;
+    const sendBy_Name = await userModel.findById(sendBy_id).select('name');
     let data = req.body?.data;
     if (typeof data === "string") {
       try {
@@ -312,11 +315,17 @@ const updatePost = async (req, res) => {
 
         if (safeComment) {
           data = {
-            message: `You have a new update regarding ${project_details.name}: ${safeComment}`
+            Module: project_details.code,
+            sendBy_Name : sendBy_Name.name,
+            message: `${safeComment}`,
+            link: `/project_detail?page=1&project_id=${project_id}&tab=4`
           }
         } else {
           data = {
-            message: `You have a new update regarding ${project_details.name}`,
+            Module: project_details.code,
+            sendBy_Name: sendBy_Name.name,
+            message: `File Uploaded`,
+            link: `/project_detail?page=1&project_id=${project_id}&tab=4`
           }
         }
         const senders = post.followers.map(item => item.user_id);
