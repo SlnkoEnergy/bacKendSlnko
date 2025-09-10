@@ -68,6 +68,7 @@ const createTask = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
+
 const getAllTasks = async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.userId);
@@ -148,7 +149,7 @@ const getAllTasks = async (req, res) => {
           as: "project_details",
         },
       },
-      // main assignees -> need department
+      // main assignees -> need department (and later we will project attachment_url)
       {
         $lookup: {
           from: "users",
@@ -157,7 +158,7 @@ const getAllTasks = async (req, res) => {
           as: "assigned_to",
         },
       },
-      // createdBy with department
+      // createdBy with department (keep full doc; project later)
       {
         $lookup: {
           from: "users",
@@ -170,11 +171,11 @@ const getAllTasks = async (req, res) => {
         $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
       },
 
-      // ==== NEW: lookup all comment authors ====
+      // ==== look up all comment authors ====
       {
         $lookup: {
           from: "users",
-          localField: "comments.user_id", // works with array field
+          localField: "comments.user_id",
           foreignField: "_id",
           as: "comment_users",
         },
@@ -210,7 +211,7 @@ const getAllTasks = async (req, res) => {
         },
       },
 
-      // lookup those sub_assignee_ids into user docs to get department
+      // lookup those sub_assignee_ids into user docs to get department + attachment_url
       {
         $lookup: {
           from: "users",
@@ -219,7 +220,7 @@ const getAllTasks = async (req, res) => {
             {
               $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
             },
-            { $project: { _id: 1, name: 1, department: 1 } },
+            { $project: { _id: 1, name: 1, department: 1, attachment_url: 1 } },
           ],
           as: "sub_assignees",
         },
@@ -310,8 +311,7 @@ const getAllTasks = async (req, res) => {
       if (Array.isArray(priorityFilter)) {
         priorities = priorityFilter.map(String);
       } else if (typeof priorityFilter === "string") {
-        priorities = priorityFilter
-          .split(/[,\s]+/).filter(Boolean).map(String);
+        priorities = priorityFilter.split(/[,\s]+/).filter(Boolean).map(String);
       } else {
         priorities = [String(priorityFilter)];
       }
@@ -346,7 +346,7 @@ const getAllTasks = async (req, res) => {
       basePipeline.push({ $match: { $and: postLookupMatch } });
     }
 
-    // ---- OUTPUT (enrich comments with author name) ----
+    // ---- OUTPUT (include attachment_url on users) ----
     const dataPipeline = [
       ...basePipeline,
       {
@@ -378,7 +378,7 @@ const getAllTasks = async (req, res) => {
             },
           },
 
-          // map assigned_to users
+          // map assigned_to users (now with attachment_url)
           assigned_to: {
             $map: {
               input: { $ifNull: ["$assigned_to", []] },
@@ -387,17 +387,21 @@ const getAllTasks = async (req, res) => {
                 _id: "$$user._id",
                 name: "$$user.name",
                 department: "$$user.department",
+                attachment_url: { $ifNull: ["$$user.attachment_url", ""] },
               },
             },
           },
 
-          // createdBy info
+          // createdBy info (now with attachment_url)
           createdBy: {
             _id: "$createdBy_info._id",
             name: "$createdBy_info.name",
+            attachment_url: {
+              $ifNull: ["$createdBy_info.attachment_url", ""],
+            },
           },
 
-          // sub assignees (from lookup)
+          // sub assignees (with attachment_url from lookup pipeline)
           sub_assignees: {
             $map: {
               input: { $ifNull: ["$sub_assignees", []] },
@@ -406,11 +410,12 @@ const getAllTasks = async (req, res) => {
                 _id: "$$s._id",
                 name: "$$s.name",
                 department: "$$s.department",
+                attachment_url: { $ifNull: ["$$s.attachment_url", ""] },
               },
             },
           },
 
-          // ==== NEW: comments enriched with user { _id, name } ====
+          // comments enriched with user { _id, name, attachment_url }
           comments: {
             $map: {
               input: { $ifNull: ["$comments", []] },
@@ -438,6 +443,25 @@ const getAllTasks = async (req, res) => {
                         },
                       },
                       in: { $ifNull: ["$$match.name", ""] },
+                    },
+                  },
+                  attachment_url: {
+                    $let: {
+                      vars: {
+                        match: {
+                          $arrayElemAt: [
+                            {
+                              $filter: {
+                                input: { $ifNull: ["$comment_users", []] },
+                                as: "u",
+                                cond: { $eq: ["$$u._id", "$$c.user_id"] },
+                              },
+                            },
+                            0,
+                          ],
+                        },
+                      },
+                      in: { $ifNull: ["$$match.attachment_url", ""] },
                     },
                   },
                 },
@@ -476,6 +500,7 @@ const getAllTasks = async (req, res) => {
 };
 
 
+
 // Get a task by ID
 const getTaskById = async (req, res) => {
   try {
@@ -485,7 +510,12 @@ const getTaskById = async (req, res) => {
       .populate("createdBy", "_id name attachment_url")
       .populate("project_id", "code name attachment_url")
       .populate("current_status.user_id", "_id name attachment_url")
-      .populate("status_history.user_id", "_id name  attachment_url");
+      .populate("status_history.user_id", "_id name  attachment_url")
+       .populate("comments.user_id", "_id name attachment_url")
+      .populate("attachments.user_id", "_id name attachment_url")
+      .populate("followers", "_id name attachment_url")
+      .populate("sub_tasks.assigned_to", "_id name attachment_url")
+      .populate("sub_tasks.createdBy", "_id name attachment_url");
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
