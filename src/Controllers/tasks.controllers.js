@@ -435,16 +435,11 @@ const getTaskById = async (req, res) => {
   try {
     const task = await tasksModells
       .findById(req.params.id)
-      .populate("assigned_to", "_id name")
-      .populate("createdBy", "_id name")
-      .populate("project_id", "code name")
-      .populate("current_status.user_id", "_id name")
-      .populate("status_history.user_id", "_id name")
-      .populate("comments.user_id", "_id name")
-      .populate("attachments.user_id", "_id name")
-      .populate("followers", "_id name")
-      .populate("sub_tasks.assigned_to", "_id name")
-      .populate("sub_tasks.createdBy", "_id name");
+      .populate("assigned_to", "_id name attachment_url")
+      .populate("createdBy", "_id name attachment_url")
+      .populate("project_id", "code name attachment_url")
+      .populate("current_status.user_id", "_id name attachment_url")
+      .populate("status_history.user_id", "_id name  attachment_url");
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }

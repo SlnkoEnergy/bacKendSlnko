@@ -35,7 +35,6 @@ const {
   backfillProfileFields,
 } = require("../Controllers/userController");
 
-
 const {
   addPo,
   editPO,
@@ -235,6 +234,7 @@ router.put(
   "/edit-user/:_id",
   jwtMW.authentication,
   upload,
+
   editUser
 );
 
