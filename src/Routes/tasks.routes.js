@@ -11,6 +11,11 @@ const {
   createSubTask,
   updateSubTaskStatus,
   taskCards,
+  myTasks,
+  activityFeed,
+  getUserPerformance,
+  getProjectsByState,
+  getAgingByResolution,
 } = require("../controllers/tasks.controllers");
 const jwtMW = require("../middlewares/auth");
 const upload = require("../middlewares/multer");
@@ -26,4 +31,9 @@ router.put('/subtask/:taskId', jwtMW.authentication, createSubTask);
 
 //Task Dashboard
 router.get('/taskcards', jwtMW.authentication, taskCards);
+router.get('/mytasks', jwtMW.authentication, myTasks);
+router.get('/activityfeed', jwtMW.authentication, activityFeed);
+router.get('/userperformance', jwtMW.authentication, getUserPerformance);
+router.get('/projectstate', jwtMW.authentication, getProjectsByState);
+router.get('/agingbyresolution', jwtMW.authentication, getAgingByResolution);
 module.exports = router;
