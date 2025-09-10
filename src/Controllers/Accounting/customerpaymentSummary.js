@@ -5,6 +5,28 @@ const ClientModel = require("../../Modells/purchaseorder.model");
 const ProjectModel = require("../../Modells/project.model");
 const { Parser } = require("json2csv");
 
+const asDouble = (expr) => ({
+  $convert: {
+    input: {
+      $cond: [
+        { $eq: [{ $type: expr }, "string"] },
+        {
+          $replaceAll: {
+            input: { $trim: { input: expr } },
+            find: ",",
+            replacement: ""
+          }
+        },
+        expr
+      ]
+    },
+    to: "double",
+    onError: 0,
+    onNull: 0,
+  },
+});
+ 
+
 const getCustomerPaymentSummary = async (req, res) => {
   try {
     const {
@@ -89,7 +111,9 @@ const getCustomerPaymentSummary = async (req, res) => {
             { $sort: { createdAt: -1 } },
             { $project: { _id: 1, cr_date: 1, cr_mode: 1, cr_amount: 1, createdAt: 1 } },
           ],
-          summary: [{ $group: { _id: null, totalCredited: { $sum: "$cr_amount" } } }],
+          summary: [
+            { $group: { _id: null, totalCredited: { $sum: asDouble("$cr_amount") } } },
+          ],
         },
       },
     ]);
@@ -128,7 +152,7 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             },
           ],
-          summary: [{ $group: { _id: null, totalDebited: { $sum: "$amount_paid" } } }],
+          summary: [{ $group: { _id: null, totalDebited: { $sum: asDouble("$amount_paid") } } }],
         },
       },
     ]);
@@ -166,39 +190,14 @@ const getCustomerPaymentSummary = async (req, res) => {
                 createdAt: 1,
                 paid_for: 1,
                 description: "$comment",
-                // normalized numerics
-                adj_amount_numeric: {
-                  $cond: [
-                    { $eq: [{ $type: "$adj_amount" }, "string"] },
-                    { $abs: { $toDouble: "$adj_amount" } },
-                    { $abs: "$adj_amount" },
-                  ],
-                },
+
+          
+                adj_amount_numeric: { $abs: asDouble("$adj_amount") },
                 debit_adjustment: {
-                  $cond: [
-                    { $eq: ["$adj_type", "Subtract"] },
-                    {
-                      $cond: [
-                        { $eq: [{ $type: "$adj_amount" }, "string"] },
-                        { $abs: { $toDouble: "$adj_amount" } },
-                        { $abs: "$adj_amount" },
-                      ],
-                    },
-                    0,
-                  ],
+                  $cond: [{ $eq: ["$adj_type", "Subtract"] }, { $abs: asDouble("$adj_amount") }, 0],
                 },
                 credit_adjustment: {
-                  $cond: [
-                    { $eq: ["$adj_type", "Add"] },
-                    {
-                      $cond: [
-                        { $eq: [{ $type: "$adj_amount" }, "string"] },
-                        { $abs: { $toDouble: "$adj_amount" } },
-                        { $abs: "$adj_amount" },
-                      ],
-                    },
-                    0,
-                  ],
+                  $cond: [{ $eq: ["$adj_type", "Add"] }, { $abs: asDouble("$adj_amount") }, 0],
                 },
               },
             },
@@ -207,27 +206,17 @@ const getCustomerPaymentSummary = async (req, res) => {
             {
               $project: {
                 adj_type: 1,
-                adj_amount_numeric: {
-                  $cond: [
-                    { $eq: [{ $type: "$adj_amount" }, "string"] },
-                    { $abs: { $toDouble: "$adj_amount" } },
-                    { $abs: "$adj_amount" },
-                  ],
-                },
+                adj_amount_numeric: { $abs: asDouble("$adj_amount") },
               },
             },
             {
               $group: {
                 _id: null,
                 totalCreditAdjustment: {
-                  $sum: {
-                    $cond: [{ $eq: ["$adj_type", "Add"] }, "$adj_amount_numeric", 0],
-                  },
+                  $sum: { $cond: [{ $eq: ["$adj_type", "Add"] }, "$adj_amount_numeric", 0] },
                 },
                 totalDebitAdjustment: {
-                  $sum: {
-                    $cond: [{ $eq: ["$adj_type", "Subtract"] }, "$adj_amount_numeric", 0],
-                  },
+                  $sum: { $cond: [{ $eq: ["$adj_type", "Subtract"] }, "$adj_amount_numeric", 0] },
                 },
               },
             },
@@ -241,35 +230,18 @@ const getCustomerPaymentSummary = async (req, res) => {
     const totalCreditAdjustment = adjustmentData?.summary?.[0]?.totalCreditAdjustment || 0;
     const totalDebitAdjustment = adjustmentData?.summary?.[0]?.totalDebitAdjustment || 0;
 
-    // ---------- Client History (POs) — item_name from PO.items[].category ----------
+    // ---------- Client History (POs) ----------
     const searchRegex = searchClient ? new RegExp(searchClient, "i") : null;
 
     const clientHistoryResult = await ProjectModel.aggregate([
       { $match: { p_id: projectId } },
       { $project: { code: 1, _id: 0 } },
 
-      // link purchase orders for this project (code -> p_id on PO)
-      {
-        $lookup: {
-          from: "purchaseorders",
-          localField: "code",
-          foreignField: "p_id",
-          as: "purchase_orders",
-        },
-      },
+      { $lookup: { from: "purchaseorders", localField: "code", foreignField: "p_id", as: "purchase_orders" } },
       { $unwind: { path: "$purchase_orders", preserveNullAndEmptyArrays: true } },
-
-      // sort newest PO first (helps "advance_paid" calc below)
       { $sort: { "purchase_orders.createdAt": -1 } },
+      { $addFields: { po_numberStr: { $toString: "$purchase_orders.po_number" } } },
 
-      // normalize PO number to string
-      {
-        $addFields: {
-          po_numberStr: { $toString: "$purchase_orders.po_number" },
-        },
-      },
-
-      // resolve category names from purchase_orders.item (array) / items / legacy single
       {
         $addFields: {
           poItems: {
@@ -277,17 +249,12 @@ const getCustomerPaymentSummary = async (req, res) => {
               { $eq: [{ $type: "$purchase_orders.item" }, "array"] },
               "$purchase_orders.item",
               {
-                $cond: [
-                  { $eq: [{ $type: "$purchase_orders.items" }, "array"] },
-                  "$purchase_orders.items",
-                  [],
-                ],
+                $cond: [{ $eq: [{ $type: "$purchase_orders.items" }, "array"] }, "$purchase_orders.items", []],
               },
             ],
           },
         },
       },
-      // collect raw category refs: could be ObjectId, string ObjectId-ish, or plain string name
       {
         $addFields: {
           itemCatRawArr: {
@@ -303,20 +270,15 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             },
           },
-          // legacy: if PO.item was a single scalar (string/ObjectId)
           legacyItemStr: {
             $cond: [
-              { $and: [
-                  { $ne: ["$purchase_orders.item", null] },
-                  { $eq: [{ $type: "$purchase_orders.item" }, "string"] },
-                ]},
+              { $and: [{ $ne: ["$purchase_orders.item", null] }, { $eq: [{ $type: "$purchase_orders.item" }, "string"] }] },
               "$purchase_orders.item",
-              null
+              null,
             ],
           },
         },
       },
-      // split into objectIds vs plain names
       {
         $addFields: {
           itemCatObjectIdArr: {
@@ -333,13 +295,7 @@ const getCustomerPaymentSummary = async (req, res) => {
                     ],
                   },
                   { $toObjectId: "$$c" },
-                  {
-                    $cond: [
-                      { $eq: [{ $type: "$$c" }, "objectId"] },
-                      "$$c",
-                      null,
-                    ],
-                  },
+                  { $cond: [{ $eq: [{ $type: "$$c" }, "objectId"] }, "$$c", null] },
                 ],
               },
             },
@@ -355,12 +311,7 @@ const getCustomerPaymentSummary = async (req, res) => {
                       { $eq: [{ $type: "$$c" }, "string"] },
                       {
                         $not: [
-                          {
-                            $and: [
-                              { $eq: [{ $strLenCP: "$$c" }, 24] },
-                              { $regexMatch: { input: "$$c", regex: "^[0-9a-fA-F]{24}$" } },
-                            ],
-                          },
+                          { $and: [{ $eq: [{ $strLenCP: "$$c" }, 24] }, { $regexMatch: { input: "$$c", regex: "^[0-9a-fA-F]{24}$" } }] },
                         ],
                       },
                     ],
@@ -371,24 +322,21 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             },
           },
-          // if legacyItemStr is a plain name, include it for name matching
           legacyItemName: {
             $cond: [
               {
                 $and: [
                   { $ne: ["$legacyItemStr", null] },
-                  { $not: [
-                      { $and: [
-                          { $eq: [{ $strLenCP: "$legacyItemStr" }, 24] },
-                          { $regexMatch: { input: "$legacyItemStr", regex: "^[0-9a-fA-F]{24}$" } }
-                        ]}
-                    ]
-                  }
-                ]
+                  {
+                    $not: [
+                      { $and: [{ $eq: [{ $strLenCP: "$legacyItemStr" }, 24] }, { $regexMatch: { input: "$legacyItemStr", regex: "^[0-9a-fA-F]{24}$" } }] },
+                    ],
+                  },
+                ],
               },
               "$legacyItemStr",
-              null
-            ]
+              null,
+            ],
           },
           legacyItemObjId: {
             $cond: [
@@ -405,7 +353,6 @@ const getCustomerPaymentSummary = async (req, res) => {
           },
         },
       },
-      // lookup materialcategories by ids
       {
         $lookup: {
           from: "materialcategories",
@@ -417,14 +364,10 @@ const getCustomerPaymentSummary = async (req, res) => {
               ],
             },
           },
-          pipeline: [
-            { $match: { $expr: { $in: ["$_id", "$$idList"] } } },
-            { $project: { _id: 1, name: 1 } },
-          ],
+          pipeline: [{ $match: { $expr: { $in: ["$_id", "$$idList"] } } }, { $project: { _id: 1, name: 1 } }],
           as: "mcByIds",
         },
       },
-      // lookup materialcategories by plain names
       {
         $lookup: {
           from: "materialcategories",
@@ -436,10 +379,7 @@ const getCustomerPaymentSummary = async (req, res) => {
               ],
             },
           },
-          pipeline: [
-            { $match: { $expr: { $in: ["$name", "$$nameList"] } } },
-            { $project: { _id: 1, name: 1 } },
-          ],
+          pipeline: [{ $match: { $expr: { $in: ["$name", "$$nameList"] } } }, { $project: { _id: 1, name: 1 } }],
           as: "mcByNames",
         },
       },
@@ -453,8 +393,6 @@ const getCustomerPaymentSummary = async (req, res) => {
           },
         },
       },
-
-      // payments for advance_paid
       {
         $lookup: {
           from: "payrequests",
@@ -467,46 +405,30 @@ const getCustomerPaymentSummary = async (req, res) => {
                     { $eq: [{ $toString: "$po_number" }, "$$po_numberStr"] },
                     {
                       $or: [
-                        {
-                          $and: [
-                            { $eq: ["$approved", "Approved"] },
-                            { $eq: ["$acc_match", "matched"] },
-                            { $ne: ["$utr", ""] },
-                          ],
-                        },
-                        {
-                          $and: [
-                            { $eq: ["$approved", "Approved"] },
-                            { $ne: ["$utr", ""] },
-                            { $eq: ["$approval_status.stage", "Initial Account"] },
-                          ],
-                        },
+                        { $and: [{ $eq: ["$approved", "Approved"] }, { $eq: ["$acc_match", "matched"] }, { $ne: ["$utr", ""] }] },
+                        { $and: [{ $eq: ["$approved", "Approved"] }, { $ne: ["$utr", ""] }, { $eq: ["$approval_status.stage", "Initial Account"] }] },
                       ],
                     },
                   ],
                 },
               },
             },
-            { $group: { _id: null, totalPaid: { $sum: { $toDouble: "$amount_paid" } } } },
+            { $group: { _id: null, totalPaid: { $sum: asDouble("$amount_paid") } } },
           ],
           as: "approved_payment",
         },
       },
-
-      // billed summary for total_billed_value
       {
         $lookup: {
           from: "biildetails",
           let: { po_numberStr: "$po_numberStr" },
           pipeline: [
             { $match: { $expr: { $eq: [{ $toString: "$po_number" }, "$$po_numberStr"] } } },
-            { $group: { _id: null, totalBilled: { $sum: { $toDouble: "$bill_value" } } } },
+            { $group: { _id: null, totalBilled: { $sum: asDouble("$bill_value") } } },
           ],
           as: "billed_summary",
         },
       },
-
-      // optional search across vendor/item/po_number/code
       ...(searchRegex
         ? [
             {
@@ -515,23 +437,18 @@ const getCustomerPaymentSummary = async (req, res) => {
                   { "purchase_orders.vendor": searchRegex },
                   { "purchase_orders.po_number": searchRegex },
                   { code: searchRegex },
-                  // allow matching on resolved category names
                   { resolvedCatNames: { $elemMatch: { $regex: searchRegex } } },
                 ],
               },
             },
           ]
         : []),
-
-      // final projection: item_name is a **string** built from resolvedCatNames (comma-separated)
       {
         $project: {
           _id: "$purchase_orders._id",
           project_code: "$code",
           po_number: "$purchase_orders.po_number",
           vendor: "$purchase_orders.vendor",
-
-          // *** HERE: item_name as category list (string) with safe fallbacks ***
           item_name: {
             $cond: [
               { $gt: [{ $size: "$resolvedCatNames" }, 0] },
@@ -548,16 +465,11 @@ const getCustomerPaymentSummary = async (req, res) => {
                 },
               },
               {
-                $cond: [
-                  { $eq: [{ $type: "$purchase_orders.item" }, "string"] },
-                  "$purchase_orders.item",
-                  "-"
-                ],
+                $cond: [{ $eq: [{ $type: "$purchase_orders.item" }, "string"] }, "$purchase_orders.item", "-"],
               },
             ],
           },
-
-          po_value: "$purchase_orders.po_value",
+          po_value: asDouble("$purchase_orders.po_value"),
           advance_paid: {
             $cond: [
               { $gt: [{ $size: "$approved_payment" }, 0] },
@@ -574,7 +486,7 @@ const getCustomerPaymentSummary = async (req, res) => {
           },
           remaining_amount: {
             $subtract: [
-              { $toDouble: "$purchase_orders.po_value" },
+              asDouble("$purchase_orders.po_value"),
               {
                 $cond: [
                   { $gt: [{ $size: "$approved_payment" }, 0] },
@@ -608,7 +520,7 @@ const getCustomerPaymentSummary = async (req, res) => {
       }
     );
 
-    // ---------- Balance Summary (unchanged from your version) ----------
+    // ---------- Balance Summary ----------
     const [balanceSummary = {}] = await ProjectModel.aggregate([
       { $match: { p_id: projectId } },
       {
@@ -617,7 +529,7 @@ const getCustomerPaymentSummary = async (req, res) => {
           let: { projectId: "$p_id" },
           pipeline: [
             { $match: { $expr: { $eq: [{ $toString: "$p_id" }, { $toString: "$$projectId" }] } } },
-            { $group: { _id: null, totalCredit: { $sum: { $toDouble: "$cr_amount" } } } },
+            { $group: { _id: null, totalCredit: { $sum: asDouble("$cr_amount") } } },
           ],
           as: "creditData",
         },
@@ -637,7 +549,7 @@ const getCustomerPaymentSummary = async (req, res) => {
                 },
               },
             },
-            { $group: { _id: null, total_return: { $sum: { $toDouble: "$amount_paid" } } } },
+            { $group: { _id: null, total_return: { $sum: asDouble("$amount_paid") } } },
           ],
           as: "returnData",
         },
@@ -659,19 +571,12 @@ const getCustomerPaymentSummary = async (req, res) => {
                 },
               },
             },
-            { $group: { _id: null, totalAdvancePaidToVendors: { $sum: { $toDouble: "$amount_paid" } } } },
+            { $group: { _id: null, totalAdvancePaidToVendors: { $sum: asDouble("$amount_paid") } } },
           ],
           as: "advancePaymentData",
         },
       },
-      {
-        $lookup: {
-          from: "purchaseorders",
-          localField: "code",
-          foreignField: "p_id",
-          as: "purchase_orders",
-        },
-      },
+      { $lookup: { from: "purchaseorders", localField: "code", foreignField: "p_id", as: "purchase_orders" } },
       { $unwind: { path: "$purchase_orders", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
@@ -690,7 +595,7 @@ const getCustomerPaymentSummary = async (req, res) => {
                 },
               },
             },
-            { $group: { _id: null, totalPaid: { $sum: { $toDouble: "$amount_paid" } } } },
+            { $group: { _id: null, totalPaid: { $sum: asDouble("$amount_paid") } } },
           ],
           as: "po_advance_payments",
         },
@@ -701,7 +606,7 @@ const getCustomerPaymentSummary = async (req, res) => {
           let: { poNumber: { $toString: "$purchase_orders.po_number" } },
           pipeline: [
             { $match: { $expr: { $eq: [{ $toString: "$po_number" }, "$$poNumber"] } } },
-            { $group: { _id: null, totalBilled: { $sum: { $toDouble: "$bill_value" } } } },
+            { $group: { _id: null, totalBilled: { $sum: asDouble("$bill_value") } } },
           ],
           as: "billed_summary",
         },
@@ -709,18 +614,10 @@ const getCustomerPaymentSummary = async (req, res) => {
       {
         $addFields: {
           "purchase_orders.total_billed_value": {
-            $cond: [
-              { $gt: [{ $size: "$billed_summary" }, 0] },
-              { $arrayElemAt: ["$billed_summary.totalBilled", 0] },
-              0,
-            ],
+            $cond: [{ $gt: [{ $size: "$billed_summary" }, 0] }, { $arrayElemAt: ["$billed_summary.totalBilled", 0] }, 0],
           },
           "purchase_orders.advance_paid": {
-            $cond: [
-              { $gt: [{ $size: "$po_advance_payments" }, 0] },
-              { $arrayElemAt: ["$po_advance_payments.totalPaid", 0] },
-              0,
-            ],
+            $cond: [{ $gt: [{ $size: "$po_advance_payments" }, 0] }, { $arrayElemAt: ["$po_advance_payments.totalPaid", 0] }, 0],
           },
         },
       },
@@ -734,11 +631,17 @@ const getCustomerPaymentSummary = async (req, res) => {
               $project: {
                 adj_amount: 1,
                 adj_type: 1,
-                credit_adj: { $cond: [{ $eq: ["$adj_type", "Add"] }, { $toDouble: "$adj_amount" }, 0] },
-                debit_adj: { $cond: [{ $eq: ["$adj_type", "Subtract"] }, { $toDouble: "$adj_amount" }, 0] },
+                credit_adj: { $cond: [{ $eq: ["$adj_type", "Add"] }, asDouble("$adj_amount"), 0] },
+                debit_adj: { $cond: [{ $eq: ["$adj_type", "Subtract"] }, asDouble("$adj_amount"), 0] },
               },
             },
-            { $group: { _id: null, totalCreditAdjustment: { $sum: "$credit_adj" }, totalDebitAdjustment: { $sum: "$debit_adj" } } },
+            {
+              $group: {
+                _id: null,
+                totalCreditAdjustment: { $sum: "$credit_adj" },
+                totalDebitAdjustment: { $sum: "$debit_adj" },
+              },
+            },
           ],
           as: "adjustmentData",
         },
@@ -749,22 +652,19 @@ const getCustomerPaymentSummary = async (req, res) => {
           billing_type: { $first: "$billing_type" },
           totalCredit: { $first: { $ifNull: [{ $arrayElemAt: ["$creditData.totalCredit", 0] }, 0] } },
           total_return: { $first: { $ifNull: [{ $arrayElemAt: ["$returnData.total_return", 0] }, 0] } },
-          totalAdvancePaidToVendors: { $first: { $ifNull: [{ $arrayElemAt: ["$advancePaymentData.totalAdvancePaidToVendors", 0] }, 0] } },
-          total_po_value: { $sum: { $toDouble: "$purchase_orders.po_value" } },
+          totalAdvancePaidToVendors: {
+            $first: {
+              $ifNull: [{ $arrayElemAt: ["$advancePaymentData.totalAdvancePaidToVendors", 0] }, 0],
+            },
+          },
+          total_po_value: { $sum: asDouble("$purchase_orders.po_value") },
           total_advance_paid: { $sum: "$purchase_orders.advance_paid" },
           total_billed_value: { $sum: "$purchase_orders.total_billed_value" },
           total_po_basic: {
             $sum: {
               $cond: [
-                { $ifNull: ["$purchase_orders.po_basic", false] },
-                {
-                  $convert: {
-                    input: { $trim: { input: "$purchase_orders.po_basic" } },
-                    to: "double",
-                    onError: 0,
-                    onNull: 0,
-                  },
-                },
+                { $and: [{ $ne: ["$purchase_orders.po_basic", null] }, { $ne: ["$purchase_orders.po_basic", ""] }] },
+                asDouble("$purchase_orders.po_basic"),
                 0,
               ],
             },
@@ -772,15 +672,8 @@ const getCustomerPaymentSummary = async (req, res) => {
           gst_as_po_basic: {
             $sum: {
               $cond: [
-                { $ifNull: ["$purchase_orders.gst", false] },
-                {
-                  $convert: {
-                    input: { $trim: { input: "$purchase_orders.gst" } },
-                    to: "double",
-                    onError: 0,
-                    onNull: 0,
-                  },
-                },
+                { $and: [{ $ne: ["$purchase_orders.gst", null] }, { $ne: ["$purchase_orders.gst", ""] }] },
+                asDouble("$purchase_orders.gst"),
                 0,
               ],
             },
@@ -807,13 +700,7 @@ const getCustomerPaymentSummary = async (req, res) => {
         $addFields: {
           extraGST: {
             $round: [
-              {
-                $cond: [
-                  { $gt: ["$total_po_basic", 0] },
-                  { $subtract: ["$total_po_with_gst", "$total_po_basic"] },
-                  0,
-                ],
-              },
+              { $cond: [{ $gt: ["$total_po_basic", 0] }, { $subtract: ["$total_po_with_gst", "$total_po_basic"] }, 0] },
             ],
           },
         },
@@ -942,7 +829,6 @@ const getCustomerPaymentSummary = async (req, res) => {
       balanceSummary,
     };
 
-    // ---------- CSV export ----------
     if (exportToCSV === "csv") {
       let csvContent = "";
 
@@ -1000,3 +886,4 @@ const getCustomerPaymentSummary = async (req, res) => {
 module.exports = {
   getCustomerPaymentSummary,
 };
+
