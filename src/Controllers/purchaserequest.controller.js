@@ -54,6 +54,9 @@ const CreatePurchaseRequest = async (req, res) => {
 
     // Notification to SCM  on  Purchase Request Create
 
+    const sendBy_id = req.user.userId;
+    const sendBy_Name  = await userModells.findById(sendBy_id);
+
     try {
       const workflow = 'purchase-order';
       let senders = [];
@@ -73,6 +76,8 @@ const CreatePurchaseRequest = async (req, res) => {
       }).select('_id').lean().then(users => users.map(u => u._id));
 
       const data = {
+        Module: project.name,
+        sendBy_Name: sendBy_Name.name,
         message: `A Purchase Order has been created for Project ID ${project.name}. Kindly review the details and proceed with the necessary actions.`,
         link: `/add_po?mode=edit&_id`
       }

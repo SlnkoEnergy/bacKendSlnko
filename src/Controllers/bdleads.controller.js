@@ -11,6 +11,7 @@ const groupModells = require("../models/bdgroup.model");
 const { Novu } = require('@novu/node');
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const handoversheetModells = require("../models/handoversheet.model");
+const userModel = require("../models/user.model");
 
 const createBDlead = async function (req, res) {
   try {
@@ -572,24 +573,24 @@ const deleteLead = async (req, res) => {
 
     // Notification fuctionality on Delete Lead
 
-    try {
-      const workflow = 'delete-notification';
+    // try {
+    //   const workflow = 'delete-notification';
 
-      const senders = await userModells.find({
-        $or: [
-          { department: 'admin' },
-          { department: 'BD', role: '' },
-        ]
-      }).select('_id')
-        .lean()
-        .then(users => users.map(u => u._id));
-      const data = {
-        message: `Lead ${deletedLead.name} (ID: ${deletedLead.id}) was deleted by ${user}`
-      }
-      await getnovuNotification(workflow, senders, data);
-    } catch (error) {
-      console.log(error);
-    }
+    //   const senders = await userModells.find({
+    //     $or: [
+    //       { department: 'admin' },
+    //       { department: 'BD', role: '' },
+    //     ]
+    //   }).select('_id')
+    //     .lean()
+    //     .then(users => users.map(u => u._id));
+    //   const data = {
+    //     message: `Lead ${deletedLead.name} (ID: ${deletedLead.id}) was deleted by ${user}`
+    //   }
+    //   await getnovuNotification(workflow, senders, data);
+    // } catch (error) {
+    //   console.log(error);
+    // }
 
 
     res
@@ -613,6 +614,8 @@ const updateAssignedTo = async (req, res) => {
       });
     }
 
+    const sendBy_id = req.user.userId;
+    const sendBy_Name = await userModel.findById(sendBy_id).select("name");
     const user = await userModells.findById(assigned);
     if (!user) {
       return res.status(404).json({
@@ -647,7 +650,7 @@ const updateAssignedTo = async (req, res) => {
     try {
       for (const lead of leads) {
 
-        const workflow = 'all-notification';
+        const workflow = 'lead';
         const alluser = await userModells.find({
           $or: [
             { department: 'admin' },
@@ -659,6 +662,8 @@ const updateAssignedTo = async (req, res) => {
 
         const senders = [...new Set([...alluser, assigned])];
         const data = {
+          Module: "Lead Transfer",
+          sendBy_Name: sendBy_Name.name,
           message: `Lead ${lead.id} transferred to ${assign.name}`,
           link: 'leads'
         }

@@ -367,32 +367,7 @@ const updateModuleCategory = async (req, res) => {
 
     await moduleData.save();
 
-    // Notification on File submit to Engineering and CAM
-
-    try {
-      const workflow = 'all-notification';
-      const senders = await userModells.find({
-        $or: [
-          { department: 'Engineering' },
-        ]
-      }).select('_id')
-        .lean()
-        .then(users => users.map(u => u._id));
-
-      const data = {
-        message: `A document has been successfully uploaded for
-        Project ID: ${projectCodeData.code}
-        Project Name: ${projectCodeData.name}.
-        Kindly review it at you convenience.`,
-        link: `/overview?page=1&project_id=${projectId}`
-      }
-
-      await getnovuNotification(workflow, senders, data);
-
-    } catch (error) {
-      console.log(error);
-    }
-
+    
     return res.status(200).json({
       message: "Module Category Updated Successfully",
       data: moduleData,
@@ -463,7 +438,8 @@ const updateModuleCategoryStatus = async (req, res) => {
     await moduleCategoryData.save();
 
     const project_detail = await projectDetail.findById(projectId).select('code name').lean();
-
+    const sendBy_id = req.user.userId;
+    const sendBy_Name = await userModells.findById(sendBy_id).select("name");
 
     try {
       const workflow = 'all-notification';
@@ -478,16 +454,17 @@ const updateModuleCategoryStatus = async (req, res) => {
       let data = {};
       if (text) {
         data = {
-          message: `Project Update
-          Project ID: ${project_detail.code} 
-          Project Name: ${project_detail.name} 
-          Status: ${status}
-          Note: ${text}`,
+          Module: project_detail.code,
+          sendBy_Name: sendBy_Name.name,
+          message: `Status Update: ${status}`,
+          remarks: `Note: ${text}`,
           link: `/overview?page=1&project_id=${projectId}`
         }
       } else {
         data = {
-          message: `A file related to Project [${project_detail.code}] - ${project_detail.name}  has been ${status}. `,
+          Module: project_detail.code,
+          sendBy_Name : sendBy_Name.name,
+          message: `Status Update: ${status}`,
           link: `/overview?page=1&project_id=${projectId}`
         }
       }
