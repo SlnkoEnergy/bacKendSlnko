@@ -124,7 +124,7 @@ const getAllTasks = async (req, res) => {
     ) {
       // full access
     } else if (userRole === "manager") {
-      // We'll enforce manager's same-department visibility after lookups.
+      // enforce manager department after lookups
     } else {
       // normal users: authored OR follower
       preLookupMatch.push({
@@ -170,7 +170,17 @@ const getAllTasks = async (req, res) => {
         $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
       },
 
-      // ---- FLATTEN sub_tasks.assigned_to into an array of ObjectIds safely ----
+      // ==== NEW: lookup all comment authors ====
+      {
+        $lookup: {
+          from: "users",
+          localField: "comments.user_id", // works with array field
+          foreignField: "_id",
+          as: "comment_users",
+        },
+      },
+
+      // ---- FLATTEN sub_tasks.assigned_to safely into IDs array ----
       {
         $addFields: {
           sub_assignee_ids: {
@@ -241,7 +251,7 @@ const getAllTasks = async (req, res) => {
       });
     }
 
-    // ---- Status filter (optional) ----
+    // ---- Status filter ----
     if (status) {
       postLookupMatch.push({ "current_status.status": status });
     }
@@ -267,7 +277,7 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ "assigned_to.department": department });
     }
 
-    // ---- createdById / assignedToId (UI-specified) ----
+    // ---- createdById / assignedToId ----
     if (createdById) {
       let cOID;
       try {
@@ -301,9 +311,7 @@ const getAllTasks = async (req, res) => {
         priorities = priorityFilter.map(String);
       } else if (typeof priorityFilter === "string") {
         priorities = priorityFilter
-          .split(/[,\s]+/)
-          .filter(Boolean)
-          .map(String);
+          .split(/[,\s]+/).filter(Boolean).map(String);
       } else {
         priorities = [String(priorityFilter)];
       }
@@ -316,18 +324,13 @@ const getAllTasks = async (req, res) => {
       }
     }
 
-    // ---- MANAGER RULE: same-department visibility (with CAM Team override) ----
+    // ---- MANAGER RULE: same dept (CAM Team override) ----
     if (userRole === "manager") {
       let effectiveDept = currentUser?.department || "";
-
-      const camOverrideNames = new Set([
-        "Sushant Ranjan Dubey",
-        "Sanjiv Kumar",
-      ]);
-      if (camOverrideNames.has(String(currentUser?.name || ""))) {
+      const camOverride = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
+      if (camOverride.has(String(currentUser?.name || ""))) {
         effectiveDept = "CAM Team";
       }
-
       if (effectiveDept) {
         postLookupMatch.push({
           $or: [
@@ -343,7 +346,7 @@ const getAllTasks = async (req, res) => {
       basePipeline.push({ $match: { $and: postLookupMatch } });
     }
 
-    // ---- OUTPUT ----
+    // ---- OUTPUT (enrich comments with author name) ----
     const dataPipeline = [
       ...basePipeline,
       {
@@ -359,9 +362,13 @@ const getAllTasks = async (req, res) => {
           priority: 1,
           status_history: 1,
           current_status: 1,
+          followers: 1,
+          sub_tasks: 1,
+
+          // map project details
           project_details: {
             $map: {
-              input: "$project_details",
+              input: { $ifNull: ["$project_details", []] },
               as: "proj",
               in: {
                 _id: "$$proj._id",
@@ -370,9 +377,11 @@ const getAllTasks = async (req, res) => {
               },
             },
           },
+
+          // map assigned_to users
           assigned_to: {
             $map: {
-              input: "$assigned_to",
+              input: { $ifNull: ["$assigned_to", []] },
               as: "user",
               in: {
                 _id: "$$user._id",
@@ -381,21 +390,57 @@ const getAllTasks = async (req, res) => {
               },
             },
           },
+
+          // createdBy info
           createdBy: {
             _id: "$createdBy_info._id",
             name: "$createdBy_info.name",
-            // department: "$createdBy_info.department", // include if needed
           },
-          followers: 1,
-          sub_tasks: 1,
+
+          // sub assignees (from lookup)
           sub_assignees: {
             $map: {
-              input: "$sub_assignees",
+              input: { $ifNull: ["$sub_assignees", []] },
               as: "s",
               in: {
                 _id: "$$s._id",
                 name: "$$s.name",
                 department: "$$s.department",
+              },
+            },
+          },
+
+          // ==== NEW: comments enriched with user { _id, name } ====
+          comments: {
+            $map: {
+              input: { $ifNull: ["$comments", []] },
+              as: "c",
+              in: {
+                _id: "$$c._id",
+                remarks: "$$c.remarks",
+                updatedAt: "$$c.updatedAt",
+                user: {
+                  _id: "$$c.user_id",
+                  name: {
+                    $let: {
+                      vars: {
+                        match: {
+                          $arrayElemAt: [
+                            {
+                              $filter: {
+                                input: { $ifNull: ["$comment_users", []] },
+                                as: "u",
+                                cond: { $eq: ["$$u._id", "$$c.user_id"] },
+                              },
+                            },
+                            0,
+                          ],
+                        },
+                      },
+                      in: { $ifNull: ["$$match.name", ""] },
+                    },
+                  },
+                },
               },
             },
           },
@@ -429,6 +474,7 @@ const getAllTasks = async (req, res) => {
     });
   }
 };
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
@@ -1210,7 +1256,7 @@ const taskCards = async (req, res) => {
           in_progress: 1,
           cancelled: 1,
           draft: 1,
-          active: { $add: ["$pending", "$in_progress"] },
+          active: "$in_progress",
         },
       }
     );
