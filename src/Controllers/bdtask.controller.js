@@ -42,12 +42,16 @@ const createTask = async (req, res) => {
     await lead.save();
 
     await newTask.save();
+    const sendBy_id = req.user.userId;
+    const sendBy_Name = await userModells.findById(sendBy_id).select("name");
 
     // Notification functionality for Creating Task
     try {
       const workflow = 'task-create';
       const senders = assigned_to;
       const data = {
+        Module: "BD Task Created",
+        sendBy_Name: sendBy_Name.name,
         message: `New task created for Lead #${lead.id}`,
         link: `leadProfile?id=${lead._id}`
       }
@@ -90,24 +94,16 @@ const updateStatus = async (req, res) => {
     lead.inactivedate = Date.now();
     await lead.save();
     await task.save();
+    const sendBy_id = req.user.userId;
+    const sendBy_Name = await userModells.findById(sendBy_id).select("name")
     try {
       const workflow = 'task-status';
       const senders = [task?.user_id];
       const data = {
-        message: `Task ${task.title} for Lead ${lead?.id} updated to status: ${status}`,
+        Module : lead?.id,
+        sendBy_Name : sendBy_Name.name,
+        message: `Status Updated: ${status}`,
         link:`leadProfile?id=${lead._id}`
-      }
-      await getnovuNotification(workflow, senders, data);
-    } catch (error) {
-      console.log(error);
-    }
-
-    try {
-      const workflow = 'task-status';
-      const senders = [task?.user_id];
-      const data = {
-        message: `Task ${task.title} for Lead ${lead?.id} updated to status: ${status}`,
-        link: `leadProfile?id=${lead._id}`
       }
       await getnovuNotification(workflow, senders, data);
     } catch (error) {
