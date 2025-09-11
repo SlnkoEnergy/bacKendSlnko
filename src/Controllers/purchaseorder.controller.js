@@ -1545,7 +1545,12 @@ const updateStatusPO = async (req, res) => {
           message: `Purchase Order is now marked as ${text}`,
           link: `/add_po?mode=edit&_id=${purchaseOrder._id}`
         }
-        await getnovuNotification(workflow, senders, data);
+
+        setImmediate(() => {
+          getnovuNotification(workflow, senders, data).catch(err =>
+            console.error("Notification error:", err)
+          );
+        });
 
       } catch (error) {
         console.log(error);
