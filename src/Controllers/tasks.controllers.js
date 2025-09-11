@@ -1349,7 +1349,14 @@ const taskCards = async (req, res) => {
 
 const myTasks = async function (req, res) {
   try {
-    const { departments = "", createdById, assignedToId, q } = req.query;
+    const {
+      // IGNORE these even if sent:
+      // from, to, deadlineFrom, deadlineTo,
+      departments = "",
+      createdById,
+      assignedToId,
+      q,
+    } = req.query;
 
     const currentUserId = req.user?.userId;
     const currentUser = await User.findById(currentUserId).lean();
@@ -1365,26 +1372,6 @@ const myTasks = async function (req, res) {
     const createdAtMatch = { $gte: istStartTodayUTC, $lte: now };
 
     // DO NOT filter by deadline range at all
-
-    const customFrom = from ? new Date(from) : null;
-    const customTo = to ? new Date(to) : null;
-
-    let createdAtMatch = {};
-    if (customFrom || customTo) {
-      if (customFrom) createdAtMatch.$gte = customFrom;
-      if (customTo) createdAtMatch.$lte = customTo;
-    } else {
-
-      createdAtMatch = { $gte: istStartTodayUTC, $lte: now };
-    }
-
-    let deadlineMatch = null;
-    if (deadlineFrom || deadlineTo) {
-      deadlineMatch = {};
-      if (deadlineFrom) deadlineMatch.$gte = new Date(deadlineFrom);
-      if (deadlineTo) deadlineMatch.$lte = new Date(deadlineTo);
-    }
-
     const createdByIds = createdById ? parseCsvObjectIds(createdById) : [];
     const assignedToIds = assignedToId ? parseCsvObjectIds(assignedToId) : [];
     const deptListFromUI = parseCsv(departments);
@@ -1446,9 +1433,7 @@ const myTasks = async function (req, res) {
           as: "createdBy_info",
         },
       },
-      {
-        $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
-      },
+      { $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true } },
 
       // subtask creators with department
       {
@@ -1506,9 +1491,7 @@ const myTasks = async function (req, res) {
           from: "users",
           let: { ids: "$sub_assignee_ids" },
           pipeline: [
-            {
-              $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
-            },
+            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
             { $project: { _id: 1, name: 1, department: 1 } },
           ],
           as: "sub_assignees",
@@ -1518,13 +1501,8 @@ const myTasks = async function (req, res) {
 
     // ===== Manager / Visitor visibility by department (with override)
     if (userRole === "manager" || userRole === "visitor") {
-      const nameLc = String(currentUser?.name || "")
-        .trim()
-        .toLowerCase();
-      const camOverrideNames = new Set([
-        "sushant ranjan dubey",
-        "sanjiv kumar",
-      ]);
+      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
+      const camOverrideNames = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
 
       let effectiveDeptList = [];
       if (camOverrideNames.has(nameLc)) {
@@ -1535,8 +1513,7 @@ const myTasks = async function (req, res) {
         effectiveDeptList = ["Projects", "CAM"];
       } else {
         // manager sees own department
-        if (currentUser?.department)
-          effectiveDeptList = [currentUser.department];
+        if (currentUser?.department) effectiveDeptList = [currentUser.department];
       }
 
       if (effectiveDeptList.length > 0) {
@@ -1582,16 +1559,9 @@ const myTasks = async function (req, res) {
     }
 
     // ---- Search fields
-    // Derive names + keep IDs & attachment URLs for creator and assignees
-    // Search fields
     pipeline.push({
       $addFields: {
         createdbyname: "$createdBy_info.name",
-        createdby_id: "$createdBy_info._id",
-        createdby_attachment_url: {
-          $ifNull: ["$createdBy_info.attachment_url", "$createdBy_info.avatar"],
-        },
-
         subtask_createdby_names: {
           $map: {
             input: { $ifNull: ["$subtask_creators", []] },
@@ -1624,48 +1594,29 @@ const myTasks = async function (req, res) {
     }
 
     // ---- Projection
-    // Final projection including attachment_url for assignees
-    // Projection
     pipeline.push({
       $project: {
         _id: 1,
         createdAt: 1,
         deadline: 1,
         "current_status.status": 1,
-
-        createdby_id: 1,
         taskname: {
           $ifNull: [
             "$title",
-            {
-              $ifNull: ["$task_name", { $ifNull: ["$name", "Untitled Task"] }],
-            },
+            { $ifNull: ["$task_name", { $ifNull: ["$name", "Untitled Task"] }] },
           ],
         },
         createdbyname: 1,
-        createdby_attachment_url: 1,
-
         subtask_createdby: {
           $cond: [
-            {
-              $gt: [
-                { $size: { $ifNull: ["$subtask_createdby_names", []] } },
-                0,
-              ],
-            },
+            { $gt: [{ $size: { $ifNull: ["$subtask_createdby_names", []] } }, 0] },
             {
               $reduce: {
                 input: "$subtask_createdby_names",
                 initialValue: "",
                 in: {
                   $concat: [
-                    {
-                      $cond: [
-                        { $eq: ["$$value", ""] },
-                        "",
-                        { $concat: ["$$value", ", "] },
-                      ],
-                    },
+                    { $cond: [{ $eq: ["$$value", ""] }, "", { $concat: ["$$value", ", "] }] },
                     "$$this",
                   ],
                 },
@@ -1674,23 +1625,13 @@ const myTasks = async function (req, res) {
             "",
           ],
         },
-
-        // include attachment_url for each assignee (fallback to avatar)
         assigned_to: {
           $map: {
             input: { $ifNull: ["$assigned_to_users", []] },
             as: "u",
-            in: {
-              _id: "$$u._id",
-              name: "$$u.name",
-              attachment_url: {
-                $ifNull: ["$$u.attachment_url", "$$u.avatar"],
-              },
-            },
+            in: { _id: "$$u._id", name: "$$u.name", avatar: "$$u.avatar" },
           },
         },
-
-        // (kept for any legacy UI string rendering)
         assigned_toname: {
           $cond: [
             { $gt: [{ $size: { $ifNull: ["$assigned_to_names", []] } }, 0] },
@@ -1700,28 +1641,13 @@ const myTasks = async function (req, res) {
                 initialValue: "",
                 in: {
                   $concat: [
-                    {
-                      $cond: [
-                        { $eq: ["$$value", ""] },
-                        "",
-                        { $concat: ["$$value", ", "] },
-                      ],
-                    },
+                    { $cond: [{ $eq: ["$$value", ""] }, "", { $concat: ["$$value", ", "] }] },
                     "$$this",
                   ],
                 },
               },
             },
             "",
-          ],
-        },
-
-        taskname: {
-          $ifNull: [
-            "$title",
-            {
-              $ifNull: ["$task_name", { $ifNull: ["$name", "Untitled Task"] }],
-            },
           ],
         },
       },
@@ -1731,36 +1657,23 @@ const myTasks = async function (req, res) {
     const rows = await tasksModells.aggregate(pipeline);
 
     // ---- Shape for UI
-    // Shape for UI — include full creator object + absolute URLs
     const data = rows.map((t) => ({
       id: t._id,
       title: t.taskname,
       time: formatIST_HHMM(t.createdAt),
       deadline: t.deadline || null,
       current_status: { status: t?.["current_status"]?.status || "—" },
-
-      created_by: {
-        _id: t.createdby_id || null,
-        user_id: t.createdby_id || null, // convenience alias if you need it
-        name: t.createdbyname || "—",
-        attachment_url: absUrl(req, t.createdby_attachment_url || ""),
-      },
-
+      created_by: t.createdbyname || "—",
       subtask_createdby: t.subtask_createdby || "",
-
-      assigned_to: (t.assigned_to || []).map((u) => ({
-        _id: u._id,
-        name: u.name,
-        attachment_url: absUrl(req, u.attachment_url || ""),
-      })),
+      assigned_to: t.assigned_to || [],
     }));
 
     return res.status(200).json({
       filters: {
-        from: istStartTodayUTC, // always today
-        to: now, // now
-        deadlineFrom: null, // ignored
-        deadlineTo: null, // ignored
+        from: istStartTodayUTC,         // always today
+        to: now,                        // now
+        deadlineFrom: null,             // ignored
+        deadlineTo: null,               // ignored
         departments: deptListFromUI,
         createdById: createdByIds,
         assignedToId: assignedToIds,
@@ -1772,9 +1685,7 @@ const myTasks = async function (req, res) {
     });
   } catch (err) {
     console.error("myTasks error:", err);
-    return res
-      .status(500)
-      .json({ message: "Server error", error: err.message });
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
