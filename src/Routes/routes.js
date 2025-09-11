@@ -53,7 +53,8 @@ const {
   updateEditandDeliveryDate,
   updateStatusPO,
   getPoBasic,
-} = require("../Controllers/purchaseorder.controller.js");
+  updateSalesPO,
+} = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
   getVendor,
@@ -417,6 +418,13 @@ router.put(
   jwtMW.authentication,
 
   updateEditandDeliveryDate
+);
+router.put(
+  "/sales-update/:id",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  upload,
+  updateSalesPO
 );
 
 //Add vendor

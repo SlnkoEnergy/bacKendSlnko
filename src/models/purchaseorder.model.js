@@ -3,6 +3,26 @@ const {
   updatePurchaseRequestStatus,
 } = require("../utils/updatePurchaseRequestStatus");
 
+const salesDetailSchema = new mongoose.Schema(
+  {
+    remarks: { type: String, required: true },
+    attachments: [
+      {
+        attachment_url: {
+          type: String,
+        },
+        attachment_name: {
+          type: String,
+        },
+      },
+    ],
+    converted_at: { type: Date, default: Date.now },
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  },
+  { _id: false }
+);
+
+
 const purchaseOrderSchema = new mongoose.Schema(
   {
     p_id: {
@@ -179,6 +199,8 @@ const purchaseOrderSchema = new mongoose.Schema(
         ref: "User",
       },
     },
+    isSales: { type: Boolean, default: false },
+    sales_Details: [salesDetailSchema],
   },
   { timestamps: true }
 );
