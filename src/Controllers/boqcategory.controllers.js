@@ -1,7 +1,7 @@
-const boqCategory = require("../Modells/boqcategory.model");
-const moduleTemplates = require("../Modells/moduletemplate.model");
-const MaterialCategory = require("../Modells/materialcategory.model");
-const Material = require("../Modells/material.model");
+const boqCategory = require("../models/boqcategory.model");
+const moduleTemplates = require("../models/moduletemplate.model");
+const MaterialCategory = require("../models/materialcategory.model");
+const Material = require("../models/material.model");
 const mongoose = require("mongoose");
 
 const createBoqCategory = async (req, res) => {

@@ -1,4 +1,4 @@
-const projectModells = require("../../Modells/project.model");
+const projectModells = require("../../models/project.model");
 const { Parser } = require("json2csv");
 const { runProjectBalance } = require("../../utils/projectBalanceService");
 const { withPrefix, getNamespaceVersion } = require("../../utils/cache");

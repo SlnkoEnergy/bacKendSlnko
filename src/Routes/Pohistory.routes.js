@@ -5,7 +5,7 @@ const {
   updatePoHistory,
   deletePoHistory,
   getPoHistory,
-} = require("../Controllers/Pohistory.controller");
+} = require("../controllers/Pohistory.controller");
 const jwtMW = require("../middlewares/auth");
 
 router.get("/Pohistory", jwtMW.authentication, listPoHistory);

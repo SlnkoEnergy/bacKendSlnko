@@ -1,10 +1,10 @@
-const userModells = require("../Modells/users/userModells");
+const userModells = require("../models/user.model");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const getSystemIdentifier = require("../utils/generateSystemIdentifier");
 const getEmailTemplate = require("../utils/emailTemplate");
-const session = require("../Modells/users/session");
+const session = require("../models/session.model");
 const getSessionVerfication = require("../utils/sessionVerification");
 
 //user Registration

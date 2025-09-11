@@ -1,14 +1,14 @@
 const mongoose = require("mongoose");
-const PurchaseRequest = require("../Modells/purchaserequest.model");
-const PurchaseRequestCounter = require("../Modells/purchaserequestcounter.model");
-const Project = require("../Modells/project.model");
-const purchaseOrderModells = require("../Modells/purchaseorder.model");
-const materialCategoryModells = require("../Modells/materialcategory.model");
-const modulecategory = require("../Modells/modulecategory.model");
-const scopeModel = require("../Modells/scope.model");
+const PurchaseRequest = require("../models/purchaserequest.model");
+const PurchaseRequestCounter = require("../models/purchaserequestcounter.model");
+const Project = require("../models/project.model");
+const purchaseOrderModells = require("../models/purchaseorder.model");
+const materialCategoryModells = require("../models/materialcategory.model");
+const modulecategory = require("../models/modulecategory.model");
+const scopeModel = require("../models/scope.model");
 const axios = require("axios");
 const XLSX = require("xlsx");
-const userModells = require("../Modells/users/userModells");
+const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const CreatePurchaseRequest = async (req, res) => {
@@ -54,6 +54,9 @@ const CreatePurchaseRequest = async (req, res) => {
 
     // Notification to SCM  on  Purchase Request Create
 
+    const sendBy_id = req.user.userId;
+    const sendBy_Name  = await userModells.findById(sendBy_id);
+
     try {
       const workflow = 'purchase-order';
       let senders = [];
@@ -73,6 +76,8 @@ const CreatePurchaseRequest = async (req, res) => {
       }).select('_id').lean().then(users => users.map(u => u._id));
 
       const data = {
+        Module: project.name,
+        sendBy_Name: sendBy_Name.name,
         message: `A Purchase Order has been created for Project ID ${project.name}. Kindly review the details and proceed with the necessary actions.`,
         link: `/add_po?mode=edit&_id`
       }

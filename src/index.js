@@ -1,19 +1,20 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const app = express();
-const routes = require("../src/Routes/routes");
-const engineeringRoutes = require("./Routes/engineering.routes");
-const bdleadsRoutes = require("../src/Routes/bdleads/bdleadDashboardRoutes");
-const dprRoutes = require("../src/Routes/dpr/dprRoutes");
-const purchaseRoutes = require("../src/Routes/purchaserequest.routes");
-const taskRoutes = require("./Routes/tasks.routes");
-const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
-const scopeRoutes = require("../src/Routes/scope.routes");
-const productRoutes = require("../src/Routes/products.routes");
-const logisticRoutes = require("../src/Routes/logistics.routes");
-const historyRoutes = require("./Routes/Pohistory.routes");
-const billRoutes = require("../src/Routes/bill.routes");
-const inspectionRoutes = require("../src/Routes/inspection.routes");
+const routes = require("./routes/routes");
+const engineeringRoutes = require("./routes/engineering.routes");
+const bdleadsRoutes = require("./routes/bdleads.routes");
+const dprRoutes = require("./routes/dpr.routes");
+const purchaseRoutes = require("./routes/purchaserequest.routes");
+const taskRoutes = require("./routes/tasks.routes");
+const accountingRoutes = require("./routes/accounting.routes");
+const scopeRoutes = require("./routes/scope.routes");
+const productRoutes = require("./routes/products.routes");
+const logisticRoutes = require("./routes/logistics.routes");
+const historyRoutes = require("./routes/Pohistory.routes");
+const billRoutes = require("./routes/bill.routes");
+const inspectionRoutes = require("./routes/inspection.routes");
+const postsRoutes = require("./routes/posts.routes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
@@ -21,11 +22,6 @@ const Sentry = require("@sentry/node");
 const Tracing = require("@sentry/tracing");
 require("../src/utils/cron/inactivelead.cron.utils");
 require("../src/utils/cron/movetotrash.cron.utils");
-const {
-  initRedis,
-  isRedisReady,
-  quitRedis,
-} = require("../src/utils/redisClient");
 
 Sentry.init({
   dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",
@@ -68,13 +64,6 @@ const startServer = async () => {
     await mongoose.connect(db, {});
     console.log("SlnkoEnergy database is connected");
 
-    try {
-      await initRedis();
-      console.log("Redis ready?", isRedisReady());
-    } catch (e) {
-      console.warn("Redis init failed:", e.message);
-    }
-
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
     app.use("/v1/bddashboard", bdleadsRoutes);
@@ -88,6 +77,7 @@ const startServer = async () => {
     app.use("/v1/history", historyRoutes);
     app.use("/v1/bill", billRoutes);
     app.use("/v1/inspection", inspectionRoutes);
+    app.use("/v1/posts", postsRoutes);
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);

@@ -1,10 +1,10 @@
 const {
   catchAsyncError,
 } = require("../middlewares/catchasyncerror.middleware");
-const PoHistory = require("../Modells/Pohistory.model");
+const PoHistory = require("../models/Pohistory.model");
 const mongoose = require("mongoose");
 const ErrorHandler = require("../middlewares/error.middleware");
-const usermodel = require("../Modells/users/userModells");
+const usermodel = require("../models/user.model");
 const createPoHistory = catchAsyncError(async (req, res) => {
   const payload = req.body;
   const userId = req.user.userId;

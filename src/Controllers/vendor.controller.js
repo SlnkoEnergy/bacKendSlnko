@@ -1,4 +1,4 @@
-const vendorModells = require("../Modells/vendor.model");
+const vendorModells = require("../models/vendor.model");
 
 const addVendor = async function (req, res) {
   try {

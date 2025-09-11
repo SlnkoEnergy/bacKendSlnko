@@ -1,4 +1,4 @@
-const DebitModel = require("../../Modells/debitMoneyModells");
+const DebitModel = require("../../models/debitMoneyModells");
 const { Parser } = require("json2csv");
 
 const paymentHistory = async (req, res) => {

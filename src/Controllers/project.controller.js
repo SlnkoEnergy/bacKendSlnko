@@ -1,5 +1,5 @@
-const projectModells = require("../Modells/project.model");
-const handoversheetModells = require("../Modells/handoversheet.model");
+const projectModells = require("../models/project.model");
+const handoversheetModells = require("../models/handoversheet.model");
 
 const createProject = async function (req, res) {
   try {

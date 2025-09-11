@@ -1,5 +1,5 @@
-const ExpenseCounter = require("../Modells/expensecodecounter.model");
-const User = require("../Modells/users/userModells");
+const ExpenseCounter = require("../models/expensecodecounter.model");
+const User = require("../models/user.model");
 const moment = require("moment");
 
 async function generateExpenseCode(userId) {

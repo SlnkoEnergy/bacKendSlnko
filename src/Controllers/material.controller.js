@@ -1,7 +1,7 @@
-const materialCategoryModells = require("../Modells/materialcategory.model");
-const materialModells = require("../Modells/material.model");
-const materialCounter = require("../Modells/materialcounter.model");
-const materialcategoryModel = require("../Modells/materialcategory.model");
+const materialCategoryModells = require("../models/materialcategory.model");
+const materialModells = require("../models/material.model");
+const materialCounter = require("../models/materialcounter.model");
+const materialcategoryModel = require("../models/materialcategory.model");
 
 const createMaterial = async function (req, res) {
   try {

@@ -1,4 +1,4 @@
-const moduleTemplate = require("../Modells/moduletemplate.model");
+const moduleTemplate = require("../models/moduletemplate.model");
 
 const createModule = async (req, res) => {
   try {

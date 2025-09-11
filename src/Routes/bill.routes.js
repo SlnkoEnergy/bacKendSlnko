@@ -5,7 +5,7 @@ const {
   updateBillHistory,
   deleteBillHistory,
   getBillHistory,
-} = require("../Controllers/billHistory.controller");
+} = require("../controllers/billHistory.controller");
 const jwtMW = require("../middlewares/auth");
 
 router.get("/billHistory", jwtMW.authentication, listBillHistory);
