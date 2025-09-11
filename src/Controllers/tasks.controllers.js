@@ -1525,10 +1525,8 @@ const myTasks = async function (req, res) {
       }
 
       if (effectiveDeptList.length > 0) {
-        // case-insensitive; for strict equality use ^...$
         const deptRegexes = effectiveDeptList.map(
           (d) => new RegExp(`${escRx(d)}`, "i")
-          // strict: new RegExp(`^${escRx(d)}$`, "i")
         );
         pipeline.push({
           $match: {
@@ -1552,7 +1550,6 @@ const myTasks = async function (req, res) {
     if (deptListFromUI.length) {
       const uiDeptRegexes = deptListFromUI.map(
         (d) => new RegExp(`${escRx(d)}`, "i")
-        // strict: new RegExp(`^${escRx(d)}$`, "i")
       );
       pipeline.push({
         $match: {
@@ -1581,7 +1578,14 @@ const myTasks = async function (req, res) {
             in: "$$u.name",
           },
         },
-           assigned_to: {
+        assigned_to_names: {
+          $map: {
+            input: { $ifNull: ["$assigned_to_users", []] },
+            as: "u",
+            in: "$$u.name",
+          },
+        },
+        assigned_to: {
           $map: {
             input: { $ifNull: ["$assigned_to_users", []] },
             as: "u",
@@ -1627,6 +1631,7 @@ const myTasks = async function (req, res) {
           ],
         },
         createdbyname: 1,
+        createdby_id: 1,
         createdby_attachment_url: 1,
         subtask_createdby: {
           $cond: [
@@ -1657,37 +1662,8 @@ const myTasks = async function (req, res) {
             "",
           ],
         },
-        assigned_to: {
-          $map: {
-            input: { $ifNull: ["$assigned_to_users", []] },
-            as: "u",
-            in: { _id: "$$u._id", name: "$$u.name", avatar: "$$u.avatar" },
-          },
-        },
-        assigned_toname: {
-          $cond: [
-            { $gt: [{ $size: { $ifNull: ["$assigned_to_names", []] } }, 0] },
-            {
-              $reduce: {
-                input: "$assigned_to_names",
-                initialValue: "",
-                in: {
-                  $concat: [
-                    {
-                      $cond: [
-                        { $eq: ["$$value", ""] },
-                        "",
-                        { $concat: ["$$value", ", "] },
-                      ],
-                    },
-                    "$$this",
-                  ],
-                },
-              },
-            },
-            "",
-          ],
-        },
+        assigned_to: 1,
+        assigned_to_names: 1,
       },
     });
 
@@ -1708,8 +1684,11 @@ const myTasks = async function (req, res) {
         attachment_url: absUrl(req, t.createdby_attachment_url || ""),
       },
       subtask_createdby: t.subtask_createdby || "",
-      assigned_to: t.assigned_to || [],
-      attachment_url: absUrl(req, u.attachment_url || ""),
+      assigned_to: (t.assigned_to || []).map((a) => ({
+        _id: a._id,
+        name: a.name,
+        attachment_url: absUrl(req, a.attachment_url || ""),
+      })),
     }));
 
     return res.status(200).json({
@@ -1734,6 +1713,7 @@ const myTasks = async function (req, res) {
       .json({ message: "Server error", error: err.message });
   }
 };
+
 
 const activityFeed = async function (req, res) {
   try {
