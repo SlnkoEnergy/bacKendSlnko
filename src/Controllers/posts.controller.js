@@ -316,7 +316,7 @@ const updatePost = async (req, res) => {
         if (safeComment) {
           data = {
             Module: project_details.code,
-            sendBy_Name : sendBy_Name.name,
+            sendBy_Name: sendBy_Name.name,
             message: `${safeComment}`,
             link: `/project_detail?page=1&project_id=${project_id}&tab=4`
           }
@@ -328,9 +328,16 @@ const updatePost = async (req, res) => {
             link: `/project_detail?page=1&project_id=${project_id}&tab=4`
           }
         }
-        const senders = post.followers.map(item => item.user_id);
-        await getnovuNotification(workflow, senders, data);
+        const removeID = String(req.user.userId); // make sure type matches
+        const senders = post.followers
+          .map(item => String(item.user_id)) // normalize ObjectId → string
+          .filter(id => id !== removeID);
 
+        setImmediate(() => {
+          getnovuNotification(workflow, senders, data).catch(err =>
+            console.error("Notification error:", err)
+          );
+        });
       } catch (error) {
         console.log(error);
       }
