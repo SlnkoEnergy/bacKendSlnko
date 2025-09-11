@@ -241,217 +241,209 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
   }
 
   const rawSearch = (req.query.search ?? req.query.q ?? "").toString().trim();
-
   const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+  const filters = [];
+  if (status) filters.push({ po_status: status });
+  if (po_number && po_number.length > 0) filters.push({ po_no: po_number });
+  if (rawSearch) {
+    const tokens = rawSearch.split(/\s+/).filter(Boolean).slice(0, 6);
+    const andOfOrs = tokens.map((t) => {
+      const rx = new RegExp(escapeRegExp(t), "i");
+      return { $or: [{ po_no: rx }, { vendor: rx }, { bill_no: rx }, { project_id: rx }] };
+    });
+    filters.push({ $and: andOfOrs });
+  }
+
   const pipeline = [
-    // Join PO basics
+    // minimal PO join
     {
       $lookup: {
         from: "purchaseorders",
         localField: "po_number",
         foreignField: "po_number",
+        pipeline: [{ $project: { _id: 0, p_id: 1, vendor: 1, po_value: 1, total_billed: 1 } }],
         as: "po",
       },
     },
     { $unwind: { path: "$po", preserveNullAndEmptyArrays: true } },
 
-    // Normalize item -> array, unwind items (so we can attach category names)
+    // robust numeric parsing
     {
       $addFields: {
-        _wasItemArray: { $isArray: "$item" },
-        item: {
-          $cond: [
-            { $isArray: "$item" },
-            "$item",
-            [{ $ifNull: ["$item", null] }],
-          ],
-        },
-      },
-    },
-    { $unwind: { path: "$item", preserveNullAndEmptyArrays: true } },
-
-    // Attach category name to each item
-    {
-      $lookup: {
-        from: "materialcategories",
-        let: { cid: "$item.category_id" },
-        pipeline: [
-          { $match: { $expr: { $eq: ["$_id", "$$cid"] } } },
-          { $project: { _id: 1, name: 1 } },
-        ],
-        as: "itemCat",
-      },
-    },
-    {
-      $addFields: {
-        "item.category_name": {
-          $ifNull: [{ $arrayElemAt: ["$itemCat.name", 0] }, null],
-        },
-      },
-    },
-
-    // Re-group back to one bill doc
-    {
-      $group: {
-        _id: "$_id",
-        doc: { $first: "$$ROOT" },
-        items: { $push: "$item" },
-      },
-    },
-    {
-      $addFields: {
-        items: {
-          $filter: { input: "$items", as: "it", cond: { $ne: ["$$it", null] } },
-        },
-        "doc.item": {
-          $cond: [
-            "$doc._wasItemArray",
-            "$items", // keep array if originally array
-            { $arrayElemAt: ["$items", 0] }, // back to single item if originally single
-          ],
-        },
-      },
-    },
-
-    // SAFETY: keep current doc if "doc" is missing to avoid 'newRoot missing'
-    {
-      $replaceRoot: {
-        newRoot: { $ifNull: ["$doc", "$$ROOT"] },
-      },
-    },
-
-    // Cast numeric fields for po totals
-    {
-      $addFields: {
-        __po_value_num: { $toDouble: { $ifNull: ["$po.po_value", 0] } },
-        __total_billed_num: { $toDouble: { $ifNull: ["$po.total_billed", 0] } },
-      },
-    },
-
-    // Populate approved_by -> users.name (fallbacks supported)
-    {
-      $lookup: {
-        from: "users",
-        localField: "approved_by", // bill.approved_by (ObjectId)
-        foreignField: "_id",
-        as: "approvedUser",
-      },
-    },
-    {
-      $addFields: {
-        approved_by_name: {
-          $ifNull: [
-            { $arrayElemAt: ["$approvedUser.name", 0] },
-            {
-              $ifNull: [
-                { $arrayElemAt: ["$approvedUser.full_name", 0] },
-                { $arrayElemAt: ["$approvedUser.username", 0] },
+        __po_value_num: {
+          $let: {
+            vars: { x: { $ifNull: ["$po.po_value", 0] } },
+            in: {
+              $cond: [
+                { $eq: [{ $type: "$$x" }, "string"] },
+                { $convert: { input: { $replaceAll: { input: "$$x", find: ",", replacement: "" } }, to: "double", onError: 0, onNull: 0 } },
+                { $convert: { input: "$$x", to: "double", onError: 0, onNull: 0 } },
               ],
             },
-          ],
+          },
+        },
+        __total_billed_num: {
+          $let: {
+            vars: { x: { $ifNull: ["$po.total_billed", 0] } },
+            in: {
+              $cond: [
+                { $eq: [{ $type: "$$x" }, "string"] },
+                { $convert: { input: { $replaceAll: { input: "$$x", find: ",", replacement: "" } }, to: "double", onError: 0, onNull: 0 } },
+                { $convert: { input: "$$x", to: "double", onError: 0, onNull: 0 } },
+              ],
+            },
+          },
         },
       },
     },
 
-    // Flatten fields for output & filtering
+    // flatten & compute status for filtering
     {
       $addFields: {
         project_id: "$po.p_id",
-        po_no: "$po_number",
         vendor: "$po.vendor",
+        po_no: "$po_number",
         bill_no: "$bill_number",
-        bill_date: "$bill_date",
-        bill_value: "$bill_value",
         po_value: "$__po_value_num",
         total_billed: "$__total_billed_num",
         po_status: {
-          $cond: [
-            { $eq: ["$__po_value_num", "$__total_billed_num"] },
-            "fully billed",
-            "waiting bills",
-          ],
+          $cond: [{ $eq: ["$__po_value_num", "$__total_billed_num"] }, "fully billed", "waiting bills"],
         },
-        received: "$status",
-        created_on: "$createdAt",
       },
     },
 
-    // Final shape (add fields here if you want to return them)
-    {
-      $project: {
-        _id: 1,
-        project_id: 1,
-        po_no: 1,
-        vendor: 1,
-        item: 1,
-        bill_no: 1,
-        bill_date: 1,
-        bill_value: 1,
-        po_value: 1,
-        total_billed: 1,
-        po_status: 1,
-        received: 1,
-        created_on: 1,
-        approved_by: 1,       // keep original ObjectId
-        approved_by_name: 1,  // populated name
-      },
-    },
-  ];
+    ...(filters.length ? [{ $match: { $and: filters } }] : []),
 
-  // ----- Filters -----
-  const filters = [];
+    { $sort: { createdAt: -1, _id: -1 } },
 
-  if (status) {
-    filters.push({ po_status: status });
-  }
-
-  if (po_number && po_number.length > 0) {
-    // exact match for param po_number (as you had)
-    filters.push({ po_no: po_number });
-    // If you prefer partial:
-    // filters.push({ po_no: { $regex: escapeRegExp(po_number), $options: "i" } });
-  }
-
-  if (rawSearch) {
-    const tokens = rawSearch.split(/\s+/).filter(Boolean).slice(0, 6); // safety cap
-    const andOfOrs = tokens.map((t) => {
-      const rx = new RegExp(escapeRegExp(t), "i");
-      return {
-        $or: [
-          { po_no: rx },
-          { vendor: rx },
-          { bill_no: rx },
-          { project_id: rx },
-        ],
-      };
-    });
-    filters.push({ $and: andOfOrs });
-  }
-
-  if (filters.length) {
-    pipeline.push({ $match: { $and: filters } });
-  }
-
-  // ----- Sort + paginate + total -----
-  pipeline.push(
-    { $sort: { created_on: -1, _id: -1 } },
     {
       $facet: {
-        data: [{ $skip: skip }, { $limit: pageSize }],
         totalCount: [{ $count: "count" }],
-      },
-    },
-    {
-      $addFields: {
-        total: { $ifNull: [{ $arrayElemAt: ["$totalCount.count", 0] }, 0] },
-      },
-    },
-    { $project: { totalCount: 0 } }
-  );
+        data: [
+          { $skip: skip },
+          { $limit: pageSize },
 
-  const result = await billModel.aggregate(pipeline);
-  const { data = [], total = 0 } = result[0] || {};
+          // capture sort keys for stable re-sort after group
+          { $addFields: { __sortAt: "$createdAt", __sortId: "$_id" } },
+
+          // normalize items
+          {
+            $addFields: {
+              _wasItemArray: { $isArray: "$item" },
+              _itemArr: {
+                $cond: [{ $isArray: "$item" }, "$item", [{ $ifNull: ["$item", null] }]],
+              },
+            },
+          },
+
+          // unwind items only after pagination
+          { $unwind: { path: "$_itemArr", preserveNullAndEmptyArrays: true } },
+
+          // category lookup per item
+          {
+            $lookup: {
+              from: "materialcategories",
+              localField: "_itemArr.category_id",
+              foreignField: "_id",
+              pipeline: [{ $project: { _id: 1, name: 1 } }],
+              as: "_cat",
+            },
+          },
+          {
+            $addFields: {
+              "_itemArr.category_name": {
+                $ifNull: [{ $arrayElemAt: ["$_cat.name", 0] }, null],
+              },
+            },
+          },
+
+          // regroup
+          {
+            $group: {
+              _id: "$_id",
+              doc: { $first: "$$ROOT" },
+              items: { $push: "$_itemArr" },
+            },
+          },
+          {
+            $addFields: {
+              items: { $filter: { input: "$items", as: "it", cond: { $ne: ["$$it", null] } } },
+              "doc.item": {
+                $cond: ["$doc._wasItemArray", "$items", { $arrayElemAt: ["$items", 0] }],
+              },
+            },
+          },
+          { $replaceRoot: { newRoot: "$doc" } },
+
+          // re-sort deterministically
+          { $sort: { __sortAt: -1, __sortId: -1 } },
+
+          // approver name (page only)
+          {
+            $lookup: {
+              from: "users",
+              localField: "approved_by",
+              foreignField: "_id",
+              pipeline: [{ $project: { _id: 0, name: 1, full_name: 1, username: 1 } }],
+              as: "_approvedUser",
+            },
+          },
+          {
+            $addFields: {
+              approved_by_name: {
+                $ifNull: [
+                  { $arrayElemAt: ["$_approvedUser.name", 0] },
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ["$_approvedUser.full_name", 0] },
+                      { $arrayElemAt: ["$_approvedUser.username", 0] },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+
+          // created_on alias for your output
+          { $addFields: { created_on: "$createdAt" } },
+
+          // ✅ UNSET temp fields first (fixes your error)
+          {
+            $unset: ["__sortAt", "__sortId", "_cat", "_itemArr", "_approvedUser", "_wasItemArray", "items"],
+          },
+
+          // final projection (pure inclusion)
+          {
+            $project: {
+              _id: 1,
+              project_id: 1,
+              po_no: 1,
+              vendor: 1,
+              item: 1,
+              bill_no: 1,
+              bill_date: 1,
+              bill_value: 1,
+              po_value: 1,
+              total_billed: 1,
+              po_status: 1,
+              received: "$status",
+              created_on: 1,
+              approved_by: 1,
+              approved_by_name: 1,
+            },
+          },
+        ],
+      },
+    },
+
+    { $addFields: { total: { $ifNull: [{ $arrayElemAt: ["$totalCount.count", 0] }, 0] } } },
+    { $project: { totalCount: 0 } },
+  ];
+
+  const [result] = await billModel.aggregate(pipeline);
+  const data = result?.data || [];
+  const total = result?.total || 0;
 
   return res.status(200).json({
     page,
