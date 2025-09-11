@@ -32,7 +32,8 @@ const {
   editUser,
   getAllDepartment,
   finalizeBdLogin,
-} = require("../controllers/userController.js");
+  backfillProfileFields,
+} = require("../Controllers/userController");
 
 const {
   addPo,
@@ -232,6 +233,7 @@ router.get(
 router.put(
   "/edit-user/:_id",
   jwtMW.authentication,
+  upload,
 
   editUser
 );
@@ -241,6 +243,13 @@ router.get(
   jwtMW.authentication,
 
   getAllDepartment
+);
+
+router.post(
+  "/backfill",
+  jwtMW.authentication,
+  jwtMW.authorization,
+  backfillProfileFields
 );
 
 //project router
