@@ -513,8 +513,6 @@ const getAllTasks = async (req, res) => {
   }
 };
 
-
-
 // Get a task by ID
 const getTaskById = async (req, res) => {
   try {
@@ -525,7 +523,7 @@ const getTaskById = async (req, res) => {
       .populate("project_id", "code name attachment_url")
       .populate("current_status.user_id", "_id name attachment_url")
       .populate("status_history.user_id", "_id name  attachment_url")
-       .populate("comments.user_id", "_id name attachment_url")
+      .populate("comments.user_id", "_id name attachment_url")
       .populate("attachments.user_id", "_id name attachment_url")
       .populate("followers", "_id name attachment_url")
       .populate("sub_tasks.assigned_to", "_id name attachment_url")
@@ -1433,7 +1431,9 @@ const myTasks = async function (req, res) {
           as: "createdBy_info",
         },
       },
-      { $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
+      },
 
       // subtask creators with department
       {
@@ -1491,7 +1491,9 @@ const myTasks = async function (req, res) {
           from: "users",
           let: { ids: "$sub_assignee_ids" },
           pipeline: [
-            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
+            {
+              $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
+            },
             { $project: { _id: 1, name: 1, department: 1 } },
           ],
           as: "sub_assignees",
@@ -1501,8 +1503,13 @@ const myTasks = async function (req, res) {
 
     // ===== Manager / Visitor visibility by department (with override)
     if (userRole === "manager" || userRole === "visitor") {
-      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
-      const camOverrideNames = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
+      const nameLc = String(currentUser?.name || "")
+        .trim()
+        .toLowerCase();
+      const camOverrideNames = new Set([
+        "sushant ranjan dubey",
+        "sanjiv kumar",
+      ]);
 
       let effectiveDeptList = [];
       if (camOverrideNames.has(nameLc)) {
@@ -1513,7 +1520,8 @@ const myTasks = async function (req, res) {
         effectiveDeptList = ["Projects", "CAM"];
       } else {
         // manager sees own department
-        if (currentUser?.department) effectiveDeptList = [currentUser.department];
+        if (currentUser?.department)
+          effectiveDeptList = [currentUser.department];
       }
 
       if (effectiveDeptList.length > 0) {
@@ -1603,20 +1611,33 @@ const myTasks = async function (req, res) {
         taskname: {
           $ifNull: [
             "$title",
-            { $ifNull: ["$task_name", { $ifNull: ["$name", "Untitled Task"] }] },
+            {
+              $ifNull: ["$task_name", { $ifNull: ["$name", "Untitled Task"] }],
+            },
           ],
         },
         createdbyname: 1,
         subtask_createdby: {
           $cond: [
-            { $gt: [{ $size: { $ifNull: ["$subtask_createdby_names", []] } }, 0] },
+            {
+              $gt: [
+                { $size: { $ifNull: ["$subtask_createdby_names", []] } },
+                0,
+              ],
+            },
             {
               $reduce: {
                 input: "$subtask_createdby_names",
                 initialValue: "",
                 in: {
                   $concat: [
-                    { $cond: [{ $eq: ["$$value", ""] }, "", { $concat: ["$$value", ", "] }] },
+                    {
+                      $cond: [
+                        { $eq: ["$$value", ""] },
+                        "",
+                        { $concat: ["$$value", ", "] },
+                      ],
+                    },
                     "$$this",
                   ],
                 },
@@ -1641,7 +1662,13 @@ const myTasks = async function (req, res) {
                 initialValue: "",
                 in: {
                   $concat: [
-                    { $cond: [{ $eq: ["$$value", ""] }, "", { $concat: ["$$value", ", "] }] },
+                    {
+                      $cond: [
+                        { $eq: ["$$value", ""] },
+                        "",
+                        { $concat: ["$$value", ", "] },
+                      ],
+                    },
                     "$$this",
                   ],
                 },
@@ -1670,10 +1697,10 @@ const myTasks = async function (req, res) {
 
     return res.status(200).json({
       filters: {
-        from: istStartTodayUTC,         // always today
-        to: now,                        // now
-        deadlineFrom: null,             // ignored
-        deadlineTo: null,               // ignored
+        from: istStartTodayUTC, // always today
+        to: now, // now
+        deadlineFrom: null, // ignored
+        deadlineTo: null, // ignored
         departments: deptListFromUI,
         createdById: createdByIds,
         assignedToId: assignedToIds,
@@ -1685,10 +1712,11 @@ const myTasks = async function (req, res) {
     });
   } catch (err) {
     console.error("myTasks error:", err);
-    return res.status(500).json({ message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
-
 
 const activityFeed = async function (req, res) {
   try {
@@ -1790,7 +1818,9 @@ const activityFeed = async function (req, res) {
           from: "users",
           let: { ids: "$sub_assignee_ids" },
           pipeline: [
-            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
+            {
+              $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
+            },
             { $project: { _id: 1, name: 1, department: 1 } },
           ],
           as: "sub_assignees",
@@ -1800,8 +1830,13 @@ const activityFeed = async function (req, res) {
 
     // ===== Manager / Visitor department scope with Sushant/Sanjiv override =====
     if (userRole === "manager" || userRole === "visitor") {
-      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
-      const camOverrideNames = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
+      const nameLc = String(currentUser?.name || "")
+        .trim()
+        .toLowerCase();
+      const camOverrideNames = new Set([
+        "sushant ranjan dubey",
+        "sanjiv kumar",
+      ]);
 
       let effectiveDeptList = [];
       if (camOverrideNames.has(nameLc)) {
@@ -1812,7 +1847,8 @@ const activityFeed = async function (req, res) {
         effectiveDeptList = ["Projects", "CAM"];
       } else {
         // manager sees own department
-        if (currentUser?.department) effectiveDeptList = [currentUser.department];
+        if (currentUser?.department)
+          effectiveDeptList = [currentUser.department];
       }
 
       if (effectiveDeptList.length > 0) {
@@ -1872,11 +1908,15 @@ const activityFeed = async function (req, res) {
         remarks: "$comments.remarks",
         updatedAt: "$comments.updatedAt",
         commenter_name: "$comment_user.name",
-        commenter_avatar: "$comment_user.avatar",
+        commenter_attachment_url: {
+          $ifNull: ["$comment_user.attachment_url", "$comment_user.avatar"],
+        },
         task_title: {
           $ifNull: [
             "$title",
-            { $ifNull: ["$task_name", { $ifNull: ["$name", "Untitled Task"] }] },
+            {
+              $ifNull: ["$task_name", { $ifNull: ["$name", "Untitled Task"] }],
+            },
           ],
         },
       },
@@ -1899,22 +1939,25 @@ const activityFeed = async function (req, res) {
       return `${d} d ago`;
     };
 
-    const data = rows.map((r) => ({
+     const data = rows.map((r) => ({
       id: r.comment_id,
       task_id: r.task_id,
       task_code: r.taskCode,
       name: r.commenter_name || "—",
-      avatar: r.commenter_avatar || "",
+      // provide both for compatibility; UI can use attachment_url
+      attachment_url: absUrl(req, r.commenter_attachment_url || ""),
+      avatar: absUrl(req, r.commenter_attachment_url || ""),
       action: "commented on",
       project: r.task_title || "Untitled Task",
       remarks: r.remarks || "",
       ago: timeAgo(r.updatedAt),
     }));
-
     return res.status(200).json({ count: data.length, data });
   } catch (err) {
     console.error("activityFeed error:", err);
-    return res.status(500).json({ message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
 
@@ -2187,7 +2230,12 @@ const getUserPerformance = async (req, res) => {
           taskAssigned: {
             $sum: {
               $cond: [
-                { $and: ["$isAssignedTask", { $ne: ["$statusLower", "cancelled"] }] },
+                {
+                  $and: [
+                    "$isAssignedTask",
+                    { $ne: ["$statusLower", "cancelled"] },
+                  ],
+                },
                 1,
                 0,
               ],
@@ -2207,7 +2255,12 @@ const getUserPerformance = async (req, res) => {
           subAssigned: {
             $sum: {
               $cond: [
-                { $and: ["$isAssignedSubtask", { $ne: ["$statusLower", "cancelled"] }] },
+                {
+                  $and: [
+                    "$isAssignedSubtask",
+                    { $ne: ["$statusLower", "cancelled"] },
+                  ],
+                },
                 1,
                 0,
               ],
@@ -2291,7 +2344,8 @@ const getUserPerformance = async (req, res) => {
 
     if (Object.keys(createdAtMatch).length)
       listPipeline.push({ $match: { createdAt: createdAtMatch } });
-    if (deadlineMatch) listPipeline.push({ $match: { deadline: deadlineMatch } });
+    if (deadlineMatch)
+      listPipeline.push({ $match: { deadline: deadlineMatch } });
 
     // Normalize top-level assigned_to
     listPipeline.push({
@@ -2427,7 +2481,9 @@ const getUserPerformance = async (req, res) => {
 
     // ACL for regular users: see only self (exclude managers, visitors, privileged)
     if (!isPrivileged && userRole !== "manager" && userRole !== "visitor") {
-      listPipeline.push({ $match: { assigneeId: safeObjectId(currentUserId) } });
+      listPipeline.push({
+        $match: { assigneeId: safeObjectId(currentUserId) },
+      });
     }
 
     listPipeline.push(
@@ -2498,33 +2554,51 @@ const getUserPerformance = async (req, res) => {
         taskAssigned: {
           $sum: {
             $cond: [
-              { $and: ["$isAssignedTaskUser", { $ne: ["$statusLower", "cancelled"] }] },
+              {
+                $and: [
+                  "$isAssignedTaskUser",
+                  { $ne: ["$statusLower", "cancelled"] },
+                ],
+              },
               1,
               0,
             ],
           },
         },
         taskCompleted: {
-          $sum: { $cond: [{ $and: ["$isAssignedTaskUser", "$isCompleted"] }, 1, 0] },
+          $sum: {
+            $cond: [{ $and: ["$isAssignedTaskUser", "$isCompleted"] }, 1, 0],
+          },
         },
         taskDelayed: {
-          $sum: { $cond: [{ $and: ["$isAssignedTaskUser", "$isDelayed"] }, 1, 0] },
+          $sum: {
+            $cond: [{ $and: ["$isAssignedTaskUser", "$isDelayed"] }, 1, 0],
+          },
         },
 
         subAssigned: {
           $sum: {
             $cond: [
-              { $and: ["$isAssignedSubtaskUser", { $ne: ["$statusLower", "cancelled"] }] },
+              {
+                $and: [
+                  "$isAssignedSubtaskUser",
+                  { $ne: ["$statusLower", "cancelled"] },
+                ],
+              },
               1,
               0,
             ],
           },
         },
         subCompleted: {
-          $sum: { $cond: [{ $and: ["$isAssignedSubtaskUser", "$isCompleted"] }, 1, 0] },
+          $sum: {
+            $cond: [{ $and: ["$isAssignedSubtaskUser", "$isCompleted"] }, 1, 0],
+          },
         },
         subDelayed: {
-          $sum: { $cond: [{ $and: ["$isAssignedSubtaskUser", "$isDelayed"] }, 1, 0] },
+          $sum: {
+            $cond: [{ $and: ["$isAssignedSubtaskUser", "$isDelayed"] }, 1, 0],
+          },
         },
       },
     });
@@ -2588,7 +2662,6 @@ const getUserPerformance = async (req, res) => {
       .json({ message: "Server error", error: err.message });
   }
 };
-
 
 const getProjectsByState = async (req, res) => {
   try {
@@ -2716,8 +2789,13 @@ const getProjectsByState = async (req, res) => {
       });
     } else if (userRole === "manager" || userRole === "visitor") {
       // ===== Manager / Visitor department scope with Sushant/Sanjiv override =====
-      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
-      const camOverrideNames = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
+      const nameLc = String(currentUser?.name || "")
+        .trim()
+        .toLowerCase();
+      const camOverrideNames = new Set([
+        "sushant ranjan dubey",
+        "sanjiv kumar",
+      ]);
 
       let effectiveDeptList = [];
       if (camOverrideNames.has(nameLc)) {
@@ -2838,23 +2916,32 @@ const getProjectsByState = async (req, res) => {
 
 const getAgingByResolution = async (req, res) => {
   try {
-    const { from, to, deadlineFrom, deadlineTo, uptoDays = "30", departments = "" } = req.query;
+    const {
+      from,
+      to,
+      deadlineFrom,
+      deadlineTo,
+      uptoDays = "30",
+      departments = "",
+    } = req.query;
 
     // CSV -> array
     const deptList = String(departments || "")
       .split(",")
-      .map(s => s.trim())
+      .map((s) => s.trim())
       .filter(Boolean);
 
     const currentUserId = req.user?.userId;
     const currentUser = await User.findById(currentUserId)
       .select("name role emp_id department")
       .lean();
-    if (!currentUser) return res.status(404).json({ message: "User not found" });
+    if (!currentUser)
+      return res.status(404).json({ message: "User not found" });
 
     const userRole = String(currentUser?.role || "user").toLowerCase();
     const empId = currentUser?.emp_id || "";
-    const isPrivileged = empId === "SE-013" || userRole === "admin" || userRole === "superadmin";
+    const isPrivileged =
+      empId === "SE-013" || userRole === "admin" || userRole === "superadmin";
 
     // -------- filters --------
     const createdAtMatch = {};
@@ -2892,11 +2979,16 @@ const getAgingByResolution = async (req, res) => {
     /* ---------- pipeline ---------- */
     const pipeline = [];
 
-    if (Object.keys(createdAtMatch).length) pipeline.push({ $match: { createdAt: createdAtMatch } });
+    if (Object.keys(createdAtMatch).length)
+      pipeline.push({ $match: { createdAt: createdAtMatch } });
 
     // require a deadline, optional deadline range
     const deadlineFilter = { deadline: { $type: "date" } };
-    if (deadlineMatch) deadlineFilter.deadline = { ...deadlineFilter.deadline, ...deadlineMatch };
+    if (deadlineMatch)
+      deadlineFilter.deadline = {
+        ...deadlineFilter.deadline,
+        ...deadlineMatch,
+      };
     pipeline.push({ $match: deadlineFilter });
 
     // subtask creators (support both created_by and createdBy)
@@ -2952,7 +3044,9 @@ const getAgingByResolution = async (req, res) => {
           as: "createdBy_info",
         },
       },
-      { $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
+      },
       {
         $lookup: {
           from: "users",
@@ -2974,7 +3068,9 @@ const getAgingByResolution = async (req, res) => {
           from: "users",
           let: { ids: "$sub_assignee_ids" },
           pipeline: [
-            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
+            {
+              $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
+            },
             { $project: { _id: 1, name: 1, department: 1 } },
           ],
           as: "sub_assignees",
@@ -3000,7 +3096,9 @@ const getAgingByResolution = async (req, res) => {
 
     // Manager / Visitor department scope with Sushant/Sanjiv override
     if (userRole === "manager" || userRole === "visitor") {
-      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
+      const nameLc = String(currentUser?.name || "")
+        .trim()
+        .toLowerCase();
       const camOverride = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
 
       let effectiveDeptList = [];
@@ -3054,9 +3152,15 @@ const getAgingByResolution = async (req, res) => {
     pipeline.push(
       {
         $addFields: {
-          statusLower: { $toLower: { $ifNull: ["$current_status.status", ""] } },
+          statusLower: {
+            $toLower: { $ifNull: ["$current_status.status", ""] },
+          },
           ageDaysRaw: {
-            $dateDiff: { startDate: "$createdAt", endDate: "$deadline", unit: "day" },
+            $dateDiff: {
+              startDate: "$createdAt",
+              endDate: "$deadline",
+              unit: "day",
+            },
           },
         },
       },
@@ -3066,7 +3170,10 @@ const getAgingByResolution = async (req, res) => {
           normStatus: {
             $switch: {
               branches: [
-                { case: { $eq: ["$statusLower", "in progress"] }, then: "pending" },
+                {
+                  case: { $eq: ["$statusLower", "in progress"] },
+                  then: "pending",
+                },
                 { case: { $eq: ["$statusLower", "draft"] }, then: "pending" },
               ],
               default: "$statusLower",
@@ -3095,9 +3202,15 @@ const getAgingByResolution = async (req, res) => {
       {
         $group: {
           _id: "$bucket",
-          completed: { $sum: { $cond: [{ $eq: ["$normStatus", "completed"] }, 1, 0] } },
-          pending:   { $sum: { $cond: [{ $eq: ["$normStatus", "pending"] }, 1, 0] } },
-          cancelled: { $sum: { $cond: [{ $eq: ["$normStatus", "cancelled"] }, 1, 0] } },
+          completed: {
+            $sum: { $cond: [{ $eq: ["$normStatus", "completed"] }, 1, 0] },
+          },
+          pending: {
+            $sum: { $cond: [{ $eq: ["$normStatus", "pending"] }, 1, 0] },
+          },
+          cancelled: {
+            $sum: { $cond: [{ $eq: ["$normStatus", "cancelled"] }, 1, 0] },
+          },
         },
       },
       { $sort: { _id: 1 } }
@@ -3110,17 +3223,29 @@ const getAgingByResolution = async (req, res) => {
     const statsByBucket = {};
     thresholds.forEach((t) => {
       const hit = raw.find((r) => Number(r._id) === Number(t));
-      statsByBucket[t] = hit ? {
-        completed: hit.completed, pending: hit.pending, cancelled: hit.cancelled
-      } : { ...zeros };
+      statsByBucket[t] = hit
+        ? {
+            completed: hit.completed,
+            pending: hit.pending,
+            cancelled: hit.cancelled,
+          }
+        : { ...zeros };
     });
 
-    const labels = { 0: "Same day", 1: "1 day", 2: "2 days", 3: "3 days", 7: "7 days", 14: "14 days", 30: "30 days" };
+    const labels = {
+      0: "Same day",
+      1: "1 day",
+      2: "2 days",
+      3: "3 days",
+      7: "7 days",
+      14: "14 days",
+      30: "30 days",
+    };
     const totals = Object.values(statsByBucket).reduce(
       (acc, b) => ({
         completed: acc.completed + b.completed,
         pending: acc.pending + b.pending,
-        cancelled: acc.cancelled + b.cancelled
+        cancelled: acc.cancelled + b.cancelled,
       }),
       { completed: 0, pending: 0, cancelled: 0 }
     );
@@ -3141,7 +3266,9 @@ const getAgingByResolution = async (req, res) => {
     });
   } catch (err) {
     console.error("getAgingByResolution error:", err);
-    return res.status(500).json({ message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
 
