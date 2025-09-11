@@ -15,7 +15,7 @@ const {
   getUserPerformance,
   getProjectsByState,
   getAgingByResolution,
-} = require("../controllers/tasks.controllers");
+} = require("../Controllers/tasks.controllers");
 const jwtMW = require("../middlewares/auth");
 const upload = require("../middlewares/multer");
 

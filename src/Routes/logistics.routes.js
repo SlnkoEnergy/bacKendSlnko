@@ -6,14 +6,14 @@ const {
   updateLogistic,
   deleteLogistic,
   updateLogisticStatus,
-} = require("../controllers/logistics.controller");
+} = require("../Controllers/logistics.controller");
 const {
   listLogisticHistory,
   getLogisticHistory,
   createLogisticHistory,
   updateLogisticHistory,
   deleteLogisticHistory,
-} = require("../controllers/logisticshistory.controller");
+} = require("../Controllers/logisticshistory.controller");
 
 const jwtMW = require("../middlewares/auth");
 const upload = require("../middlewares/multer");

@@ -4,14 +4,14 @@ const {
   getAllMaterials,
   getMaterialById,
   updateMaterial,
-} = require("../controllers/material.controller");
+} = require("../Controllers/material.controller");
 const {
   addMaterialCategory,
   namesearchOfMaterialCategories,
   getAllMaterialCategories,
   getMaterialCategoryById,
   updateMaterialCategory
-} = require("../controllers/materialcategory.controller");
+} = require("../Controllers/materialcategory.controller");
 const jwtMW = require("../middlewares/auth");
 
 router.post("/category", jwtMW.authentication, addMaterialCategory);

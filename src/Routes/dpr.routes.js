@@ -6,7 +6,7 @@ const {
   updateDpr,
   updateDprStatus,
   deleteDpr,
-} = require("../controllers/dpr.controller");
+} = require("../Controllers/dpr.controller");
 const {
   getAllDprTasks,
   getDprTaskById,
@@ -14,7 +14,7 @@ const {
   updateDprTask,
   updateStatusDprTask,
   deleteDprTask,
-} = require("../controllers/dprtask.controller");
+} = require("../Controllers/dprtask.controller");
 const jwtMW = require("../middlewares/auth");
 
 // DPR Routes
