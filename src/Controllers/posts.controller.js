@@ -328,7 +328,11 @@ const updatePost = async (req, res) => {
             link: `/project_detail?page=1&project_id=${project_id}&tab=4`
           }
         }
-        const senders = post.followers.map(item => item.user_id);
+        const removeID = String(req.user.userId); // make sure type matches
+        const senders = post.followers
+          .map(item => String(item.user_id)) // normalize ObjectId → string
+          .filter(id => id !== removeID);
+
         setImmediate(() => {
           getnovuNotification(workflow, senders, data).catch(err =>
             console.error("Notification error:", err)
