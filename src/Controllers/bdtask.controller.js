@@ -3,7 +3,7 @@ const userModells = require("../models/user.model");
 const bdleadsModells = require("../models/bdleads.model");
 const { default: mongoose } = require("mongoose");
 const { Parser } = require("json2csv");
-const {  getnovuNotification } = require("../utils/nouvnotification.utils");
+const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const createTask = async (req, res) => {
   try {
@@ -55,7 +55,12 @@ const createTask = async (req, res) => {
         message: `New task created for Lead #${lead.id}`,
         link: `leadProfile?id=${lead._id}`
       }
-      await getnovuNotification(workflow, senders, data);
+
+      setImmediate(() => {
+        getnovuNotification(workflow, senders, data).catch(err =>
+          console.error("Notification error:", err)
+        );
+      });
 
     } catch (error) {
       console.log(error);
@@ -100,12 +105,18 @@ const updateStatus = async (req, res) => {
       const workflow = 'task-status';
       const senders = [task?.user_id];
       const data = {
-        Module : lead?.id,
-        sendBy_Name : sendBy_Name.name,
+        Module: lead?.id,
+        sendBy_Name: sendBy_Name.name,
         message: `Status Updated: ${status}`,
-        link:`leadProfile?id=${lead._id}`
+        link: `leadProfile?id=${lead._id}`
       }
-      await getnovuNotification(workflow, senders, data);
+
+      setImmediate(() => {
+        getnovuNotification(workflow, senders, data).catch(err =>
+          console.error("Notification error:", err)
+        );
+      });
+
     } catch (error) {
       console.log(error);
     }

@@ -109,7 +109,7 @@ const createhandoversheet = async function (req, res) {
       invoice_detail,
       submitted_by,
     } = req.body;
-    
+
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -157,7 +157,7 @@ const createhandoversheet = async function (req, res) {
 
     // Notification for Creating Handover
 
-    
+
 
     try {
       const workflow = 'handover-submit';
@@ -167,7 +167,12 @@ const createhandoversheet = async function (req, res) {
         sendBy_Name: user?.name,
         message: `Handover Submited for Lead ${lead.id} on ${new Date().toLocaleString()}.`
       }
-      await getnovuNotification(workflow, Ids, data);
+      setImmediate(() => {
+        getnovuNotification(workflow, Ids, data).catch(err =>
+          console.error("Notification error:", err)
+        );
+      });
+
     } catch (error) {
       console.log(error);
     }
@@ -575,7 +580,7 @@ const updatestatus = async function (req, res) {
         const items = allMaterialCategories.map((mc) => ({
           item_id: mc._id,
           name: mc.name || "",
-          type: mc.type, 
+          type: mc.type,
           order: Number.isFinite(mc.order) ? mc.order : 0,
           scope: "client",
           quantity: "",
@@ -588,7 +593,7 @@ const updatestatus = async function (req, res) {
           items,
           createdBy: req.user.userId,
         });
-      
+
         await scopeDoc.save();
 
         const posts = new postsModel({
@@ -615,12 +620,17 @@ const updatestatus = async function (req, res) {
       senders = [owner._id];
       workflow = 'handover-submit';
       data = {
-        Module : "Handover Status",
-        sendBy_Name : owner.name,
+        Module: "Handover Status",
+        sendBy_Name: owner.name,
         message: `Handover Sheet status updated for Lead #${updatedHandoversheet.id}`,
       }
 
-      await getnovuNotification(workflow, senders, data);
+      setImmediate(() => {
+        getnovuNotification(workflow, senders, data).catch(err =>
+          console.error("Notification error:", err)
+        );
+      });
+
     } catch (error) {
       console.log(error);
     }

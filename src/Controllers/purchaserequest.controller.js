@@ -55,7 +55,7 @@ const CreatePurchaseRequest = async (req, res) => {
     // Notification to SCM  on  Purchase Request Create
 
     const sendBy_id = req.user.userId;
-    const sendBy_Name  = await userModells.findById(sendBy_id);
+    const sendBy_Name = await userModells.findById(sendBy_id);
 
     try {
       const workflow = 'purchase-order';
@@ -81,7 +81,12 @@ const CreatePurchaseRequest = async (req, res) => {
         message: `A Purchase Order has been created for Project ID ${project.name}. Kindly review the details and proceed with the necessary actions.`,
         link: `/add_po?mode=edit&_id`
       }
-      await getnovuNotification(workflow, senders, data);
+
+      setImmediate(() => {
+        getnovuNotification(workflow, senders, data).catch(err =>
+          console.error("Notification error:", err)
+        );
+      });
 
     } catch (error) {
       console.log(error);
