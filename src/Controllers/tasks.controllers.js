@@ -1570,6 +1570,10 @@ const myTasks = async function (req, res) {
     pipeline.push({
       $addFields: {
         createdbyname: "$createdBy_info.name",
+        createdby_id: "$createdBy_info._id",
+        createdby_attachment_url: {
+          $ifNull: ["$createdBy_info.attachment_url", "$createdBy_info.avatar"],
+        },
         subtask_createdby_names: {
           $map: {
             input: { $ifNull: ["$subtask_creators", []] },
@@ -1577,11 +1581,17 @@ const myTasks = async function (req, res) {
             in: "$$u.name",
           },
         },
-        assigned_to_names: {
+           assigned_to: {
           $map: {
             input: { $ifNull: ["$assigned_to_users", []] },
             as: "u",
-            in: "$$u.name",
+            in: {
+              _id: "$$u._id",
+              name: "$$u.name",
+              attachment_url: {
+                $ifNull: ["$$u.attachment_url", "$$u.avatar"],
+              },
+            },
           },
         },
       },
@@ -1617,6 +1627,7 @@ const myTasks = async function (req, res) {
           ],
         },
         createdbyname: 1,
+        createdby_attachment_url: 1,
         subtask_createdby: {
           $cond: [
             {
@@ -1690,9 +1701,15 @@ const myTasks = async function (req, res) {
       time: formatIST_HHMM(t.createdAt),
       deadline: t.deadline || null,
       current_status: { status: t?.["current_status"]?.status || "—" },
-      created_by: t.createdbyname || "—",
+      created_by: {
+        _id: t.createdby_id || null,
+        user_id: t.createdby_id || null,
+        name: t.createdbyname || "—",
+        attachment_url: absUrl(req, t.createdby_attachment_url || ""),
+      },
       subtask_createdby: t.subtask_createdby || "",
       assigned_to: t.assigned_to || [],
+      attachment_url: absUrl(req, u.attachment_url || ""),
     }));
 
     return res.status(200).json({
