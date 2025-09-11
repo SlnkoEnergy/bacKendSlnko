@@ -668,7 +668,11 @@ const updateAssignedTo = async (req, res) => {
           link: 'leads'
         }
 
-        await getnovuNotification(workflow, senders, data);
+        setImmediate(() => {
+          getnovuNotification(workflow, senders, data).catch(err =>
+            console.error("Notification error:", err)
+          );
+        });
 
       }
     } catch (error) {

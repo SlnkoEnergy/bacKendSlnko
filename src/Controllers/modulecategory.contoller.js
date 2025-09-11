@@ -367,7 +367,7 @@ const updateModuleCategory = async (req, res) => {
 
     await moduleData.save();
 
-    
+
     return res.status(200).json({
       message: "Module Category Updated Successfully",
       data: moduleData,
@@ -463,13 +463,18 @@ const updateModuleCategoryStatus = async (req, res) => {
       } else {
         data = {
           Module: project_detail.code,
-          sendBy_Name : sendBy_Name.name,
+          sendBy_Name: sendBy_Name.name,
           message: `Status Update: ${status}`,
           link: `/overview?page=1&project_id=${projectId}`
         }
       }
 
-      await getnovuNotification(workflow, senders, data);
+      setImmediate(() => {
+        getnovuNotification(workflow, senders, data).catch(err =>
+          console.error("Notification error:", err)
+        );
+      });
+
     } catch (error) {
       console.log(error);
     }

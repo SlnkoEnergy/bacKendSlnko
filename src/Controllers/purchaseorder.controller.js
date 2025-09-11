@@ -1,25 +1,24 @@
-const purchaseOrderModells = require("../Modells/purchaseorder.model");
-const recoveryPurchaseOrder = require("../Modells/recoveryPurchaseOrderModells");
-const pohisttoryModells = require("../Modells/pohistoryModells");
+const purchaseOrderModells = require("../models/purchaseorder.model");
+const recoveryPurchaseOrder = require("../models/recoveryPurchaseOrderModells");
+const pohisttoryModells = require("../models/pohistoryModells");
 const { Parser } = require("json2csv");
 const fs = require("fs");
 const path = require("path");
 const { default: mongoose } = require("mongoose");
-const materialCategoryModells = require("../Modells/materialcategory.model");
+const materialCategoryModells = require("../models/materialcategory.model");
 const {
   getLowerPriorityStatus,
 } = require("../utils/updatePurchaseRequestStatus");
-const purchaseRequest = require("../Modells/purchaserequest.model");
-const payRequestModells = require("../Modells/payRequestModells");
-const vendorModells = require("../Modells/vendor.model");
+const purchaseRequest = require("../models/purchaserequest.model");
+const payRequestModells = require("../models/payRequestModells");
+const vendorModells = require("../models/vendor.model");
 const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
-const userModells = require("../Modells/users/userModells");
+const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
-const inspectionModel = require("../Modells/inspection.model");
-const billModel = require("../Modells/bill.model");
+const inspectionModel = require("../models/inspection.model");
 
 const addPo = async function (req, res) {
   try {
@@ -99,7 +98,7 @@ const addPo = async function (req, res) {
       item: itemsSanitized,
       other,
       vendor,
-      submitted_By:userId,
+      submitted_By: userId,
       pr: {
         pr_id: pr_id ? new mongoose.Types.ObjectId(pr_id) : undefined,
         pr_no: pr_no,
@@ -425,9 +424,9 @@ const getPOByPONumber = async (req, res) => {
       // Fetch missing category names
       const catDocs = catIdSet.size
         ? await materialCategoryModells
-            .find({ _id: { $in: Array.from(catIdSet) } })
-            .select({ name: 1 })
-            .lean()
+          .find({ _id: { $in: Array.from(catIdSet) } })
+          .select({ name: 1 })
+          .lean()
         : [];
 
       const catMap = new Map(
@@ -490,7 +489,8 @@ const getPOByPONumber = async (req, res) => {
         const key = String(cat);
         return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
       }
-      return it;})
+      return it;
+    })
     const inspectionCount = await inspectionModel.countDocuments({
       po_number: poDoc.po_number,
     });
@@ -781,28 +781,28 @@ const getPaginatedPo = async (req, res) => {
       ...(createdFrom || createdTo
         ? {
           dateObj: {
-            ...(createdFrom ? { $gte: new Date(createdFrom) } : {}),
-            ...(createdTo ? { $lte: new Date(createdTo) } : {}),
+            ...(createdFrom ? { $gte: createdFrom } : {}),
+            ...(createdTo ? { $lte: createdTo } : {}),
           },
         }
         : {}),
 
       ...(etdFrom || etdTo
         ? {
-            etd: {
-              ...(etdFrom ? { $gte: etdFrom } : {}),
-              ...(etdTo ? { $lte: etdTo } : {}),
-            },
-          }
+          etd: {
+            ...(etdFrom ? { $gte: etdFrom } : {}),
+            ...(etdTo ? { $lte: etdTo } : {}),
+          },
+        }
         : {}),
 
       ...(deliveryFrom || deliveryTo
         ? {
-            delivery_date: {
-              ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
-              ...(deliveryTo ? { $lte: deliveryTo } : {}),
-            },
-          }
+          delivery_date: {
+            ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
+            ...(deliveryTo ? { $lte: deliveryTo } : {}),
+          },
+        }
         : {}),
     };
 
@@ -823,8 +823,6 @@ const getPaginatedPo = async (req, res) => {
           baseEq["etd"] = { $ne: null };
           break;
         case "Material Ready":
-          matchStage["current_status.status"] = "material_ready";
-          matchStage["material_ready_date"] = { $ne: null };
           baseEq["current_status.status"] = "material_ready";
           baseEq["material_ready_date"] = { $ne: null };
           break;
@@ -844,9 +842,6 @@ const getPaginatedPo = async (req, res) => {
         case "Partially Delivered":
           baseEq["current_status.status"] = "partially_delivered";
           break;
-        case "Partially Delivered":
-          matchStage["current_status.status"] = "partially_delivered";
-        
         default:
           break;
       }
@@ -1029,12 +1024,12 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-            .replace(/ /g, "/")
+          .toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+          .replace(/ /g, "/")
         : "";
 
     const data = result.map((it) => ({ ...it, date: formatDate(it.date) }));
@@ -1052,6 +1047,7 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
+
 
 const getExportPo = async (req, res) => {
   try {
@@ -1443,7 +1439,7 @@ const updateStatusPO = async (req, res) => {
 
       purchaseOrder.po_number = incomingPoNumber;
     }
-    
+
     purchaseOrder.status_history.push({
       status,
       remarks,
@@ -1508,42 +1504,53 @@ const updateStatusPO = async (req, res) => {
     );
 
     await purchaseRequest.findByIdAndUpdate(pr._id, { items: updatedItems });
+    const sendBy_id = req.user.userId;
+    const sendBy_Name = await userModells.findById(sendBy_id);
 
     // Notification on Status Change to Approval Pending
 
     if (status === "approval_pending" || status === "approval_done" || status === "approval_rejected" || status === "po_created") {
 
       let text = "";
-      if(status === "approval_pending") text = "Approval Pending";
-      if(status === "approval_done") text = "Approval Done";
-      if(status === "approval_rejected") text = "Approval Rejected";
-      if(status === "po_created") text = "Po Created";
+      if (status === "approval_pending") text = "Approval Pending";
+      if (status === "approval_done") text = "Approval Done";
+      if (status === "approval_rejected") text = "Approval Rejected";
+      if (status === "po_created") text = "Po Created";
 
       try {
         const workflow = 'purchase-order';
         let senders = [];
 
-        if (status === "approval_pending" || "po_created") {
+        if (status === "approval_pending" || status === "po_created") {
           senders = await userModells.find({
             department: "CAM"
           }).select('_id').lean().then(users => users.map(u => u._id));
         }
-        if (status === "approval_done" || "approval_rejected") {
+        if (status === "approval_done" || status === "approval_rejected") {
           senders = await userModells.find({
             $or: [
-              {department: "Projects",
-              role: "visitor"},
+              {
+                department: "Projects",
+                role: "visitor"
+              },
 
-              {department: "SCM"}
+              { department: "SCM" }
             ]
-            
+
           }).select('_id').lean().then(users => users.map(u => u._id));
         }
         const data = {
-          message: `Purchase Order for Project ID ${purchaseOrder.p_id} is now marked as ${text}. Please review and take necessary action `,
-          link : `/add_po?mode=edit&_id=${purchaseOrder._id}`
+          Module: purchaseOrder.p_id,
+          sendBy_Name: sendBy_Name.name,
+          message: `Purchase Order is now marked as ${text}`,
+          link: `/add_po?mode=edit&_id=${purchaseOrder._id}`
         }
-        await getnovuNotification(workflow, senders, data);
+
+        setImmediate(() => {
+          getnovuNotification(workflow, senders, data).catch(err =>
+            console.error("Notification error:", err)
+          );
+        });
 
       } catch (error) {
         console.log(error);
@@ -1552,7 +1559,7 @@ const updateStatusPO = async (req, res) => {
     res.status(201).json({
       message: "Purchase Order Status Updated and PR Item Statuses Evaluated",
       data: purchaseOrder,
-    });
+    })
   } catch (error) {
     return res.status(500).json({
       message: "Internal Server Error",
