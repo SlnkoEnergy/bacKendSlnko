@@ -68,6 +68,7 @@ const createTask = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
+// make sure mongoose is imported somewhere above
 const getAllTasks = async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.userId);
@@ -90,15 +91,11 @@ const getAllTasks = async (req, res) => {
       priorityFilter = "",
       createdById,
       assignedToId,
-      hide_completed,
-      hide_pending,
-      hide_inprogress,
     } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
     const searchRegex = new RegExp(search, "i");
 
-    // --- helpers for dates ---
     const startOfDay = (iso) => {
       if (!iso) return undefined;
       const d = new Date(iso);
@@ -115,6 +112,8 @@ const getAllTasks = async (req, res) => {
       return d;
     };
 
+    const escRx = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
     // ---- ACCESS CONTROL (pre lookup) ----
     const preLookupMatch = [];
     if (
@@ -124,7 +123,9 @@ const getAllTasks = async (req, res) => {
     ) {
       // full access
     } else if (userRole === "manager") {
-      // enforce manager department after lookups
+      // manager handled post-lookup by department visibility
+    } else if (userRole === "visitor") {
+      // visitor handled post-lookup by department visibility
     } else {
       // normal users: authored OR follower
       preLookupMatch.push({
@@ -139,7 +140,6 @@ const getAllTasks = async (req, res) => {
 
     // ---- LOOKUPS ----
     basePipeline.push(
-      // project (for search only)
       {
         $lookup: {
           from: "projectdetails",
@@ -148,7 +148,6 @@ const getAllTasks = async (req, res) => {
           as: "project_details",
         },
       },
-      // main assignees -> need department
       {
         $lookup: {
           from: "users",
@@ -157,7 +156,6 @@ const getAllTasks = async (req, res) => {
           as: "assigned_to",
         },
       },
-      // createdBy with department
       {
         $lookup: {
           from: "users",
@@ -166,21 +164,15 @@ const getAllTasks = async (req, res) => {
           as: "createdBy_info",
         },
       },
-      {
-        $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
-      },
-
-      // ==== NEW: lookup all comment authors ====
+      { $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "users",
-          localField: "comments.user_id", // works with array field
+          localField: "comments.user_id",
           foreignField: "_id",
           as: "comment_users",
         },
       },
-
-      // ---- FLATTEN sub_tasks.assigned_to safely into IDs array ----
       {
         $addFields: {
           sub_assignee_ids: {
@@ -209,16 +201,12 @@ const getAllTasks = async (req, res) => {
           },
         },
       },
-
-      // lookup those sub_assignee_ids into user docs to get department
       {
         $lookup: {
           from: "users",
           let: { ids: "$sub_assignee_ids" },
           pipeline: [
-            {
-              $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
-            },
+            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
             { $project: { _id: 1, name: 1, department: 1 } },
           ],
           as: "sub_assignees",
@@ -226,18 +214,10 @@ const getAllTasks = async (req, res) => {
       }
     );
 
+    // ---- POST LOOKUP FILTERS ----
     const postLookupMatch = [];
 
-    // ---- Hide statuses (optional flags) ----
-    const hideStatuses = [];
-    if (hide_completed === "true") hideStatuses.push("completed");
-    if (hide_pending === "true") hideStatuses.push("pending");
-    if (hide_inprogress === "true") hideStatuses.push("in progress");
-    if (hideStatuses.length > 0) {
-      postLookupMatch.push({ "current_status.status": { $nin: hideStatuses } });
-    }
-
-    // ---- Text search ----
+    // text search
     if (search) {
       postLookupMatch.push({
         $or: [
@@ -251,12 +231,12 @@ const getAllTasks = async (req, res) => {
       });
     }
 
-    // ---- Status filter ----
+    // status
     if (status) {
       postLookupMatch.push({ "current_status.status": status });
     }
 
-    // ---- CREATED AT RANGE ----
+    // created range
     if (from || to) {
       const range = {};
       if (from) range.$gte = startOfDay(from);
@@ -264,7 +244,7 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ createdAt: range });
     }
 
-    // ---- DEADLINE RANGE ----
+    // deadline range
     if (deadlineFrom || deadlineTo) {
       const dl = {};
       if (deadlineFrom) dl.$gte = startOfDay(deadlineFrom);
@@ -272,20 +252,18 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ deadline: dl });
     }
 
-    // ---- Department filter (UI-specified) ----
+    // UI department filter (exact string, keep as-is)
     if (department) {
       postLookupMatch.push({ "assigned_to.department": department });
     }
 
-    // ---- createdById / assignedToId ----
+    // createdById / assignedToId
     if (createdById) {
       let cOID;
       try {
         cOID = new mongoose.Types.ObjectId(String(createdById));
-      } catch (e) {
-        return res
-          .status(400)
-          .json({ message: "Invalid createdById provided." });
+      } catch {
+        return res.status(400).json({ message: "Invalid createdById provided." });
       }
       postLookupMatch.push({ createdBy: cOID });
     }
@@ -294,17 +272,15 @@ const getAllTasks = async (req, res) => {
       let aOID;
       try {
         aOID = new mongoose.Types.ObjectId(String(assignedToId));
-      } catch (e) {
-        return res
-          .status(400)
-          .json({ message: "Invalid assignedToId provided." });
+      } catch {
+        return res.status(400).json({ message: "Invalid assignedToId provided." });
       }
       postLookupMatch.push({
         $or: [{ assigned_to: aOID }, { "sub_tasks.assigned_to": aOID }],
       });
     }
 
-    // ---- Priority filter ----
+    // priority filter
     if (priorityFilter !== "" && priorityFilter !== undefined) {
       let priorities = [];
       if (Array.isArray(priorityFilter)) {
@@ -318,7 +294,6 @@ const getAllTasks = async (req, res) => {
         priorities = [String(priorityFilter)];
       }
       priorities = priorities.filter((p) => ["1", "2", "3"].includes(p));
-
       if (priorities.length === 1) {
         postLookupMatch.push({ priority: priorities[0] });
       } else if (priorities.length > 1) {
@@ -326,19 +301,41 @@ const getAllTasks = async (req, res) => {
       }
     }
 
-    // ---- MANAGER RULE: same dept (CAM Team override) ----
-    if (userRole === "manager") {
-      let effectiveDept = currentUser?.department || "";
-      const camOverride = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
-      if (camOverride.has(String(currentUser?.name || ""))) {
-        effectiveDept = "CAM Team";
+    // ===== Manager / Visitor visibility by department =====
+    if (userRole === "manager" || userRole === "visitor") {
+      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
+
+      // Names that should see CAM (and usually Projects too)
+      const camOverrideNames = new Set([
+        "sushant ranjan dubey",
+        "sanjiv kumar",
+      ]);
+
+      let deptList = [];
+
+      if (camOverrideNames.has(nameLc)) {
+        // override: see CAM (+ Projects if you want both)
+        deptList = ["CAM", "Projects"];
+      } else if (userRole === "visitor") {
+        // original visitor logic wanted Projects + CAM
+        deptList = ["Projects", "CAM"];
+      } else {
+        // manager sees own department
+        if (currentUser?.department) deptList = [currentUser.department];
       }
-      if (effectiveDept) {
+
+      if (deptList.length > 0) {
+        // case-insensitive regexes; for strict equality use ^...$
+        const deptRegexes = deptList.map(
+          (d) => new RegExp(`${escRx(d)}`, "i")
+          // strict: new RegExp(`^${escRx(d)}$`, "i")
+        );
+
         postLookupMatch.push({
           $or: [
-            { "createdBy_info.department": effectiveDept },
-            { "assigned_to.department": effectiveDept },
-            { "sub_assignees.department": effectiveDept },
+            { "createdBy_info.department": { $in: deptRegexes } },
+            { "assigned_to.department": { $in: deptRegexes } },
+            { "sub_assignees.department": { $in: deptRegexes } },
           ],
         });
       }
@@ -348,7 +345,7 @@ const getAllTasks = async (req, res) => {
       basePipeline.push({ $match: { $and: postLookupMatch } });
     }
 
-    // ---- OUTPUT (enrich comments with author name) ----
+    // ---- OUTPUT ----
     const dataPipeline = [
       ...basePipeline,
       {
@@ -366,21 +363,13 @@ const getAllTasks = async (req, res) => {
           current_status: 1,
           followers: 1,
           sub_tasks: 1,
-
-          // map project details
           project_details: {
             $map: {
               input: { $ifNull: ["$project_details", []] },
               as: "proj",
-              in: {
-                _id: "$$proj._id",
-                code: "$$proj.code",
-                name: "$$proj.name",
-              },
+              in: { _id: "$$proj._id", code: "$$proj.code", name: "$$proj.name" },
             },
           },
-
-          // map assigned_to users
           assigned_to: {
             $map: {
               input: { $ifNull: ["$assigned_to", []] },
@@ -392,14 +381,7 @@ const getAllTasks = async (req, res) => {
               },
             },
           },
-
-          // createdBy info
-          createdBy: {
-            _id: "$createdBy_info._id",
-            name: "$createdBy_info.name",
-          },
-
-          // sub assignees (from lookup)
+          createdBy: { _id: "$createdBy_info._id", name: "$createdBy_info.name" },
           sub_assignees: {
             $map: {
               input: { $ifNull: ["$sub_assignees", []] },
@@ -411,8 +393,6 @@ const getAllTasks = async (req, res) => {
               },
             },
           },
-
-          // ==== NEW: comments enriched with user { _id, name } ====
           comments: {
             $map: {
               input: { $ifNull: ["$comments", []] },
@@ -470,10 +450,7 @@ const getAllTasks = async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching tasks:", err);
-    res.status(500).json({
-      message: "Internal Server Error",
-      error: err.message,
-    });
+    res.status(500).json({ message: "Internal Server Error", error: err.message });
   }
 };
 
@@ -909,15 +886,6 @@ const parseCsv = (s) =>
 
 const parseCsvObjectIds = (v) => parseCsv(v).map(safeObjectId).filter(Boolean);
 
-function parseWindow(s = "25m") {
-  const m = String(s)
-    .trim()
-    .match(/^(\d+)\s*(m|h)$/i);
-  if (!m) return 25 * 60 * 1000;
-  const n = parseInt(m[1], 10);
-  const unit = m[2].toLowerCase();
-  return unit === "h" ? n * 60 * 60 * 1000 : n * 60 * 1000;
-}
 
 // IST midnight -> UTC Date
 function getISTStartOfTodayUTC(now = new Date()) {
@@ -937,15 +905,6 @@ function formatIST_HHMM(date) {
   });
 }
 
-/* ---------- utils ---------- */
-function parseWindow(s = "25m") {
-  const m = String(s)
-    .trim()
-    .match(/^(\d+)\s*(m|h)$/i);
-  if (!m) return 25 * 60 * 1000;
-  const n = parseInt(m[1], 10);
-  return m[2].toLowerCase() === "h" ? n * 3600 * 1000 : n * 60 * 1000;
-}
 
 // IST midnight -> UTC Date
 function getISTStartOfTodayUTC(now = new Date()) {
@@ -1046,7 +1005,6 @@ const taskCards = async (req, res) => {
           .status(400)
           .json({ message: "Invalid assignedToId provided." });
       }
-      // NOTE: for arrays, {$in: [id]} works; avoid $elemMatch with $in
       matchBlocks.push({
         $or: [
           { assigned_to: { $in: [aOID] } },
@@ -1075,6 +1033,7 @@ const taskCards = async (req, res) => {
       matchBlocks.push({ "current_status.status": status });
     }
 
+    // ---- access (pre) ----
     const preAccess = [];
     if (
       currentUser.emp_id === "SE-013" ||
@@ -1083,7 +1042,9 @@ const taskCards = async (req, res) => {
     ) {
       // full access
     } else if (userRole === "manager") {
-      // manager needs department checks post-lookup — do nothing here
+      // department-based access will be enforced post-lookup
+    } else if (userRole === "visitor") {
+      // department-based access will be enforced post-lookup
     } else {
       // regular user: authored OR follower
       preAccess.push({
@@ -1092,16 +1053,16 @@ const taskCards = async (req, res) => {
     }
 
     // ---- department UI filter (string / CSV). We'll enforce after lookups.
-    const deptList = parseCsv(departments);
+    const deptListFromUI = parseCsv(departments);
 
     // ---- assemble initial $match
     const firstMatch =
       preAccess.length || matchBlocks.length
         ? {
             $match:
-              (mode === "any"
+              mode === "any"
                 ? { $or: [...preAccess, ...matchBlocks] }
-                : { $and: [...preAccess, ...matchBlocks] }) || {},
+                : { $and: [...preAccess, ...matchBlocks] },
           }
         : { $match: {} };
 
@@ -1109,7 +1070,7 @@ const taskCards = async (req, res) => {
     const pipeline = [
       firstMatch,
 
-      // main assignees (for department + manager rule)
+      // main assignees (for department + manager/visitor rule)
       {
         $lookup: {
           from: "users",
@@ -1180,34 +1141,54 @@ const taskCards = async (req, res) => {
       },
     ];
 
-    // ---- manager rule
-    if (userRole === "manager") {
-      let effectiveDept = currentUser?.department || "";
-      const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
-      if (camNames.has(String(currentUser?.name || ""))) {
-        effectiveDept = "CAM Team";
+    // ===== Manager / Visitor visibility by department =====
+    if (userRole === "manager" || userRole === "visitor") {
+      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
+
+      // override names → CAM (+ Projects)
+      const camOverrideNames = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
+
+      let effectiveDeptList = [];
+
+      if (camOverrideNames.has(nameLc)) {
+        effectiveDeptList = ["CAM", "Projects"];
+      } else if (userRole === "visitor") {
+        effectiveDeptList = ["Projects", "CAM"];
+      } else {
+        if (currentUser?.department) effectiveDeptList = [currentUser.department];
       }
-      if (effectiveDept) {
+
+      if (effectiveDeptList.length > 0) {
+        // case-insensitive; for strict equality use ^...$ in the regex below
+        const deptRegexes = effectiveDeptList.map(
+          (d) => new RegExp(`${escRx(d)}`, "i")
+          // strict: new RegExp(`^${escRx(d)}$`, "i")
+        );
+
         pipeline.push({
           $match: {
             $or: [
-              { "createdBy_info.department": effectiveDept },
-              { "assigned_to_users.department": effectiveDept },
-              { "sub_assignees.department": effectiveDept },
+              { "createdBy_info.department": { $in: deptRegexes } },
+              { "assigned_to_users.department": { $in: deptRegexes } },
+              { "sub_assignees.department": { $in: deptRegexes } },
             ],
           },
         });
       }
     }
 
-    // ---- department filter from UI (if any). Accept one or many department names.
-    if (deptList.length > 0) {
+    // ===== Department filter from UI (if any). Accept many names (regex, i) =====
+    if (deptListFromUI.length > 0) {
+      const uiDeptRegexes = deptListFromUI.map(
+        (d) => new RegExp(`${escRx(d)}`, "i")
+        // strict: new RegExp(`^${escRx(d)}$`, "i")
+      );
       pipeline.push({
         $match: {
           $or: [
-            { "createdBy_info.department": { $in: deptList } },
-            { "assigned_to_users.department": { $in: deptList } },
-            { "sub_assignees.department": { $in: deptList } },
+            { "createdBy_info.department": { $in: uiDeptRegexes } },
+            { "assigned_to_users.department": { $in: uiDeptRegexes } },
+            { "sub_assignees.department": { $in: uiDeptRegexes } },
           ],
         },
       });
@@ -1280,7 +1261,7 @@ const taskCards = async (req, res) => {
         deadlineTo: deadlineTo || null,
         createdById: effectiveCreatedById || null,
         assignedToId: effectiveAssignedToId || null,
-        departments: deptList,
+        departments: deptListFromUI,
         mode,
         status: status || null,
       },
@@ -1297,13 +1278,8 @@ const taskCards = async (req, res) => {
 const myTasks = async function (req, res) {
   try {
     const {
-      from,
-      to,
-      deadlineFrom,
-      deadlineTo,
       departments = "",
       createdById,
-      window = "25m",
       assignedToId,
       q,
     } = req.query;
@@ -1313,40 +1289,22 @@ const myTasks = async function (req, res) {
     if (!currentUser)
       return res.status(404).json({ message: "User not found" });
 
-    const userRole = currentUser?.role || "user";
+    const userRole = String(currentUser?.role || "user").toLowerCase();
     const empId = currentUser?.emp_id;
 
+    // ---- ALWAYS TODAY (IST) WINDOW ----
     const now = new Date();
     const istStartTodayUTC = getISTStartOfTodayUTC(now);
+    const createdAtMatch = { $gte: istStartTodayUTC, $lte: now };
 
-    const customFrom = from ? new Date(from) : null;
-    const customTo = to ? new Date(to) : null;
-
-    let createdAtMatch = {};
-    if (customFrom || customTo) {
-      if (customFrom) createdAtMatch.$gte = customFrom;
-      if (customTo) createdAtMatch.$lte = customTo;
-    } else {
-
-      createdAtMatch = { $gte: istStartTodayUTC, $lte: now };
-    }
-
-    // deadline range (optional)
-    let deadlineMatch = null;
-    if (deadlineFrom || deadlineTo) {
-      deadlineMatch = {};
-      if (deadlineFrom) deadlineMatch.$gte = new Date(deadlineFrom);
-      if (deadlineTo) deadlineMatch.$lte = new Date(deadlineTo);
-    }
-
+    // DO NOT filter by deadline range at all
     const createdByIds = createdById ? parseCsvObjectIds(createdById) : [];
     const assignedToIds = assignedToId ? parseCsvObjectIds(assignedToId) : [];
-    const deptList = parseCsv(departments);
+    const deptListFromUI = parseCsv(departments);
 
     const pipeline = [{ $match: { createdAt: createdAtMatch } }];
-    if (deadlineMatch) pipeline.push({ $match: { deadline: deadlineMatch } });
 
-    // subtask creator ids
+    // ---- subtask creator ids
     pipeline.push({
       $addFields: {
         subtask_creator_ids: {
@@ -1359,8 +1317,14 @@ const myTasks = async function (req, res) {
       },
     });
 
-    // ACL for regular users (unchanged)
-    if (userRole !== "admin" && userRole !== "superadmin" && userRole !== "manager" && empId !== "SE-013") {
+    // ---- ACL for regular users (authored / subtask-authored / follower)
+    if (
+      userRole !== "admin" &&
+      userRole !== "superadmin" &&
+      userRole !== "manager" &&
+      userRole !== "visitor" &&
+      empId !== "SE-013"
+    ) {
       pipeline.push({
         $match: {
           $or: [
@@ -1372,18 +1336,21 @@ const myTasks = async function (req, res) {
       });
     }
 
-    // filter by assignedToId at top-level (unchanged)
+    // ---- filter by assignedToId at top-level (+ include subtasks' assignees)
     if (assignedToIds.length) {
       pipeline.push({
         $match: {
-          assigned_to: { $in: assignedToIds },
+          $or: [
+            { assigned_to: { $in: assignedToIds } },
+            { "sub_tasks.assigned_to": { $in: assignedToIds } },
+          ],
         },
       });
-      // If you want to include subtasks' assignees too, replace with the combined $or shown in your comment.
     }
 
-    // Lookups
+    // ---- LOOKUPS
     pipeline.push(
+      // createdBy with department
       {
         $lookup: {
           from: "users",
@@ -1393,14 +1360,18 @@ const myTasks = async function (req, res) {
         },
       },
       { $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true } },
+
+      // subtask creators with department
       {
         $lookup: {
           from: "users",
           localField: "subtask_creator_ids",
           foreignField: "_id",
-          as: "subtask_creators",
+          as: "subtask_creators", // { _id, name, department }
         },
       },
+
+      // main assignees with department
       {
         $lookup: {
           from: "users",
@@ -1408,52 +1379,128 @@ const myTasks = async function (req, res) {
           foreignField: "_id",
           as: "assigned_to_users",
         },
+      },
+
+      // flatten sub_tasks.assigned_to -> sub_assignee_ids
+      {
+        $addFields: {
+          sub_assignee_ids: {
+            $reduce: {
+              input: { $ifNull: ["$sub_tasks", []] },
+              initialValue: [],
+              in: {
+                $setUnion: [
+                  "$$value",
+                  {
+                    $cond: [
+                      { $isArray: "$$this.assigned_to" },
+                      { $ifNull: ["$$this.assigned_to", []] },
+                      {
+                        $cond: [
+                          { $ne: ["$$this.assigned_to", null] },
+                          ["$$this.assigned_to"],
+                          [],
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+
+      // lookup sub_assignees to get department
+      {
+        $lookup: {
+          from: "users",
+          let: { ids: "$sub_assignee_ids" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
+            { $project: { _id: 1, name: 1, department: 1 } },
+          ],
+          as: "sub_assignees",
+        },
       }
     );
 
-    // Manager scope → match by creator's dept OR any assignee's dept (UPDATED)
-    if (userRole === "manager") {
-      let effectiveDept = currentUser?.department || "";
-      const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
-      if (camNames.has(String(currentUser?.name || ""))) effectiveDept = "CAM Team";
-      if (effectiveDept) {
+    // ===== Manager / Visitor visibility by department (with override)
+    if (userRole === "manager" || userRole === "visitor") {
+      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
+      const camOverrideNames = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
+
+      let effectiveDeptList = [];
+      if (camOverrideNames.has(nameLc)) {
+        // override → CAM + Projects
+        effectiveDeptList = ["CAM", "Projects"];
+      } else if (userRole === "visitor") {
+        // visitors see Projects + CAM
+        effectiveDeptList = ["Projects", "CAM"];
+      } else {
+        // manager sees own department
+        if (currentUser?.department) effectiveDeptList = [currentUser.department];
+      }
+
+      if (effectiveDeptList.length > 0) {
+        // case-insensitive; for strict equality use ^...$
+        const deptRegexes = effectiveDeptList.map(
+          (d) => new RegExp(`${escRx(d)}`, "i")
+          // strict: new RegExp(`^${escRx(d)}$`, "i")
+        );
         pipeline.push({
           $match: {
             $or: [
-              { "createdBy_info.department": effectiveDept },
-              { assigned_to_users: { $elemMatch: { department: effectiveDept } } },
+              { "createdBy_info.department": { $in: deptRegexes } },
+              { "assigned_to_users.department": { $in: deptRegexes } },
+              { "sub_assignees.department": { $in: deptRegexes } },
+              { "subtask_creators.department": { $in: deptRegexes } },
             ],
           },
         });
       }
     }
 
-    // Filter by creators (CSV)
+    // ---- Filter by creators (CSV)
     if (createdByIds.length) {
       pipeline.push({ $match: { createdBy: { $in: createdByIds } } });
     }
 
-    // Department filter (CSV) → match creator dept OR any assignee dept (NEW)
-    if (deptList.length) {
+    // ===== Department filter from UI (CSV) — case-insensitive
+    if (deptListFromUI.length) {
+      const uiDeptRegexes = deptListFromUI.map(
+        (d) => new RegExp(`${escRx(d)}`, "i")
+        // strict: new RegExp(`^${escRx(d)}$`, "i")
+      );
       pipeline.push({
         $match: {
           $or: [
-            { "createdBy_info.department": { $in: deptList } },
-            { assigned_to_users: { $elemMatch: { department: { $in: deptList } } } },
+            { "createdBy_info.department": { $in: uiDeptRegexes } },
+            { "assigned_to_users.department": { $in: uiDeptRegexes } },
+            { "sub_assignees.department": { $in: uiDeptRegexes } },
+            { "subtask_creators.department": { $in: uiDeptRegexes } },
           ],
         },
       });
     }
 
-    // Search fields
+    // ---- Search fields
     pipeline.push({
       $addFields: {
         createdbyname: "$createdBy_info.name",
         subtask_createdby_names: {
-          $map: { input: { $ifNull: ["$subtask_creators", []] }, as: "u", in: "$$u.name" },
+          $map: {
+            input: { $ifNull: ["$subtask_creators", []] },
+            as: "u",
+            in: "$$u.name",
+          },
         },
         assigned_to_names: {
-          $map: { input: { $ifNull: ["$assigned_to_users", []] }, as: "u", in: "$$u.name" },
+          $map: {
+            input: { $ifNull: ["$assigned_to_users", []] },
+            as: "u",
+            in: "$$u.name",
+          },
         },
       },
     });
@@ -1466,13 +1513,13 @@ const myTasks = async function (req, res) {
             { "current_status.status": rx },
             { createdbyname: rx },
             { subtask_createdby_names: rx },
-            { assigned_to_names: rx }, // include assignee names in search (nice-to-have)
+            { assigned_to_names: rx },
           ],
         },
       });
     }
 
-    // Projection
+    // ---- Projection
     pipeline.push({
       $project: {
         _id: 1,
@@ -1532,10 +1579,10 @@ const myTasks = async function (req, res) {
       },
     });
 
-    // Execute
+    // ---- Execute
     const rows = await tasksModells.aggregate(pipeline);
 
-    // Shape for UI
+    // ---- Shape for UI
     const data = rows.map((t) => ({
       id: t._id,
       title: t.taskname,
@@ -1549,14 +1596,14 @@ const myTasks = async function (req, res) {
 
     return res.status(200).json({
       filters: {
-        from: customFrom || istStartTodayUTC, // reflect today default
-        to: customTo || now,
-        deadlineFrom: deadlineFrom || null,
-        deadlineTo: deadlineTo || null,
-        departments: deptList,
+        from: istStartTodayUTC,         // always today
+        to: now,                        // now
+        deadlineFrom: null,             // ignored
+        deadlineTo: null,               // ignored
+        departments: deptListFromUI,
         createdById: createdByIds,
         assignedToId: assignedToIds,
-        window: customFrom || customTo ? null : "TODAY(IST)",
+        window: "TODAY(IST)",
         q: q || "",
       },
       count: data.length,
@@ -1575,7 +1622,7 @@ const activityFeed = async function (req, res) {
     if (!currentUser)
       return res.status(404).json({ message: "User not found" });
 
-    const userRole = currentUser?.role || "user";
+    const userRole = String(currentUser?.role || "user").toLowerCase();
     const empId = currentUser?.emp_id;
 
     const isPrivileged =
@@ -1583,6 +1630,7 @@ const activityFeed = async function (req, res) {
 
     const pipeline = [];
 
+    // collect subtask creator ids
     pipeline.push({
       $addFields: {
         subtask_creator_ids: {
@@ -1595,8 +1643,8 @@ const activityFeed = async function (req, res) {
       },
     });
 
-    // ACL for regular users
-    if (!isPrivileged && userRole !== "manager") {
+    // regular users only (exclude privileged, managers, visitors)
+    if (!isPrivileged && userRole !== "manager" && userRole !== "visitor") {
       pipeline.push({
         $match: {
           $or: [
@@ -1608,7 +1656,7 @@ const activityFeed = async function (req, res) {
       });
     }
 
-    // Look up creator (for manager department rule & task title fallback)
+    // look up creator (for department scope + title fallback)
     pipeline.push(
       {
         $lookup: {
@@ -1621,35 +1669,109 @@ const activityFeed = async function (req, res) {
       { $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true } }
     );
 
-    // Manager dept scope (creator-only)
-    if (userRole === "manager") {
-      let effectiveDept = currentUser?.department || "";
-      const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
-      if (camNames.has(String(currentUser?.name || "")))
-        effectiveDept = "CAM Team";
+    // also need assignees + sub-assignees for dept-based visibility
+    pipeline.push(
+      // main assignees
+      {
+        $lookup: {
+          from: "users",
+          localField: "assigned_to",
+          foreignField: "_id",
+          as: "assigned_to_users",
+        },
+      },
+      // flatten sub_tasks.assigned_to -> sub_assignee_ids
+      {
+        $addFields: {
+          sub_assignee_ids: {
+            $reduce: {
+              input: { $ifNull: ["$sub_tasks", []] },
+              initialValue: [],
+              in: {
+                $setUnion: [
+                  "$$value",
+                  {
+                    $cond: [
+                      { $isArray: "$$this.assigned_to" },
+                      { $ifNull: ["$$this.assigned_to", []] },
+                      {
+                        $cond: [
+                          { $ne: ["$$this.assigned_to", null] },
+                          ["$$this.assigned_to"],
+                          [],
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      // sub-assignees users
+      {
+        $lookup: {
+          from: "users",
+          let: { ids: "$sub_assignee_ids" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
+            { $project: { _id: 1, name: 1, department: 1 } },
+          ],
+          as: "sub_assignees",
+        },
+      }
+    );
 
-      if (effectiveDept) {
+    // ===== Manager / Visitor department scope with Sushant/Sanjiv override =====
+    if (userRole === "manager" || userRole === "visitor") {
+      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
+      const camOverrideNames = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
+
+      let effectiveDeptList = [];
+      if (camOverrideNames.has(nameLc)) {
+        // override → CAM + Projects (adjust as needed)
+        effectiveDeptList = ["CAM", "Projects"];
+      } else if (userRole === "visitor") {
+        // visitors see Projects + CAM
+        effectiveDeptList = ["Projects", "CAM"];
+      } else {
+        // manager sees own department
+        if (currentUser?.department) effectiveDeptList = [currentUser.department];
+      }
+
+      if (effectiveDeptList.length > 0) {
+        // case-insensitive contains; for strict equality use ^...$ in the regex below
+        const deptRegexes = effectiveDeptList.map(
+          (d) => new RegExp(`${escRx(d)}`, "i")
+          // strict: new RegExp(`^${escRx(d)}$`, "i")
+        );
+
         pipeline.push({
-          $match: { "createdBy_info.department": effectiveDept },
+          $match: {
+            $or: [
+              { "createdBy_info.department": { $in: deptRegexes } },
+              { "assigned_to_users.department": { $in: deptRegexes } },
+              { "sub_assignees.department": { $in: deptRegexes } },
+            ],
+          },
         });
       }
     }
 
-    // Only keep tasks that actually have comments
+    // keep only tasks that actually have comments
     pipeline.push({
-      $match: {
-        comments: { $exists: true, $ne: [] },
-      },
+      $match: { comments: { $exists: true, $ne: [] } },
     });
 
-    // Unwind comments and sort by latest comment timestamp
+    // unwind comments and sort by latest
     pipeline.push(
       { $unwind: "$comments" },
       { $sort: { "comments.updatedAt": -1 } },
       { $limit: 100 }
     );
 
-    // Join commenter info
+    // join commenter info
     pipeline.push({
       $lookup: {
         from: "users",
@@ -1666,7 +1788,7 @@ const activityFeed = async function (req, res) {
       },
     });
 
-    // Final projection
+    // final projection
     pipeline.push({
       $project: {
         task_id: "$_id",
@@ -1676,14 +1798,10 @@ const activityFeed = async function (req, res) {
         updatedAt: "$comments.updatedAt",
         commenter_name: "$comment_user.name",
         commenter_avatar: "$comment_user.avatar",
-
-        // nice fallback for task title
         task_title: {
           $ifNull: [
             "$title",
-            {
-              $ifNull: ["$task_name", { $ifNull: ["$name", "Untitled Task"] }],
-            },
+            { $ifNull: ["$task_name", { $ifNull: ["$name", "Untitled Task"] }] },
           ],
         },
       },
@@ -1696,21 +1814,16 @@ const activityFeed = async function (req, res) {
       const now = Date.now();
       const t = new Date(ts).getTime();
       const diff = Math.max(0, now - t);
-
       const sec = Math.floor(diff / 1000);
       if (sec < 60) return `${sec}s ago`;
-
       const min = Math.floor(sec / 60);
       if (min < 60) return `${min} min ago`;
-
       const hr = Math.floor(min / 60);
       if (hr < 24) return `${hr} h ago`;
-
       const d = Math.floor(hr / 24);
       return `${d} d ago`;
     };
 
-    // shape for UI ActivityFeedCard
     const data = rows.map((r) => ({
       id: r.comment_id,
       task_id: r.task_id,
@@ -1723,17 +1836,13 @@ const activityFeed = async function (req, res) {
       ago: timeAgo(r.updatedAt),
     }));
 
-    return res.status(200).json({
-      count: data.length,
-      data,
-    });
+    return res.status(200).json({ count: data.length, data });
   } catch (err) {
     console.error("activityFeed error:", err);
-    return res
-      .status(500)
-      .json({ message: "Server error", error: err.message });
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 
 const getUserPerformance = async (req, res) => {
   try {
@@ -1761,7 +1870,7 @@ const getUserPerformance = async (req, res) => {
     if (!currentUser)
       return res.status(404).json({ message: "User not found" });
 
-    const userRole = currentUser?.role || "user";
+    const userRole = String(currentUser?.role || "user").toLowerCase();
     const empId = currentUser?.emp_id || "";
     const isPrivileged =
       empId === "SE-013" || userRole === "admin" || userRole === "superadmin";
@@ -1784,10 +1893,10 @@ const getUserPerformance = async (req, res) => {
     const wantsSubtasks = String(includeSubtasks) !== "false";
     const now = new Date();
 
-    // helper expression to "arrify" any field
-    const ARRIFY = (fieldExpr) => ({
+    // helper to "arrify" any expression (field or variable)
+    const ARRIFY = (expr) => ({
       $let: {
-        vars: { a: fieldExpr },
+        vars: { a: expr },
         in: {
           $cond: [
             { $isArray: "$$a" },
@@ -1798,7 +1907,25 @@ const getUserPerformance = async (req, res) => {
       },
     });
 
-    /* ======================= MODE A: SINGLE USER ======================= */
+    // ===== Shared: dept scope builder for manager/visitor/override
+    const pushDeptScopeMatch = (pipeline, deptListInput) => {
+      if (!deptListInput || deptListInput.length === 0) return;
+      const deptRegexes = deptListInput.map(
+        (d) => new RegExp(`${escRx(d)}`, "i")
+        // strict: new RegExp(`^${escRx(d)}$`, "i")
+      );
+      pipeline.push({
+        $match: {
+          $or: [
+            { "createdBy_info.department": { $in: deptRegexes } },
+            { "assigned_to_users.department": { $in: deptRegexes } },
+            { "sub_assignees.department": { $in: deptRegexes } },
+          ],
+        },
+      });
+    };
+
+    // ===== MODE A: SINGLE USER =====
     if (userId || (name ?? q)) {
       let targetUser, targetUserId;
 
@@ -1834,6 +1961,7 @@ const getUserPerformance = async (req, res) => {
       if (
         !isPrivileged &&
         userRole !== "manager" &&
+        userRole !== "visitor" &&
         String(targetUserId) !== String(currentUserId)
       ) {
         return res.status(403).json({ message: "Forbidden" });
@@ -1859,12 +1987,7 @@ const getUserPerformance = async (req, res) => {
             $reduce: {
               input: { $ifNull: ["$sub_tasks", []] },
               initialValue: [],
-              in: {
-                $setUnion: [
-                  "$$value",
-                  ARRIFY("$$this.assigned_to"),
-                ],
-              },
+              in: { $setUnion: ["$$value", ARRIFY("$$this.assigned_to")] },
             },
           },
         },
@@ -1903,26 +2026,31 @@ const getUserPerformance = async (req, res) => {
         }
       );
 
-      // Manager department scope (creator/assignees/sub-assignees)
-      if (userRole === "manager") {
-        let effectiveDept = currentUser?.department || "";
-        const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
-        if (camNames.has(String(currentUser?.name || "")))
-          effectiveDept = "CAM Team";
-        if (effectiveDept) {
-          pipeline.push({
-            $match: {
-              $or: [
-                { "createdBy_info.department": effectiveDept },
-                { "assigned_to_users.department": effectiveDept },
-                { "sub_assignees.department": effectiveDept },
-              ],
-            },
-          });
+      // Manager/Visitor dept scope (+ Sushant/Sanjiv override)
+      if (userRole === "manager" || userRole === "visitor") {
+        const nameLc = String(currentUser?.name || "")
+          .trim()
+          .toLowerCase();
+        const camOverrideNames = new Set([
+          "sushant ranjan dubey",
+          "sanjiv kumar",
+        ]);
+
+        let effectiveDeptList = [];
+        if (camOverrideNames.has(nameLc)) {
+          effectiveDeptList = ["CAM", "Projects"];
+          // if you store "CAM Team" exactly, also include it:
+          // effectiveDeptList = ["CAM", "CAM Team", "Projects"];
+        } else if (userRole === "visitor") {
+          effectiveDeptList = ["Projects", "CAM"];
+        } else if (currentUser?.department) {
+          effectiveDeptList = [currentUser.department];
         }
+
+        pushDeptScopeMatch(pipeline, effectiveDeptList);
       }
 
-      // NOTE: we do NOT apply deptList here; your request targets the leaderboard list.
+      // (We intentionally do NOT apply deptList from UI here in single-user mode)
 
       pipeline.push({
         $addFields: {
@@ -2084,36 +2212,34 @@ const getUserPerformance = async (req, res) => {
       });
     }
 
-    /* ======================= MODE B: LIST (ALL USERS / LEADERBOARD) ======================= */
-    const pipeline = [];
+    // ===== MODE B: LIST / LEADERBOARD =====
+    const listPipeline = [];
 
     if (Object.keys(createdAtMatch).length)
-      pipeline.push({ $match: { createdAt: createdAtMatch } });
-    if (deadlineMatch) pipeline.push({ $match: { deadline: deadlineMatch } });
+      listPipeline.push({ $match: { createdAt: createdAtMatch } });
+    if (deadlineMatch) listPipeline.push({ $match: { deadline: deadlineMatch } });
 
     // Normalize top-level assigned_to
-    pipeline.push({
+    listPipeline.push({
       $addFields: {
         assigned_to_arr: ARRIFY("$assigned_to"),
       },
     });
 
     // Collect normalized subtask assignees
-    pipeline.push({
+    listPipeline.push({
       $addFields: {
         sub_assignee_ids: {
           $reduce: {
             input: { $ifNull: ["$sub_tasks", []] },
             initialValue: [],
-            in: {
-              $setUnion: ["$$value", ARRIFY("$$this.assigned_to")],
-            },
+            in: { $setUnion: ["$$value", ARRIFY("$$this.assigned_to")] },
           },
         },
       },
     });
 
-    pipeline.push(
+    listPipeline.push(
       {
         $lookup: {
           from: "users",
@@ -2143,28 +2269,31 @@ const getUserPerformance = async (req, res) => {
       }
     );
 
-    // Manager department scope (as before)
-    if (userRole === "manager") {
-      let effectiveDept = currentUser?.department || "";
-      const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
-      if (camNames.has(String(currentUser?.name || "")))
-        effectiveDept = "CAM Team";
-      if (effectiveDept) {
-        pipeline.push({
-          $match: {
-            $or: [
-              { "createdBy_info.department": effectiveDept },
-              { "assigned_to_users.department": effectiveDept },
-              { "sub_assignees.department": effectiveDept },
-            ],
-          },
-        });
+    // Manager/Visitor dept scope (+ Sushant/Sanjiv override)
+    if (userRole === "manager" || userRole === "visitor") {
+      const nameLc = String(currentUser?.name || "")
+        .trim()
+        .toLowerCase();
+      const camOverrideNames = new Set([
+        "sushant ranjan dubey",
+        "sanjiv kumar",
+      ]);
+
+      let effectiveDeptList = [];
+      if (camOverrideNames.has(nameLc)) {
+        effectiveDeptList = ["CAM", "Projects"];
+        // if you store "CAM Team" as exact value, include it too
+        // effectiveDeptList = ["CAM", "CAM Team", "Projects"];
+      } else if (userRole === "visitor") {
+        effectiveDeptList = ["Projects", "CAM"];
+      } else if (currentUser?.department) {
+        effectiveDeptList = [currentUser.department];
       }
+
+      pushDeptScopeMatch(listPipeline, effectiveDeptList);
     }
 
-    // DO NOT use deptList here (no connection to assigned_to/creator/etc.)
-
-    pipeline.push(
+    listPipeline.push(
       {
         $addFields: {
           statusLower: {
@@ -2191,7 +2320,7 @@ const getUserPerformance = async (req, res) => {
     );
 
     // Build union of assignees using normalized arrays
-    pipeline.push({
+    listPipeline.push({
       $addFields: {
         union_assignees: wantsSubtasks
           ? {
@@ -2204,11 +2333,11 @@ const getUserPerformance = async (req, res) => {
       },
     });
 
-    pipeline.push({
+    listPipeline.push({
       $unwind: { path: "$union_assignees", preserveNullAndEmptyArrays: false },
     });
 
-    pipeline.push({
+    listPipeline.push({
       $addFields: {
         assigneeId: "$union_assignees",
         isAssignedTaskUser: {
@@ -2222,12 +2351,12 @@ const getUserPerformance = async (req, res) => {
       },
     });
 
-    // ACL for regular users: see only self
-    if (!isPrivileged && userRole !== "manager") {
-      pipeline.push({ $match: { assigneeId: safeObjectId(currentUserId) } });
+    // ACL for regular users: see only self (exclude managers, visitors, privileged)
+    if (!isPrivileged && userRole !== "manager" && userRole !== "visitor") {
+      listPipeline.push({ $match: { assigneeId: safeObjectId(currentUserId) } });
     }
 
-    pipeline.push(
+    listPipeline.push(
       {
         $lookup: {
           from: "users",
@@ -2239,94 +2368,94 @@ const getUserPerformance = async (req, res) => {
       { $unwind: { path: "$u", preserveNullAndEmptyArrays: true } }
     );
 
-    // Manager dept scope on assignee (extra guard)
-    if (userRole === "manager") {
-      let effectiveDept = currentUser?.department || "";
-      const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
-      if (camNames.has(String(currentUser?.name || "")))
-        effectiveDept = "CAM Team";
-      if (effectiveDept)
-        pipeline.push({ $match: { "u.department": effectiveDept } });
+    // Manager/Visitor: extra guard on assignee's department
+    if (userRole === "manager" || userRole === "visitor") {
+      const nameLc = String(currentUser?.name || "")
+        .trim()
+        .toLowerCase();
+      const camOverrideNames = new Set([
+        "sushant ranjan dubey",
+        "sanjiv kumar",
+      ]);
+
+      let effectiveDeptList = [];
+      if (camOverrideNames.has(nameLc)) {
+        effectiveDeptList = ["CAM", "Projects"];
+        // effectiveDeptList = ["CAM", "CAM Team", "Projects"]; // if needed
+      } else if (userRole === "visitor") {
+        effectiveDeptList = ["Projects", "CAM"];
+      } else if (currentUser?.department) {
+        effectiveDeptList = [currentUser.department];
+      }
+
+      if (effectiveDeptList.length) {
+        const deptRegexes = effectiveDeptList.map(
+          (d) => new RegExp(`${escRx(d)}`, "i")
+          // strict: new RegExp(`^${escRx(d)}$`, "i")
+        );
+        listPipeline.push({ $match: { "u.department": { $in: deptRegexes } } });
+      }
     }
 
-    // *** Department filter APPLIED ONLY ON USER (assignee) ***
+    // Department filter from UI → apply on user (assignee)
     if (deptList.length) {
-      pipeline.push({
-        $match: { "u.department": { $in: deptList } },
+      const uiDeptRegexes = deptList.map(
+        (d) => new RegExp(`${escRx(d)}`, "i")
+        // strict: new RegExp(`^${escRx(d)}$`, "i")
+      );
+      listPipeline.push({
+        $match: { "u.department": { $in: uiDeptRegexes } },
       });
     }
 
-    pipeline.push({
+    listPipeline.push({
       $group: {
         _id: "$assigneeId",
         name: { $first: "$u.name" },
         avatar: { $first: "$u.avatar" },
         department: { $first: "$u.department" },
 
-        // assigned (excluding cancelled)
         assigned: {
-          $sum: {
-            $cond: [{ $ne: ["$statusLower", "cancelled"] }, 1, 0],
-          },
+          $sum: { $cond: [{ $ne: ["$statusLower", "cancelled"] }, 1, 0] },
         },
         completed: { $sum: { $cond: ["$isCompleted", 1, 0] } },
         delayed: { $sum: { $cond: ["$isDelayed", 1, 0] } },
 
-        // task-only (excluding cancelled)
         taskAssigned: {
           $sum: {
             $cond: [
-              {
-                $and: [
-                  "$isAssignedTaskUser",
-                  { $ne: ["$statusLower", "cancelled"] },
-                ],
-              },
+              { $and: ["$isAssignedTaskUser", { $ne: ["$statusLower", "cancelled"] }] },
               1,
               0,
             ],
           },
         },
         taskCompleted: {
-          $sum: {
-            $cond: [{ $and: ["$isAssignedTaskUser", "$isCompleted"] }, 1, 0],
-          },
+          $sum: { $cond: [{ $and: ["$isAssignedTaskUser", "$isCompleted"] }, 1, 0] },
         },
         taskDelayed: {
-          $sum: {
-            $cond: [{ $and: ["$isAssignedTaskUser", "$isDelayed"] }, 1, 0],
-          },
+          $sum: { $cond: [{ $and: ["$isAssignedTaskUser", "$isDelayed"] }, 1, 0] },
         },
 
-        // subtask-only (excluding cancelled)
         subAssigned: {
           $sum: {
             $cond: [
-              {
-                $and: [
-                  "$isAssignedSubtaskUser",
-                  { $ne: ["$statusLower", "cancelled"] },
-                ],
-              },
+              { $and: ["$isAssignedSubtaskUser", { $ne: ["$statusLower", "cancelled"] }] },
               1,
               0,
             ],
           },
         },
         subCompleted: {
-          $sum: {
-            $cond: [{ $and: ["$isAssignedSubtaskUser", "$isCompleted"] }, 1, 0],
-          },
+          $sum: { $cond: [{ $and: ["$isAssignedSubtaskUser", "$isCompleted"] }, 1, 0] },
         },
         subDelayed: {
-          $sum: {
-            $cond: [{ $and: ["$isAssignedSubtaskUser", "$isDelayed"] }, 1, 0],
-          },
+          $sum: { $cond: [{ $and: ["$isAssignedSubtaskUser", "$isDelayed"] }, 1, 0] },
         },
       },
     });
 
-    pipeline.push({
+    listPipeline.push({
       $addFields: {
         completionPct: {
           $cond: [
@@ -2338,9 +2467,9 @@ const getUserPerformance = async (req, res) => {
       },
     });
 
-    pipeline.push({ $sort: { completionPct: -1, assigned: -1, name: 1 } });
+    listPipeline.push({ $sort: { completionPct: -1, assigned: -1, name: 1 } });
 
-    const rows = await tasksModells.aggregate(pipeline);
+    const rows = await tasksModells.aggregate(listPipeline);
 
     return res.status(200).json({
       mode: "list",
@@ -2386,6 +2515,7 @@ const getUserPerformance = async (req, res) => {
   }
 };
 
+
 const getProjectsByState = async (req, res) => {
   try {
     const { from, to, deadlineFrom, deadlineTo, departments = "" } = req.query;
@@ -2404,7 +2534,7 @@ const getProjectsByState = async (req, res) => {
     if (!currentUser)
       return res.status(404).json({ message: "User not found" });
 
-    const userRole = currentUser?.role || "user";
+    const userRole = String(currentUser?.role || "user").toLowerCase();
     const empId = currentUser?.emp_id || "";
     const isPrivileged =
       empId === "SE-013" || userRole === "admin" || userRole === "superadmin";
@@ -2460,15 +2590,13 @@ const getProjectsByState = async (req, res) => {
           $reduce: {
             input: { $ifNull: ["$sub_tasks", []] },
             initialValue: [],
-            in: {
-              $setUnion: ["$$value", ARRIFY("$$this.assigned_to")],
-            },
+            in: { $setUnion: ["$$value", ARRIFY("$$this.assigned_to")] },
           },
         },
       },
     });
 
-    // lookups for ACL scoping (manager dept)
+    // lookups for ACL scoping (manager/visitor dept)
     pipeline.push(
       {
         $lookup: {
@@ -2499,9 +2627,9 @@ const getProjectsByState = async (req, res) => {
       }
     );
 
-    // ACL
+    // ACL (regular users only). Managers/visitors are scoped by dept below.
     const me = safeObjectId(currentUserId);
-    if (!isPrivileged && userRole !== "manager") {
+    if (!isPrivileged && userRole !== "manager" && userRole !== "visitor") {
       pipeline.push({
         $match: {
           $or: [
@@ -2512,33 +2640,51 @@ const getProjectsByState = async (req, res) => {
           ],
         },
       });
-    } else if (userRole === "manager") {
-      let effectiveDept = currentUser?.department || "";
-      const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
-      if (camNames.has(String(currentUser?.name || "")))
-        effectiveDept = "CAM Team";
+    } else if (userRole === "manager" || userRole === "visitor") {
+      // ===== Manager / Visitor department scope with Sushant/Sanjiv override =====
+      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
+      const camOverrideNames = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
 
-      if (effectiveDept) {
+      let effectiveDeptList = [];
+      if (camOverrideNames.has(nameLc)) {
+        // override → CAM + Projects (add "CAM Team" if that’s the exact stored value)
+        effectiveDeptList = ["CAM", "Projects"];
+        // effectiveDeptList = ["CAM", "CAM Team", "Projects"]; // if needed
+      } else if (userRole === "visitor") {
+        effectiveDeptList = ["Projects", "CAM"];
+      } else if (currentUser?.department) {
+        effectiveDeptList = [currentUser.department];
+      }
+
+      if (effectiveDeptList.length) {
+        const deptRegexes = effectiveDeptList.map(
+          (d) => new RegExp(`${escRx(d)}`, "i")
+          // strict: new RegExp(`^${escRx(d)}$`, "i")
+        );
         pipeline.push({
           $match: {
             $or: [
-              { "createdBy_info.department": effectiveDept },
-              { "assigned_to_users.department": effectiveDept },
-              { "sub_assignees.department": effectiveDept },
+              { "createdBy_info.department": { $in: deptRegexes } },
+              { "assigned_to_users.department": { $in: deptRegexes } },
+              { "sub_assignees.department": { $in: deptRegexes } },
             ],
           },
         });
       }
     }
 
-    // ---- explicit department filter (CSV) ----
+    // ---- explicit department filter (CSV) — case-insensitive ----
     if (deptList.length) {
+      const uiDeptRegexes = deptList.map(
+        (d) => new RegExp(`${escRx(d)}`, "i")
+        // strict: new RegExp(`^${escRx(d)}$`, "i")
+      );
       pipeline.push({
         $match: {
           $or: [
-            { "createdBy_info.department": { $in: deptList } },
-            { "assigned_to_users.department": { $in: deptList } },
-            { "sub_assignees.department": { $in: deptList } },
+            { "createdBy_info.department": { $in: uiDeptRegexes } },
+            { "assigned_to_users.department": { $in: uiDeptRegexes } },
+            { "sub_assignees.department": { $in: uiDeptRegexes } },
           ],
         },
       });
@@ -2553,7 +2699,7 @@ const getProjectsByState = async (req, res) => {
       { $unwind: "$project_ids_arr" },
       {
         $lookup: {
-          from: "projectdetails", // collection for model projectDetail
+          from: "projectdetails",
           localField: "project_ids_arr",
           foreignField: "_id",
           as: "project",
@@ -2616,12 +2762,11 @@ const getProjectsByState = async (req, res) => {
   }
 };
 
-
 const getAgingByResolution = async (req, res) => {
   try {
     const { from, to, deadlineFrom, deadlineTo, uptoDays = "30", departments = "" } = req.query;
 
-    // helper (inline) — CSV → array
+    // CSV -> array
     const deptList = String(departments || "")
       .split(",")
       .map(s => s.trim())
@@ -2631,13 +2776,11 @@ const getAgingByResolution = async (req, res) => {
     const currentUser = await User.findById(currentUserId)
       .select("name role emp_id department")
       .lean();
-    if (!currentUser)
-      return res.status(404).json({ message: "User not found" });
+    if (!currentUser) return res.status(404).json({ message: "User not found" });
 
-    const userRole = currentUser?.role || "user";
+    const userRole = String(currentUser?.role || "user").toLowerCase();
     const empId = currentUser?.emp_id || "";
-    const isPrivileged =
-      empId === "SE-013" || userRole === "admin" || userRole === "superadmin";
+    const isPrivileged = empId === "SE-013" || userRole === "admin" || userRole === "superadmin";
 
     // -------- filters --------
     const createdAtMatch = {};
@@ -2656,37 +2799,76 @@ const getAgingByResolution = async (req, res) => {
     }
 
     const maxDays = Math.min(30, Math.max(0, parseInt(uptoDays, 10) || 30));
+    const now = new Date();
+
+    // helper to coerce any value to array
+    const ARRIFY = (expr) => ({
+      $let: {
+        vars: { a: expr },
+        in: {
+          $cond: [
+            { $isArray: "$$a" },
+            "$$a",
+            { $cond: [{ $eq: ["$$a", null] }, [], ["$$a"]] },
+          ],
+        },
+      },
+    });
 
     /* ---------- pipeline ---------- */
     const pipeline = [];
 
-    // date filters (createdAt)
-    if (Object.keys(createdAtMatch).length)
-      pipeline.push({ $match: { createdAt: createdAtMatch } });
+    if (Object.keys(createdAtMatch).length) pipeline.push({ $match: { createdAt: createdAtMatch } });
 
     // require a deadline, optional deadline range
     const deadlineFilter = { deadline: { $type: "date" } };
-    if (deadlineMatch)
-      deadlineFilter.deadline = {
-        ...deadlineFilter.deadline,
-        ...deadlineMatch,
-      };
+    if (deadlineMatch) deadlineFilter.deadline = { ...deadlineFilter.deadline, ...deadlineMatch };
     pipeline.push({ $match: deadlineFilter });
 
-    // subtask creators (for ACL like your other endpoints)
+    // subtask creators (support both created_by and createdBy)
     pipeline.push({
       $addFields: {
         subtask_creator_ids: {
           $map: {
             input: { $ifNull: ["$sub_tasks", []] },
             as: "st",
-            in: { $ifNull: ["$$st.createdBy", null] },
+            in: { $ifNull: ["$$st.created_by", "$$st.createdBy"] },
           },
         },
       },
     });
 
-    // lookups for ACL scoping
+    // flatten sub_tasks.assigned_to -> sub_assignee_ids
+    pipeline.push({
+      $addFields: {
+        sub_assignee_ids: {
+          $reduce: {
+            input: { $ifNull: ["$sub_tasks", []] },
+            initialValue: [],
+            in: {
+              $setUnion: [
+                "$$value",
+                {
+                  $cond: [
+                    { $isArray: "$$this.assigned_to" },
+                    { $ifNull: ["$$this.assigned_to", []] },
+                    {
+                      $cond: [
+                        { $ne: ["$$this.assigned_to", null] },
+                        ["$$this.assigned_to"],
+                        [],
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    // lookups for ACL/dept scoping
     pipeline.push(
       {
         $lookup: {
@@ -2712,54 +2894,87 @@ const getAgingByResolution = async (req, res) => {
           foreignField: "_id",
           as: "subtask_creators",
         },
+      },
+      {
+        $lookup: {
+          from: "users",
+          let: { ids: "$sub_assignee_ids" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
+            { $project: { _id: 1, name: 1, department: 1 } },
+          ],
+          as: "sub_assignees",
+        },
       }
     );
 
-    // ACL for regular users
-    if (!isPrivileged && userRole !== "manager") {
+    // ACL for regular users (exclude managers/visitors/privileged)
+    if (!isPrivileged && userRole !== "manager" && userRole !== "visitor") {
+      const me = safeObjectId(currentUserId);
       pipeline.push({
         $match: {
           $or: [
-            { createdBy: safeObjectId(currentUserId) },
-            { subtask_creator_ids: safeObjectId(currentUserId) },
-            { assigned_to: safeObjectId(currentUserId) },
-            { followers: currentUser._id },
+            { createdBy: me },
+            { subtask_creator_ids: me },
+            { assigned_to: me },
+            { sub_assignee_ids: me },
+            { followers: me },
           ],
         },
       });
     }
 
-    // Manager department scope (creator/assignees/subtask creators)
-    if (userRole === "manager") {
-      let effectiveDept = currentUser?.department || "";
-      const camNames = new Set(["Sushant Ranjan Dubey", "Sanjiv Kumar"]);
-      if (camNames.has(String(currentUser?.name || ""))) effectiveDept = "CAM Team";
+    // Manager / Visitor department scope with Sushant/Sanjiv override
+    if (userRole === "manager" || userRole === "visitor") {
+      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
+      const camOverride = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
 
-      if (effectiveDept) {
+      let effectiveDeptList = [];
+      if (camOverride.has(nameLc)) {
+        effectiveDeptList = ["CAM", "Projects"];
+        // if you store "CAM Team" exactly, include it too:
+        // effectiveDeptList = ["CAM", "CAM Team", "Projects"];
+      } else if (userRole === "visitor") {
+        effectiveDeptList = ["Projects", "CAM"];
+      } else if (currentUser?.department) {
+        effectiveDeptList = [currentUser.department];
+      }
+
+      if (effectiveDeptList.length) {
+        const deptRegexes = effectiveDeptList.map(
+          (d) => new RegExp(`${escRx(d)}`, "i")
+          // strict: new RegExp(`^${escRx(d)}$`, "i")
+        );
         pipeline.push({
           $match: {
             $or: [
-              { "createdBy_info.department": effectiveDept },
-              { "assigned_to_users.department": effectiveDept },
-              { "subtask_creators.department": effectiveDept },
+              { "createdBy_info.department": { $in: deptRegexes } },
+              { "assigned_to_users.department": { $in: deptRegexes } },
+              { "subtask_creators.department": { $in: deptRegexes } },
+              { "sub_assignees.department": { $in: deptRegexes } },
             ],
           },
         });
       }
     }
 
-    // ---------- NEW: explicit department filter (CSV) ----------
+    // explicit department filter (CSV) — case-insensitive
     if (deptList.length) {
+      const uiDeptRegexes = deptList.map(
+        (d) => new RegExp(`${escRx(d)}`, "i")
+        // strict: new RegExp(`^${escRx(d)}$`, "i")
+      );
       pipeline.push({
         $match: {
           $or: [
-            { "assigned_to_users.department": { $in: deptList } },
-            { "subtask_creators.department": { $in: deptList } },
+            { "assigned_to_users.department": { $in: uiDeptRegexes } },
+            { "subtask_creators.department": { $in: uiDeptRegexes } },
+            { "sub_assignees.department": { $in: uiDeptRegexes } },
+            { "createdBy_info.department": { $in: uiDeptRegexes } },
           ],
         },
       });
     }
-    // -----------------------------------------------------------
 
     // normalize status & compute days …
     pipeline.push(
@@ -2828,7 +3043,11 @@ const getAgingByResolution = async (req, res) => {
 
     const labels = { 0: "Same day", 1: "1 day", 2: "2 days", 3: "3 days", 7: "7 days", 14: "14 days", 30: "30 days" };
     const totals = Object.values(statsByBucket).reduce(
-      (acc, b) => ({ completed: acc.completed + b.completed, pending: acc.pending + b.pending, cancelled: acc.cancelled + b.cancelled }),
+      (acc, b) => ({
+        completed: acc.completed + b.completed,
+        pending: acc.pending + b.pending,
+        cancelled: acc.cancelled + b.cancelled
+      }),
       { completed: 0, pending: 0, cancelled: 0 }
     );
 
@@ -2843,7 +3062,7 @@ const getAgingByResolution = async (req, res) => {
         to: fTo || null,
         deadlineFrom: dFrom || null,
         deadlineTo: dTo || null,
-        departments: deptList, // echo back
+        departments: deptList,
       },
     });
   } catch (err) {
@@ -2851,6 +3070,7 @@ const getAgingByResolution = async (req, res) => {
     return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 
 
 module.exports = {

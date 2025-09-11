@@ -22,11 +22,6 @@ const Sentry = require("@sentry/node");
 const Tracing = require("@sentry/tracing");
 require("../src/utils/cron/inactivelead.cron.utils");
 require("../src/utils/cron/movetotrash.cron.utils");
-const {
-  initRedis,
-  isRedisReady,
-  quitRedis,
-} = require("../src/utils/redisClient");
 
 Sentry.init({
   dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",
@@ -62,19 +57,12 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT;
-const db = process.env.DB_URL;
+const db = process.env.DB_DEVELOPMENT_URL;
 
 const startServer = async () => {
   try {
     await mongoose.connect(db, {});
     console.log("SlnkoEnergy database is connected");
-
-    try {
-      await initRedis();
-      console.log("Redis ready?", isRedisReady());
-    } catch (e) {
-      console.warn("Redis init failed:", e.message);
-    }
 
     app.use("/v1", routes);
     app.use("/v1/engineering", engineeringRoutes);
