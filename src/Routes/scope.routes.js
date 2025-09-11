@@ -7,7 +7,7 @@ const {
   deleteScope,
   getScopePdf,
   ensureProjectScope,
-} = require("../controllers/scope.controller");
+} = require("../Controllers/scope.controller");
 const router = require("express").Router();
 const jwtMW = require("../middlewares/auth");
 

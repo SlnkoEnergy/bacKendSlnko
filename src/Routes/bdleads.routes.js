@@ -7,7 +7,7 @@ const {
   leadconversationrate,
   leadWonAndLost,
   leadFunnel,
-} = require("../controllers/bdleadsdashboard.controller.js");
+} = require("../Controllers/bdleadsdashboard.controller.js");
 const {
   createGroup,
   getAllGroup,
@@ -18,7 +18,7 @@ const {
   groupDropdown,
   getAllGroupDropdown,
   getexportToCSVGroup,
-} = require("../controllers/bdgroup.controller.js");
+} = require("../Controllers/bdgroup.controller.js");
 const {
   deleteLead,
   updateAssignedTo,
@@ -37,14 +37,14 @@ const {
   fixBdLeadsFields,
   getLeadCounts,
   updateLeadStatusBulk,
-} = require("../controllers/bdleads.controller.js");
+} = require("../Controllers/bdleads.controller.js");
 const {
   getNotesById,
   createNotes,
   updateNotes,
   deleteNotes,
   getNotesByLeadId,
-} = require("../controllers/bdnotes.controller.js");
+} = require("../Controllers/bdnotes.controller.js");
 const {
   getTaskById,
   createTask,
@@ -57,7 +57,7 @@ const {
   getNotifications,
   getAllTaskByAssigned,
   getexportToCsv,
-} = require("../controllers/bdtask.controller.js");
+} = require("../Controllers/bdtask.controller.js");
 const jwtMW = require("../middlewares/auth.js");
 const upload = require("../middlewares/multer.js");
 

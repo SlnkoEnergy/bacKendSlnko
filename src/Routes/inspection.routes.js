@@ -6,7 +6,7 @@ const {
   deleteInspection,
   createInspection,
   updateStatusInspection,
-} = require("../controllers/inspection.controller");
+} = require("../Controllers/inspection.controller");
 const jwtMW = require("../middlewares/auth");
 const upload = require("../middlewares/multer");
 
