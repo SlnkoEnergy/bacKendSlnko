@@ -141,6 +141,7 @@ const getAllTasks = async (req, res) => {
 
     // ---- LOOKUPS ----
     basePipeline.push(
+      // project (for search only)
       {
         $lookup: {
           from: "projectdetails",
@@ -149,16 +150,16 @@ const getAllTasks = async (req, res) => {
           as: "project_details",
         },
       },
-      // main assignees -> need department (and later we will project attachment_url)
+      // CHANGED: keep raw assigned_to ObjectId[]; write joined docs to assigned_to_users
       {
         $lookup: {
           from: "users",
           localField: "assigned_to",
           foreignField: "_id",
-          as: "assigned_to",
+          as: "assigned_to_users",
         },
       },
-      // createdBy with department (keep full doc; project later)
+      // createdBy with department
       {
         $lookup: {
           from: "users",
@@ -171,16 +172,17 @@ const getAllTasks = async (req, res) => {
         $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
       },
 
-      // ==== look up all comment authors ====
+      // ==== lookup all comment authors (FIXED duplicate localField) ====
       {
         $lookup: {
           from: "users",
-          localField: "comments.user_id",
           localField: "comments.user_id",
           foreignField: "_id",
           as: "comment_users",
         },
       },
+
+      // ---- FLATTEN sub_tasks.assigned_to safely into IDs array ----
       {
         $addFields: {
           sub_assignee_ids: {
@@ -264,9 +266,9 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ deadline: dl });
     }
 
-    // UI department filter (exact string, keep as-is)
+    // CHANGED: UI department filter should use assigned_to_users.department
     if (department) {
-      postLookupMatch.push({ "assigned_to.department": department });
+      postLookupMatch.push({ "assigned_to_users.department": department });
     }
 
     // createdById / assignedToId
@@ -282,6 +284,7 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ createdBy: cOID });
     }
 
+    // CHANGED: this now works because assigned_to remains raw ObjectId[]
     if (assignedToId) {
       let aOID;
       try {
@@ -292,7 +295,13 @@ const getAllTasks = async (req, res) => {
           .json({ message: "Invalid assignedToId provided." });
       }
       postLookupMatch.push({
-        $or: [{ assigned_to: aOID }, { "sub_tasks.assigned_to": aOID }],
+        $or: [
+          { assigned_to: aOID },                // top-level assigned_to (raw ids)
+          { "sub_tasks.assigned_to": aOID },    // subtask assignees (raw ids)
+          // (Optional extra safety if you ever move this filter below a different lookup step:)
+          { "assigned_to_users._id": aOID },    // joined docs fallback
+          { "sub_assignees._id": aOID },        // joined sub-assignees fallback
+        ],
       });
     }
 
@@ -323,7 +332,6 @@ const getAllTasks = async (req, res) => {
         .trim()
         .toLowerCase();
 
-      // Names that should see CAM (and usually Projects too)
       const camOverrideNames = new Set([
         "sushant ranjan dubey",
         "sanjiv kumar",
@@ -332,27 +340,21 @@ const getAllTasks = async (req, res) => {
       let deptList = [];
 
       if (camOverrideNames.has(nameLc)) {
-        // override: see CAM (+ Projects if you want both)
         deptList = ["CAM", "Projects"];
       } else if (userRole === "visitor") {
-        // original visitor logic wanted Projects + CAM
         deptList = ["Projects", "CAM"];
       } else {
-        // manager sees own department
         if (currentUser?.department) deptList = [currentUser.department];
       }
 
       if (deptList.length > 0) {
-        // case-insensitive regexes; for strict equality use ^...$
         const deptRegexes = deptList.map(
           (d) => new RegExp(`${escRx(d)}`, "i")
-          // strict: new RegExp(`^${escRx(d)}$`, "i")
         );
-
         postLookupMatch.push({
           $or: [
             { "createdBy_info.department": { $in: deptRegexes } },
-            { "assigned_to.department": { $in: deptRegexes } },
+            { "assigned_to_users.department": { $in: deptRegexes } }, // CHANGED
             { "sub_assignees.department": { $in: deptRegexes } },
           ],
         });
@@ -381,22 +383,20 @@ const getAllTasks = async (req, res) => {
           current_status: 1,
           followers: 1,
           sub_tasks: 1,
+
+          // map project details
           project_details: {
             $map: {
               input: { $ifNull: ["$project_details", []] },
               as: "proj",
-              in: {
-                _id: "$$proj._id",
-                code: "$$proj.code",
-                name: "$$proj.name",
-              },
+              in: { _id: "$$proj._id", code: "$$proj.code", name: "$$proj.name" },
             },
           },
 
-          // map assigned_to users (now with attachment_url)
+          // CHANGED: map from assigned_to_users to enriched assigned_to array
           assigned_to: {
             $map: {
-              input: { $ifNull: ["$assigned_to", []] },
+              input: { $ifNull: ["$assigned_to_users", []] },
               as: "user",
               in: {
                 _id: "$$user._id",
@@ -411,9 +411,7 @@ const getAllTasks = async (req, res) => {
           createdBy: {
             _id: "$createdBy_info._id",
             name: "$createdBy_info.name",
-            attachment_url: {
-              $ifNull: ["$createdBy_info.attachment_url", ""],
-            },
+            attachment_url: { $ifNull: ["$createdBy_info.attachment_url", ""] },
           },
 
           // sub assignees (with attachment_url from lookup pipeline)
@@ -512,6 +510,7 @@ const getAllTasks = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
@@ -1714,7 +1713,6 @@ const myTasks = async function (req, res) {
   }
 };
 
-
 const activityFeed = async function (req, res) {
   try {
     const currentUserId = req.user?.userId;
@@ -1936,7 +1934,7 @@ const activityFeed = async function (req, res) {
       return `${d} d ago`;
     };
 
-     const data = rows.map((r) => ({
+    const data = rows.map((r) => ({
       id: r.comment_id,
       task_id: r.task_id,
       task_code: r.taskCode,
@@ -2038,7 +2036,7 @@ const getUserPerformance = async (req, res) => {
 
     // ===== MODE A: SINGLE USER =====
     if (userId || (name ?? q)) {
-       let targetUser, targetUserId;
+      let targetUser, targetUserId;
 
       if (userId) {
         targetUserId = safeObjectId(userId);
@@ -2150,7 +2148,6 @@ const getUserPerformance = async (req, res) => {
         let effectiveDeptList = [];
         if (camOverrideNames.has(nameLc)) {
           effectiveDeptList = ["CAM", "Projects"];
-
         } else if (userRole === "visitor") {
           effectiveDeptList = ["Projects", "CAM"];
         } else if (currentUser?.department) {
@@ -2301,7 +2298,10 @@ const getUserPerformance = async (req, res) => {
           _id: userDoc?._id || targetUserId,
           name: userDoc?.name || "",
           department: userDoc?.department || "",
-          attachment_url: absUrl(req, userDoc?.attachment_url || userDoc?.avatar || ""),
+          attachment_url: absUrl(
+            req,
+            userDoc?.attachment_url || userDoc?.avatar || ""
+          ),
           avatar: absUrl(req, userDoc?.attachment_url || userDoc?.avatar || ""),
         },
         filters: {
@@ -2538,7 +2538,9 @@ const getUserPerformance = async (req, res) => {
         name: { $first: "$u.name" },
         avatar: { $first: "$u.avatar" },
         department: { $first: "$u.department" },
-        attachment_url: { $first: { $ifNull: ["$u.attachment_url", "$u.avatar"] } },
+        attachment_url: {
+          $first: { $ifNull: ["$u.attachment_url", "$u.avatar"] },
+        },
         assigned: {
           $sum: { $cond: [{ $ne: ["$statusLower", "cancelled"] }, 1, 0] },
         },
