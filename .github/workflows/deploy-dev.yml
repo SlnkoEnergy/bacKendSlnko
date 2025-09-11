@@ -34,12 +34,13 @@ jobs:
      
             if ! docker ps --format '{{.Names}}' | grep -q '^dragonfly$'; then
               docker rm -f dragonfly 2>/dev/null || true
-              docker run -d --name dragonfly \
-                --restart unless-stopped \
-                --network protrac_net \
-                -p 127.0.0.1:6379:6379 \
-                docker.dragonflydb.io/dragonflydb/dragonfly:v1.33 \
-                --requirepass CHANGE_ME_STRONG
+             docker run -d --name dragonfly \
+              --restart unless-stopped \
+              --network protrac_net \
+              -p 127.0.0.1:6379:6379 \
+              ghcr.io/dragonflydb/dragonfly:latest \
+              --dbfilename=dump \
+              --requirepass CHANGE_ME_STRONG
             else
               docker start dragonfly || true
             fi
