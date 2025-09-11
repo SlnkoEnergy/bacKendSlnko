@@ -2010,7 +2010,6 @@ const getUserPerformance = async (req, res) => {
     const wantsSubtasks = String(includeSubtasks) !== "false";
     const now = new Date();
 
-    // helper to "arrify" any expression (field or variable)
     const ARRIFY = (expr) => ({
       $let: {
         vars: { a: expr },
@@ -2024,12 +2023,10 @@ const getUserPerformance = async (req, res) => {
       },
     });
 
-    // ===== Shared: dept scope builder for manager/visitor/override
     const pushDeptScopeMatch = (pipeline, deptListInput) => {
       if (!deptListInput || deptListInput.length === 0) return;
       const deptRegexes = deptListInput.map(
         (d) => new RegExp(`${escRx(d)}`, "i")
-        // strict: new RegExp(`^${escRx(d)}$`, "i")
       );
       pipeline.push({
         $match: {
@@ -2044,14 +2041,14 @@ const getUserPerformance = async (req, res) => {
 
     // ===== MODE A: SINGLE USER =====
     if (userId || (name ?? q)) {
-      let targetUser, targetUserId;
+       let targetUser, targetUserId;
 
       if (userId) {
         targetUserId = safeObjectId(userId);
         if (!targetUserId)
           return res.status(400).json({ message: "Invalid userId" });
         targetUser = await User.findById(targetUserId)
-          .select("name avatar department")
+          .select("name attachment_url avatar department")
           .lean();
         if (!targetUser)
           return res.status(404).json({ message: "Target user not found" });
@@ -2064,7 +2061,7 @@ const getUserPerformance = async (req, res) => {
         }
         const rx = new RegExp(escRx(nameQuery), "i");
         targetUser = await User.findOne({ name: rx })
-          .select("name avatar department")
+          .select("name attachment_url avatar department")
           .lean();
         if (!targetUser) {
           return res
@@ -2156,8 +2153,7 @@ const getUserPerformance = async (req, res) => {
         let effectiveDeptList = [];
         if (camOverrideNames.has(nameLc)) {
           effectiveDeptList = ["CAM", "Projects"];
-          // if you store "CAM Team" exactly, also include it:
-          // effectiveDeptList = ["CAM", "CAM Team", "Projects"];
+
         } else if (userRole === "visitor") {
           effectiveDeptList = ["Projects", "CAM"];
         } else if (currentUser?.department) {
@@ -2307,8 +2303,9 @@ const getUserPerformance = async (req, res) => {
         user: {
           _id: userDoc?._id || targetUserId,
           name: userDoc?.name || "",
-          avatar: userDoc?.avatar || "",
           department: userDoc?.department || "",
+          attachment_url: absUrl(req, userDoc?.attachment_url || userDoc?.avatar || ""),
+          avatar: absUrl(req, userDoc?.attachment_url || userDoc?.avatar || ""),
         },
         filters: {
           from: fFrom || null,
@@ -2544,7 +2541,7 @@ const getUserPerformance = async (req, res) => {
         name: { $first: "$u.name" },
         avatar: { $first: "$u.avatar" },
         department: { $first: "$u.department" },
-
+        attachment_url: { $first: { $ifNull: ["$u.attachment_url", "$u.avatar"] } },
         assigned: {
           $sum: { $cond: [{ $ne: ["$statusLower", "cancelled"] }, 1, 0] },
         },
@@ -2633,7 +2630,8 @@ const getUserPerformance = async (req, res) => {
       users: rows.map((r) => ({
         _id: r._id,
         name: r.name || "",
-        avatar: r.avatar || "",
+        attachment_url: absUrl(req, r.attachment_url || ""),
+        avatar: absUrl(req, r.attachment_url || ""),
         department: r.department || "",
         stats: {
           assigned: r.assigned || 0,
