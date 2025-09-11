@@ -33,7 +33,7 @@ const {
   getAllDepartment,
   finalizeBdLogin,
   backfillProfileFields,
-} = require("../Controllers/userController");
+} = require("../Controllers/userController.js");
 
 const {
   addPo,
