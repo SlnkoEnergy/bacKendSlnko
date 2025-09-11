@@ -12,7 +12,6 @@ const materialCategoryModells = require("../models/materialcategory.model");
 const userModells = require("../models/user.model");
 const utrCounter = require("../models/utrCounter");
 
-
 const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
 const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
 
@@ -1163,7 +1162,6 @@ const getExcelDataById = async function (req, res) {
   }
 };
 
-//get-all-payRequest
 const getPay = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -1180,6 +1178,18 @@ const getPay = async (req, res) => {
     const statusRegex = shouldFilterStatus
       ? new RegExp(`^${escapeRegex(status)}$`, "i")
       : null;
+
+    let EmpDetail = false;
+    if (req?.user?.emp_id !== undefined) {
+      EmpDetail = req.user.emp_id === "SE-203";
+    } else if (req?.user?._id || req?.user?.userId) {
+      const id = req.user._id || req.user.userId;
+      const u = await userModells.findById(id).select("emp_id").lean();
+      EmpDetail = (u?.emp_id || "") === "SE-203";
+    }
+    const visibilityFilterStage = EmpDetail
+      ? [{ $match: { paid_for: "I&C" } }]
+      : [];
 
     const lookupStage = {
       $lookup: {
@@ -1244,6 +1254,7 @@ const getPay = async (req, res) => {
       lookupStage,
       unwindStage,
       ...(commonMatch.length ? [{ $match: { $and: commonMatch } }] : []),
+      ...visibilityFilterStage,
       addTypeStage,
     ];
 
@@ -1310,7 +1321,6 @@ const getPay = async (req, res) => {
         { $skip: skip },
         { $limit: pageSize },
       ]),
-
       payRequestModells.aggregate([
         ...baseCommon,
         ...instantStageExclusion,
@@ -1321,9 +1331,7 @@ const getPay = async (req, res) => {
       payRequestModells.aggregate([
         ...baseCommon,
         ...statusMatchStage,
-        {
-          $group: { _id: "$type", count: { $sum: 1 } },
-        },
+        { $group: { _id: "$type", count: { $sum: 1 } } },
       ]),
     ]);
 
