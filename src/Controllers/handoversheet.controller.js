@@ -153,12 +153,8 @@ const createhandoversheet = async function (req, res) {
     lead.handover_lock = req.body.handover_lock || "locked";
     await lead.save();
     await handoversheet.save();
-
-
+    
     // Notification for Creating Handover
-
-
-
     try {
       const workflow = 'handover-submit';
       const Ids = await userModells.find({ department: 'Internal', role: 'manager' }).select('_id').lean().then(users => users.map(u => u._id));
