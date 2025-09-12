@@ -296,11 +296,11 @@ const getAllTasks = async (req, res) => {
       }
       postLookupMatch.push({
         $or: [
-          { assigned_to: aOID },                // top-level assigned_to (raw ids)
-          { "sub_tasks.assigned_to": aOID },    // subtask assignees (raw ids)
+          { assigned_to: aOID }, // top-level assigned_to (raw ids)
+          { "sub_tasks.assigned_to": aOID }, // subtask assignees (raw ids)
           // (Optional extra safety if you ever move this filter below a different lookup step:)
-          { "assigned_to_users._id": aOID },    // joined docs fallback
-          { "sub_assignees._id": aOID },        // joined sub-assignees fallback
+          { "assigned_to_users._id": aOID }, // joined docs fallback
+          { "sub_assignees._id": aOID }, // joined sub-assignees fallback
         ],
       });
     }
@@ -348,9 +348,7 @@ const getAllTasks = async (req, res) => {
       }
 
       if (deptList.length > 0) {
-        const deptRegexes = deptList.map(
-          (d) => new RegExp(`${escRx(d)}`, "i")
-        );
+        const deptRegexes = deptList.map((d) => new RegExp(`${escRx(d)}`, "i"));
         postLookupMatch.push({
           $or: [
             { "createdBy_info.department": { $in: deptRegexes } },
@@ -389,7 +387,11 @@ const getAllTasks = async (req, res) => {
             $map: {
               input: { $ifNull: ["$project_details", []] },
               as: "proj",
-              in: { _id: "$$proj._id", code: "$$proj.code", name: "$$proj.name" },
+              in: {
+                _id: "$$proj._id",
+                code: "$$proj.code",
+                name: "$$proj.name",
+              },
             },
           },
 
@@ -510,7 +512,6 @@ const getAllTasks = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
-
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
@@ -3268,8 +3269,6 @@ const getAgingByResolution = async (req, res) => {
       .json({ message: "Server error", error: err.message });
   }
 };
-
-
 
 module.exports = {
   createTask,
