@@ -87,12 +87,6 @@ const startServer = async () => {
 
     process.on("SIGINT", async () => {
       console.log("Gracefully shutting down...");
-      try {
-        await quitRedis();
-        console.log("Redis connection closed");
-      } catch (e) {
-        console.warn("Redis close error:", e.message);
-      }
       mongoose.connection.close(() => {
         console.log("MongoDB connection closed");
         process.exit(0);
