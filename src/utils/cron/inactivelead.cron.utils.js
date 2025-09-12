@@ -1,5 +1,5 @@
 const cron = require("node-cron");
-const BdLead = require("../../Modells/bdleads/bdleadsModells");
+const BdLead = require("../../models/bdleads.model");
 
 cron.schedule("0 0 * * *", async () => {
   try {

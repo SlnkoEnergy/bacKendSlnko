@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
-const Logistic = require("../Modells/logistics.model");
+const Logistic = require("../models/logistics.model");
 const { nextLogisticCode } = require("../utils/logisticscounter.utils");
-const purchaseOrderModells = require("../Modells/purchaseorder.model");
+const purchaseOrderModells = require("../models/purchaseorder.model");
 const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
