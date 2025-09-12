@@ -15,6 +15,6 @@ router.get("/post", jwtMW.authentication, getPosts);
 router.put("/post", jwtMW.authentication, upload, updatePost);
 router.delete("/post", jwtMW.authentication, deletePost);
 router.put("/follow", jwtMW.authentication, addFollowers);
-router.put('/unfollow', jwtMW.authentication, removeFollowers)
+router.put('/unfollow', jwtMW.authentication, removeFollowers);
 
 module.exports = router;
