@@ -18,8 +18,8 @@ const sharp = require("sharp");
 const mime = require("mime-types");
 const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
-const inspectionModel = require("../Modells/inspection.model");
-const billModel = require("../Modells/bill.model");
+const inspectionModel = require("../models/inspection.model");
+const billModel = require("../models/bill.model");
 
 const addPo = async function (req, res) {
   try {

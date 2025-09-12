@@ -9,8 +9,8 @@ const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
 const { nextInspectionCode } = require("../utils/inspection.utils");
-const purchaseOrderModel = require("../Modells/purchaseorder.model");
-const userModells = require("../Modells/users/userModells");
+const purchaseOrderModel = require("../models/purchaseorder.model");
+const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const createInspection = catchAsyncError(async (req, res) => {
