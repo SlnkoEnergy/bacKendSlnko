@@ -2,15 +2,15 @@
 const {
   catchAsyncError,
 } = require("../middlewares/catchasyncerror.middleware");
-const Inspection = require("../Modells/inspection.model");
+const Inspection = require("../models/inspection.model");
 const ErrorHandler = require("../middlewares/error.middleware");
 const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
 const { nextInspectionCode } = require("../utils/inspection.utils");
-const purchaseOrderModel = require("../Modells/purchaseorder.model");
-const userModells = require("../Modells/users/userModells");
+const purchaseOrderModel = require("../models/purchaseorder.model");
+const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const createInspection = catchAsyncError(async (req, res) => {
@@ -54,20 +54,19 @@ const createInspection = catchAsyncError(async (req, res) => {
 
   try {
     const workflow = "po-inspecction";
-    const senders = await userModells.find({
-      $or:[
-        { department: "Engineering"},
-      ]
-    }).select('_id')
-    .lean()
-    .then(users => users.map(u => u._id))
+    const senders = await userModells
+      .find({
+        $or: [{ department: "Engineering" }],
+      })
+      .select("_id")
+      .lean()
+      .then((users) => users.map((u) => u._id));
 
     const data = {
-      message: ` Inspection is created for ${b.po_number} `
-    }
+      message: ` Inspection is created for ${b.po_number} `,
+    };
 
     await getnovuNotification(workflow, senders, data);
-
   } catch (error) {
     console.log(error);
   }
@@ -333,20 +332,18 @@ const updateStatusInspection = catchAsyncError(async (req, res, next) => {
     await inspection.save();
 
     try {
-      
       const workflow = "po-inspecction";
-      const senders = await userModells.find({
-        $or: [
-          {department: "SCM"}
-        ]
-      })
-      .select("_id")
-      .lean()
-      .then(users => users.map(u => u._id));
+      const senders = await userModells
+        .find({
+          $or: [{ department: "SCM" }],
+        })
+        .select("_id")
+        .lean()
+        .then((users) => users.map((u) => u._id));
 
       const data = {
-        message: `Status change again the ${inspection.po_number}`
-      }
+        message: `Status change again the ${inspection.po_number}`,
+      };
 
       await getnovuNotification(workflow, senders, data);
     } catch (error) {
@@ -385,7 +382,7 @@ const getInspectionById = catchAsyncError(async (req, res, next) => {
       path: "status_history.user_id",
       select: "_id name emp_id email phone role department createdAt updatedAt",
     })
-    .lean(); 
+    .lean();
 
   if (!inspection) return next(new ErrorHandler("Not Found", 404));
 

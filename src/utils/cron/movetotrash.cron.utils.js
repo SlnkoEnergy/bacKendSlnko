@@ -1,5 +1,5 @@
 const cron = require("node-cron");
-const PayRequest = require("../../Modells/payRequestModells");
+const PayRequest = require("../../models/payRequestModells");
 
 cron.schedule("* * * * *", async () => {
   const now = new Date();

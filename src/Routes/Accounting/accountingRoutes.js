@@ -5,6 +5,7 @@ const {
 } = require("../../Controllers/Accounting/approvedPayment");
 const {
   getCustomerPaymentSummary,
+  postCustomerPaymentSummaryPdf,
 } = require("../../Controllers/Accounting/customerpaymentSummary");
 const {
   paymentApproval,
@@ -69,6 +70,11 @@ router.get(
   jwtMW.authorization,
   getCustomerPaymentSummary
 );
+router.post(
+  "/customer-payment-summary-pdf",
+  jwtMW.authentication,
+  postCustomerPaymentSummaryPdf
+)
 router.get(
   "/payment-history",
   jwtMW.authentication,

@@ -1,25 +1,25 @@
-const purchaseOrderModells = require("../Modells/purchaseorder.model");
-const recoveryPurchaseOrder = require("../Modells/recoveryPurchaseOrderModells");
-const pohisttoryModells = require("../Modells/pohistoryModells");
+const purchaseOrderModells = require("../models/purchaseorder.model");
+const recoveryPurchaseOrder = require("../models/recoveryPurchaseOrderModells");
+const pohisttoryModells = require("../models/pohistoryModells");
 const { Parser } = require("json2csv");
 const fs = require("fs");
 const path = require("path");
 const { default: mongoose } = require("mongoose");
-const materialCategoryModells = require("../Modells/materialcategory.model");
+const materialCategoryModells = require("../models/materialcategory.model");
 const {
   getLowerPriorityStatus,
 } = require("../utils/updatePurchaseRequestStatus");
-const purchaseRequest = require("../Modells/purchaserequest.model");
-const payRequestModells = require("../Modells/payRequestModells");
-const vendorModells = require("../Modells/vendor.model");
+const purchaseRequest = require("../models/purchaserequest.model");
+const payRequestModells = require("../models/payRequestModells");
+const vendorModells = require("../models/vendor.model");
 const axios = require("axios");
 const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
-const userModells = require("../Modells/users/userModells");
+const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
-const inspectionModel = require("../Modells/inspection.model");
-const billModel = require("../Modells/bill.model");
+const inspectionModel = require("../models/inspection.model");
+const billModel = require("../models/bill.model");
 
 const addPo = async function (req, res) {
   try {
@@ -41,6 +41,8 @@ const addPo = async function (req, res) {
       updated_on,
       initial_status,
       delivery_type,
+      isSales,
+      sales_Details,
     } = req.body;
 
     const userId = req.user.userId;
@@ -66,6 +68,7 @@ const addPo = async function (req, res) {
       quantity: String(it.quantity ?? "0"),
       cost: String(it.cost ?? "0"),
     }));
+    const isSalesFlag = isSales === false;
 
     const toNum = (v) => {
       const n = Number(v);
@@ -99,7 +102,7 @@ const addPo = async function (req, res) {
       item: itemsSanitized,
       other,
       vendor,
-      submitted_By:userId,
+      submitted_By: userId,
       pr: {
         pr_id: pr_id ? new mongoose.Types.ObjectId(pr_id) : undefined,
         pr_no: pr_no,
@@ -115,7 +118,9 @@ const addPo = async function (req, res) {
       delivery_date: null,
       dispatch_date: null,
       material_ready_date: null,
-      delivery_type
+      delivery_type,
+      ...(isSalesFlag ? { isSales: false } : {}),
+      ...(isSalesFlag && Array.isArray(sales_Details) ? { sales_Details } : {}),
     });
 
     newPO.status_history.push({
@@ -425,9 +430,9 @@ const getPOByPONumber = async (req, res) => {
       // Fetch missing category names
       const catDocs = catIdSet.size
         ? await materialCategoryModells
-            .find({ _id: { $in: Array.from(catIdSet) } })
-            .select({ name: 1 })
-            .lean()
+          .find({ _id: { $in: Array.from(catIdSet) } })
+          .select({ name: 1 })
+          .lean()
         : [];
 
       const catMap = new Map(
@@ -490,7 +495,8 @@ const getPOByPONumber = async (req, res) => {
         const key = String(cat);
         return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
       }
-      return it;})
+      return it;
+    })
     const inspectionCount = await inspectionModel.countDocuments({
       po_number: poDoc.po_number,
     });
@@ -781,28 +787,28 @@ const getPaginatedPo = async (req, res) => {
       ...(createdFrom || createdTo
         ? {
           dateObj: {
-            ...(createdFrom ? { $gte: new Date(createdFrom) } : {}),
-            ...(createdTo ? { $lte: new Date(createdTo) } : {}),
+            ...(createdFrom ? { $gte: createdFrom } : {}),
+            ...(createdTo ? { $lte: createdTo } : {}),
           },
         }
         : {}),
 
       ...(etdFrom || etdTo
         ? {
-            etd: {
-              ...(etdFrom ? { $gte: etdFrom } : {}),
-              ...(etdTo ? { $lte: etdTo } : {}),
-            },
-          }
+          etd: {
+            ...(etdFrom ? { $gte: etdFrom } : {}),
+            ...(etdTo ? { $lte: etdTo } : {}),
+          },
+        }
         : {}),
 
       ...(deliveryFrom || deliveryTo
         ? {
-            delivery_date: {
-              ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
-              ...(deliveryTo ? { $lte: deliveryTo } : {}),
-            },
-          }
+          delivery_date: {
+            ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
+            ...(deliveryTo ? { $lte: deliveryTo } : {}),
+          },
+        }
         : {}),
     };
 
@@ -823,8 +829,6 @@ const getPaginatedPo = async (req, res) => {
           baseEq["etd"] = { $ne: null };
           break;
         case "Material Ready":
-          matchStage["current_status.status"] = "material_ready";
-          matchStage["material_ready_date"] = { $ne: null };
           baseEq["current_status.status"] = "material_ready";
           baseEq["material_ready_date"] = { $ne: null };
           break;
@@ -839,14 +843,11 @@ const getPaginatedPo = async (req, res) => {
           baseEq["current_status.status"] = "delivered";
           break;
         case "Short Quantity":
-          baseEq["current_status.status"] = "short_quantity";
+          matchStage["current_status.status"] = "short_quantity";
           break;
         case "Partially Delivered":
           baseEq["current_status.status"] = "partially_delivered";
           break;
-        case "Partially Delivered":
-          matchStage["current_status.status"] = "partially_delivered";
-        
         default:
           break;
       }
@@ -1052,6 +1053,7 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
+
 
 const getExportPo = async (req, res) => {
   try {
@@ -1265,6 +1267,132 @@ const getExportPo = async (req, res) => {
   }
 };
 
+const updateSalesPO = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { remarks } = req.body || {};
+
+    if (!id) return res.status(400).json({ message: "_id is required" });
+    if (!remarks || String(remarks).trim() === "") {
+      return res
+        .status(400)
+        .json({ message: "Remarks are required to update Sales PO" });
+    }
+
+    const po = await purchaseOrderModells.findById(id);
+    if (!po) return res.status(404).json({ message: "PO not found" });
+    // if (!po.isSales)
+    //   return res.status(400).json({ message: "This PO is not a Sales PO" });
+
+    const safePo = (s) =>
+      String(s || "").trim().replace(/[\/\s]+/g, "_");
+    const folderPath = `Account/PO/${safePo(po.po_number)}`;
+    const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
+
+    const files = req.file
+      ? [req.file]
+      : Array.isArray(req.files)
+      ? req.files
+      : req.files && typeof req.files === "object"
+      ? Object.values(req.files).flat()
+      : [];
+
+    const uploadedAttachments = [];
+
+    for (const file of files) {
+      const attachment_name = file.originalname || "file";
+      const mimeType =
+        mime.lookup(attachment_name) ||
+        file.mimetype ||
+        "application/octet-stream";
+
+      let buffer =
+        file.buffer || (file.path ? fs.readFileSync(file.path) : null);
+      if (!buffer) continue;
+
+      if (mimeType.startsWith("image/")) {
+        try {
+          const ext = mime.extension(mimeType);
+          if (ext === "jpeg" || ext === "jpg")
+            buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+          else if (ext === "png")
+            buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
+          else if (ext === "webp")
+            buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
+          else buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+        } catch (e) {
+          console.warn(
+            "Image compression failed, using original buffer:",
+            e?.message
+          );
+        }
+      }
+
+      const form = new FormData();
+      form.append("file", buffer, {
+        filename: attachment_name,
+        contentType: mimeType,
+      });
+
+      try {
+        const resp = await axios.post(uploadUrl, form, {
+          headers: form.getHeaders(),
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+        });
+
+        const data = resp?.data || null;
+        const url =
+          (Array.isArray(data) && (typeof data[0] === "string" ? data[0] : data[0]?.url)) ||
+          data?.url ||
+          data?.fileUrl ||
+          data?.data?.url ||
+          null;
+
+        if (url) {
+          uploadedAttachments.push({ attachment_url: url, attachment_name });
+        } else {
+          console.warn(`No URL returned for ${attachment_name}`);
+        }
+      } catch (e) {
+        console.error(
+          "Upload failed:",
+          attachment_name,
+          e.response?.status,
+          e.response?.data || e.message
+        );
+      }
+    }
+
+    const userId = req.user?.userId || req.user?._id || null;
+    if (!Array.isArray(po.sales_Details)) po.sales_Details = [];
+    po.sales_Details.push({
+      remarks: String(remarks).trim(),
+      attachments: uploadedAttachments,
+      converted_at: new Date(),
+      user_id: userId,
+    });
+
+    po.isSales = true;
+
+ 
+    po.markModified("sales_Details");
+
+    await po.save();
+
+    return res.status(200).json({
+      message: uploadedAttachments.length
+        ? "Sales PO updated with attachments (isSales=true)"
+        : "Sales PO updated (remarks only, isSales=true)",
+      data: po,
+    });
+  } catch (error) {
+    console.error("Error updating Sales PO:", error);
+    return res
+      .status(500)
+      .json({ message: "Error updating Sales PO", error: error.message });
+  }
+};
 //Move-Recovery
 const moverecovery = async function (req, res) {
   const { _id } = req.params._id;
@@ -1443,7 +1571,7 @@ const updateStatusPO = async (req, res) => {
 
       purchaseOrder.po_number = incomingPoNumber;
     }
-    
+
     purchaseOrder.status_history.push({
       status,
       remarks,
@@ -1508,42 +1636,53 @@ const updateStatusPO = async (req, res) => {
     );
 
     await purchaseRequest.findByIdAndUpdate(pr._id, { items: updatedItems });
+    const sendBy_id = req.user.userId;
+    const sendBy_Name = await userModells.findById(sendBy_id);
 
     // Notification on Status Change to Approval Pending
 
     if (status === "approval_pending" || status === "approval_done" || status === "approval_rejected" || status === "po_created") {
 
       let text = "";
-      if(status === "approval_pending") text = "Approval Pending";
-      if(status === "approval_done") text = "Approval Done";
-      if(status === "approval_rejected") text = "Approval Rejected";
-      if(status === "po_created") text = "Po Created";
+      if (status === "approval_pending") text = "Approval Pending";
+      if (status === "approval_done") text = "Approval Done";
+      if (status === "approval_rejected") text = "Approval Rejected";
+      if (status === "po_created") text = "Po Created";
 
       try {
         const workflow = 'purchase-order';
         let senders = [];
 
-        if (status === "approval_pending" || "po_created") {
+        if (status === "approval_pending" || status === "po_created") {
           senders = await userModells.find({
             department: "CAM"
           }).select('_id').lean().then(users => users.map(u => u._id));
         }
-        if (status === "approval_done" || "approval_rejected") {
+        if (status === "approval_done" || status === "approval_rejected") {
           senders = await userModells.find({
             $or: [
-              {department: "Projects",
-              role: "visitor"},
+              {
+                department: "Projects",
+                role: "visitor"
+              },
 
-              {department: "SCM"}
+              { department: "SCM" }
             ]
-            
+
           }).select('_id').lean().then(users => users.map(u => u._id));
         }
         const data = {
-          message: `Purchase Order for Project ID ${purchaseOrder.p_id} is now marked as ${text}. Please review and take necessary action `,
-          link : `/add_po?mode=edit&_id=${purchaseOrder._id}`
+          Module: purchaseOrder.p_id,
+          sendBy_Name: sendBy_Name.name,
+          message: `Purchase Order is now marked as ${text}`,
+          link: `/add_po?mode=edit&_id=${purchaseOrder._id}`
         }
-        await getnovuNotification(workflow, senders, data);
+
+        setImmediate(() => {
+          getnovuNotification(workflow, senders, data).catch(err =>
+            console.error("Notification error:", err)
+          );
+        });
 
       } catch (error) {
         console.log(error);
@@ -1552,7 +1691,7 @@ const updateStatusPO = async (req, res) => {
     res.status(201).json({
       message: "Purchase Order Status Updated and PR Item Statuses Evaluated",
       data: purchaseOrder,
-    });
+    })
   } catch (error) {
     return res.status(500).json({
       message: "Internal Server Error",
@@ -1745,7 +1884,7 @@ const getPoBasic = async (req, res) => {
   }
 };
 
-//get All PO With
+
 module.exports = {
   addPo,
   editPO,
@@ -1765,4 +1904,5 @@ module.exports = {
   updateEditandDeliveryDate,
   updateStatusPO,
   getPoBasic,
+  updateSalesPO,
 };

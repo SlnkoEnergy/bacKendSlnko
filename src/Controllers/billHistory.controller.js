@@ -1,10 +1,10 @@
 const {
   catchAsyncError,
 } = require("../middlewares/catchasyncerror.middleware");
-const BillHistory = require("../Modells/billHistory.model");
+const BillHistory = require("../models/billHistory.model");
 const mongoose = require("mongoose");
 const ErrorHandler = require("../middlewares/error.middleware");
-const usermodel = require("../Modells/users/userModells");
+const usermodel = require("../models/user.model");
 
 
 const createBillHistory = catchAsyncError(async (req, res) => {

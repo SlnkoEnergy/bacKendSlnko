@@ -1,5 +1,5 @@
 const { default: mongoose } = require("mongoose");
-const boqProject = require("../Modells/boqproject.model");
+const boqProject = require("../models/boqproject.model");
 
 const createBoqProject = async (req, res) => {
   try {
