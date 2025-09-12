@@ -665,7 +665,9 @@ const updateAssignedTo = async (req, res) => {
           Module: "Lead Transfer",
           sendBy_Name: sendBy_Name.name,
           message: `Lead ${lead.id} transferred to ${assign.name}`,
-          link: 'leads'
+          link: `leadProfile?id=${lead._id}`,
+          type: "sales",
+          link1: `/sales`,
         }
 
         setImmediate(() => {

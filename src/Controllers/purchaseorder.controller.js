@@ -18,9 +18,8 @@ const sharp = require("sharp");
 const mime = require("mime-types");
 const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
-const inspectionModel = require("../models/inspection.model");
-
-
+const inspectionModel = require("../Modells/inspection.model");
+const billModel = require("../Modells/bill.model");
 
 const addPo = async function (req, res) {
   try {
@@ -847,8 +846,8 @@ const getPaginatedPo = async (req, res) => {
           matchStage["current_status.status"] = "short_quantity";
           break;
         case "Partially Delivered":
-          matchStage["current_status.status"] = "partially_delivered";
-
+          baseEq["current_status.status"] = "partially_delivered";
+          break;
         default:
           break;
       }
@@ -1031,12 +1030,12 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-          .toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })
-          .replace(/ /g, "/")
+            .toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+            .replace(/ /g, "/")
         : "";
 
     const data = result.map((it) => ({ ...it, date: formatDate(it.date) }));

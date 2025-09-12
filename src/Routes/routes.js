@@ -76,7 +76,6 @@ const {
   getPayRequestById,
   excelData,
   updateExcelData,
-  recoverypayrequest,
   restorepayrequest,
   getPay,
   deadlineExtendRequest,

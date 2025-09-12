@@ -53,7 +53,9 @@ const createTask = async (req, res) => {
         Module: "BD Task Created",
         sendBy_Name: sendBy_Name.name,
         message: `New task created for Lead #${lead.id}`,
-        link: `leadProfile?id=${lead._id}`
+        link: `leadProfile?id=${lead._id}`,
+        type: "sales",
+        link1: "/sales",
       }
 
       setImmediate(() => {
