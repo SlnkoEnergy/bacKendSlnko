@@ -1,19 +1,20 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const app = express();
-const routes = require("../src/Routes/routes");
+const routes = require("./Routes/routes");
 const engineeringRoutes = require("./Routes/engineering.routes");
-const bdleadsRoutes = require("../src/Routes/bdleads/bdleadDashboardRoutes");
-const dprRoutes = require("../src/Routes/dpr/dprRoutes");
-const purchaseRoutes = require("../src/Routes/purchaserequest.routes");
+const bdleadsRoutes = require("./Routes/bdleads.routes");
+const dprRoutes = require("./Routes/dpr.routes");
+const purchaseRoutes = require("./Routes/purchaserequest.routes");
 const taskRoutes = require("./Routes/tasks.routes");
-const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
-const scopeRoutes = require("../src/Routes/scope.routes");
-const productRoutes = require("../src/Routes/products.routes");
-const logisticRoutes = require("../src/Routes/logistics.routes");
+const accountingRoutes = require("./Routes/accounting.routes");
+const scopeRoutes = require("./Routes/scope.routes");
+const productRoutes = require("./Routes/products.routes");
+const logisticRoutes = require("./Routes/logistics.routes");
 const historyRoutes = require("./Routes/Pohistory.routes");
-const billRoutes = require("../src/Routes/bill.routes");
-const inspectionRoutes = require("../src/Routes/inspection.routes");
+const billRoutes = require("./Routes/bill.routes");
+const inspectionRoutes = require("./Routes/inspection.routes");
+const postsRoutes = require("./Routes/posts.routes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
@@ -31,9 +32,7 @@ Sentry.init({
   send_default_pii: true,
   tracesSampleRate: 1.0,
 });
-
 config({ path: "./.env" });
-
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",")
   : [];
@@ -56,7 +55,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT;
-const db = process.env.DB_DEVELOPMENT_URL;
+const db = process.env.DB_URL;
 
 const startServer = async () => {
   try {
@@ -76,13 +75,15 @@ const startServer = async () => {
     app.use("/v1/history", historyRoutes);
     app.use("/v1/bill", billRoutes);
     app.use("/v1/inspection", inspectionRoutes);
+    app.use("/v1/posts", postsRoutes);
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);
     });
 
     app.use(Sentry.Handlers.errorHandler());
-    process.on("SIGINT", () => {
+
+    process.on("SIGINT", async () => {
       console.log("Gracefully shutting down...");
       mongoose.connection.close(() => {
         console.log("MongoDB connection closed");

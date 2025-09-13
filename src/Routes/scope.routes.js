@@ -11,23 +11,17 @@ const {
 const router = require("express").Router();
 const jwtMW = require("../middlewares/auth");
 
-router.post("/scope", jwtMW.authentication, jwtMW.authorization, createScope);
-router.get(
-  "/scope",
-  jwtMW.authentication,
-  jwtMW.authorization,
-  getScopeById
-);
-router.get("/scopes", jwtMW.authentication, jwtMW.authorization, getAllScopes);
-router.put("/scope", jwtMW.authentication, jwtMW.authorization, updateScope);
+router.post("/scope", jwtMW.authentication, createScope);
+router.get("/scope", jwtMW.authentication, getScopeById);
+router.get("/scopes", jwtMW.authentication, getAllScopes);
+router.put("/scope", jwtMW.authentication, updateScope);
 router.put(
   "/:project_id/updateStatus",
   jwtMW.authentication,
-  jwtMW.authorization,
   updateScopeStatus
 );
-router.delete("/scope", jwtMW.authentication, jwtMW.authorization, deleteScope);
-router.get('/scope-pdf', jwtMW.authentication, jwtMW.authorization, getScopePdf);
-router.put('/ensureProjectScope', ensureProjectScope)
+router.delete("/scope", jwtMW.authentication, deleteScope);
+router.get("/scope-pdf", jwtMW.authentication, getScopePdf);
+router.put("/ensureProjectScope", ensureProjectScope);
 
 module.exports = router;

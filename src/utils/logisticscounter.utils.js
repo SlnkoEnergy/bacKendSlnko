@@ -1,4 +1,4 @@
-const Counter = require("../Modells/logisticscodecounter.model");
+const Counter = require("../models/logisticscodecounter.model");
 function indianFYString(date = new Date()) {
   const d = new Date(date);
   const fyStartYear = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; // Apr = 3

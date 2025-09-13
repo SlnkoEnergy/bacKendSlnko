@@ -1,14 +1,15 @@
 const { default: mongoose } = require("mongoose");
-const moduleCategory = require("../Modells/modulecategory.model");
-const hanoversheetmodells = require("../Modells/handoversheet.model");
-const projectmodells = require("../Modells/project.model");
+const moduleCategory = require("../models/modulecategory.model");
+const hanoversheetmodells = require("../models/handoversheet.model");
+const projectmodells = require("../models/project.model");
 const { Parser } = require("json2csv");
-const handoversheetModells = require("../Modells/handoversheet.model");
-const userModells = require("../Modells/users/userModells");
-const materialCategoryModells = require("../Modells/materialcategory.model");
-const scopeModel = require("../Modells/scope.model");
-const bdleadsModells = require("../Modells/bdleads/bdleadsModells");
+const handoversheetModells = require("../models/handoversheet.model");
+const userModells = require("../models/user.model");
+const materialCategoryModells = require("../models/materialcategory.model");
+const scopeModel = require("../models/scope.model");
+const bdleadsModells = require("../models/bdleads.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const postsModel = require("../models/posts.model");
 
 
 const migrateProjectToHandover = async (req, res) => {
@@ -108,7 +109,7 @@ const createhandoversheet = async function (req, res) {
       invoice_detail,
       submitted_by,
     } = req.body;
-    
+
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -152,17 +153,23 @@ const createhandoversheet = async function (req, res) {
     lead.handover_lock = req.body.handover_lock || "locked";
     await lead.save();
     await handoversheet.save();
-
-
+    
     // Notification for Creating Handover
-
     try {
       const workflow = 'handover-submit';
       const Ids = await userModells.find({ department: 'Internal', role: 'manager' }).select('_id').lean().then(users => users.map(u => u._id));
       const data = {
-        message: `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`
+        message: `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`,
+        link:`leadProfile?id=${lead._id}&tab=handover`,
+        type: "sales",
+        link1: `/sales`,
       }
-      await getnovuNotification(workflow, Ids, data);
+      setImmediate(() => {
+        getnovuNotification(workflow, Ids, data).catch(err =>
+          console.error("Notification error:", err)
+        );
+      });
+
     } catch (error) {
       console.log(error);
     }
@@ -570,7 +577,7 @@ const updatestatus = async function (req, res) {
         const items = allMaterialCategories.map((mc) => ({
           item_id: mc._id,
           name: mc.name || "",
-          type: mc.type, 
+          type: mc.type,
           order: Number.isFinite(mc.order) ? mc.order : 0,
           scope: "client",
           quantity: "",
@@ -585,6 +592,12 @@ const updatestatus = async function (req, res) {
         });
 
         await scopeDoc.save();
+
+        const posts = new postsModel({
+          project_id: projectData._id,
+        });
+
+        await posts.save();
 
         return res.status(200).json({
           message:
@@ -604,10 +617,20 @@ const updatestatus = async function (req, res) {
       senders = [owner._id];
       workflow = 'handover-submit';
       data = {
+        Module: "Handover Status",
+        sendBy_Name: owner.name,
         message: `Handover Sheet status updated for Lead #${updatedHandoversheet.id}`,
+        link:`leadProfile?id=${_id}&tab=handover`,
+        type:"sales",
+        link1: `/sales`
       }
 
-      await getnovuNotification(workflow, senders, data);
+      setImmediate(() => {
+        getnovuNotification(workflow, senders, data).catch(err =>
+          console.error("Notification error:", err)
+        );
+      });
+
     } catch (error) {
       console.log(error);
     }

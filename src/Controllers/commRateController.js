@@ -1,4 +1,4 @@
-const commRateModells= require("../Modells/commRateModells");
+const commRateModells= require("../models/commRateModells");
 
 
 //add commRate

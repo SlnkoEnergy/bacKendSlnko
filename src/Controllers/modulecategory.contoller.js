@@ -1,12 +1,12 @@
 const { default: axios } = require("axios");
-const moduleCategory = require("../Modells/modulecategory.model");
-const projectDetail = require("../Modells/project.model");
+const moduleCategory = require("../models/modulecategory.model");
+const projectDetail = require("../models/project.model");
 const FormData = require("form-data");
-const moduleTemplates = require("../Modells/moduletemplate.model");
+const moduleTemplates = require("../models/moduletemplate.model");
 const mongoose = require("mongoose");
-const handoversheetModells = require("../Modells/handoversheet.model");
-const projectModells = require("../Modells/project.model");
-const userModells = require("../Modells/users/userModells");
+const handoversheetModells = require("../models/handoversheet.model");
+const projectModells = require("../models/project.model");
+const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 
 const createModuleCategory = async (req, res) => {
@@ -275,7 +275,7 @@ const updateModuleCategory = async (req, res) => {
 
     const projectCodeData = await projectDetail
       .findById(projectId || moduleData.project_id)
-      .select("code");
+      .select("code name");
 
     const projectCode = projectCodeData?.code?.replace(/\//g, "_");
     if (!projectCode) {
@@ -367,27 +367,6 @@ const updateModuleCategory = async (req, res) => {
 
     await moduleData.save();
 
-    // Notification on File submit to Engineering and CAM
-
-    try {
-      const workflow = 'all-notification';
-      const senders = await userModells.find({
-        $or: [
-          { department: 'Engineering' },
-        ]
-      }).select('_id')
-        .lean()
-        .then(users => users.map(u => u._id));
-
-      const data = {
-        message: `document uploded For Project ID: ${projectCodeData.code} and Project Name: ${projectCodeData.name}`
-      }
-
-      await getnovuNotification(workflow, senders, data);
-
-    } catch (error) {
-      console.log(error);
-    }
 
     return res.status(200).json({
       message: "Module Category Updated Successfully",
@@ -459,7 +438,8 @@ const updateModuleCategoryStatus = async (req, res) => {
     await moduleCategoryData.save();
 
     const project_detail = await projectDetail.findById(projectId).select('code name').lean();
-
+    const sendBy_id = req.user.userId;
+    const sendBy_Name = await userModells.findById(sendBy_id).select("name");
 
     try {
       const workflow = 'all-notification';
@@ -474,15 +454,27 @@ const updateModuleCategoryStatus = async (req, res) => {
       let data = {};
       if (text) {
         data = {
-          message: `project ID : ${project_detail.code} project name: ${project_detail.name} file has been on ${status} with this message: ${text}`
+          Module: project_detail.code,
+          sendBy_Name: sendBy_Name.name,
+          message: `Status Update: ${status}`,
+          remarks: `Note: ${text}`,
+          link: `/overview?page=1&project_id=${projectId}`
         }
       } else {
         data = {
-          message: `project ID : ${project_detail.code} project name: ${project_detail.name} file has been ${status} `
+          Module: project_detail.code,
+          sendBy_Name: sendBy_Name.name,
+          message: `Status Update: ${status}`,
+          link: `/overview?page=1&project_id=${projectId}`
         }
       }
 
-      await getnovuNotification(workflow, senders, data);
+      setImmediate(() => {
+        getnovuNotification(workflow, senders, data).catch(err =>
+          console.error("Notification error:", err)
+        );
+      });
+
     } catch (error) {
       console.log(error);
     }
