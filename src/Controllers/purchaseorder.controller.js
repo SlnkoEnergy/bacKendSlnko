@@ -227,13 +227,13 @@ const editPO = async function (req, res) {
 
           const respData = response.data;
           // Common shapes you used in createExpense
-          url = Array.isArray(respData) && respData.length > 0
-            ? respData[0]
-            : respData.url ||
-            respData.fileUrl ||
-            (respData.data && respData.data.url) ||
-            null;
-
+          url =
+            Array.isArray(respData) && respData.length > 0
+              ? respData[0]
+              : respData.url ||
+                respData.fileUrl ||
+                (respData.data && respData.data.url) ||
+                null;
         } catch (e) {
           console.error("Upload failed for:", attachment_name, e?.message);
         }
@@ -430,9 +430,9 @@ const getPOByPONumber = async (req, res) => {
       // Fetch missing category names
       const catDocs = catIdSet.size
         ? await materialCategoryModells
-          .find({ _id: { $in: Array.from(catIdSet) } })
-          .select({ name: 1 })
-          .lean()
+            .find({ _id: { $in: Array.from(catIdSet) } })
+            .select({ name: 1 })
+            .lean()
         : [];
 
       const catMap = new Map(
@@ -461,7 +461,6 @@ const getPOByPONumber = async (req, res) => {
       const cat = it?.category;
       if (!cat) continue;
 
-
       if (
         typeof cat === "object" &&
         cat?._id &&
@@ -476,9 +475,9 @@ const getPOByPONumber = async (req, res) => {
     // Fetch missing category names
     const catDocs = catIdSet.size
       ? await materialCategoryModells
-        .find({ _id: { $in: Array.from(catIdSet) } })
-        .select({ name: 1 })
-        .lean()
+          .find({ _id: { $in: Array.from(catIdSet) } })
+          .select({ name: 1 })
+          .lean()
       : [];
 
     const catMap = new Map(
@@ -496,7 +495,7 @@ const getPOByPONumber = async (req, res) => {
         return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
       }
       return it;
-    })
+    });
     const inspectionCount = await inspectionModel.countDocuments({
       po_number: poDoc.po_number,
     });
@@ -736,13 +735,12 @@ const getPaginatedPo = async (req, res) => {
     const parseCustomDate = (s) => (s ? new Date(Date.parse(s)) : null);
 
     const createdFrom = parseCustomDate(req.query.createdFrom);
-    const createdTo   = parseCustomDate(req.query.createdTo);
-    const etdFrom     = parseCustomDate(req.query.etdFrom);
-    const etdTo       = parseCustomDate(req.query.etdTo);
-    const deliveryFrom= parseCustomDate(req.query.deliveryFrom);
-    const deliveryTo  = parseCustomDate(req.query.deliveryTo);
-    const filter      = req.query.filter?.trim();
-
+    const createdTo = parseCustomDate(req.query.createdTo);
+    const etdFrom = parseCustomDate(req.query.etdFrom);
+    const etdTo = parseCustomDate(req.query.etdTo);
+    const deliveryFrom = parseCustomDate(req.query.deliveryFrom);
+    const deliveryTo = parseCustomDate(req.query.deliveryTo);
+    const filter = req.query.filter?.trim();
 
     const matchStage = {
       ...(search && {
@@ -754,7 +752,9 @@ const getPaginatedPo = async (req, res) => {
         ],
       }),
       ...(req.query.project_id && { p_id: req.query.project_id }),
-      ...(req.query.pr_id && { pr_id: new mongoose.Types.ObjectId(req.query.pr_id) }),
+      ...(req.query.pr_id && {
+        pr_id: new mongoose.Types.ObjectId(req.query.pr_id),
+      }),
       ...(req.query.item_id && {
         $or: [
           { item: new mongoose.Types.ObjectId(req.query.item_id) },
@@ -762,13 +762,28 @@ const getPaginatedPo = async (req, res) => {
         ],
       }),
       ...(createdFrom || createdTo
-        ? { dateObj: { ...(createdFrom ? { $gte: createdFrom } : {}), ...(createdTo ? { $lte: createdTo } : {}) } }
+        ? {
+            dateObj: {
+              ...(createdFrom ? { $gte: createdFrom } : {}),
+              ...(createdTo ? { $lte: createdTo } : {}),
+            },
+          }
         : {}),
       ...(etdFrom || etdTo
-        ? { etd: { ...(etdFrom ? { $gte: etdFrom } : {}), ...(etdTo ? { $lte: etdTo } : {}) } }
+        ? {
+            etd: {
+              ...(etdFrom ? { $gte: etdFrom } : {}),
+              ...(etdTo ? { $lte: etdTo } : {}),
+            },
+          }
         : {}),
       ...(deliveryFrom || deliveryTo
-        ? { delivery_date: { ...(deliveryFrom ? { $gte: deliveryFrom } : {}), ...(deliveryTo ? { $lte: deliveryTo } : {}) } }
+        ? {
+            delivery_date: {
+              ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
+              ...(deliveryTo ? { $lte: deliveryTo } : {}),
+            },
+          }
         : {}),
     };
 
@@ -796,31 +811,31 @@ const getPaginatedPo = async (req, res) => {
     }
 
     const pipeline = [
-     
-    {
-  $addFields: {
-    dateObj: {
-      $convert: { input: "$date", to: "date", onError: null, onNull: null }
-    }
-  }
-},
-
-
+      {
+        $addFields: {
+          dateObj: {
+            $convert: {
+              input: "$date",
+              to: "date",
+              onError: null,
+              onNull: null,
+            },
+          },
+        },
+      },
 
       { $match: matchStage },
       { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: pageSize },
 
-   
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
-          po_value:  { $toDouble: "$po_value" },
+          po_value: { $toDouble: "$po_value" },
         },
       },
 
-    
       {
         $lookup: {
           from: "payrequests",
@@ -830,7 +845,6 @@ const getPaginatedPo = async (req, res) => {
               $match: {
                 $expr: {
                   $and: [
-                  
                     { $eq: ["$po_number", "$$poNum"] },
                     { $eq: ["$approved", "Approved"] },
                   ],
@@ -842,7 +856,12 @@ const getPaginatedPo = async (req, res) => {
                 _id: null,
                 amount_paid: {
                   $sum: {
-                    $convert: { input: "$amount_paid", to: "double", onError: 0, onNull: 0 },
+                    $convert: {
+                      input: "$amount_paid",
+                      to: "double",
+                      onError: 0,
+                      onNull: 0,
+                    },
                   },
                 },
               },
@@ -851,9 +870,14 @@ const getPaginatedPo = async (req, res) => {
           as: "_paidAgg",
         },
       },
-      { $addFields: { amount_paid: { $ifNull: [{ $arrayElemAt: ["$_paidAgg.amount_paid", 0] }, 0] } } },
+      {
+        $addFields: {
+          amount_paid: {
+            $ifNull: [{ $arrayElemAt: ["$_paidAgg.amount_paid", 0] }, 0],
+          },
+        },
+      },
 
-   
       {
         $lookup: {
           from: "biildetails",
@@ -869,7 +893,14 @@ const getPaginatedPo = async (req, res) => {
               $map: {
                 input: "$billData",
                 as: "b",
-                in: { $convert: { input: "$$b.bill_value", to: "double", onError: 0, onNull: 0 } },
+                in: {
+                  $convert: {
+                    input: "$$b.bill_value",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
               },
             },
           },
@@ -878,12 +909,15 @@ const getPaginatedPo = async (req, res) => {
       {
         $addFields: {
           partial_billing: {
-            $cond: [{ $lt: ["$total_billed", "$po_value"] }, "Bill Pending", "Fully Billed"],
+            $cond: [
+              { $lt: ["$total_billed", "$po_value"] },
+              "Bill Pending",
+              "Fully Billed",
+            ],
           },
         },
       },
 
-    
       {
         $lookup: {
           from: "purchaserequests",
@@ -894,7 +928,6 @@ const getPaginatedPo = async (req, res) => {
       },
       { $addFields: { pr_no: { $arrayElemAt: ["$prRequest.pr_no", 0] } } },
 
- 
       {
         $addFields: {
           _itemScalar: {
@@ -906,7 +939,7 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
- 
+
       {
         $addFields: {
           _itemStr: {
@@ -924,16 +957,20 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-   
+
       {
         $addFields: {
           itemObjectId: {
-            $convert: { input: "$_itemStr", to: "objectId", onError: null, onNull: null },
+            $convert: {
+              input: "$_itemStr",
+              to: "objectId",
+              onError: null,
+              onNull: null,
+            },
           },
         },
       },
 
-    
       {
         $lookup: {
           from: "materialcategories",
@@ -942,7 +979,10 @@ const getPaginatedPo = async (req, res) => {
             {
               $match: {
                 $expr: {
-                  $or: [{ $eq: ["$_id", "$$itemObjectId"] }, { $eq: ["$name", "$$itemField"] }],
+                  $or: [
+                    { $eq: ["$_id", "$$itemObjectId"] },
+                    { $eq: ["$name", "$$itemField"] },
+                  ],
                 },
               },
             },
@@ -953,41 +993,36 @@ const getPaginatedPo = async (req, res) => {
 
       ...(status ? [{ $match: { partial_billing: status } }] : []),
 
-   
       {
-  $project: {
-    _id: 1,
-    po_number: 1,
-    p_id: 1,
-    pr_no: 1,
-    vendor: 1,
-    item: {
-      $cond: [
-        { $gt: [{ $size: "$itemData" }, 0] },
-        { $arrayElemAt: ["$itemData.name", 0] },
-        "$_itemScalar"
-      ]
-    },
-    date: 1,
-    po_value: 1,
-    amount_paid: { $ifNull: ["$amount_paid", 0] },
-    total_billed: 1,
-    partial_billing: 1,
-    etd: 1,
-    delivery_date: 1,
-    dispatch_date: 1,
-    current_status: 1,
-    status_history: 1,
-    type: "$billingTypes"
-  }
-}
-
+        $project: {
+          _id: 1,
+          po_number: 1,
+          p_id: 1,
+          pr_no: 1,
+          vendor: 1,
+          item: {
+            $cond: [
+              { $gt: [{ $size: "$itemData" }, 0] },
+              { $arrayElemAt: ["$itemData.name", 0] },
+              "$_itemScalar",
+            ],
+          },
+          date: 1,
+          po_value: 1,
+          amount_paid: { $ifNull: ["$amount_paid", 0] },
+          total_billed: 1,
+          partial_billing: 1,
+          etd: 1,
+          delivery_date: 1,
+          dispatch_date: 1,
+          current_status: 1,
+          status_history: 1,
+          type: "$billingTypes",
+        },
+      },
     ];
 
-    const countPipeline = [
-      { $match: matchStage },
-      { $count: "total" },
-    ];
+    const countPipeline = [{ $match: matchStage }, { $count: "total" }];
 
     const [result, countResult] = await Promise.all([
       purchaseOrderModells.aggregate(pipeline),
@@ -999,7 +1034,11 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (d) =>
       d
         ? new Date(d)
-            .toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+            .toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
             .replace(/ /g, "/")
         : "";
 
@@ -1018,7 +1057,6 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
-
 
 const getExportPo = async (req, res) => {
   try {
@@ -1192,12 +1230,12 @@ const getExportPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-          .toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })
-          .replace(/ /g, "/")
+            .toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+            .replace(/ /g, "/")
         : "";
 
     const formatted = result.map((item) => ({
@@ -1250,17 +1288,19 @@ const updateSalesPO = async (req, res) => {
     //   return res.status(400).json({ message: "This PO is not a Sales PO" });
 
     const safePo = (s) =>
-      String(s || "").trim().replace(/[\/\s]+/g, "_");
+      String(s || "")
+        .trim()
+        .replace(/[\/\s]+/g, "_");
     const folderPath = `Account/PO/${safePo(po.po_number)}`;
     const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
 
     const files = req.file
       ? [req.file]
       : Array.isArray(req.files)
-      ? req.files
-      : req.files && typeof req.files === "object"
-      ? Object.values(req.files).flat()
-      : [];
+        ? req.files
+        : req.files && typeof req.files === "object"
+          ? Object.values(req.files).flat()
+          : [];
 
     const uploadedAttachments = [];
 
@@ -1308,7 +1348,8 @@ const updateSalesPO = async (req, res) => {
 
         const data = resp?.data || null;
         const url =
-          (Array.isArray(data) && (typeof data[0] === "string" ? data[0] : data[0]?.url)) ||
+          (Array.isArray(data) &&
+            (typeof data[0] === "string" ? data[0] : data[0]?.url)) ||
           data?.url ||
           data?.fileUrl ||
           data?.data?.url ||
@@ -1340,7 +1381,6 @@ const updateSalesPO = async (req, res) => {
 
     po.isSales = true;
 
- 
     po.markModified("sales_Details");
 
     await po.save();
@@ -1606,8 +1646,12 @@ const updateStatusPO = async (req, res) => {
 
     // Notification on Status Change to Approval Pending
 
-    if (status === "approval_pending" || status === "approval_done" || status === "approval_rejected" || status === "po_created") {
-
+    if (
+      status === "approval_pending" ||
+      status === "approval_done" ||
+      status === "approval_rejected" ||
+      status === "po_created"
+    ) {
       let text = "";
       if (status === "approval_pending") text = "Approval Pending";
       if (status === "approval_done") text = "Approval Done";
@@ -1615,40 +1659,46 @@ const updateStatusPO = async (req, res) => {
       if (status === "po_created") text = "Po Created";
 
       try {
-        const workflow = 'purchase-order';
+        const workflow = "purchase-order";
         let senders = [];
 
         if (status === "approval_pending" || status === "po_created") {
-          senders = await userModells.find({
-            department: "CAM"
-          }).select('_id').lean().then(users => users.map(u => u._id));
+          senders = await userModells
+            .find({
+              department: "CAM",
+            })
+            .select("_id")
+            .lean()
+            .then((users) => users.map((u) => u._id));
         }
         if (status === "approval_done" || status === "approval_rejected") {
-          senders = await userModells.find({
-            $or: [
-              {
-                department: "Projects",
-                role: "visitor"
-              },
+          senders = await userModells
+            .find({
+              $or: [
+                {
+                  department: "Projects",
+                  role: "visitor",
+                },
 
-              { department: "SCM" }
-            ]
-
-          }).select('_id').lean().then(users => users.map(u => u._id));
+                { department: "SCM" },
+              ],
+            })
+            .select("_id")
+            .lean()
+            .then((users) => users.map((u) => u._id));
         }
         const data = {
           Module: purchaseOrder.p_id,
           sendBy_Name: sendBy_Name.name,
           message: `Purchase Order is now marked as ${text}`,
-          link: `/add_po?mode=edit&_id=${purchaseOrder._id}`
-        }
+          link: `/add_po?mode=edit&_id=${purchaseOrder._id}`,
+        };
 
         setImmediate(() => {
-          getnovuNotification(workflow, senders, data).catch(err =>
+          getnovuNotification(workflow, senders, data).catch((err) =>
             console.error("Notification error:", err)
           );
         });
-
       } catch (error) {
         console.log(error);
       }
@@ -1656,7 +1706,7 @@ const updateStatusPO = async (req, res) => {
     res.status(201).json({
       message: "Purchase Order Status Updated and PR Item Statuses Evaluated",
       data: purchaseOrder,
-    })
+    });
   } catch (error) {
     return res.status(500).json({
       message: "Internal Server Error",
@@ -1664,7 +1714,6 @@ const updateStatusPO = async (req, res) => {
     });
   }
 };
-
 
 const getPoBasic = async (req, res) => {
   try {
@@ -1694,14 +1743,14 @@ const getPoBasic = async (req, res) => {
         },
         ...(search
           ? [
-            {
-              $or: [
-                { p_id: { $regex: searchRegex } },
-                { po_number: { $regex: searchRegex } },
-                { vendor: { $regex: searchRegex } },
-              ],
-            },
-          ]
+              {
+                $or: [
+                  { p_id: { $regex: searchRegex } },
+                  { po_number: { $regex: searchRegex } },
+                  { vendor: { $regex: searchRegex } },
+                ],
+              },
+            ]
           : []),
       ],
     };
@@ -1848,7 +1897,6 @@ const getPoBasic = async (req, res) => {
     });
   }
 };
-
 
 module.exports = {
   addPo,
