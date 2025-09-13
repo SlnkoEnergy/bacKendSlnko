@@ -32,9 +32,7 @@ Sentry.init({
   send_default_pii: true,
   tracesSampleRate: 1.0,
 });
-
 config({ path: "./.env" });
-
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",")
   : [];
