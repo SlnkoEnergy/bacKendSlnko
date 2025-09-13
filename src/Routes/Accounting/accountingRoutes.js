@@ -43,7 +43,6 @@ router.get(
 router.post(
   "/export-project-balance",
   jwtMW.authentication,
-  jwtMW.authorization,
   exportProjectBalance
 );
 
