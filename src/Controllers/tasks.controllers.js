@@ -124,24 +124,30 @@ const getAllTasks = async (req, res) => {
     ) {
       // full access
     } else if (userRole === "manager") {
-      // manager handled post-lookup by department visibility
+      // handled later by department visibility
     } else if (userRole === "visitor") {
-      // visitor handled post-lookup by department visibility
+      // handled later by department visibility
     } else {
-      // normal users: authored OR follower
+      // authored OR follower OR assigned (task or subtask)
       preLookupMatch.push({
-        $or: [{ createdBy: currentUser._id }, { followers: currentUser._id }],
+        $or: [
+          { createdBy: currentUser._id },
+          { followers: currentUser._id },
+          { assigned_to: currentUser._id },
+          { "sub_tasks.assigned_to": currentUser._id },
+        ],
       });
     }
 
     const basePipeline = [];
-    if (preLookupMatch.length > 0) {
-      basePipeline.push({ $match: { $and: preLookupMatch } });
-    }
+    if (preLookupMatch.length > 0) basePipeline.push({ $match: { $and: preLookupMatch } });
+
+    // expose current user id inside pipeline
+    basePipeline.push({ $addFields: { __currentUserId: currentUser._id } });
 
     // ---- LOOKUPS ----
     basePipeline.push(
-      // project (for search only)
+      // project (for search/display)
       {
         $lookup: {
           from: "projectdetails",
@@ -150,7 +156,7 @@ const getAllTasks = async (req, res) => {
           as: "project_details",
         },
       },
-      // CHANGED: keep raw assigned_to ObjectId[]; write joined docs to assigned_to_users
+      // top-level assigned_to -> users
       {
         $lookup: {
           from: "users",
@@ -159,7 +165,7 @@ const getAllTasks = async (req, res) => {
           as: "assigned_to_users",
         },
       },
-      // createdBy with department
+      // task createdBy -> user
       {
         $lookup: {
           from: "users",
@@ -168,11 +174,9 @@ const getAllTasks = async (req, res) => {
           as: "createdBy_info",
         },
       },
-      {
-        $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
-      },
+      { $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true } },
 
-      // ==== lookup all comment authors (FIXED duplicate localField) ====
+      // comment authors
       {
         $lookup: {
           from: "users",
@@ -182,7 +186,7 @@ const getAllTasks = async (req, res) => {
         },
       },
 
-      // ---- FLATTEN sub_tasks.assigned_to safely into IDs array ----
+      // collect subtask assignee ids
       {
         $addFields: {
           sub_assignee_ids: {
@@ -211,19 +215,40 @@ const getAllTasks = async (req, res) => {
           },
         },
       },
-
-      // lookup those sub_assignee_ids into user docs to get department + attachment_url
+      // collect subtask creator ids
+      {
+        $addFields: {
+          subtask_creator_ids: {
+            $map: {
+              input: { $ifNull: ["$sub_tasks", []] },
+              as: "st",
+              in: { $ifNull: ["$$st.createdBy", null] },
+            },
+          },
+        },
+      },
+      // lookup subtask assignees
       {
         $lookup: {
           from: "users",
           let: { ids: "$sub_assignee_ids" },
           pipeline: [
-            {
-              $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
-            },
+            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
             { $project: { _id: 1, name: 1, department: 1, attachment_url: 1 } },
           ],
           as: "sub_assignees",
+        },
+      },
+      // lookup subtask creators
+      {
+        $lookup: {
+          from: "users",
+          let: { ids: "$subtask_creator_ids" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
+            { $project: { _id: 1, name: 1, department: 1, attachment_url: 1 } },
+          ],
+          as: "subtask_creators",
         },
       }
     );
@@ -231,7 +256,6 @@ const getAllTasks = async (req, res) => {
     // ---- POST LOOKUP FILTERS ----
     const postLookupMatch = [];
 
-    // text search
     if (search) {
       postLookupMatch.push({
         $or: [
@@ -245,12 +269,8 @@ const getAllTasks = async (req, res) => {
       });
     }
 
-    // status
-    if (status) {
-      postLookupMatch.push({ "current_status.status": status });
-    }
+    if (status) postLookupMatch.push({ "current_status.status": status });
 
-    // created range
     if (from || to) {
       const range = {};
       if (from) range.$gte = startOfDay(from);
@@ -258,7 +278,6 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ createdAt: range });
     }
 
-    // deadline range
     if (deadlineFrom || deadlineTo) {
       const dl = {};
       if (deadlineFrom) dl.$gte = startOfDay(deadlineFrom);
@@ -266,108 +285,231 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ deadline: dl });
     }
 
-    // CHANGED: UI department filter should use assigned_to_users.department
-    if (department) {
-      postLookupMatch.push({ "assigned_to_users.department": department });
-    }
+    if (department) postLookupMatch.push({ "assigned_to_users.department": department });
 
-    // createdById / assignedToId
     if (createdById) {
       let cOID;
-      try {
-        cOID = new mongoose.Types.ObjectId(String(createdById));
-      } catch {
-        return res
-          .status(400)
-          .json({ message: "Invalid createdById provided." });
-      }
+      try { cOID = new mongoose.Types.ObjectId(String(createdById)); }
+      catch { return res.status(400).json({ message: "Invalid createdById provided." }); }
       postLookupMatch.push({ createdBy: cOID });
     }
 
-    // CHANGED: this now works because assigned_to remains raw ObjectId[]
     if (assignedToId) {
       let aOID;
-      try {
-        aOID = new mongoose.Types.ObjectId(String(assignedToId));
-      } catch {
-        return res
-          .status(400)
-          .json({ message: "Invalid assignedToId provided." });
-      }
+      try { aOID = new mongoose.Types.ObjectId(String(assignedToId)); }
+      catch { return res.status(400).json({ message: "Invalid assignedToId provided." }); }
       postLookupMatch.push({
         $or: [
-          { assigned_to: aOID },                // top-level assigned_to (raw ids)
-          { "sub_tasks.assigned_to": aOID },    // subtask assignees (raw ids)
-          // (Optional extra safety if you ever move this filter below a different lookup step:)
-          { "assigned_to_users._id": aOID },    // joined docs fallback
-          { "sub_assignees._id": aOID },        // joined sub-assignees fallback
+          { assigned_to: aOID },
+          { "sub_tasks.assigned_to": aOID },
+          { "assigned_to_users._id": aOID },
+          { "sub_assignees._id": aOID },
         ],
       });
     }
 
-    // priority filter
     if (priorityFilter !== "" && priorityFilter !== undefined) {
       let priorities = [];
-      if (Array.isArray(priorityFilter)) {
-        priorities = priorityFilter.map(String);
-      } else if (typeof priorityFilter === "string") {
-        priorities = priorityFilter
-          .split(/[,\s]+/)
-          .filter(Boolean)
-          .map(String);
-      } else {
-        priorities = [String(priorityFilter)];
-      }
+      if (Array.isArray(priorityFilter)) priorities = priorityFilter.map(String);
+      else if (typeof priorityFilter === "string")
+        priorities = priorityFilter.split(/[,\s]+/).filter(Boolean).map(String);
+      else priorities = [String(priorityFilter)];
+
       priorities = priorities.filter((p) => ["1", "2", "3"].includes(p));
-      if (priorities.length === 1) {
-        postLookupMatch.push({ priority: priorities[0] });
-      } else if (priorities.length > 1) {
-        postLookupMatch.push({ priority: { $in: priorities } });
-      }
+      if (priorities.length === 1) postLookupMatch.push({ priority: priorities[0] });
+      else if (priorities.length > 1) postLookupMatch.push({ priority: { $in: priorities } });
     }
 
-    // ===== Manager / Visitor visibility by department =====
+    // Manager / Visitor visibility by department
     if (userRole === "manager" || userRole === "visitor") {
-      const nameLc = String(currentUser?.name || "")
-        .trim()
-        .toLowerCase();
-
-      const camOverrideNames = new Set([
-        "sushant ranjan dubey",
-        "sanjiv kumar",
-      ]);
-
+      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
+      const camOverrideNames = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
       let deptList = [];
 
       if (camOverrideNames.has(nameLc)) {
         deptList = ["CAM", "Projects"];
       } else if (userRole === "visitor") {
         deptList = ["Projects", "CAM"];
-      } else {
-        if (currentUser?.department) deptList = [currentUser.department];
+      } else if (currentUser?.department) {
+        deptList = [currentUser.department];
       }
 
       if (deptList.length > 0) {
-        const deptRegexes = deptList.map(
-          (d) => new RegExp(`${escRx(d)}`, "i")
-        );
+        const deptRegexes = deptList.map((d) => new RegExp(`${escRx(d)}`, "i"));
         postLookupMatch.push({
           $or: [
             { "createdBy_info.department": { $in: deptRegexes } },
-            { "assigned_to_users.department": { $in: deptRegexes } }, // CHANGED
+            { "assigned_to_users.department": { $in: deptRegexes } },
             { "sub_assignees.department": { $in: deptRegexes } },
           ],
         });
       }
     }
 
-    if (postLookupMatch.length > 0) {
-      basePipeline.push({ $match: { $and: postLookupMatch } });
-    }
+    if (postLookupMatch.length > 0) basePipeline.push({ $match: { $and: postLookupMatch } });
 
-    // ---- OUTPUT (include attachment_url on users) ----
+    // ---- Derive fields from the current user's subtask:
+    // pick the earliest-deadline subtask (if multiple) and override top-level fields
     const dataPipeline = [
       ...basePipeline,
+
+      {
+        $addFields: {
+          // all subtasks where the current user is assigned
+          __mySubs: {
+            $filter: {
+              input: { $ifNull: ["$sub_tasks", []] },
+              as: "st",
+              cond: {
+                $in: [
+                  "$__currentUserId",
+                  {
+                    $cond: [
+                      { $isArray: "$$st.assigned_to" },
+                      "$$st.assigned_to",
+                      {
+                        $cond: [
+                          { $ne: ["$$st.assigned_to", null] },
+                          ["$$st.assigned_to"],
+                          [],
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          __myMinDl: {
+            $cond: [
+              { $gt: [{ $size: "$__mySubs" }, 0] },
+              { $min: { $map: { input: "$__mySubs", as: "x", in: "$$x.deadline" } } },
+              null,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          __mySub: {
+            $let: {
+              vars: {
+                cand: {
+                  $filter: {
+                    input: "$__mySubs",
+                    as: "s",
+                    cond: { $eq: ["$$s.deadline", "$__myMinDl"] },
+                  },
+                },
+              },
+              in: { $arrayElemAt: ["$$cand", 0] },
+            },
+          },
+        },
+      },
+
+      // override: deadline, assigned_to, createdBy from __mySub (fallback to originals)
+      {
+        $addFields: {
+          // deadline -> my earliest subtask deadline else task deadline
+          deadline: { $ifNull: ["$__myMinDl", "$deadline"] },
+
+          // assigned_to -> users from __mySub.assigned_to else assigned_to_users
+          assigned_to: {
+            $cond: [
+              { $gt: [{ $size: "$__mySubs" }, 0] },
+              {
+                $map: {
+                  input: {
+                    $filter: {
+                      input: { $ifNull: ["$sub_assignees", []] },
+                      as: "u",
+                      cond: {
+                        $in: [
+                          "$$u._id",
+                          {
+                            $cond: [
+                              { $isArray: "$__mySub.assigned_to" },
+                              "$__mySub.assigned_to",
+                              {
+                                $cond: [
+                                  { $ne: ["$__mySub.assigned_to", null] },
+                                  ["$__mySub.assigned_to"],
+                                  [],
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                  },
+                  as: "au",
+                  in: {
+                    _id: "$$au._id",
+                    name: "$$au.name",
+                    department: "$$au.department",
+                    attachment_url: { $ifNull: ["$$au.attachment_url", ""] },
+                  },
+                },
+              },
+              {
+                $map: {
+                  input: { $ifNull: ["$assigned_to_users", []] },
+                  as: "user",
+                  in: {
+                    _id: "$$user._id",
+                    name: "$$user.name",
+                    department: "$$user.department",
+                    attachment_url: { $ifNull: ["$$user.attachment_url", ""] },
+                  },
+                },
+              },
+            ],
+          },
+
+          // createdBy -> __mySub.createdBy (enriched) else task createdBy
+          createdBy: {
+            $cond: [
+              { $gt: [{ $size: "$__mySubs" }, 0] },
+              {
+                $let: {
+                  vars: {
+                    c: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: { $ifNull: ["$subtask_creators", []] },
+                            as: "cu",
+                            cond: { $eq: ["$$cu._id", "$__mySub.createdBy"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                  in: {
+                    _id: { $ifNull: ["$$c._id", "$__mySub.createdBy"] },
+                    name: { $ifNull: ["$$c.name", ""] },
+                    attachment_url: { $ifNull: ["$$c.attachment_url", ""] },
+                  },
+                },
+              },
+              {
+                _id: "$createdBy_info._id",
+                name: "$createdBy_info.name",
+                attachment_url: { $ifNull: ["$createdBy_info.attachment_url", ""] },
+              },
+            ],
+          },
+        },
+      },
+
+      // ---- Final projection (keep subtasks limited to those assigned to current user)
       {
         $project: {
           _id: 1,
@@ -377,58 +519,98 @@ const getAllTasks = async (req, res) => {
           sub_type: 1,
           description: 1,
           createdAt: 1,
-          deadline: 1,
+          deadline: 1,     // already overridden above
           priority: 1,
           status_history: 1,
           current_status: 1,
           followers: 1,
-          sub_tasks: 1,
 
-          // map project details
+          // already enriched/overridden above
+          assigned_to: 1,
+          createdBy: 1,
+
+          // project details (for display/search)
           project_details: {
             $map: {
               input: { $ifNull: ["$project_details", []] },
-              as: "proj",
-              in: { _id: "$$proj._id", code: "$$proj.code", name: "$$proj.name" },
+              as: "p",
+              in: { _id: "$$p._id", code: "$$p.code", name: "$$p.name" },
             },
           },
 
-          // CHANGED: map from assigned_to_users to enriched assigned_to array
-          assigned_to: {
+          // return only current user's subtasks (enriched)
+          sub_tasks: {
             $map: {
-              input: { $ifNull: ["$assigned_to_users", []] },
-              as: "user",
+              input: "$__mySubs",
+              as: "st",
               in: {
-                _id: "$$user._id",
-                name: "$$user.name",
-                department: "$$user.department",
-                attachment_url: { $ifNull: ["$$user.attachment_url", ""] },
+                _id: "$$st._id",
+                assigned_to: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: { $ifNull: ["$sub_assignees", []] },
+                        as: "u",
+                        cond: {
+                          $in: [
+                            "$$u._id",
+                            {
+                              $cond: [
+                                { $isArray: "$$st.assigned_to" },
+                                "$$st.assigned_to",
+                                {
+                                  $cond: [
+                                    { $ne: ["$$st.assigned_to", null] },
+                                    ["$$st.assigned_to"],
+                                    [],
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                      },
+                    },
+                    as: "au",
+                    in: {
+                      _id: "$$au._id",
+                      name: "$$au.name",
+                      department: "$$au.department",
+                      attachment_url: { $ifNull: ["$$au.attachment_url", ""] },
+                    },
+                  },
+                },
+                createdBy: {
+                  $let: {
+                    vars: {
+                      c: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: { $ifNull: ["$subtask_creators", []] },
+                              as: "cu",
+                              cond: { $eq: ["$$cu._id", "$$st.createdBy"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                    in: {
+                      _id: { $ifNull: ["$$c._id", "$$st.createdBy"] },
+                      name: { $ifNull: ["$$c.name", ""] },
+                      attachment_url: { $ifNull: ["$$c.attachment_url", ""] },
+                    },
+                  },
+                },
+                deadline: "$$st.deadline",
+                createdAt: "$$st.createdAt",
+                updatedAt: "$$st.updatedAt",
               },
             },
           },
 
-          // createdBy info (now with attachment_url)
-          createdBy: {
-            _id: "$createdBy_info._id",
-            name: "$createdBy_info.name",
-            attachment_url: { $ifNull: ["$createdBy_info.attachment_url", ""] },
-          },
-
-          // sub assignees (with attachment_url from lookup pipeline)
-          sub_assignees: {
-            $map: {
-              input: { $ifNull: ["$sub_assignees", []] },
-              as: "s",
-              in: {
-                _id: "$$s._id",
-                name: "$$s.name",
-                department: "$$s.department",
-                attachment_url: { $ifNull: ["$$s.attachment_url", ""] },
-              },
-            },
-          },
-
-          // comments enriched with user { _id, name, attachment_url }
+          // comments (unchanged)
           comments: {
             $map: {
               input: { $ifNull: ["$comments", []] },
@@ -442,7 +624,7 @@ const getAllTasks = async (req, res) => {
                   name: {
                     $let: {
                       vars: {
-                        match: {
+                        u: {
                           $arrayElemAt: [
                             {
                               $filter: {
@@ -455,13 +637,13 @@ const getAllTasks = async (req, res) => {
                           ],
                         },
                       },
-                      in: { $ifNull: ["$$match.name", ""] },
+                      in: { $ifNull: ["$$u.name", ""] },
                     },
                   },
                   attachment_url: {
                     $let: {
                       vars: {
-                        match: {
+                        u: {
                           $arrayElemAt: [
                             {
                               $filter: {
@@ -474,7 +656,7 @@ const getAllTasks = async (req, res) => {
                           ],
                         },
                       },
-                      in: { $ifNull: ["$$match.attachment_url", ""] },
+                      in: { $ifNull: ["$$u.attachment_url", ""] },
                     },
                   },
                 },
@@ -483,6 +665,7 @@ const getAllTasks = async (req, res) => {
           },
         },
       },
+
       { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: Number(limit) },
@@ -3268,8 +3451,6 @@ const getAgingByResolution = async (req, res) => {
       .json({ message: "Server error", error: err.message });
   }
 };
-
-
 
 module.exports = {
   createTask,

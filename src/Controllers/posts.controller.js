@@ -65,9 +65,9 @@ const createPost = async (req, res) => {
         Array.isArray(respData) && respData.length > 0
           ? respData[0]
           : respData.url ||
-          respData.fileUrl ||
-          (respData.data && respData.data.url) ||
-          null;
+            respData.fileUrl ||
+            (respData.data && respData.data.url) ||
+            null;
 
       if (url) {
         uploadedAttachment = { name: file.originalname, url };
@@ -200,7 +200,7 @@ const updatePost = async (req, res) => {
     }
 
     const sendBy_id = req.user.userId;
-    const sendBy_Name = await userModel.findById(sendBy_id).select('name');
+    const sendBy_Name = await userModel.findById(sendBy_id).select("name");
     let data = req.body?.data;
     if (typeof data === "string") {
       try {
@@ -306,7 +306,9 @@ const updatePost = async (req, res) => {
       .populate("followers.user_id", "_id name")
       .populate("comments.user_id", "_id name");
 
-    const project_details = await projectModel.findById(project_id).select("name code");
+    const project_details = await projectModel
+      .findById(project_id)
+      .select("name code");
 
     if (post.followers.length > 0) {
       try {
@@ -318,23 +320,23 @@ const updatePost = async (req, res) => {
             Module: project_details.code,
             sendBy_Name: sendBy_Name.name,
             message: `${safeComment}`,
-            link: `/project_detail?page=1&project_id=${project_id}&tab=4`
-          }
+            link: `/project_detail?page=1&project_id=${project_id}&tab=4`,
+          };
         } else {
           data = {
             Module: project_details.code,
             sendBy_Name: sendBy_Name.name,
             message: `File Uploaded`,
-            link: `/project_detail?page=1&project_id=${project_id}&tab=4`
-          }
+            link: `/project_detail?page=1&project_id=${project_id}&tab=4`,
+          };
         }
         const removeID = String(req.user.userId); // make sure type matches
         const senders = post.followers
-          .map(item => String(item.user_id)) // normalize ObjectId → string
-          .filter(id => id !== removeID);
+          .map((item) => String(item.user_id)) // normalize ObjectId → string
+          .filter((id) => id !== removeID);
 
         setImmediate(() => {
-          getnovuNotification(workflow, senders, data).catch(err =>
+          getnovuNotification(workflow, senders, data).catch((err) =>
             console.error("Notification error:", err)
           );
         });
@@ -503,5 +505,4 @@ module.exports = {
   deletePost,
   addFollowers,
   removeFollowers,
-
 };
