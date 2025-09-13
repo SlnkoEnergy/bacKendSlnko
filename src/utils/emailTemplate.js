@@ -173,9 +173,13 @@ function getEmailTemplateResgister(name, email, password) {
                   <li><strong>Password:</strong> ${password}</li>
                   <li><strong>Login Link:</strong> <a href="https://slnkoprotrac.com" style="color: #004aad;">https://slnkoprotrac.com</a></li>
                 </ul>
-                <p style="margin-top: 20px;">
-                  For security purposes, we recommend changing your password immediately after your first login using the <em>Forgot Password</em> option available on the login page.
-                </p>
+                <p style="margin-top:20px;">
+  For security purposes, we recommend changing your password immediately after your first login using the <em>Forgot Password</em> option available on the login page.
+</p>
+<p>
+  Your new password must contain at least <strong>one capital letter</strong>, <strong>one special character</strong>, and <strong>one numerical value</strong>.
+</p>
+
                 <p>
                   If you face any issues while accessing your account, please feel free to reach out to the <strong>IT Team</strong> for assistance.
                 </p>
@@ -189,11 +193,11 @@ function getEmailTemplateResgister(name, email, password) {
     </table>
 
   <div style="color:rgb(34,34,34);direction:ltr;margin:8px 0px 0px;padding:0px;font-size:0.875rem;font-family:Roboto,RobotoDraft,Helvetica,Arial,sans-serif">
-      <div style="font-stretch:normal;font-size:small;line-height:1.5;font-family:Arial,Helvetica,sans-serif;overflow:hidden">
+      <div style="font-stretch:normal;font-size:small;line-height:1.5;font-family:Arial,Helvetica,sans-serif;overflow:hidden>
         <div dir="ltr">
           <div dir="ltr">
             <div dir="ltr">
-              <table cellpadding="0" cellspacing="0" bgcolor="#FFFFFF" width="420" height="198" style="color:rgb(0,0,0);font-family:&quot;Times New Roman&quot;;font-size:medium;width:420px;height:198px;border-collapse:collapse">
+              <table cellpadding="0" cellspacing="0" bgcolor="#FFFFFF" width="420" height="198" align="center" padding-left=5px style="color:rgb(0,0,0);font-family:&quot;Times New Roman&quot;;font-size:medium;width:420px;height:198px;border-collapse:collapse >
                 <tbody>
                   <tr>
                     <td>
@@ -254,7 +258,7 @@ function getEmailTemplateResgister(name, email, password) {
                   </tr>
                 </tbody>
               </table>
-                <table cellpadding="0" cellspacing="0" bgcolor="#FFFFFF" width="620" height="15" style="width:620px;height:15px;border-collapse:collapse">
+                <table cellpadding="0" cellspacing="0" align="center" bgcolor="#FFFFFF" width="620" height="15" style="width:620px;height:15px;border-collapse:collapse">
             <tbody>
                 <tr valign="middle" align="center">
                      <a href="https://slnkoenergy.com/images/slogan.png" ><img width="620px" align="center" src="https://slnkoenergy.com/images/slogan.png"></a>
