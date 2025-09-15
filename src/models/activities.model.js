@@ -27,8 +27,14 @@ const activitySchema = new mongoose.Schema(
     ],
     links: [
       {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "activities",
+        link: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "activities",
+        },
+        type: {
+          type: String,
+          enum: ["fs", "ss"],
+        },
       },
     ],
     created_by: {

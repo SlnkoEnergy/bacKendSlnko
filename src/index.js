@@ -16,6 +16,8 @@ const billRoutes = require("./Routes/bill.routes");
 const inspectionRoutes = require("./Routes/inspection.routes");
 const postsRoutes = require("./Routes/posts.routes");
 const handoverRoutes = require("./Routes/handover.routes");
+const activityRoutes = require("./Routes/activities.routes");
+const projectActivityRoutes = require("./models/projectactivities.model");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
@@ -78,6 +80,8 @@ const startServer = async () => {
     app.use("/v1/inspection", inspectionRoutes);
     app.use("/v1/posts", postsRoutes);
     app.use("/v1/handover", handoverRoutes);
+    app.use("/v1/activities", activityRoutes);
+    app.use('/v1/projectacitivity', projectActivityRoutes)
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);
