@@ -46,6 +46,8 @@ const {
   deleteMaterialCategory,
   getMaterialCategoryById,
   getAllMaterialCategoriesDropdown,
+  searchNameAllCategory,
+  searchNameAllProduct,
 } = require("../Controllers/materialcategory.controller");
 const {
   createMaterial,
@@ -199,5 +201,6 @@ router.get(
   jwtMW.authentication,
   getBoqCategoryByIdAndKey
 );
-
+router.get("/all-materials-po", jwtMW.authentication, searchNameAllCategory)
+router.get("/all-product-po", jwtMW.authentication, searchNameAllProduct)
 module.exports = router;
