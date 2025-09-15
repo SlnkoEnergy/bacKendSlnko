@@ -11,7 +11,6 @@ const bdleadsModells = require("../models/bdleads.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const postsModel = require("../models/posts.model");
 
-
 const migrateProjectToHandover = async (req, res) => {
   try {
     // 1. Get last handover `id`
@@ -107,9 +106,12 @@ const createhandoversheet = async function (req, res) {
       commercial_details,
       other_details,
       invoice_detail,
-      submitted_by,
     } = req.body;
 
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
+
+    other_details.submitted_by_BD = userId;
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -121,11 +123,8 @@ const createhandoversheet = async function (req, res) {
       other_details,
       invoice_detail,
       status_of_handoversheet: req.body.status_of_handoversheet || "draft",
-      submitted_by,
+      submitted_by: userId,
     });
-
-    const userId = req.user.userId;
-    const user = await userModells.findById(userId);
 
     cheched_id = await hanoversheetmodells.findOne({ id: id });
     if (cheched_id) {
@@ -153,23 +152,26 @@ const createhandoversheet = async function (req, res) {
     lead.handover_lock = req.body.handover_lock || "locked";
     await lead.save();
     await handoversheet.save();
-    
+
     // Notification for Creating Handover
     try {
-      const workflow = 'handover-submit';
-      const Ids = await userModells.find({ department: 'Internal', role: 'manager' }).select('_id').lean().then(users => users.map(u => u._id));
+      const workflow = "handover-submit";
+      const Ids = await userModells
+        .find({ department: "Internal", role: "manager" })
+        .select("_id")
+        .lean()
+        .then((users) => users.map((u) => u._id));
       const data = {
         message: `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`,
-        link:`leadProfile?id=${lead._id}&tab=handover`,
+        link: `leadProfile?id=${lead._id}&tab=handover`,
         type: "sales",
         link1: `/sales`,
-      }
+      };
       setImmediate(() => {
-        getnovuNotification(workflow, Ids, data).catch(err =>
+        getnovuNotification(workflow, Ids, data).catch((err) =>
           console.error("Notification error:", err)
         );
       });
-
     } catch (error) {
       console.log(error);
     }
@@ -609,28 +611,27 @@ const updatestatus = async function (req, res) {
       }
     }
 
-    // Notification Functionality on Status Update 
+    // Notification Functionality on Status Update
 
     try {
-      const owner = await userModells.find({ name: submitted_by })
+      const owner = await userModells.find({ name: submitted_by });
 
       senders = [owner._id];
-      workflow = 'handover-submit';
+      workflow = "handover-submit";
       data = {
         Module: "Handover Status",
         sendBy_Name: owner.name,
         message: `Handover Sheet status updated for Lead #${updatedHandoversheet.id}`,
-        link:`leadProfile?id=${_id}&tab=handover`,
-        type:"sales",
-        link1: `/sales`
-      }
+        link: `leadProfile?id=${_id}&tab=handover`,
+        type: "sales",
+        link1: `/sales`,
+      };
 
       setImmediate(() => {
-        getnovuNotification(workflow, senders, data).catch(err =>
+        getnovuNotification(workflow, senders, data).catch((err) =>
           console.error("Notification error:", err)
         );
       });
-
     } catch (error) {
       console.log(error);
     }
@@ -638,21 +639,6 @@ const updatestatus = async function (req, res) {
       message: "Status updated",
       handoverSheet: updatedHandoversheet,
     });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-const checkid = async function (req, res) {
-  try {
-    let _id = req.params._id;
-
-    let checkid = await projectmodells.findOne({ _id: _id });
-    if (checkid) {
-      return res.status(200).json({ status: true });
-    } else {
-      return res.status(404).json({ status: false });
-    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -672,7 +658,10 @@ const getByIdOrLeadId = async function (req, res) {
     if (leadId) query.id = leadId;
     if (p_id) query.p_id = p_id;
 
-    const handoverSheet = await hanoversheetmodells.findOne(query);
+    const handoverSheet = await hanoversheetmodells
+      .findOne(query)
+      .populate("other_details.submitted_by_BD", "_id name")
+      .populate("submitted_by", "_id name");
 
     if (!handoverSheet) {
       return res.status(404).json({ message: "Data not found" });
@@ -683,25 +672,6 @@ const getByIdOrLeadId = async function (req, res) {
       .json({ message: "Data fetched successfully", data: handoverSheet });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  }
-};
-
-//sercher api
-const search = async function (req, res) {
-  const letter = req.params.letter;
-  try {
-    const regex = new RegExp("^" + letter, "i"); // Case-insensitive regex
-    const items = await hanoversheetmodells
-      .find({
-        $or: [
-          { "customer_details.name": { $regex: regex } },
-          { "customer_details.code": { $regex: regex } },
-        ],
-      })
-      .sort({ "customer_details.name": 1 });
-    res.json(items);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
 };
 
@@ -742,7 +712,7 @@ const getexportToCsv = async (req, res) => {
           project_type: "$project_detail.project_type",
           module_make_capacity: "project_detail.module_make_capacity",
           module_make: "$project_detail.module_make",
-          module_capacity: "$project_detail.module_capacity",
+          module_capacity: "$project_detail.module_type",
           module_type: "$project_detail.module_type",
           module_make_other: "$project_detail.madule_make_other",
           inverter_make_capacity: "$project_detail.inverter_make_capacity",
@@ -914,14 +884,38 @@ const getexportToCsv = async (req, res) => {
   }
 };
 
+const updateAssignedTo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { assigned_to } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ message: "id is required" });
+    }
+    const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
+      { _id: id },
+      { assigned_to },
+      { new: true }
+    );
+    if (!updatedHandoversheet) {
+      return res.status(404).json({ message: "Handoversheet not found" });
+    }
+    return res.status(200).json({
+      message: "Assigned to updated",
+      handoverSheet: updatedHandoversheet,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createhandoversheet,
   gethandoversheetdata,
   getByIdOrLeadId,
   edithandoversheetdata,
   updatestatus,
-  checkid,
-  search,
   getexportToCsv,
   migrateProjectToHandover,
+  updateAssignedTo,
 };

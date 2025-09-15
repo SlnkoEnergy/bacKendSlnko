@@ -87,13 +87,11 @@ const {
   getpy,
   getTrashPayment,
 } = require("../Controllers/payRequestControllers.js");
-
 const {
   addAdjustmentRequest,
   getAdjustmentRequest,
   deleteAdjustmentRequest,
 } = require("../Controllers/adjustmentRequestController.js");
-
 const {
   addBill,
   getBill,
@@ -152,22 +150,7 @@ const {
   getCommBDRateByOfferId,
 } = require("../Controllers/coomBDRateController.js");
 
-const {
-  createhandoversheet,
-  gethandoversheetdata,
-  edithandoversheetdata,
-  updateStatusOfHandoversheet,
-  getbdhandoversheetdata,
-  updateStatusHandoversheet,
-  updatehandoverbd,
-  updatestatus,
-  checkid,
-  getbyid,
-  search,
-  getByIdOrLeadId,
-  getexportToCsv,
-  migrateProjectToHandover,
-} = require("../Controllers/handoversheet.controller.js");
+
 const {
   addmoduleMaster,
   getmoduleMasterdata,
@@ -822,68 +805,11 @@ router.delete(
 
   deleteCommBDRate
 );
-router.get(
-  "/get-bd-rate-history",
-  jwtMW.authentication,
-
-  getCommBdRateHistory
-);
+router.get("/get-bd-rate-history", jwtMW.authentication, getCommBdRateHistory);
 router.get(
   "/get-bd-rate-by-offer_id",
   jwtMW.authentication,
-
   getCommBDRateByOfferId
-);
-
-//handdoversheet
-router.post(
-  "/create-hand-over-sheet",
-  jwtMW.authentication,
-
-  createhandoversheet
-);
-router.post(
-  "/handover-export",
-  jwtMW.authentication,
-
-  getexportToCsv
-);
-router.get(
-  "/get-all-handover-sheet",
-  jwtMW.authentication,
-
-  gethandoversheetdata
-);
-router.put(
-  "/edit-hand-over-sheet/:_id",
-  jwtMW.authentication,
-
-  edithandoversheetdata
-);
-router.put(
-  "/update-status/:_id",
-  jwtMW.authentication,
-
-  updatestatus
-);
-router.post("/check/:_id", jwtMW.authentication, checkid);
-router.get(
-  "/get-handoversheet",
-  jwtMW.authentication,
-
-  getByIdOrLeadId
-);
-router.get(
-  "/search/:letter",
-  jwtMW.authentication,
-
-  search
-);
-router.put(
-  "/migrateProject",
-  jwtMW.authentication,
-
-  migrateProjectToHandover
 );
 
 //module master
