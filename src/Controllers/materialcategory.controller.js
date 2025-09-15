@@ -68,7 +68,6 @@ const addMaterialCategory = async (req, res) => {
   }
 };
 
-
 const getAllMaterialCategories = async (req, res) => {
   try {
     const page =
@@ -143,7 +142,6 @@ const getAllMaterialCategories = async (req, res) => {
   }
 };
 
-
 const namesearchOfMaterialCategories = async (req, res) => {
   try {
     const {
@@ -159,7 +157,6 @@ const namesearchOfMaterialCategories = async (req, res) => {
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
     const skip = (pageNum - 1) * pageSize;
 
-    // 🔒 Hard-enforce active only
     const baseFilter = {
       status: "active",
       ...(search
@@ -332,7 +329,6 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
   }
 };
 
-
 const getMaterialCategoryById = async (req, res) => {
   try {
     const { id } = req.query;
@@ -357,7 +353,6 @@ const getMaterialCategoryById = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 const updateMaterialCategory = async (req, res) => {
   try {
@@ -409,7 +404,6 @@ const updateMaterialCategory = async (req, res) => {
     });
   }
 };
-
 
 const deleteMaterialCategory = async (req, res) => {
   try {
