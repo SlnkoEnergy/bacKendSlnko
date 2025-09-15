@@ -131,9 +131,9 @@ const bdleadsSchema = new mongoose.Schema(
       type: String,
       default: "false",
     },
-    handover_lock:{
+    handover_lock: {
       type: String,
-      default: "unlock"
+      default: "unlock",
     },
     leadAging: {
       type: Number,
@@ -141,6 +141,10 @@ const bdleadsSchema = new mongoose.Schema(
     },
     inactivedate: {
       type: Date,
+    },
+    priority: {
+      type: String,
+      enum: ["low", "medium", "high", "highest"],
     },
     documents: [
       {
