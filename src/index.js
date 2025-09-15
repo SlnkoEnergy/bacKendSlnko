@@ -4,8 +4,8 @@ const app = express();
 
 const routes = require("../src/Routes/routes");
 const engineeringRoutes = require("./Routes/engineering.routes");
-const bdleadsRoutes = require("../src/Routes/bdleads/bdleadDashboardRoutes");
-const dprRoutes = require("../src/Routes/dpr/dprRoutes");
+const bdleadsRoutes = require("../src/Routes/bdleads.routes");
+const dprRoutes = require("../src/Routes/dpr.routes");
 const purchaseRoutes = require("../src/Routes/purchaserequest.routes");
 const taskRoutes = require("./Routes/tasks.routes");
 const accountingRoutes = require("../src/Routes/Accounting/accountingRoutes");
