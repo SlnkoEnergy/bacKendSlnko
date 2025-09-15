@@ -20,17 +20,16 @@ const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
 
-let Sentry, Tracing;
-if (process.env.NODE_ENV !== "test") {
-  Sentry = require("@sentry/node");
-  Tracing = require("@sentry/tracing");
-
-  require("../src/utils/cron/inactivelead.cron.utils");
-  require("../src/utils/cron/movetotrash.cron.utils");
-}
-
+Sentry.init({
+  dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",
+  integrations: [
+    new Sentry.Integrations.Http({ tracing: true }),
+    new Tracing.Integrations.Express({ app }),
+  ],
+  send_default_pii: true,
+  tracesSampleRate: 1.0,
+});
 config({ path: "./.env" });
-
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",")
   : [];

@@ -37,6 +37,7 @@ const {
   fixBdLeadsFields,
   getLeadCounts,
   updateLeadStatusBulk,
+  updatePriority
 } = require("../Controllers/bdleads.controller.js");
 const {
   getNotesById,
@@ -81,6 +82,7 @@ router.put("/attach-group", jwtMW.authentication, attachToGroup);
 router.post("/export-lead", jwtMW.authentication, exportLeadsCSV);
 router.put("/:_id/updateLeadStatus", jwtMW.authentication, updateLeadStatus);
 router.put("/updateLeadStatusBulk", jwtMW.authentication, updateLeadStatusBulk);
+router.put("/updatePriority", jwtMW.authentication, updatePriority);
 router.put("/uploadDocuments", jwtMW.authentication, upload, uploadDocuments);
 router.put(
   "/:_id/updateClosingDate",
