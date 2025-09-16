@@ -70,7 +70,6 @@ const addMaterialCategory = async (req, res) => {
   }
 };
 
-
 const getAllMaterialCategories = async (req, res) => {
   try {
     const page =
@@ -145,7 +144,6 @@ const getAllMaterialCategories = async (req, res) => {
   }
 };
 
-
 const namesearchOfMaterialCategories = async (req, res) => {
   try {
     const {
@@ -166,11 +164,11 @@ const namesearchOfMaterialCategories = async (req, res) => {
       status: "active",
       ...(search
         ? {
-          name: {
-            $regex: search.trim().replace(/\s+/g, ".*"),
-            $options: "i",
-          },
-        }
+            name: {
+              $regex: search.trim().replace(/\s+/g, ".*"),
+              $options: "i",
+            },
+          }
         : {}),
     };
 
@@ -218,9 +216,9 @@ const namesearchOfMaterialCategories = async (req, res) => {
     const finalFilter =
       prFlag && project_id
         ? {
-          ...baseFilter,
-          _id: { $in: scopeIds.map((id) => new mongoose.Types.ObjectId(id)) },
-        }
+            ...baseFilter,
+            _id: { $in: scopeIds.map((id) => new mongoose.Types.ObjectId(id)) },
+          }
         : baseFilter;
 
     const projection = { _id: 1, name: 1, description: 1 };
@@ -334,7 +332,6 @@ const getAllMaterialCategoriesDropdown = async (req, res) => {
   }
 };
 
-
 const getMaterialCategoryById = async (req, res) => {
   try {
     const { id } = req.query;
@@ -360,7 +357,6 @@ const getMaterialCategoryById = async (req, res) => {
   }
 };
 
-
 const updateMaterialCategory = async (req, res) => {
   try {
     const { name, description, fields, type, status } = req.body;
@@ -368,7 +364,9 @@ const updateMaterialCategory = async (req, res) => {
     const userId = req.user?.userId;
 
     if (!id) {
-      return res.status(400).json({ message: "Material Category ID is required" });
+      return res
+        .status(400)
+        .json({ message: "Material Category ID is required" });
     }
 
     const updatedMaterialCategory = await materialCategory.findByIdAndUpdate(
@@ -412,7 +410,6 @@ const updateMaterialCategory = async (req, res) => {
   }
 };
 
-
 const deleteMaterialCategory = async (req, res) => {
   try {
     const id = req.params._id;
@@ -437,21 +434,27 @@ const searchNameAllCategory = async (req, res) => {
   try {
     const { search = "", page = 1, limit = 7 } = req.query;
 
-    // const data = await materialcategoryModel.find();
-
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
     const skip = (pageNum - 1) * pageSize;
 
-    const query = search
-      ? { name: { $regex: search.trim(), $options: "i" } }
-      : {};
+    // Always enforce active status
+    const baseQuery = { status: "active" };
 
-    // // No projection => all fields
+    // If search exists, merge with baseQuery
+    const query = search
+      ? { ...baseQuery, name: { $regex: search.trim(), $options: "i" } }
+      : baseQuery;
+
     const sort = { name: 1, _id: 1 };
 
     const [items, total] = await Promise.all([
-      materialcategoryModel.find(query).sort(sort).skip(skip).limit(pageSize).lean(),
+      materialcategoryModel
+        .find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
       materialcategoryModel.countDocuments(query),
     ]);
 
@@ -460,9 +463,14 @@ const searchNameAllCategory = async (req, res) => {
 
     return res.status(200).json({
       message: "Material categories retrieved successfully",
-      data: items, // full docs with type, category_code, fields, etc.
+      data: items, // only active docs
       pagination: {
-        search, page: pageNum, pageSize, total, totalPages, hasMore,
+        search,
+        page: pageNum,
+        pageSize,
+        total,
+        totalPages,
+        hasMore,
         nextPage: hasMore ? pageNum + 1 : null,
       },
     });
@@ -474,12 +482,9 @@ const searchNameAllCategory = async (req, res) => {
   }
 };
 
-
-
 const searchNameAllProduct = async (req, res) => {
   try {
-    const { search = "", page = 1, limit = 7, categoryId } = req.query;
-
+    const { search = "", page = 1, limit = 7 , categoryId} = req.query;
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
     const skip = (pageNum - 1) * pageSize;
@@ -487,78 +492,23 @@ const searchNameAllProduct = async (req, res) => {
     const term = String(search).trim();
     const rx = term ? new RegExp(escapeRegex(term), "i") : null;
 
-    // Common sort
-    const sort = { name: 1, _id: 1 };
-
-    // If categoryId is present -> AGGREGATION that returns ONLY ONE document
-    if (categoryId) {
-      const catId = toObjectId(categoryId);
-      if (!catId) {
-        return res.status(400).json({ message: "Invalid categoryId" });
-      }
-
-      // NOTE: adjust fields in $match depending on how you store name/sku in your schema.
-      // If your product's "name" lives in data[], keep the simple name/sku match or extend.
-      const match = { category: catId };
-      if (rx) {
-        match.$or = [
-          { name: rx },           // if you have a "name" field
-          { sku_code: rx },       // if you have "sku_code"
-          // If your product name lives in data[], uncomment this:
-          // { data: { $elemMatch: { name: /product name/i, "values.input_values": rx } } },
-        ];
-      }
-
-      const pipeline = [
-        { $match: match },
-        { $sort: sort },
-        { $limit: 1 },
-
-        // (Optional) bring category info if you want it in the response
-        {
-          $lookup: {
-            from: "materialcategories",       // real collection name
-            localField: "category",
-            foreignField: "_id",
-            as: "categoryDoc",
-          },
-        },
-        {
-          $addFields: {
-            category_name: { $ifNull: [{ $arrayElemAt: ["$categoryDoc.name", 0] }, ""] },
-            category_code: { $ifNull: [{ $arrayElemAt: ["$categoryDoc.category_code", 0] }, ""] },
-          },
-        },
-        { $project: { categoryDoc: 0 } },
-      ];
-
-      const rows = await materialModel.aggregate(pipeline).allowDiskUse(true);
-      return res.status(200).json({
-        message: "One product for category retrieved successfully",
-        data: rows,                 // at most 1 item
-        pagination: {
-          search: term,
-          categoryId,
-          page: 1,
-          pageSize: rows.length,
-          total: rows.length,
-          totalPages: 1,
-          hasMore: false,
-          nextPage: null,
-        },
-      });
-    }
-
-    // Otherwise -> normal paginated FIND
+  
+    // Build query
     const query = {};
+    if (categoryId) {
+      query.category = categoryId; // only products with this category
+    } 
+
     if (rx) {
       query.$or = [
-        { name: rx },        // if "name" field exists
-        { sku_code: rx },    // if "sku_code" exists
-        // If you store name in data[], optionally add:
-        // { data: { $elemMatch: { name: /product name/i, "values.input_values": rx } } },
+        { name: rx },
+        { sku_code: rx },
+        // If product "name" is inside data[]
+        // { data: { $elemMatch: { "values.input_values": rx } } },
       ];
     }
+
+    const sort = { name: 1, _id: 1 };
 
     const [items, total] = await Promise.all([
       materialModel.find(query).sort(sort).skip(skip).limit(pageSize).lean(),
@@ -570,9 +520,10 @@ const searchNameAllProduct = async (req, res) => {
 
     return res.status(200).json({
       message: "Products retrieved successfully",
-      data: items,
+      data: items, // only products with matching category
       pagination: {
         search: term,
+        categoryId,
         page: pageNum,
         pageSize,
         total,
@@ -589,6 +540,7 @@ const searchNameAllProduct = async (req, res) => {
     });
   }
 };
+
 module.exports = {
   addMaterialCategory,
   getAllMaterialCategories,
@@ -598,5 +550,5 @@ module.exports = {
   getAllMaterialCategoriesDropdown,
   namesearchOfMaterialCategories,
   searchNameAllCategory,
-  searchNameAllProduct
+  searchNameAllProduct,
 };
