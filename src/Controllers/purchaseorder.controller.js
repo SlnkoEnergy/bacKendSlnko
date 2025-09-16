@@ -936,9 +936,7 @@ const getPaginatedPo = async (req, res) => {
         ? [{ $match: { resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } } } }]
         : []),
 
-      { $sort: { createdAt: -1, po_number: 1 } },
-      { $skip: skip },
-      { $limit: pageSize },
+     
 
       {
         $addFields: {
@@ -946,8 +944,17 @@ const getPaginatedPo = async (req, res) => {
           po_value: {
             $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
           },
+          total_advance_paid:{
+            $convert:{ input: "$total_advance_paid", to:"double", onError:0, onNull:0 }
+          }
         },
       },
+
+       { $sort: { createdAt: -1, po_number: 1 } },
+      { $skip: skip },
+      { $limit: pageSize },
+
+      
       {
         $project: {
           _id: 1,
@@ -958,7 +965,7 @@ const getPaginatedPo = async (req, res) => {
           po_value: 1,
           po_basic: 1,
           gst: 1,
-          amount_paid: 1,
+          amount_paid: "$total_advance_paid",
           total_billed: 1,
           partial_billing: 1,
           etd: 1,

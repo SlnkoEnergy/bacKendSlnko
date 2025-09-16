@@ -232,10 +232,6 @@ const utrSubmission = async (req, res) => {
   }
 };
 
-
-
-
-
 module.exports = {
   paymentApproved,
   utrSubmission,

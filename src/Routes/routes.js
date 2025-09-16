@@ -54,6 +54,7 @@ const {
   updateStatusPO,
   getPoBasic,
   updateSalesPO,
+  
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -75,14 +76,13 @@ const {
   editPayRequestById,
   getPayRequestById,
   excelData,
-  updateExcelData,
   restorepayrequest,
   getPay,
   deadlineExtendRequest,
   requestCreditExtension,
   approve_pending,
   hold_approve_pending,
-  updateExceData,
+  updateExcelData,
   getExcelDataById,
   getpy,
   getTrashPayment,
@@ -409,6 +409,7 @@ router.put(
   updateSalesPO
 );
 
+
 //Add vendor
 router.post(
   "/Add-vendoR-IT",
@@ -529,12 +530,6 @@ router.get(
   excelData
 );
 router.put(
-  "/update-excel-data",
-  jwtMW.authentication,
-
-  updateExcelData
-);
-router.put(
   "/restorepayrequest/:_id",
   jwtMW.authentication,
 
@@ -556,7 +551,7 @@ router.put(
   "/update-excel",
   jwtMW.authentication,
 
-  updateExceData
+  updateExcelData
 );
 router.get(
   "/get-single-excel-data/:_id",
