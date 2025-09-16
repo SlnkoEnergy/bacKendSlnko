@@ -22,7 +22,6 @@ const salesDetailSchema = new mongoose.Schema(
   { _id: false }
 );
 
-
 const purchaseOrderSchema = new mongoose.Schema(
   {
     p_id: {
