@@ -8,7 +8,7 @@ const { shouldUpdateStatus } = require("../utils/shouldUpdateStatus");
 const group = require("../models/bdgroup.model");
 const task = require("../models/bdtask.model");
 const groupModells = require("../models/bdgroup.model");
-const { Novu } = require('@novu/node');
+const { Novu } = require("@novu/node");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const handoversheetModells = require("../models/handoversheet.model");
 const userModel = require("../models/user.model");
@@ -136,7 +136,6 @@ const createBDlead = async function (req, res) {
 
     const bdLead = new bdleadsModells(payload);
 
-
     await bdLead.save();
 
     res.status(200).json({
@@ -165,6 +164,7 @@ const getAllLeads = async (req, res) => {
       inactiveFilter,
       leadAgingFilter,
       ClosingDateFilter,
+      priorityFilter,
     } = req.query;
     const userId = req.user.userId;
     const user = await userModells.findById(userId).lean();
@@ -185,21 +185,23 @@ const getAllLeads = async (req, res) => {
       "Gaurav Kumar Upadhyay": ["madhya pradesh"],
       "Om Utkarsh": ["rajasthan"],
       "Abhishek Sawhney": ["chhattisgarh"],
-      "Sankalp Choudhary": ["chhattisgarh"]
+      "Sankalp Choudhary": ["chhattisgarh"],
     };
 
-
     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
-      query["current_assigned.user_id"] = new mongoose.Types.ObjectId(userId)
+      query["current_assigned.user_id"] = new mongoose.Types.ObjectId(userId);
     }
 
     if (regionalAccessMap[user.name] && !isPrivilegedUser) {
       const regions = regionalAccessMap[user.name];
       query.$or = [
         { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
-        { "address.state": { $in: regions.map(r => new RegExp(`^${r}$`, "i")) } }
+        {
+          "address.state": {
+            $in: regions.map((r) => new RegExp(`^${r}$`, "i")),
+          },
+        },
       ];
-
     }
 
     if (search) {
@@ -244,6 +246,13 @@ const getAllLeads = async (req, res) => {
       query["current_status.name"] = "won";
     }
 
+    if (priorityFilter) {
+      const priorities = priorityFilter
+        .split(",")
+        .map((p) => p.trim().toLowerCase());
+      query.priority = { $in: priorities };
+    }
+
     if (handover_statusFilter === "inprocess") {
       query["status_of_handoversheet"] = { $in: ["draft", "Rejected"] };
       query["current_status.name"] = "won";
@@ -268,9 +277,9 @@ const getAllLeads = async (req, res) => {
     if (ClosingDateFilter && ClosingDateFilter.length > 0) {
       const year = new Date().getFullYear();
 
-      const months = ClosingDateFilter.split(",").map(m => Number(m));
+      const months = ClosingDateFilter.split(",").map((m) => Number(m));
 
-      const monthQueries = months.map(month => {
+      const monthQueries = months.map((month) => {
         const start = new Date(year, month - 1, 1);
         const end = new Date(year, month, 0);
         end.setHours(23, 59, 59, 999);
@@ -335,6 +344,7 @@ const getLeadCounts = async (req, res) => {
       inactiveFilter,
       leadAgingFilter,
       ClosingDateFilter,
+      priorityFilter,
     } = req.query;
 
     const userId = req.user.userId;
@@ -356,9 +366,8 @@ const getLeadCounts = async (req, res) => {
       "Gaurav Kumar Upadhyay": ["madhya pradesh"],
       "Om Utkarsh": ["rajasthan"],
       "Abhishek Sawhney": ["chhattisgarh"],
-      "Sankalp Choudhary": ["chhattisgarh"]
+      "Sankalp Choudhary": ["chhattisgarh"],
     };
-
 
     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
       const userObjectId = new mongoose.Types.ObjectId(userId);
@@ -371,11 +380,14 @@ const getLeadCounts = async (req, res) => {
       const regions = regionalAccessMap[user.name];
       andConditions.push({
         $or: [
-          { "address.state": { $in: regions.map(r => new RegExp(`^${r.trim()}$`, "i")) } },
-          { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) }
-        ]
+          {
+            "address.state": {
+              $in: regions.map((r) => new RegExp(`^${r.trim()}$`, "i")),
+            },
+          },
+          { "current_assigned.user_id": new mongoose.Types.ObjectId(userId) },
+        ],
       });
-
     }
 
     if (search) {
@@ -428,6 +440,13 @@ const getLeadCounts = async (req, res) => {
       andConditions.push({ "current_status.name": "won" });
     }
 
+    if (priorityFilter) {
+      const priorities = priorityFilter
+        .split(",")
+        .map((p) => p.trim().toLowerCase());
+      andConditions.push({ priority: { $in: priorities } });
+    }
+
     if (handover_statusFilter === "completed") {
       andConditions.push({
         status_of_handoversheet: { $in: ["submitted", "Approved"] },
@@ -449,9 +468,9 @@ const getLeadCounts = async (req, res) => {
     if (ClosingDateFilter && ClosingDateFilter.length > 0) {
       const year = new Date().getFullYear();
 
-      const months = ClosingDateFilter.split(",").map(m => Number(m));
+      const months = ClosingDateFilter.split(",").map((m) => Number(m));
 
-      const monthQueries = months.map(month => {
+      const monthQueries = months.map((month) => {
         const start = new Date(year, month - 1, 1);
         const end = new Date(year, month, 0);
         end.setHours(23, 59, 59, 999);
@@ -461,7 +480,6 @@ const getLeadCounts = async (req, res) => {
 
       andConditions.push({ $or: monthQueries });
     }
-
 
     if (name) {
       const userObjectId = new mongoose.Types.ObjectId(name);
@@ -571,28 +589,6 @@ const deleteLead = async (req, res) => {
     const userId = req.user.userId;
     const user = await userModells.findById(userId);
 
-    // Notification fuctionality on Delete Lead
-
-    // try {
-    //   const workflow = 'delete-notification';
-
-    //   const senders = await userModells.find({
-    //     $or: [
-    //       { department: 'admin' },
-    //       { department: 'BD', role: '' },
-    //     ]
-    //   }).select('_id')
-    //     .lean()
-    //     .then(users => users.map(u => u._id));
-    //   const data = {
-    //     message: `Lead ${deletedLead.name} (ID: ${deletedLead.id}) was deleted by ${user}`
-    //   }
-    //   await getnovuNotification(workflow, senders, data);
-    // } catch (error) {
-    //   console.log(error);
-    // }
-
-
     res
       .status(200)
       .json({ message: "Lead deleted successfully", data: deletedLead });
@@ -639,26 +635,27 @@ const updateAssignedTo = async (req, res) => {
       updatedLeads.push(lead);
     }
 
-    // Notification Functionality for Transfer Lead 
+    // Notification Functionality for Transfer Lead
 
-    const Ids = leadIds.map(id => new mongoose.Types.ObjectId(id));
+    const Ids = leadIds.map((id) => new mongoose.Types.ObjectId(id));
 
-    const leads = await bdleadsModells.find({ _id: { $in: Ids } }).select('id')
+    const leads = await bdleadsModells.find({ _id: { $in: Ids } }).select("id");
 
-    const assign = await userModells.findById(assigned).select('name');
+    const assign = await userModells.findById(assigned).select("name");
 
     try {
       for (const lead of leads) {
-
-        const workflow = 'lead';
-        const alluser = await userModells.find({
-          $or: [
-            { department: 'admin' },
-            { department: 'BD', role: 'manager' }
-          ]
-        }).select('_id')
+        const workflow = "lead";
+        const alluser = await userModells
+          .find({
+            $or: [
+              { department: "admin" },
+              { department: "BD", role: "manager" },
+            ],
+          })
+          .select("_id")
           .lean()
-          .then(users => users.map(u => u._id));
+          .then((users) => users.map((u) => u._id));
 
         const senders = [...new Set([...alluser, assigned])];
         const data = {
@@ -668,20 +665,17 @@ const updateAssignedTo = async (req, res) => {
           link: `leadProfile?id=${lead._id}`,
           type: "sales",
           link1: `/sales`,
-        }
+        };
 
         setImmediate(() => {
-          getnovuNotification(workflow, senders, data).catch(err =>
+          getnovuNotification(workflow, senders, data).catch((err) =>
             console.error("Notification error:", err)
           );
         });
-
       }
     } catch (error) {
       console.log(error);
     }
-
-
 
     return res.status(200).json({
       success: true,
@@ -1114,7 +1108,6 @@ const updateLeadStatus = async function (req, res) {
   }
 };
 
-
 const updateLeadStatusBulk = async function (req, res) {
   try {
     const { ids, name, stage, remarks, expected_closing_date } = req.body;
@@ -1154,7 +1147,6 @@ const updateLeadStatusBulk = async function (req, res) {
     return res.status(400).json({ error: err.message });
   }
 };
-
 
 const getAllLeadDropdown = async (req, res) => {
   try {
@@ -1224,9 +1216,9 @@ const uploadDocuments = async (req, res) => {
         Array.isArray(respData) && respData.length > 0
           ? respData[0]
           : respData.url ||
-          respData.fileUrl ||
-          (respData.data && respData.data.url) ||
-          null;
+            respData.fileUrl ||
+            (respData.data && respData.data.url) ||
+            null;
 
       if (url) {
         uploadedFileMap[index] = url;
@@ -1401,6 +1393,41 @@ const fixBdLeadsFields = async (req, res) => {
   }
 };
 
+const updatePriority = async (req, res) => {
+  try {
+    const { leadIds, priority } = req.body;
+    if (!Array.isArray(leadIds) || leadIds.length === 0 || !priority) {
+      return res.status(400).json({
+        success: false,
+        message: "leadIds must be a non-empty array and priority is required",
+      });
+    }
+    if (
+      !["low", "medium", "high", "highest"].includes(priority.toLowerCase())
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "priority must be one of 'low', 'medium','high' or 'highest'",
+      });
+    }
+    const updatedLeads = await bdleadsModells.updateMany(
+      { _id: { $in: leadIds } },
+      { $set: { priority } },
+      { new: true }
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Priority updated successfully",
+      data: updatedLeads,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server error",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllLeads,
   getAllLeadDropdown,
@@ -1418,5 +1445,6 @@ module.exports = {
   attachToGroup,
   fixBdLeadsFields,
   getLeadCounts,
-  updateLeadStatusBulk
+  updateLeadStatusBulk,
+  updatePriority,
 };
