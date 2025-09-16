@@ -2,6 +2,8 @@ const materialCategory = require("../models/materialcategory.model");
 const scopeModel = require("../models/scope.model");
 const Counter = require("../models/materialcategorycounter.model");
 const mongoose = require("mongoose");
+const materialcategoryModel = require("../models/materialcategory.model");
+const materialModel = require("../models/material.model");
 
 const addMaterialCategory = async (req, res) => {
   try {
@@ -26,10 +28,10 @@ const addMaterialCategory = async (req, res) => {
     const newMaterialCategory = new materialCategory({
       name,
       description,
-      type,                 
+      type,
       category_code: categoryCode,
       fields,
-      status,              
+      status,
       order,
       createdBy: userId,
       updatedBy: userId,
@@ -43,7 +45,7 @@ const addMaterialCategory = async (req, res) => {
       const newScopeItem = {
         item_id: new mongoose.Types.ObjectId(newMaterialCategory._id),
         name: newMaterialCategory.name,
-        type: newMaterialCategory.type,                                                          
+        type: newMaterialCategory.type,
         pr_status: false,
       };
 
@@ -164,11 +166,11 @@ const namesearchOfMaterialCategories = async (req, res) => {
       status: "active",
       ...(search
         ? {
-            name: {
-              $regex: search.trim().replace(/\s+/g, ".*"),
-              $options: "i",
-            },
-          }
+          name: {
+            $regex: search.trim().replace(/\s+/g, ".*"),
+            $options: "i",
+          },
+        }
         : {}),
     };
 
@@ -216,9 +218,9 @@ const namesearchOfMaterialCategories = async (req, res) => {
     const finalFilter =
       prFlag && project_id
         ? {
-            ...baseFilter,
-            _id: { $in: scopeIds.map((id) => new mongoose.Types.ObjectId(id)) },
-          }
+          ...baseFilter,
+          _id: { $in: scopeIds.map((id) => new mongoose.Types.ObjectId(id)) },
+        }
         : baseFilter;
 
     const projection = { _id: 1, name: 1, description: 1 };
@@ -362,7 +364,7 @@ const getMaterialCategoryById = async (req, res) => {
 const updateMaterialCategory = async (req, res) => {
   try {
     const { name, description, fields, type, status } = req.body;
-    const id = req.params._id || req.params.id; 
+    const id = req.params._id || req.params.id;
     const userId = req.user?.userId;
 
     if (!id) {
@@ -385,7 +387,7 @@ const updateMaterialCategory = async (req, res) => {
       const newScopeItem = {
         item_id: new mongoose.Types.ObjectId(updatedMaterialCategory._id),
         name: updatedMaterialCategory.name,
-        type: updatedMaterialCategory.type,             
+        type: updatedMaterialCategory.type,
         pr_status: false,
       };
 
@@ -400,7 +402,7 @@ const updateMaterialCategory = async (req, res) => {
     return res.status(200).json({
       message: "Material Category updated successfully",
       data: updatedMaterialCategory,
-      scopesUpdated, 
+      scopesUpdated,
     });
   } catch (error) {
     return res.status(500).json({
@@ -431,6 +433,116 @@ const deleteMaterialCategory = async (req, res) => {
   }
 };
 
+const searchNameAllCategory = async (req, res) => {
+  try {
+    const { search = "", page = 1, limit = 7 } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
+    const skip = (pageNum - 1) * pageSize;
+
+    const query = {
+      status: "active",
+      ...(search && { name: { $regex: search.trim(), $options: "i" } }),
+    };
+
+    const sort = { name: 1, _id: 1 };
+
+    const [items, total] = await Promise.all([
+      materialcategoryModel
+        .find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      materialcategoryModel.countDocuments(query),
+    ]);
+
+    const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+    const hasMore = pageNum < totalPages;
+
+    return res.status(200).json({
+      message: "Active material categories retrieved successfully",
+      data: items,
+      pagination: {
+        search,
+        page: pageNum,
+        pageSize,
+        total,
+        totalPages,
+        hasMore,
+        nextPage: hasMore ? pageNum + 1 : null,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error searching material categories",
+      error: error.message,
+    });
+  }
+};
+
+
+
+
+const searchNameAllProduct = async (req, res) => {
+  try {
+    const { search = "", page = 1, limit = 7, categoryId = "" } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
+    const skip = (pageNum - 1) * pageSize;
+    const term = String(search || "").trim();
+    const escapeRegex = (s = "") =>
+      s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rx = term ? new RegExp(escapeRegex(term), "i") : null;
+
+    // Build query
+    const query = {};
+    if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
+      query.category = new mongoose.Types.ObjectId(categoryId);
+    }
+    if (rx) {
+      query.$or = [
+        { name: rx },     // if you store a top-level "name"
+        { sku_code: rx }, // if you store "sku_code"
+        // If your product's display name is in data[]:
+        // { data: { $elemMatch: { name: "Product Name", "values.input_values": rx } } },
+      ];
+    }
+
+    const sort = { name: 1, _id: 1 };
+
+    const [items, total] = await Promise.all([
+      materialModel.find(query).sort(sort).skip(skip).limit(pageSize).lean(),
+      materialModel.countDocuments(query),
+    ]);
+
+    const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+    const hasMore = pageNum < totalPages;
+
+    return res.status(200).json({
+      message: "Products retrieved successfully",
+      data: items,
+      pagination: {
+        search: term,
+        categoryId: categoryId || undefined,
+        page: pageNum,
+        pageSize,
+        total,
+        totalPages,
+        hasMore,
+        nextPage: hasMore ? pageNum + 1 : null,
+      },
+    });
+  } catch (error) {
+    console.error("searchNameAllProduct error:", error);
+    return res.status(500).json({
+      message: "Error searching products",
+      error: error.message,
+    });
+  }
+};
 module.exports = {
   addMaterialCategory,
   getAllMaterialCategories,
@@ -439,4 +551,6 @@ module.exports = {
   deleteMaterialCategory,
   getAllMaterialCategoriesDropdown,
   namesearchOfMaterialCategories,
+  searchNameAllCategory,
+  searchNameAllProduct
 };

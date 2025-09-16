@@ -78,7 +78,7 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: Number,
     },
     total_advance_paid: {
-      type: String,
+      type: Number,
     },
     po_balance: {
       type: Number,
