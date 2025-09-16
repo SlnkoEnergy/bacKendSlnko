@@ -725,7 +725,6 @@ const utrUpdate = async function (req, res) {
     p_id: p.p_id,
     pay_type: p.pay_type,
     amount_paid: p.amount_paid,
-    // amt_for_customer: p.amt_for_customer,
     dbt_date: p.dbt_date,
     paid_for: p.paid_for,
     vendor: p.vendor,
@@ -756,16 +755,17 @@ const utrUpdate = async function (req, res) {
       const oldUtr = (payment.utr || "").trim() || null;
       const utrChanged = oldUtr !== trimmedUtr;
 
+      // Prevent duplicate UTR across records
       const dup = await payRequestModells
         .findOne({ utr: trimmedUtr, _id: { $ne: payment._id } })
         .session(session);
-
       if (dup) {
         httpStatus = 409;
         payload = { message: "UTR already exists on another record." };
         return;
       }
 
+      // Update UTR (+ submitted by)
       const setFields = {
         utr: trimmedUtr,
         ...(submittedBy ? { utr_submitted_by: submittedBy } : {}),
@@ -780,6 +780,7 @@ const utrUpdate = async function (req, res) {
       payment.utr = trimmedUtr;
       if (submittedBy) payment.utr_submitted_by = submittedBy;
 
+      // History for CR-path only when changed
       const isCrPath = Boolean(cr_id);
       if (isCrPath && utrChanged) {
         await payRequestModells.updateOne(
@@ -797,8 +798,8 @@ const utrUpdate = async function (req, res) {
         );
       }
 
+      // Keep subtractMoney in sync (original logic)
       let subtractMoneyDoc = null;
-
       if (utrChanged && oldUtr) {
         subtractMoneyDoc = await subtractMoneyModells.findOneAndUpdate(
           { utr: oldUtr },
@@ -819,6 +820,33 @@ const utrUpdate = async function (req, res) {
           { $set: buildSubtractDoc(payment, trimmedUtr) },
           { new: true, upsert: true, session, runValidators: true }
         );
+      }
+
+
+      if (payment.po_number && utrChanged) {
+        const amt = Number(payment.amount_paid) || 0;
+        if (amt > 0) {
+          const refKey = pay_id ? `pay:${payment.pay_id}` : `cr:${payment.cr_id}`;
+
+          const poDoc = await purchaseOrderModells
+            .findOne({ po_number: payment.po_number }, { advance_paid_refs: 1 })
+            .session(session);
+
+          const alreadyCounted =
+            Array.isArray(poDoc?.advance_paid_refs) &&
+            poDoc.advance_paid_refs.includes(refKey);
+
+          if (!alreadyCounted) {
+            await purchaseOrderModells.updateOne(
+              { po_number: payment.po_number },
+              {
+                $inc: { total_advance_paid: amt },
+                $addToSet: { advance_paid_refs: refKey },
+              },
+              { session }
+            );
+          }
+        }
       }
 
       httpStatus = 200;
@@ -851,6 +879,7 @@ const utrUpdate = async function (req, res) {
 
   return res.status(httpStatus).json(payload);
 };
+
 
 const restoreTrashToDraft = async (req, res) => {
   try {
@@ -1064,87 +1093,252 @@ const getPayRequestById = async function (req, res) {
 
 //get exceldaTa
 const excelData = async function (req, res) {
-  // const page = parseInt(req.query.page) || 1;
-  // const pageSize = 200;
-  // const skip = (page - 1) * pageSize;
+  try {
+    const {
+      status = "Not-paid",
+      search = "",
+      page = 1,
+      limit = 200,
+    } = req.query;
 
-  let data = await exccelDataModells.find();
-  // .sort({ createdAt: -1 }) // Latest first
-  // .skip(skip)
-  // .limit(pageSize);
+    const numericPage = Math.max(parseInt(page) || 1, 1);
+    const numericLimit = Math.min(Math.max(parseInt(limit) || 200, 1), 2000);
+    const skip = (numericPage - 1) * numericLimit;
 
-  res.status(200).json({ msg: "All Excel Data", data: data });
+    const match = {};
+    if (status && status !== "all") match.status = status;
+
+    const searchRegex = search ? new RegExp(String(search), "i") : null;
+    const searchOr = searchRegex
+      ? [
+          { vendor: searchRegex },
+          { po_number: searchRegex },
+          { paid_for: searchRegex },
+          { benificiary: searchRegex },
+          { acc_number: searchRegex },
+          { ifsc: searchRegex },
+          { utr: searchRegex },
+        ]
+      : [];
+
+    const pipeline = [
+      { $match: { ...match, ...(searchOr.length ? { $or: searchOr } : {}) } },
+
+      {
+        $addFields: {
+          __amount_num: {
+            $let: {
+              vars: { x: { $ifNull: ["$amount_paid", 0] } },
+              in: {
+                $cond: [
+                  { $eq: [{ $type: "$$x" }, "string"] },
+                  {
+                    $convert: {
+                      input: { $replaceAll: { input: "$$x", find: ",", replacement: "" } },
+                      to: "double",
+                      onError: 0,
+                      onNull: 0,
+                    },
+                  },
+                  {
+                    $convert: {
+                      input: "$$x",
+                      to: "double",
+                      onError: 0,
+                      onNull: 0,
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+
+    
+      {
+        $addFields: {
+          __dbt_date: {
+            $convert: { input: "$dbt_date", to: "date", onError: null, onNull: null },
+          },
+        },
+      },
+
+
+      {
+        $lookup: {
+          from: "projectdetails",
+          let: { pid: "$p_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [{ $toString: "$p_id" }, { $toString: "$$pid" }],
+                },
+              },
+            },
+            { $project: { _id: 0, p_id: 1, code: 1 } },
+          ],
+          as: "project",
+        },
+      },
+      { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
+
+      {
+        $addFields: {
+          debitAccount: "025305008971",
+          pay_mod: { $cond: [{ $gt: ["$__amount_num", 200000] }, "R", "N"] },
+          comment: {
+            $trim: {
+              input: {
+                $concat: [
+                  { $ifNull: ["$po_number", "-"] }, " / ",
+                  { $ifNull: ["$paid_for", "-"] }, " / ",
+                  { $ifNull: ["$vendor", ""] }, " / ",
+                  { $ifNull: ["$project.code", "-"] },
+                ],
+              },
+            },
+          },
+          dbt_date_fmt: {
+            $cond: [
+              { $ifNull: ["$__dbt_date", false] },
+              {
+                $dateToString: {
+                  format: "%d-%b-%Y",
+                  date: "$__dbt_date",
+                  timezone: "Asia/Kolkata",
+                },
+              },
+              "",
+            ],
+          },
+        },
+      },
+
+      { $sort: { createdAt: -1, _id: -1 } },
+
+
+      {
+        $facet: {
+          data: [{ $skip: skip }, { $limit: numericLimit }],
+          total: [{ $count: "value" }],
+        },
+      },
+      {
+        $project: {
+          data: 1,
+          total: { $ifNull: [{ $arrayElemAt: ["$total.value", 0] }, 0] },
+        },
+      },
+
+      {
+        $project: {
+          total: 1,
+          data: {
+            $map: {
+              input: "$data",
+              as: "d",
+              in: {
+                id: "$$d._id",
+                debitAccount: "$$d.debitAccount",
+                Approved: { $ifNull: ["$$d.approved", ""] },
+                acc_number: { $ifNull: ["$$d.acc_number", ""] },
+                benificiary: { $ifNull: ["$$d.benificiary", ""] },
+                amount_paid: { $ifNull: ["$$d.__amount_num", 0] },
+                pay_mod: "$$d.pay_mod",
+                dbt_date: "$$d.dbt_date_fmt",
+                ifsc: { $ifNull: ["$$d.ifsc", ""] },
+                comment: "$$d.comment",
+                status: "$$d.status",
+                utr: { $ifNull: ["$$d.utr", ""] },
+                acc_match: { $ifNull: ["$$d.acc_match", ""] },
+                payable_location: { $ifNull: ["$$d.payable_location", ""] },
+                print_location: { $ifNull: ["$$d.print_location", ""] },
+                bene_mobile_no: { $ifNull: ["$$d.bene_mobile_no", ""] },
+                bene_email_id: { $ifNull: ["$$d.bene_email_id", ""] },
+                bene_add1: { $ifNull: ["$$d.bene_add1", ""] },
+                bene_add2: { $ifNull: ["$$d.bene_add2", ""] },
+                bene_add3: { $ifNull: ["$$d.bene_add3", ""] },
+                bene_add4: { $ifNull: ["$$d.bene_add4", ""] },
+                add_details_1: { $ifNull: ["$$d.add_details_1", ""] },
+                add_details_2: { $ifNull: ["$$d.add_details_2", ""] },
+                add_details_3: { $ifNull: ["$$d.add_details_3", ""] },
+                add_details_4: { $ifNull: ["$$d.add_details_4", ""] },
+                add_details_5: { $ifNull: ["$$d.add_details_5", ""] },
+              },
+            },
+          },
+        },
+      },
+    ];
+
+    const [result] = await exccelDataModells.aggregate(pipeline).allowDiskUse(true);
+    const total = result?.total || 0;
+    const rows = result?.data || [];
+
+    return res.status(200).json({
+      msg: "Excel Data (server aggregated)",
+      page: numericPage,
+      limit: numericLimit,
+      total,
+      pages: Math.max(Math.ceil(total / numericLimit), 1),
+      data: rows,
+    });
+  } catch (err) {
+    console.error("[excelData] error:", err);
+    return res.status(500).json({ message: "Failed to load data", error: String(err?.message || err) });
+  }
 };
 
 const updateExcelData = async function (req, res) {
   try {
-    const status = req.body;
+    const { ids, _id, id, newStatus = "Deleted" } = req.body;
+
+    let idList = [];
+    if (Array.isArray(ids) && ids.length) idList = ids;
+    else if (_id) idList = [_id];
+    else if (id) idList = [id];
+
+    if (!idList.length) {
+      return res.status(400).json({ message: "Provide 'ids' (array) or '_id'/'id' (string)." });
+    }
+
+    const objectIds = idList
+      .map((v) => {
+        try {
+          return new mongoose.Types.ObjectId(String(v));
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    if (!objectIds.length) {
+      return res.status(400).json({ message: "No valid Mongo ObjectIds in 'ids'." });
+    }
 
     const result = await exccelDataModells.updateMany(
-      { status, status: "Not-paid" },
-      { $set: { status: "Deleted" } }
+      { _id: { $in: objectIds }, status: "Not-paid" },
+      { $set: { status: newStatus } }
     );
 
-    if (result.modifiedCount > 0) {
-      res.json({
-        message: "Deleted successfully",
-        modifiedCount: result.modifiedCount,
-      });
-    } else {
-      res.json({
-        message: "No matching documents found to update. +",
-      });
-    }
+    return res.json({
+      message: "Status updated",
+      requested: idList.length,
+      matchedCount: result.matchedCount || 0,
+      modifiedCount: result.modifiedCount || 0,
+      newStatus,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
+    console.error("[updateExcelData] error:", error);
+    return res.status(500).json({
       message: "An error occurred while updating the item status.",
+      error: String(error?.message || error),
     });
   }
 };
 
-//
-const updateExceData = async function (req, res) {
-  try {
-    const { _id } = req.body; // Extract _id from request body
-
-    if (!_id) {
-      return res.status(400).json({ message: "ID is required." });
-    }
-
-    // Find the document by _id
-    const document = await exccelDataModells.findOne({ _id });
-
-    if (!document) {
-      return res.status(404).json({ message: "Document not found." });
-    }
-
-    if (document.status !== "Not-paid") {
-      return res
-        .status(400)
-        .json({ message: "Status is not 'Not-paid', update not allowed." });
-    }
-
-    // Perform update operation
-    const result = await exccelDataModells.updateOne(
-      { _id, status: "Not-paid" },
-      { $set: { status: "Deleted" } }
-    );
-
-    if (result.modifiedCount > 0) {
-      res.json({ message: "Status Changed to Deleted successfully" });
-    } else {
-      res.json({ message: "No changes made." });
-    }
-  } catch (error) {
-    console.error(error);
-    res
-      .status(500)
-      .json({ message: "An error occurred while updating the item status." });
-  }
-};
-
-// Get Excel data by id
 
 const getExcelDataById = async function (req, res) {
   try {
@@ -1627,7 +1821,6 @@ module.exports = {
   getTrashPayment,
   approve_pending,
   hold_approve_pending,
-  updateExceData,
   getExcelDataById,
   getpy,
 };
