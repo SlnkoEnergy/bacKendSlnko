@@ -160,21 +160,29 @@ const getAllPurchaseRequest = async (req, res) => {
     const numericPage = Number(page) || 1;
     const skip = (numericPage - 1) * numericLimit;
 
-    const searchRegex = new RegExp(search, "i");
-    const itemSearchRegex = new RegExp(itemSearch, "i");
-    const statusSearchRegex = new RegExp(statusSearch, "i");
-    const poValueSearchNumber =
-      poValueSearch !== "" ? Number(poValueSearch) : null;
+    const searchRegex = search ? new RegExp(search, "i") : null;
+    const itemSearchRegex = itemSearch ? new RegExp(itemSearch, "i") : null;
+    const statusSearchRegex = statusSearch ? new RegExp(statusSearch, "i") : null;
+    const poValueSearchNumber = poValueSearch !== "" ? Number(poValueSearch) : null;
 
-    // Robust way to reference the purchase orders collection used by your model
-    const PO_COLLECTION =
-      (global.purchaseOrderModells &&
-        purchaseOrderModells.collection &&
-        purchaseOrderModells.collection.name) ||
-      "purchaseorders";
+    // Resolve the backing collection name from the Mongoose model if available
+    let PO_COLLECTION = "purchaseorders";
+    try {
+      if (mongoose.modelNames().includes("PurchaseOrder")) {
+        PO_COLLECTION = mongoose.model("PurchaseOrder").collection.name || "purchaseorders";
+      }
+    } catch {
+      // fallback to default
+    }
+
+    // Normalize created date range
+    const createdFromDate = createdFrom ? new Date(createdFrom) : null;
+    const createdToDate = createdTo ? new Date(createdTo) : null;
+    if (createdToDate) createdToDate.setHours(23, 59, 59, 999);
 
     // ---------- Base: join project, user, item/category; apply simple filters ----------
     const baseStages = [
+      // Project
       {
         $lookup: {
           from: "projectdetails",
@@ -185,6 +193,7 @@ const getAllPurchaseRequest = async (req, res) => {
       },
       { $unwind: { path: "$project_id", preserveNullAndEmptyArrays: true } },
 
+      // Created by user
       {
         $lookup: {
           from: "users",
@@ -195,6 +204,7 @@ const getAllPurchaseRequest = async (req, res) => {
       },
       { $unwind: { path: "$created_by", preserveNullAndEmptyArrays: true } },
 
+      // Items & item category
       { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
@@ -206,7 +216,8 @@ const getAllPurchaseRequest = async (req, res) => {
       },
       { $unwind: { path: "$item_data", preserveNullAndEmptyArrays: true } },
 
-      ...(search
+      // Text filters
+      ...(searchRegex
         ? [
           {
             $match: {
@@ -220,40 +231,44 @@ const getAllPurchaseRequest = async (req, res) => {
         ]
         : []),
 
-      ...(itemSearch
-        ? [{ $match: { "item_data.name": itemSearchRegex } }]
-        : []),
+      ...(itemSearchRegex ? [{ $match: { "item_data.name": itemSearchRegex } }] : []),
 
-      ...(statusSearch
-        ? [{ $match: { "items.status": statusSearchRegex } }]
-        : []),
+      ...(statusSearchRegex ? [{ $match: { "items.status": statusSearchRegex } }] : []),
 
-      ...(createdFrom && createdTo
+      ...(createdFromDate && createdToDate
         ? [
           {
             $match: {
               createdAt: {
-                $gte: new Date(createdFrom),
-                $lte: new Date(createdTo),
+                $gte: createdFromDate,
+                $lte: createdToDate,
               },
             },
           },
         ]
         : []),
 
-      // Shape back to one doc per PR
+      // Shape back to one doc per PR (fix projections to use field paths, not literals)
       {
         $project: {
           _id: 1,
           pr_no: 1,
           createdAt: 1,
-          project_id: { _id: 1, name: 1, code: 1 },
-          created_by: { _id: 1, name: 1 },
+          project_id: {
+            _id: "$project_id._id",
+            name: "$project_id.name",
+            code: "$project_id.code",
+          },
+          created_by: {
+            _id: "$created_by._id",
+            name: "$created_by.name",
+          },
           item: {
             _id: "$items._id",
             status: "$items.status",
-            other_item_name: "$items.other_item_name",
-            amount: "$items.amount",
+            // Your schema does not have other_item_name or amount on items; remove to avoid null noise
+            // other_item_name: "$items.other_item_name",
+            // amount: "$items.amount",
             item_id: { _id: "$item_data._id", name: "$item_data.name" },
           },
         },
@@ -292,16 +307,32 @@ const getAllPurchaseRequest = async (req, res) => {
           from: PO_COLLECTION,
           let: { prId: "$_id" },
           pipeline: [
-            { $match: { $expr: { $eq: ["$pr_id", "$$prId"] } } },
+            // IMPORTANT: your schema stores PR ref as pr.pr_id
+            { $match: { $expr: { $eq: ["$pr.pr_id", "$$prId"] } } },
             {
               $project: {
                 po_number: 1,
+                // If some legacy rows store strings, coerce safely
                 po_value: {
-                  $cond: [
-                    { $ifNull: ["$po_value", false] },
-                    { $toDouble: "$po_value" },
-                    0,
-                  ],
+                  $let: {
+                    vars: { v: { $ifNull: ["$po_value", 0] } },
+                    in: {
+                      $cond: [
+                        { $eq: [{ $type: "$$v" }, "string"] },
+                        {
+                          $convert: {
+                            input: {
+                              $replaceAll: { input: "$$v", find: ",", replacement: "" },
+                            },
+                            to: "double",
+                            onError: 0,
+                            onNull: 0,
+                          },
+                        },
+                        "$$v",
+                      ],
+                    },
+                  },
                 },
                 etd: 1,
               },
@@ -310,7 +341,8 @@ const getAllPurchaseRequest = async (req, res) => {
           as: "pos",
         },
       },
-      // validPos = POs with non-empty po_number; also compute po_numbers, po_details, po_value (sum)
+
+      // Aggregate PO fields
       {
         $addFields: {
           validPos: {
@@ -350,14 +382,10 @@ const getAllPurchaseRequest = async (req, res) => {
       },
 
       // ---------- Open PR filter (before pagination) ----------
-      ...(useOpenPR
-        ? [{ $match: { $expr: { $eq: [{ $size: "$validPos" }, 0] } } }]
-        : []),
+      ...(useOpenPR ? [{ $match: { $expr: { $eq: [{ $size: "$validPos" }, 0] } } }] : []),
 
       // ---------- PO-value filter (before pagination) ----------
-      ...(poValueSearchNumber !== null
-        ? [{ $match: { po_value: poValueSearchNumber } }]
-        : []),
+      ...(poValueSearchNumber !== null ? [{ $match: { po_value: poValueSearchNumber } }] : []),
 
       // ---------- ETD range filter (any PO with etd in range) ----------
       ...(etdFrom && etdTo
@@ -396,19 +424,14 @@ const getAllPurchaseRequest = async (req, res) => {
     const countPipeline = [...baseStages, { $count: "totalCount" }];
 
     // Paged pipeline = same filters, then skip/limit
-    const pagePipeline = [
-      ...baseStages,
-      { $skip: skip },
-      { $limit: numericLimit },
-    ];
+    const pagePipeline = [...baseStages, { $skip: skip }, { $limit: numericLimit }];
 
     const [pagedRows, countRows] = await Promise.all([
       PurchaseRequest.aggregate(pagePipeline),
       PurchaseRequest.aggregate(countPipeline),
     ]);
 
-    const totalCount =
-      countRows && countRows.length > 0 ? countRows[0].totalCount : 0;
+    const totalCount = countRows?.[0]?.totalCount || 0;
 
     return res.status(200).json({
       totalCount,
