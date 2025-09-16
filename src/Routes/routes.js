@@ -54,7 +54,7 @@ const {
   updateStatusPO,
   getPoBasic,
   updateSalesPO,
-  
+  checkAndFixAllTotalAdvancePaid,
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -426,6 +426,10 @@ router.put(
   updateSalesPO
 );
 
+router.put(
+  "/purchase-orders/total-advance-paid/check-and-fix-all",
+  checkAndFixAllTotalAdvancePaid
+);
 
 //Add vendor
 router.post(

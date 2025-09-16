@@ -20,6 +20,7 @@ const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const inspectionModel = require("../models/inspection.model");
 const billModel = require("../models/bill.model");
+const purchaseorderModel = require("../models/purchaseorder.model");
 
 const addPo = async function (req, res) {
   try {
@@ -1891,6 +1892,106 @@ const getPoBasic = async (req, res) => {
   }
 };
 
+const normalizePo = (v) => String(v || "").trim().toUpperCase();
+const checkAndFixAllTotalAdvancePaid = async (req, res) => {
+  try {
+    const pos = await purchaseorderModel
+      .find({})
+      .select({ _id: 1, po_number: 1, total_advance_paid: 1 })
+      .lean();
+
+    if (!pos.length) {
+      return res.json({ ok: true, processed: 0, updated: 0, results: [] });
+    }
+
+    const totals = await payRequestModells.aggregate([
+      {
+        $addFields: {
+          po_norm: { $toUpper: { $trim: { input: "$po_number" } } },
+          amt_num: {
+            $toDouble: {
+              $replaceAll: {
+                input: { $ifNull: ["$amount_paid", "0"] },
+                find: ",",
+                replacement: "",
+              },
+            },
+          },
+          approved_norm: {
+            $toUpper: { $trim: { input: { $ifNull: ["$approved", ""] } } },
+          },
+          utr_trim: { $trim: { input: { $ifNull: ["$utr", ""] } } },
+        },
+      },
+      {
+        $match: {
+          approved_norm: "APPROVED",
+          utr_trim: { $ne: "" },
+        },
+      },
+      { $group: { _id: "$po_norm", total: { $sum: "$amt_num" } } },
+      { $project: { _id: 0, po_norm: "$_id", total: 1 } },
+    ]);
+
+    const sumMap = new Map();
+    for (const t of totals) sumMap.set(t.po_norm, t.total);
+
+    const ops = [];
+    const results = [];
+    let updatedCount = 0;
+
+    for (const p of pos) {
+      const hasPoKey = Object.prototype.hasOwnProperty.call(p, "po_number");
+      const rawPo = hasPoKey ? p.po_number : undefined;
+      const poNorm = normalizePo(rawPo);
+      const stored = Number(p.total_advance_paid ?? 0);
+
+      const computed =
+        !hasPoKey || poNorm.length === 0 ? 0 : Number(sumMap.get(poNorm) ?? 0);
+
+      const EPS = 0.01;
+      const diff = +(stored - computed).toFixed(2);
+      const matches = Math.abs(diff) <= EPS;
+
+      if (!matches) {
+        ops.push({
+          updateOne: {
+            filter: { _id: p._id },
+            update: { $set: { total_advance_paid: computed } },
+          },
+        });
+        updatedCount++;
+      }
+
+      results.push({
+        po_number_present: hasPoKey,
+        po_number: rawPo ?? null,
+        stored_before: stored,
+        computed_sum: computed,
+        diff,
+        matches_before: matches,
+        updated: !matches,
+      });
+    }
+
+    if (ops.length) {
+      await purchaseorderModel.bulkWrite(ops, { ordered: false });
+    }
+
+    return res.json({
+      ok: true,
+      processed: pos.length,
+      updated: updatedCount,
+      results,
+    });
+  } catch (err) {
+    console.error("checkAndFixAllTotalAdvancePaid error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Server error", error: err.message });
+  }
+};
+
 
 module.exports = {
   addPo,
@@ -1912,4 +2013,5 @@ module.exports = {
   updateStatusPO,
   getPoBasic,
   updateSalesPO,
-};
+  checkAndFixAllTotalAdvancePaid
+}
