@@ -65,7 +65,7 @@ const createTask = async (req, res) => {
     res.status(201).json(saved);
   } catch (err) {
     console.error("Error creating task:", err);
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 };
 
@@ -140,7 +140,8 @@ const getAllTasks = async (req, res) => {
     }
 
     const basePipeline = [];
-    if (preLookupMatch.length > 0) basePipeline.push({ $match: { $and: preLookupMatch } });
+    if (preLookupMatch.length > 0)
+      basePipeline.push({ $match: { $and: preLookupMatch } });
 
     // expose current user id inside pipeline
     basePipeline.push({ $addFields: { __currentUserId: currentUser._id } });
@@ -174,7 +175,9 @@ const getAllTasks = async (req, res) => {
           as: "createdBy_info",
         },
       },
-      { $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
+      },
 
       // comment authors
       {
@@ -233,7 +236,9 @@ const getAllTasks = async (req, res) => {
           from: "users",
           let: { ids: "$sub_assignee_ids" },
           pipeline: [
-            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
+            {
+              $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
+            },
             { $project: { _id: 1, name: 1, department: 1, attachment_url: 1 } },
           ],
           as: "sub_assignees",
@@ -245,7 +250,9 @@ const getAllTasks = async (req, res) => {
           from: "users",
           let: { ids: "$subtask_creator_ids" },
           pipeline: [
-            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
+            {
+              $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
+            },
             { $project: { _id: 1, name: 1, department: 1, attachment_url: 1 } },
           ],
           as: "subtask_creators",
@@ -285,19 +292,30 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ deadline: dl });
     }
 
-    if (department) postLookupMatch.push({ "assigned_to_users.department": department });
+    if (department)
+      postLookupMatch.push({ "assigned_to_users.department": department });
 
     if (createdById) {
       let cOID;
-      try { cOID = new mongoose.Types.ObjectId(String(createdById)); }
-      catch { return res.status(400).json({ message: "Invalid createdById provided." }); }
+      try {
+        cOID = new mongoose.Types.ObjectId(String(createdById));
+      } catch {
+        return res
+          .status(400)
+          .json({ message: "Invalid createdById provided." });
+      }
       postLookupMatch.push({ createdBy: cOID });
     }
 
     if (assignedToId) {
       let aOID;
-      try { aOID = new mongoose.Types.ObjectId(String(assignedToId)); }
-      catch { return res.status(400).json({ message: "Invalid assignedToId provided." }); }
+      try {
+        aOID = new mongoose.Types.ObjectId(String(assignedToId));
+      } catch {
+        return res
+          .status(400)
+          .json({ message: "Invalid assignedToId provided." });
+      }
       postLookupMatch.push({
         $or: [
           { assigned_to: aOID },
@@ -310,20 +328,31 @@ const getAllTasks = async (req, res) => {
 
     if (priorityFilter !== "" && priorityFilter !== undefined) {
       let priorities = [];
-      if (Array.isArray(priorityFilter)) priorities = priorityFilter.map(String);
+      if (Array.isArray(priorityFilter))
+        priorities = priorityFilter.map(String);
       else if (typeof priorityFilter === "string")
-        priorities = priorityFilter.split(/[,\s]+/).filter(Boolean).map(String);
+        priorities = priorityFilter
+          .split(/[,\s]+/)
+          .filter(Boolean)
+          .map(String);
       else priorities = [String(priorityFilter)];
 
       priorities = priorities.filter((p) => ["1", "2", "3"].includes(p));
-      if (priorities.length === 1) postLookupMatch.push({ priority: priorities[0] });
-      else if (priorities.length > 1) postLookupMatch.push({ priority: { $in: priorities } });
+      if (priorities.length === 1)
+        postLookupMatch.push({ priority: priorities[0] });
+      else if (priorities.length > 1)
+        postLookupMatch.push({ priority: { $in: priorities } });
     }
 
     // Manager / Visitor visibility by department
     if (userRole === "manager" || userRole === "visitor") {
-      const nameLc = String(currentUser?.name || "").trim().toLowerCase();
-      const camOverrideNames = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
+      const nameLc = String(currentUser?.name || "")
+        .trim()
+        .toLowerCase();
+      const camOverrideNames = new Set([
+        "sushant ranjan dubey",
+        "sanjiv kumar",
+      ]);
       let deptList = [];
 
       if (camOverrideNames.has(nameLc)) {
@@ -346,7 +375,8 @@ const getAllTasks = async (req, res) => {
       }
     }
 
-    if (postLookupMatch.length > 0) basePipeline.push({ $match: { $and: postLookupMatch } });
+    if (postLookupMatch.length > 0)
+      basePipeline.push({ $match: { $and: postLookupMatch } });
 
     // ---- Derive fields from the current user's subtask:
     // pick the earliest-deadline subtask (if multiple) and override top-level fields
@@ -387,7 +417,11 @@ const getAllTasks = async (req, res) => {
           __myMinDl: {
             $cond: [
               { $gt: [{ $size: "$__mySubs" }, 0] },
-              { $min: { $map: { input: "$__mySubs", as: "x", in: "$$x.deadline" } } },
+              {
+                $min: {
+                  $map: { input: "$__mySubs", as: "x", in: "$$x.deadline" },
+                },
+              },
               null,
             ],
           },
@@ -502,7 +536,9 @@ const getAllTasks = async (req, res) => {
               {
                 _id: "$createdBy_info._id",
                 name: "$createdBy_info.name",
-                attachment_url: { $ifNull: ["$createdBy_info.attachment_url", ""] },
+                attachment_url: {
+                  $ifNull: ["$createdBy_info.attachment_url", ""],
+                },
               },
             ],
           },
@@ -519,7 +555,7 @@ const getAllTasks = async (req, res) => {
           sub_type: 1,
           description: 1,
           createdAt: 1,
-          deadline: 1,     // already overridden above
+          deadline: 1, // already overridden above
           priority: 1,
           status_history: 1,
           current_status: 1,
@@ -693,7 +729,6 @@ const getAllTasks = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
-
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
@@ -1126,24 +1161,6 @@ const parseCsv = (s) =>
     .filter(Boolean);
 
 const parseCsvObjectIds = (v) => parseCsv(v).map(safeObjectId).filter(Boolean);
-
-// IST midnight -> UTC Date
-function getISTStartOfTodayUTC(now = new Date()) {
-  const IST_OFFSET_MIN = 330; // +05:30
-  const istMs = now.getTime() + IST_OFFSET_MIN * 60 * 1000;
-  const ist = new Date(istMs);
-  ist.setHours(0, 0, 0, 0);
-  return new Date(ist.getTime() - IST_OFFSET_MIN * 60 * 1000);
-}
-
-function formatIST_HHMM(date) {
-  return new Date(date).toLocaleTimeString("en-GB", {
-    timeZone: "Asia/Kolkata",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
 
 // IST midnight -> UTC Date
 function getISTStartOfTodayUTC(now = new Date()) {
