@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const getSystemIdentifier = require("../utils/generateSystemIdentifier");
-const getEmailTemplate = require("../utils/emailTemplate");
+const {getEmailTemplate, getEmailTemplateResgister} = require("../utils/emailTemplate");
 const session = require("../models/session.model");
 const getSessionVerfication = require("../utils/sessionVerification");
 const axios = require("axios");
@@ -84,7 +84,7 @@ const userRegister = async function (req, res) {
       from:`"SLNKO Energy Pvt. Ltd" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Your Protrac Account Credentials",
-      html: getEmailTemplate.getEmailTemplateResgister(name,email, password )
+      html: getEmailTemplateResgister(name,email, password )
     });
 
     res.status(200).json({ msg: "User registered successfully" });
