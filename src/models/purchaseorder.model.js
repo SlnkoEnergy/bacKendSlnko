@@ -47,6 +47,9 @@ const purchaseOrderSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "MaterialCategory",
         },
+        category_name: {
+          type: String,
+        },
         product_name: {
           type: String,
         },
