@@ -1891,107 +1891,140 @@ const getPoBasic = async (req, res) => {
     });
   }
 };
+// 👉 ADD THIS FUNCTION anywhere in the controller (e.g., below updateStatusPO)
 
-const normalizePo = (v) => String(v || "").trim().toUpperCase();
-const checkAndFixAllTotalAdvancePaid = async (req, res) => {
+const bulkMarkDelivered = async (req, res) => {
   try {
-    const pos = await purchaseorderModel
-      .find({})
-      .select({ _id: 1, po_number: 1, total_advance_paid: 1 })
+    const { ids = [], date, remarks = "Bulk marked as delivered" } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "Provide a non-empty 'ids' array." });
+    }
+
+    // Helper: get 'now' in IST unless a date is provided
+    const nowIST = () => {
+      const now = new Date();
+      return new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    };
+    const effectiveDate = date ? new Date(date) : nowIST();
+
+    // Split the incoming IDs into Mongo ObjectIds vs non-ObjectIds (treated as po_number)
+    const objectIds = [];
+    const poNumbers = [];
+    for (const x of ids) {
+      if (typeof x === "string" && mongoose.Types.ObjectId.isValid(x)) objectIds.push(new mongoose.Types.ObjectId(x));
+      else poNumbers.push(String(x));
+    }
+
+    // Fetch POs first (so we know which PRs to recalc + for a clean response)
+    const foundPOs = await purchaseOrderModells
+      .find({
+        $or: [
+          ...(objectIds.length ? [{ _id: { $in: objectIds } }] : []),
+          ...(poNumbers.length ? [{ po_number: { $in: poNumbers } }] : []),
+        ],
+      })
+      .select("_id po_number pr_id item current_status")
       .lean();
 
-    if (!pos.length) {
-      return res.json({ ok: true, processed: 0, updated: 0, results: [] });
+    if (!foundPOs.length) {
+      return res.status(404).json({ message: "No matching Purchase Orders found for provided ids." });
     }
 
-    const totals = await payRequestModells.aggregate([
-      {
-        $addFields: {
-          po_norm: { $toUpper: { $trim: { input: "$po_number" } } },
-          amt_num: {
-            $toDouble: {
-              $replaceAll: {
-                input: { $ifNull: ["$amount_paid", "0"] },
-                find: ",",
-                replacement: "",
-              },
+    // Build bulk updates: set delivered + same-day dates + status history entry
+    const bulkOps = foundPOs.map((po) => ({
+      updateOne: {
+        filter: { _id: po._id },
+        update: {
+          $set: {
+            etd: effectiveDate,                  // Expected Time/Date (set to same day)
+            material_ready_date: effectiveDate,              // Material Received Date (same day)
+            dispatch_date: effectiveDate,             // Ready To Dispatch Date (same day)
+            delivery_date: effectiveDate,        // Delivery Date (same day)
+            "current_status.status": "delivered",
+            "current_status.updated_at": effectiveDate,
+          },
+          $push: {
+            status_history: {
+              status: "delivered",
+              remarks,
+              user_id: req.user?.userId || null,
+              at: effectiveDate,
             },
           },
-          approved_norm: {
-            $toUpper: { $trim: { input: { $ifNull: ["$approved", ""] } } },
-          },
-          utr_trim: { $trim: { input: { $ifNull: ["$utr", ""] } } },
         },
       },
-      {
-        $match: {
-          approved_norm: "APPROVED",
-          utr_trim: { $ne: "" },
-        },
+    }));
+
+    const bulkResult = await purchaseOrderModells.bulkWrite(bulkOps, { ordered: false });
+
+    // Recompute PR items for affected PRs (reuse your status aggregation logic)
+    const prIds = Array.from(
+      new Set(
+        foundPOs
+          .map((p) => String(p.pr_id || ""))
+          .filter(Boolean)
+      )
+    );
+
+    // Helper: recompute statuses for a single PR (same logic style as updateStatusPO)
+    const recomputePRItems = async (prId) => {
+      const pr = await purchaseRequest.findById(prId).lean();
+      if (!pr) return;
+
+      const allPOs = await purchaseOrderModells.find({ pr_id: pr._id }).lean();
+
+      const updatedItems = await Promise.all(
+        (pr.items || []).map(async (item) => {
+          const itemIdStr = String(item.item_id);
+
+          // Find all POs matching this item (id or name)
+          const relevantPOs = allPOs.filter((po) => {
+            const poItem = po.item;
+            if (typeof poItem === "string") return poItem === itemIdStr;
+            if (poItem?._id) return String(poItem._id) === itemIdStr;
+            return false;
+          });
+
+          const allStatuses = relevantPOs
+            .map((po) => po.current_status?.status)
+            .filter(Boolean);
+
+          if (!allStatuses.length) return { ...item };
+
+          const same = allStatuses.every((s) => s === allStatuses[0]);
+          return {
+            ...item,
+            status: same ? allStatuses[0] : getLowerPriorityStatus(allStatuses),
+          };
+        })
+      );
+
+      await purchaseRequest.findByIdAndUpdate(pr._id, { items: updatedItems });
+    };
+
+    // Update all affected PRs (in parallel but not too crazy)
+    await Promise.all(prIds.map((id) => recomputePRItems(id)));
+
+    return res.status(200).json({
+      message: "Purchase Orders marked as delivered successfully.",
+      meta: {
+        requested: ids.length,
+        matched: bulkResult?.matchedCount ?? foundPOs.length,
+        modified: bulkResult?.modifiedCount ?? foundPOs.length,
+        prUpdated: prIds.length,
+        effectiveDate,
       },
-      { $group: { _id: "$po_norm", total: { $sum: "$amt_num" } } },
-      { $project: { _id: 0, po_norm: "$_id", total: 1 } },
-    ]);
-
-    const sumMap = new Map();
-    for (const t of totals) sumMap.set(t.po_norm, t.total);
-
-    const ops = [];
-    const results = [];
-    let updatedCount = 0;
-
-    for (const p of pos) {
-      const hasPoKey = Object.prototype.hasOwnProperty.call(p, "po_number");
-      const rawPo = hasPoKey ? p.po_number : undefined;
-      const poNorm = normalizePo(rawPo);
-      const stored = Number(p.total_advance_paid ?? 0);
-
-      const computed =
-        !hasPoKey || poNorm.length === 0 ? 0 : Number(sumMap.get(poNorm) ?? 0);
-
-      const EPS = 0.01;
-      const diff = +(stored - computed).toFixed(2);
-      const matches = Math.abs(diff) <= EPS;
-
-      if (!matches) {
-        ops.push({
-          updateOne: {
-            filter: { _id: p._id },
-            update: { $set: { total_advance_paid: computed } },
-          },
-        });
-        updatedCount++;
-      }
-
-      results.push({
-        po_number_present: hasPoKey,
-        po_number: rawPo ?? null,
-        stored_before: stored,
-        computed_sum: computed,
-        diff,
-        matches_before: matches,
-        updated: !matches,
-      });
-    }
-
-    if (ops.length) {
-      await purchaseorderModel.bulkWrite(ops, { ordered: false });
-    }
-
-    return res.json({
-      ok: true,
-      processed: pos.length,
-      updated: updatedCount,
-      results,
+      data: foundPOs.map((p) => ({ _id: p._id, po_number: p.po_number, pr_id: p.pr_id })),
     });
-  } catch (err) {
-    console.error("checkAndFixAllTotalAdvancePaid error:", err);
-    return res
-      .status(500)
-      .json({ ok: false, message: "Server error", error: err.message });
+  } catch (error) {
+    console.error("bulkMarkDelivered error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
-
 
 module.exports = {
   addPo,
@@ -2013,5 +2046,5 @@ module.exports = {
   updateStatusPO,
   getPoBasic,
   updateSalesPO,
-  checkAndFixAllTotalAdvancePaid
-}
+  bulkMarkDelivered,
+};
