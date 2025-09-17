@@ -43,6 +43,9 @@ const projectSchema = new mongoose.Schema(
     billing_type: {
       type: String,
     },
+    project_completion_date: { type: Date },
+    bd_commitment_date: { type: Date },
+    completion_date: { type: Date },
   },
   { timestamps: true }
 );

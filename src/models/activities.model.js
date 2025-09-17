@@ -10,6 +10,11 @@ const activitySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    type:{
+      type: String,
+      enum:["backend", "frontend"],
+      default:'frontend'
+    },
     created_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
