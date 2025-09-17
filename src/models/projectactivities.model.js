@@ -11,49 +11,53 @@ const projectActivitySchema = new mongoose.Schema(
       ref: "projectDetails",
       required: true,
     },
-    master_activity_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "activities",
-      required: true,
-    },
-    planned_start: Date,
-    planned_finish: Date,
-    actual_start: Date,
-    actual_finish: Date,
-    duration: Number,
-    percent_complete: { type: Number, min: 0, max: 100, default: 0 },
-    predecessors: [
+    activities: [
       {
         activity_id: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "activities",
+          required: true,
         },
-        type: { type: String, enum: LinkType, default: "FS" },
-        lag: { type: Number, default: 0 },
-      },
-    ],
-    successors: [
-      {
-        activity_id: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "activities",
+        planned_start: Date,
+        planned_finish: Date,
+        actual_start: Date,
+        actual_finish: Date,
+        duration: Number,
+        percent_complete: { type: Number, min: 0, max: 100, default: 0 },
+        predecessors: [
+          {
+            activity_id: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "activities",
+            },
+            type: { type: String, enum: LinkType, default: "FS" },
+            lag: { type: Number, default: 0 },
+          },
+        ],
+        successors: [
+          {
+            activity_id: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "activities",
+            },
+            type: { type: String, enum: LinkType, default: "FS" },
+            lag: { type: Number, default: 0 },
+          },
+        ],
+        current_status: {
+          status: { type: String, enum: StatusEnum, default: "not started" },
+          updated_at: { type: Date, default: Date.now },
+          updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+          remarks: String,
         },
-        type: { type: String, enum: LinkType, default: "FS" },
-        lag: { type: Number, default: 0 },
-      },
-    ],
-    current_status: {
-      status: { type: String, enum: StatusEnum, default: "not started" },
-      updated_at: { type: Date, default: Date.now },
-      updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-      remarks: String,
-    },
-    status_history: [
-      {
-        status: { type: String, enum: StatusEnum },
-        updated_at: { type: Date, default: Date.now },
-        updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        remarks: String,
+        status_history: [
+          {
+            status: { type: String, enum: StatusEnum },
+            updated_at: { type: Date, default: Date.now },
+            updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            remarks: String,
+          },
+        ],
       },
     ],
     created_by: {
@@ -66,7 +70,7 @@ const projectActivitySchema = new mongoose.Schema(
 );
 
 projectActivitySchema.pre("save", function (next) {
-  updateStatus(this, "not started");
+  updateStatus(this.activities, "not started");
   next();
 });
 

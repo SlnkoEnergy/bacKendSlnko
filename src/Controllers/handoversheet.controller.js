@@ -10,6 +10,8 @@ const scopeModel = require("../models/scope.model");
 const bdleadsModells = require("../models/bdleads.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const postsModel = require("../models/posts.model");
+const activitiesModel = require("../models/activities.model");
+const projectactivitiesModel = require("../models/projectactivities.model");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -600,6 +602,19 @@ const updatestatus = async function (req, res) {
         });
 
         await posts.save();
+
+        const activities = await activitiesModel.find();
+        const activitiesArray = activities.map(act => ({
+          activity_id: act._id,
+        }))
+        
+        const projectActivityDoc = new projectactivitiesModel({
+          project_id: projectData._id,
+          activities: activitiesArray,
+          created_by: req.user.userId,
+        })
+
+        await projectActivityDoc.save();
 
         return res.status(200).json({
           message:
