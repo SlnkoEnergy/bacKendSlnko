@@ -20,7 +20,6 @@ const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const inspectionModel = require("../models/inspection.model");
 const billModel = require("../models/bill.model");
-const purchaseorderModel = require("../models/purchaseorder.model");
 
 const addPo = async function (req, res) {
   try {
