@@ -54,7 +54,7 @@ const {
   updateStatusPO,
   getPoBasic,
   updateSalesPO,
-  
+  bulkMarkDelivered,
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -179,6 +179,7 @@ const {
 } = require("../Controllers/modifiedexpensesheet.controller.js");
 
 const upload = require("../middlewares/multer.js");
+
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -349,56 +350,47 @@ router.post(
 router.put(
   "/remove-to-recovery/:_id",
   jwtMW.authentication,
-
   moverecovery
 );
 router.get(
   "/get-po-by-po_number",
   jwtMW.authentication,
-
   getPOByPONumber
 );
 router.get(
   "/get-po-by-id",
   jwtMW.authentication,
-
   getPOById
 );
 router.get(
   "/get-po-detail",
   jwtMW.authentication,
-
   getallpodetail
 );
 router.delete(
   "/delete-pO-IT/:_id",
   jwtMW.authentication,
-
   deletePO
 );
 router.get(
   "/get-po-historY-IT",
   jwtMW.authentication,
-
   getpohistory
 );
 router.get(
   "/get-po-history",
   jwtMW.authentication,
-
   getPOHistoryById
 );
 router.put(
   "/updateStatusPO",
   jwtMW.authentication,
-
   updateStatusPO
 );
 
 router.put(
   "/:id/updateEtdOrDelivery",
   jwtMW.authentication,
-
   updateEditandDeliveryDate
 );
 router.put(
@@ -408,7 +400,11 @@ router.put(
   upload,
   updateSalesPO
 );
-
+router.put(
+  "/bulk-mark-delivered",
+  jwtMW.authentication,
+  bulkMarkDelivered
+);
 
 //Add vendor
 router.post(
