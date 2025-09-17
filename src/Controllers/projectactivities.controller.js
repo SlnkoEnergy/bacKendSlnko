@@ -1,4 +1,5 @@
 const projectActivity = require("../models/projectactivities.model");
+const activityModel = require("../models/activities.model");
 
 const createProjectActivity = async (req, res) => {
   try {
@@ -98,10 +99,44 @@ const getProjectActivitybyProjectId = async (req, res) => {
     if (!projectactivity) {
       return res.status(404).json({ message: "Project activity not found" });
     }
+    res.status(200).json({
+      message: "Project activity fetched successfully",
+      projectactivity,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+const pushActivityToProject = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { name, description, type } = req.body;
+
+   const activity = await activityModel.create({
+      name,
+      description,
+      type,
+      created_by: req.user.userId,
+    });
+    await activity.save();
+
+    const activity_id = activity._id;
+
+    const projectactivity = await projectActivity.findOne({
+      project_id: projectId,
+    });
+    if (!projectactivity) {
+      return res.status(404).json({ message: "Project activity not found" });
+    }
+    projectactivity.activities.push({ activity_id });
+    await projectactivity.save();
     res
       .status(200)
       .json({
-        message: "Project activity fetched successfully",
+        message: "Activity added to project successfully",
         projectactivity,
       });
   } catch (error) {
@@ -117,4 +152,5 @@ module.exports = {
   deleteProjectActivity,
   updateProjectActivityStatus,
   getProjectActivitybyProjectId,
+  pushActivityToProject,
 };
