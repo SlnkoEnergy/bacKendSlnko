@@ -8,7 +8,7 @@ const projectActivitySchema = new mongoose.Schema(
   {
     project_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "projectDetails",
+      ref: "projectDetail",
       required: true,
     },
     activities: [

@@ -47,7 +47,7 @@ const handoversheetSchema = new mongoose.Schema(
       purchase_supply_net_meter: { type: String },
       liaisoning_net_metering: { type: String },
       ceig_ceg: { type: String },
-      project_completion_date: { type: Date },
+       project_completion_date: { type: Date },
       bd_commitment_date:{type:Date},
       completion_date:{type:Date},
       proposed_dc_capacity: { type: String },
