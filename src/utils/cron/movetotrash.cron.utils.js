@@ -1,7 +1,7 @@
 const cron = require("node-cron");
 const PayRequest = require("../../models/payRequestModells");
 
-cron.schedule("* * * * *", async () => {
+cron.schedule("0 * * * *", async () => {
   const now = new Date();
   const draftThreshold = new Date(now.getTime() - 52 * 60 * 60 * 1000);
   const trashDeleteThreshold = new Date(
@@ -10,10 +10,13 @@ cron.schedule("* * * * *", async () => {
 
   try {
     const draftQuery = {
-      "approval_status.stage": ["Draft", "CAM"],
+      "approval_status.stage": { $in: ["Draft", "CAM"] },
       "timers.draft_started_at": { $lte: draftThreshold },
-      "timers.draft_frozen_at": null,
-      approved: { $nin: ["Approved", "Rejected"] },
+        $or: [
+            { "timers.draft_frozen_at": null },
+            { "timers.draft_frozen_at": { $exists: false } },
+          ],
+          approved: { $nin: ["Approved", "Rejected"] },
     };
 
     const draftsToUpdate = await PayRequest.find(draftQuery);
