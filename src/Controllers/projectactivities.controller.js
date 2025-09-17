@@ -96,7 +96,7 @@ const getProjectActivitybyProjectId = async (req, res) => {
       .findOne({ project_id: projectId })
       .populate("activities.activity_id", "name description type")
       .populate("created_by", "name")
-      .populate("project_id", "code project_completion_date completion_date bd_commitment_date")
+      .populate("project_id", "code project_completion_date completion_date bd_commitment_date remaining_days")
     if (!projectactivity) {
       return res.status(404).json({ message: "Project activity not found" });
     }
