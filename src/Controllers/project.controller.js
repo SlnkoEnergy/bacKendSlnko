@@ -231,19 +231,31 @@ const getProjectNameSearch = async (req, res) => {
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
 
-    const filter = search
-      ? { name: { $regex: search.trim().replace(/\s+/g, ".*"), $options: "i" } }
+    // escape user text for safe regex
+    const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const q = search.trim();
+    const regex =
+      q ? new RegExp(escapeRegex(q).replace(/\s+/g, ".*"), "i") : null;
+
+    // 🔁 search by name OR code (project id)
+    const filter = q
+      ? {
+          $or: [
+            { name: { $regex: regex } },
+            { code: { $regex: regex } }, // <- project id field
+            // If your collection uses other fields for the id, add them too:
+            // { project_id: { $regex: regex } },
+            // { p_id: { $regex: regex } },
+          ],
+        }
       : {};
+
     const projection = { _id: 1, name: 1, code: 1, site_address: 1 };
     const sort = { code: 1 };
     const skip = (pageNum - 1) * pageSize;
 
     const [items, total] = await Promise.all([
-      projectModells
-        .find(filter, projection)
-        .sort(sort)
-        .skip(skip)
-        .limit(pageSize),
+      projectModells.find(filter, projection).sort(sort).skip(skip).limit(pageSize),
       projectModells.countDocuments(filter),
     ]);
 
@@ -270,6 +282,7 @@ const getProjectNameSearch = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   createProject,
