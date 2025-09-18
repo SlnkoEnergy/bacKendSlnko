@@ -167,6 +167,7 @@ const {
   getByIdOrLeadId,
   getexportToCsv,
   migrateProjectToHandover,
+  listUsersNames
 } = require("../Controllers/handoversheet.controller.js");
 const {
   addmoduleMaster,
@@ -876,6 +877,12 @@ router.put(
 
   migrateProjectToHandover
 );
+
+router.get(
+  "/all-list",
+  jwtMW.authentication,
+  listUsersNames
+)
 
 //module master
 router.post(

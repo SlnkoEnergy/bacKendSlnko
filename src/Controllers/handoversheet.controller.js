@@ -10,7 +10,7 @@ const scopeModel = require("../models/scope.model");
 const bdleadsModells = require("../models/bdleads.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const postsModel = require("../models/posts.model");
-
+const userModel = require("../models/user.model");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -105,11 +105,14 @@ const createhandoversheet = async function (req, res) {
       order_details,
       project_detail,
       commercial_details,
-      other_details,
+      other_details = {},
       invoice_detail,
-      submitted_by,
     } = req.body;
 
+    const submittedById = req.user?.userId;
+    if (!submittedById) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -118,17 +121,21 @@ const createhandoversheet = async function (req, res) {
       order_details,
       project_detail,
       commercial_details,
-      other_details,
+      other_details: {
+        ...other_details,
+        submitted_by_BD: other_details.submitted_by_BD || userId,
+      },
       invoice_detail,
       status_of_handoversheet: req.body.status_of_handoversheet || "draft",
-      submitted_by,
+      is_locked: req.body.is_locked || "locked",
+      submitted_by: userId,
     });
 
-    const userId = req.user.userId;
+    const userId = submittedById;
     const user = await userModells.findById(userId);
 
-    cheched_id = await hanoversheetmodells.findOne({ id: id });
-    if (cheched_id) {
+    const checked_id = await hanoversheetmodells.findOne({ id: id });
+    if (checked_id) {
       return res.status(400).json({ message: "Handoversheet already exists" });
     }
 
@@ -149,30 +156,37 @@ const createhandoversheet = async function (req, res) {
     }
 
     const lead = await bdleadsModells.findOne({ id: id });
-    lead.status_of_handoversheet = req.body.status_of_handoversheet || "draft";
-    lead.handover_lock = req.body.handover_lock || "locked";
-    await lead.save();
+    if (lead) {
+      lead.status_of_handoversheet =
+        req.body.status_of_handoversheet || "draft";
+      lead.handover_lock = req.body.handover_lock || "locked";
+      await lead.save();
+    }
+
     await handoversheet.save();
-    
-    // Notification for Creating Handover
+
     try {
-      const workflow = 'handover-submit';
-      const Ids = await userModells.find({ department: 'Internal', role: 'manager' }).select('_id').lean().then(users => users.map(u => u._id));
+      const workflow = "handover-submit";
+      const Ids = await userModells
+        .find({ department: "Internal", role: "manager" })
+        .select("_id")
+        .lean()
+        .then((users) => users.map((u) => u._id));
       const data = {
-        message: `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`,
-        link:`leadProfile?id=${lead._id}&tab=handover`,
+        message: `${user?.name} submitted the handover for Lead ${lead?.id} on ${new Date().toLocaleString()}.`,
+        link: `leadProfile?id=${lead?._id}&tab=handover`,
         type: "sales",
         link1: `/sales`,
-      }
+      };
       setImmediate(() => {
-        getnovuNotification(workflow, Ids, data).catch(err =>
+        getnovuNotification(workflow, Ids, data).catch((err) =>
           console.error("Notification error:", err)
         );
       });
-
     } catch (error) {
       console.log(error);
     }
+
     res.status(200).json({
       message: "Data saved successfully",
       handoversheet,
@@ -220,17 +234,19 @@ const gethandoversheetdata = async function (req, res) {
       });
     }
 
-    const statuses = statusFilter
-      ?.split(",")
-      .map((s) => s.trim())
-      .filter(Boolean) || [];
+    const statuses =
+      statusFilter
+        ?.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean) || [];
 
     const hasHandoverPending = statuses.includes("handoverpending");
     const hasScopePending = statuses.includes("scopepending");
     const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
 
     const actualStatuses = statuses.filter(
-      (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
+      (s) =>
+        s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
     );
 
     if (actualStatuses.length === 1) {
@@ -383,6 +399,7 @@ const gethandoversheetdata = async function (req, res) {
               total_gst: "$other_details.total_gst",
               service: "$other_details.service",
               submitted_by: 1,
+              assigned_to: 1,
               leadDetails: 1,
               status_of_handoversheet: 1,
               is_locked: 1,
@@ -415,33 +432,80 @@ const gethandoversheetdata = async function (req, res) {
   }
 };
 
-//edit handover sheet data
+
 const edithandoversheetdata = async function (req, res) {
   try {
-    let id = req.params._id;
-    let data = req.body;
-    if (!id) {
-      res.status(400).json({ message: "id not found" });
+    const id = req.params._id;
+    if (!id) return res.status(400).json({ message: "id not found" });
+
+    const data = { ...req.body };
+
+  
+    if (data.assigned_to !== undefined) {
+      const items = Array.isArray(data.assigned_to) ? data.assigned_to : [data.assigned_to];
+      const ids = [];
+      const names = [];
+
+      for (const v of items) {
+        const val = v && v._id ? v._id : v;
+        if (!val) continue;
+        if (mongoose.isValidObjectId(val)) ids.push(val);
+        else if (typeof val === "string") names.push(val.trim());
+      }
+
+      if (names.length) {
+        const found = await userModells
+          .find({ name: { $in: names } })
+          .select("_id")
+          .lean();
+        ids.push(...found.map(u => u._id.toString()));
+      }
+
+    
+      data.assigned_to = [...new Set(ids)].map(x => new mongoose.Types.ObjectId(x));
     }
 
-    let edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(
-      id,
-      data,
-      { new: true }
-    );
+ 
+    if (data.submitted_by !== undefined) {
+      if (mongoose.isValidObjectId(data.submitted_by)) {
+        data.submitted_by = new mongoose.Types.ObjectId(data.submitted_by);
+      } else if (typeof data.submitted_by === "string" && data.submitted_by.trim()) {
+        const u = await userModells.findOne({ name: data.submitted_by.trim() }).select("_id");
+        if (u) data.submitted_by = u._id;
+        else if (req.user?.userId && mongoose.isValidObjectId(req.user.userId)) {
+          data.submitted_by = new mongoose.Types.ObjectId(req.user.userId);
+        } else {
+          delete data.submitted_by;
+        }
+      } else {
+        delete data.submitted_by;
+      }
+    }
+
+    
+    if (data.other_details?.submitted_by_BD !== undefined) {
+      const v = data.other_details.submitted_by_BD;
+      if (mongoose.isValidObjectId(v)) {
+        data.other_details.submitted_by_BD = new mongoose.Types.ObjectId(v);
+      } else if (typeof v === "string" && v.trim()) {
+        const u = await userModells.findOne({ name: v.trim() }).select("_id");
+        if (u) data.other_details.submitted_by_BD = u._id;
+        else delete data.other_details.submitted_by_BD;
+      } else {
+        delete data.other_details.submitted_by_BD;
+      }
+    }
+
+    const edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(id, data, { new: true });
 
     if (typeof data.is_locked !== "undefined") {
       await bdleadsModells.findOneAndUpdate(
         { id: edithandoversheet.id },
-        { handover_lock: data.is_locked },
-        { status_of_handoversheet: data.status_of_handoversheet }
+        { handover_lock: data.is_locked, status_of_handoversheet: data.status_of_handoversheet }
       );
     }
 
-    res.status(200).json({
-      message: "Status updated successfully",
-      handoverSheet: edithandoversheet,
-    });
+    res.status(200).json({ message: "Status updated successfully", handoverSheet: edithandoversheet });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -609,28 +673,27 @@ const updatestatus = async function (req, res) {
       }
     }
 
-    // Notification Functionality on Status Update 
+    // Notification Functionality on Status Update
 
     try {
-      const owner = await userModells.find({ name: submitted_by })
+      const owner = await userModells.find({ name: submitted_by });
 
       senders = [owner._id];
-      workflow = 'handover-submit';
+      workflow = "handover-submit";
       data = {
         Module: "Handover Status",
         sendBy_Name: owner.name,
         message: `Handover Sheet status updated for Lead #${updatedHandoversheet.id}`,
-        link:`leadProfile?id=${_id}&tab=handover`,
-        type:"sales",
-        link1: `/sales`
-      }
+        link: `leadProfile?id=${_id}&tab=handover`,
+        type: "sales",
+        link1: `/sales`,
+      };
 
       setImmediate(() => {
-        getnovuNotification(workflow, senders, data).catch(err =>
+        getnovuNotification(workflow, senders, data).catch((err) =>
           console.error("Notification error:", err)
         );
       });
-
     } catch (error) {
       console.log(error);
     }
@@ -756,6 +819,8 @@ const getexportToCsv = async (req, res) => {
           liaisoning_net_metering: "$project_detail.liaisoning_net_metering",
           ceig_ceg: "$project_detail.ceig_ceg",
           project_completion_date: "$project_detail.project_completion_date",
+          bd_commitment_date: "$project_detail.bd_commitment_date",
+          completion_date: "$project_detail.completion_date",
           proposed_dc_capacity: "$project_detail.propsed_dc_capacity",
           project_component: "$project_detail.project_component",
           project_component_other: "$project_detail.project_component_other",
@@ -798,6 +863,7 @@ const getexportToCsv = async (req, res) => {
           is_locked: 1,
           status_of_handoversheet: 1,
           submitted_by: 1,
+          assigned_to: 1,
           createdAt: 1,
           commercial_details: 1,
         },
@@ -852,6 +918,8 @@ const getexportToCsv = async (req, res) => {
       { label: "Liaisoning Net Metering", value: "liaisoning_net_metering" },
       { label: "CEIG/CEG", value: "ceig_ceg" },
       { label: "Project Completion Date", value: "project_completion_date" },
+      { label: "BD Commitment Date", value: "bd_commitment_date" },
+      { label: "completion_date", value: "completion_date" },
       { label: "Proposed DC Capacity", value: "proposed_dc_capacity" },
       { label: "Project Component", value: "project_component" },
       { label: "Project Component Other", value: "project_component_other" },
@@ -897,6 +965,7 @@ const getexportToCsv = async (req, res) => {
       { label: "Is Locked", value: "is_locked" },
       { label: "Status of Handoversheet", value: "status_of_handoversheet" },
       { label: "Submitted By", value: "submitted_by" },
+      { label: "Assigned To", value: "assigned_to" },
       { label: "Created At", value: "createdAt" },
       { label: "Commercial Details", value: "commercial_details" },
     ];
@@ -914,6 +983,19 @@ const getexportToCsv = async (req, res) => {
   }
 };
 
+const listUsersNames = async function (req, res) {
+  try {
+    const users = await userModel.find({}, "_id name").sort({ name: 1 }).lean();
+
+    res.status(200).json({
+      message: "Users fetched",
+      users,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createhandoversheet,
   gethandoversheetdata,
@@ -924,4 +1006,5 @@ module.exports = {
   search,
   getexportToCsv,
   migrateProjectToHandover,
+  listUsersNames,
 };
