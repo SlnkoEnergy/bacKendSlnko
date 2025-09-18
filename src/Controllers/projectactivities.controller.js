@@ -147,6 +147,42 @@ const pushActivityToProject = async (req, res) => {
   }
 };
 
+const updateActivityInProject = async (req, res) => {
+  try {
+    const { projectId, activityId } = req.params;
+    const data = req.body;
+
+    const projectActivity = await projectActivity.findOne({ project_id: projectId });
+    if (!projectActivity) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    const activity = projectActivity.activities.find(
+      (act) => act.activity_id.toString() === activityId
+    );
+    if (!activity) {
+      return res.status(404).json({ message: "Activity not found" });
+    }
+
+    Object.assign(activity, data);
+
+    if (data.status) {
+      const statusEntry = {
+        status: data.status,
+        updated_at: new Date(),
+        updated_by: data.updated_by,
+        remarks: data.remarks || "",
+      };
+      activity.status_history.push(statusEntry);
+    }
+
+    await projectActivity.save();
+    return res.status(200).json({ message: "Activity updated", activity });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   createProjectActivity,
   editProjectActivity,
@@ -154,4 +190,5 @@ module.exports = {
   updateProjectActivityStatus,
   getProjectActivitybyProjectId,
   pushActivityToProject,
+  updateActivityInProject
 };
