@@ -25,6 +25,7 @@ const Sentry = require("@sentry/node");
 const Tracing = require("@sentry/tracing");
 require("../src/utils/cron/inactivelead.cron.utils");
 require("../src/utils/cron/movetotrash.cron.utils");
+require("../src/utils/cron/project.cron.utils");
 
 Sentry.init({
   dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",

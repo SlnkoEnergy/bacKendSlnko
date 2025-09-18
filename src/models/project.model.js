@@ -46,6 +46,7 @@ const projectSchema = new mongoose.Schema(
     project_completion_date: { type: Date },
     bd_commitment_date: { type: Date },
     completion_date: { type: Date },
+    remaining_days: { type: Number, default: null },
   },
   { timestamps: true }
 );
