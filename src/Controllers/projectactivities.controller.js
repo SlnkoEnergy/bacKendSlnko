@@ -1,17 +1,19 @@
 const projectActivity = require("../models/projectactivities.model");
 const activityModel = require("../models/activities.model");
+const { default: mongoose } = require("mongoose");
+const { applyPredecessorLogic } = require("../utils/predecessor.utils");
 
 const createProjectActivity = async (req, res) => {
   try {
     const data = req.body;
-    const projectacitvity = new projectActivity({
+    const projectactivityDoc = new projectActivity({
       ...data,
       created_by: req.user.userId,
     });
-    await projectacitvity.save();
+    await projectactivityDoc.save();
     res
       .status(201)
-      .json({ message: "Activity created successfully", acitvity });
+      .json({ message: "Activity created successfully", projectactivityDoc });
   } catch (error) {
     res
       .status(500)
@@ -96,7 +98,10 @@ const getProjectActivitybyProjectId = async (req, res) => {
       .findOne({ project_id: projectId })
       .populate("activities.activity_id", "name description type")
       .populate("created_by", "name")
-      .populate("project_id", "code project_completion_date completion_date bd_commitment_date remaining_days")
+      .populate(
+        "project_id",
+        "code project_completion_date completion_date bd_commitment_date remaining_days"
+      );
     if (!projectactivity) {
       return res.status(404).json({ message: "Project activity not found" });
     }
@@ -116,7 +121,7 @@ const pushActivityToProject = async (req, res) => {
     const { projectId } = req.params;
     const { name, description, type } = req.body;
 
-   const activity = await activityModel.create({
+    const activity = await activityModel.create({
       name,
       description,
       type,
@@ -134,12 +139,10 @@ const pushActivityToProject = async (req, res) => {
     }
     projectactivity.activities.push({ activity_id });
     await projectactivity.save();
-    res
-      .status(200)
-      .json({
-        message: "Activity added to project successfully",
-        projectactivity,
-      });
+    res.status(200).json({
+      message: "Activity added to project successfully",
+      projectactivity,
+    });
   } catch (error) {
     res
       .status(500)
@@ -152,19 +155,66 @@ const updateActivityInProject = async (req, res) => {
     const { projectId, activityId } = req.params;
     const data = req.body;
 
-    const projectActivity = await projectActivity.findOne({ project_id: projectId });
-    if (!projectActivity) {
+    const projectActivityDoc = await projectActivity.findOne({
+      project_id: projectId,
+    });
+    if (!projectActivityDoc) {
       return res.status(404).json({ message: "Project not found" });
     }
-
-    const activity = projectActivity.activities.find(
-      (act) => act.activity_id.toString() === activityId
+    const activityIdObj = new mongoose.Types.ObjectId(activityId);
+    const activity = projectActivityDoc.activities.find((act) =>
+      act.activity_id.equals(activityIdObj)
     );
     if (!activity) {
       return res.status(404).json({ message: "Activity not found" });
     }
 
     Object.assign(activity, data);
+
+    // --- Link predecessors <-> successors ---
+    if (Array.isArray(data.predecessors)) {
+      data.predecessors.forEach((predLink) => {
+        const predActivity = projectActivityDoc.activities.find((a) =>
+          a.activity_id.equals(predLink.activity_id)
+        );
+        if (predActivity) {
+          const alreadyLinked = predActivity.successors?.some(
+            (s) => s.activity_id.equals(activityIdObj)
+          );
+          if (!alreadyLinked) {
+            predActivity.successors = predActivity.successors || [];
+            predActivity.successors.push({
+              activity_id: activityIdObj,
+              type: predLink.type,
+              lag: predLink.lag || 0,
+            });
+          }
+        }
+      });
+    }
+
+    if (Array.isArray(data.successors)) {
+      data.successors.forEach((succLink) => {
+        const succActivity = projectActivityDoc.activities.find((a) =>
+          a.activity_id.equals(succLink.activity_id)
+        );
+        if (succActivity) {
+          const alreadyLinked = succActivity.predecessors?.some(
+            (p) => p.activity_id.equals(activityIdObj)
+          );
+          if (!alreadyLinked) {
+            succActivity.predecessors = succActivity.predecessors || [];
+            succActivity.predecessors.push({
+              activity_id: activityIdObj,
+              type: succLink.type,
+              lag: succLink.lag || 0,
+            });
+          }
+        }
+      });
+    }
+
+    applyPredecessorLogic(projectActivityDoc.activities, activity);
 
     if (data.status) {
       const statusEntry = {
@@ -176,10 +226,35 @@ const updateActivityInProject = async (req, res) => {
       activity.status_history.push(statusEntry);
     }
 
-    await projectActivity.save();
+    await projectActivityDoc.save();
     return res.status(200).json({ message: "Activity updated", activity });
   } catch (error) {
-    return res.status(500).json({ message: "Server error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
+  }
+};
+
+const getActivityInProject = async (req, res) => {
+  try {
+    const { projectId, activityId } = req.params;
+    const projectActivity = await projectActivity.findOne({
+      project_id: projectId,
+    });
+    if (!projectActivity) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const activity = projectActivity.activities.find(
+      (act) => act.activity_id.toString() === activityId
+    );
+    if (!activity) {
+      return res.status(404).json({ message: "Activity not found" });
+    }
+    return res.status(200).json({ message: "Activity fetched", activity });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal Server error", error: error.message });
   }
 };
 
@@ -190,5 +265,6 @@ module.exports = {
   updateProjectActivityStatus,
   getProjectActivitybyProjectId,
   pushActivityToProject,
-  updateActivityInProject
+  updateActivityInProject,
+  getActivityInProject,
 };

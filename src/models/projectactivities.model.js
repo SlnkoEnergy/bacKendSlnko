@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const updateStatus = require("../utils/updatestatus.utils");
 
-const StatusEnum = ["not started", "in progress", "completed", "template"];
+const StatusEnum = ["not started", "in progress", "completed"];
 const LinkType = ["FS", "SS", "FF", "SF"];
 
 const projectActivitySchema = new mongoose.Schema(
@@ -9,7 +9,12 @@ const projectActivitySchema = new mongoose.Schema(
     project_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "projectDetail",
-      required: true,
+    },
+    name: {
+      type: String,
+    },
+    description: {
+      type: String,
     },
     activities: [
       {
@@ -60,6 +65,10 @@ const projectActivitySchema = new mongoose.Schema(
         ],
       },
     ],
+    status: {
+      type: String,
+      enum: ["template", "project"],
+    },
     created_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
