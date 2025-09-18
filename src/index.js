@@ -21,7 +21,8 @@ const cookieParser = require("cookie-parser");
 const Sentry = require("@sentry/node");
 const Tracing = require("@sentry/tracing");
 require("../src/utils/cron/inactivelead.cron.utils");
-require("../src/utils/cron/movetotrash.cron.utils");
+require("./utils/cron/movetotrash.cron.utils");
+
 
 Sentry.init({
   dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",

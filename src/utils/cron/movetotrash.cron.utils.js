@@ -1,93 +1,80 @@
 const cron = require("node-cron");
 const PayRequest = require("../../models/payRequestModells");
 
-cron.schedule("* * * * *", async () => {
+cron.schedule("0 * * * *", async () => {
   const now = new Date();
-  const THRESHOLD_48H = new Date(now.getTime() - 52 * 60 * 60 * 1000);
-  const TRASH_DELETE_THRESHOLD = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+  const draftThreshold = new Date(now.getTime() - 52 * 60 * 60 * 1000);
+  const trashDeleteThreshold = new Date(
+    now.getTime() - 15 * 24 * 60 * 60 * 1000
+  );
 
   try {
-    const moveToTrashQuery = {
-      approved: { $nin: ["Approved", "Rejected"] },
-      $or: [
-        {
-          "approval_status.stage": "Draft",
-          "timers.draft_started_at": { $lte: THRESHOLD_48H },
-          $or: [
+    const draftQuery = {
+      "approval_status.stage": { $in: ["Draft", "CAM"] },
+      "timers.draft_started_at": { $lte: draftThreshold },
+        $or: [
             { "timers.draft_frozen_at": null },
             { "timers.draft_frozen_at": { $exists: false } },
           ],
-        },
-        {
-          "approval_status.stage": "CAM",
-          $or: [
-            { "timers.cam_started_at": { $lte: THRESHOLD_48H } },
-            {
-              $and: [
-                { "timers.cam_started_at": { $exists: false } },
-                { "timers.draft_started_at": { $lte: THRESHOLD_48H } },
-              ],
-            },
-          ],
-          $or: [
-            { "timers.cam_frozen_at": null },
-            { "timers.cam_frozen_at": { $exists: false } },
-          ],
-        },
-      ],
+          approved: { $nin: ["Approved", "Rejected"] },
     };
 
-    const moveToTrashRes = await PayRequest.updateMany(moveToTrashQuery, {
-      $set: {
-        "approval_status.stage": "Trash Pending",
-        "timers.trash_started_at": now,
-      },
-      $push: {
-        status_history: {
-          stage: "Trash Pending",
-          remarks: "Auto-moved after 48 hours in Draft/CAM",
-          timestamp: now,
-        },
-      },
-    });
+    const draftsToUpdate = await PayRequest.find(draftQuery);
 
-    if (moveToTrashRes.modifiedCount) {
-      console.log(`[Cron] Draft/CAM → Trash Pending: ${moveToTrashRes.modifiedCount}`);
+    if (draftsToUpdate.length > 0) {
+      await PayRequest.updateMany(draftQuery, {
+        $set: {
+          "approval_status.stage": "Trash Pending",
+          "timers.trash_started_at": now,
+        },
+        $push: {
+          status_history: {
+            stage: "Trash Pending",
+            remarks: "Auto-moved after 48 hours in Draft",
+            timestamp: now,
+          },
+        },
+      });
     }
+
     const creditQuery = {
       "approval_status.stage": "Credit Pending",
       "credit.credit_deadline": { $lte: now },
     };
 
-    const creditRes = await PayRequest.updateMany(creditQuery, {
-      $set: {
-        "approval_status.stage": "Draft",
-        "timers.draft_started_at": now,
-      },
-      $push: {
-        status_history: {
-          stage: "Draft",
-          remarks: "Credit deadline expired - moved back to Draft",
-          timestamp: now,
-        },
-      },
-    });
+    const creditToUpdate = await PayRequest.find(creditQuery);
+  
 
-    if (creditRes.modifiedCount) {
-      console.log(`[Cron] CreditExpired → Draft: ${creditRes.modifiedCount}`);
+    if (creditToUpdate.length > 0) {
+      await PayRequest.updateMany(creditQuery, {
+        $set: {
+          "approval_status.stage": "Draft",
+          "timers.draft_started_at": now,
+        },
+        $push: {
+          status_history: {
+            stage: "Draft",
+            remarks: "Credit deadline expired - moved back to Draft",
+            timestamp: now,
+          },
+        },
+      });
     }
+
     const deleteQuery = {
       "approval_status.stage": "Trash Pending",
-      "timers.trash_started_at": { $lte: TRASH_DELETE_THRESHOLD },
+      "timers.trash_started_at": { $lte: trashDeleteThreshold },
       approved: { $in: ["Pending", "Rejected"] },
     };
 
-    const deleteRes = await PayRequest.deleteMany(deleteQuery);
+    const toDelete = await PayRequest.find(deleteQuery);
+   
 
-    if (deleteRes.deletedCount) {
-      console.log(`[Cron] Deleted Trash Pending >15d: ${deleteRes.deletedCount}`);
+    if (toDelete.length > 0) {
+      await PayRequest.deleteMany(deleteQuery);
+    
     }
   } catch (err) {
-    console.error("[Cron] Error:", err);
+    console.error(" [Cron] Error:", err);
   }
 });
