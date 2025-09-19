@@ -879,11 +879,6 @@ router.put(
   migrateProjectToHandover
 );
 
-router.get(
-  "/all-list",
-  jwtMW.authentication,
-  listUsersNames
-)
 
 //module master
 router.post(
