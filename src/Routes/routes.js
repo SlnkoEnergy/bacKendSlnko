@@ -105,6 +105,7 @@ const {
   exportBills,
   getAllBill,
   manipulatebill,
+  updateCategoryNameAtPo,
 } = require("../Controllers/bill.controller.js");
 const {
   subtractmoney,
@@ -991,6 +992,12 @@ router.get(
   jwtMW.authentication,
 
   getModifiedExpenseById
+);
+router.get(
+  "/correct-po",
+  jwtMW.authentication,
+
+  updateCategoryNameAtPo
 );
 
 module.exports = router;
