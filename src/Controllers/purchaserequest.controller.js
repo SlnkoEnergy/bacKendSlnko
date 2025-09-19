@@ -270,6 +270,7 @@ const getAllPurchaseRequest = async (req, res) => {
             // other_item_name: "$items.other_item_name",
             // amount: "$items.amount",
             item_id: { _id: "$item_data._id", name: "$item_data.name" },
+            product_data: "$items.product_name",
           },
         },
       },
