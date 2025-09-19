@@ -368,16 +368,10 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
               },
             },
           },
-
-          // created_on alias for your output
           { $addFields: { created_on: "$createdAt" } },
-
-          // ✅ UNSET temp fields first (fixes your error)
           {
             $unset: ["__sortAt", "__sortId", "_cat", "_itemArr", "_approvedUser", "_wasItemArray", "items"],
           },
-
-          // final projection (pure inclusion)
           {
             $project: {
               _id: 1,
