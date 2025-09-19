@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const { createProjectActivity, editProjectActivity, deleteProjectActivity, updateProjectActivityStatus, getProjectActivitybyProjectId, pushActivityToProject, updateActivityInProject, getActivityInProject } = require("../controllers/projectactivities.controller");
+const { createProjectActivity, editProjectActivity, deleteProjectActivity, updateProjectActivityStatus, getProjectActivitybyProjectId, pushActivityToProject, updateActivityInProject, getActivityInProject, getAllTemplateNameSearch, getAllProjectActivities } = require("../controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
 router.post("/projectactivity", jwtMW.authentication, createProjectActivity);
@@ -10,5 +10,7 @@ router.get('/projectactivity', jwtMW.authentication, getProjectActivitybyProject
 router.put('/pushactivity/:projectId', jwtMW.authentication, pushActivityToProject);
 router.put('/:projectId/activity/:activityId', jwtMW.authentication, updateActivityInProject);
 router.get('/:projectId/activity/:activityId', jwtMW.authentication, getActivityInProject);
+router.get('/namesearchtemplate', jwtMW.authentication, getAllTemplateNameSearch);
+router.get('/allprojectactivity', jwtMW.authentication, getAllProjectActivities);
 
 module.exports = router;

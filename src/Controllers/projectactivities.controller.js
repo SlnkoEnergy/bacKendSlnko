@@ -11,7 +11,6 @@ const {
   durationFromStartFinish,
 } = require("../utils/predecessor.utils");
 
-
 function stripTemplateCode(payload = {}) {
   const { template_code, ...rest } = payload;
   return rest;
@@ -20,8 +19,6 @@ function stripTemplateCode(payload = {}) {
 const createProjectActivity = async (req, res) => {
   try {
     const data = req.body;
-
-    // ensure template_code exists BEFORE save (satisfies "required")
     const template_code = data.template_code || (await nextTemplateId());
 
     const projectactivityDoc = new projectActivity({
@@ -35,7 +32,6 @@ const createProjectActivity = async (req, res) => {
       .status(201)
       .json({ message: "Activity created successfully", projectactivityDoc });
   } catch (error) {
-    // In case of a rare race creating duplicate code, surface it clearly.
     if (error?.code === 11000 && error?.keyPattern?.template_code) {
       return res.status(409).json({
         message: "Template code already exists. Please retry.",
@@ -53,7 +49,7 @@ const getAllProjectActivities = async (req, res) => {
   try {
     const {
       search = "",
-      status,                 // optional: "template" | "project"
+      status,
       page = 1,
       limit = 10,
     } = req.query;
@@ -61,7 +57,6 @@ const getAllProjectActivities = async (req, res) => {
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
 
-    // Base match (status filter optional)
     const match = {};
     if (status) match.status = status;
 
@@ -72,8 +67,6 @@ const getAllProjectActivities = async (req, res) => {
 
     const pipeline = [
       { $match: match },
-
-      // join creator name
       {
         $lookup: {
           from: "users",
@@ -85,11 +78,11 @@ const getAllProjectActivities = async (req, res) => {
       },
       {
         $addFields: {
-          created_by_name: { $ifNull: [{ $arrayElemAt: ["$_creator.name", 0] }, null] },
+          created_by_name: {
+            $ifNull: [{ $arrayElemAt: ["$_creator.name", 0] }, null],
+          },
         },
       },
-
-      // project the fields you need for the table
       {
         $project: {
           _id: 1,
@@ -103,7 +96,6 @@ const getAllProjectActivities = async (req, res) => {
       },
     ];
 
-    // search across template_code, template_name, description, created_by
     if (searchRegex) {
       pipeline.push({
         $match: {
@@ -146,7 +138,6 @@ const getAllProjectActivities = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
-
 
 const editProjectActivity = async (req, res) => {
   try {
@@ -413,7 +404,6 @@ const updateActivityInProject = async (req, res) => {
       projectActivityDoc.activities
     );
 
-
     if (data.status) {
       const now = new Date();
       const statusEntry = {
@@ -458,6 +448,55 @@ const getActivityInProject = async (req, res) => {
   }
 };
 
+const getAllTemplateNameSearch = async (req, res) => {
+  try {
+    const { search = "", page = 1, limit = 7 } = req.query;
+    const searchRegex =
+      search && String(search).trim() !== ""
+        ? new RegExp(String(search).trim().replace(/\s+/g, ".*"), "i")
+        : null;
+    const match = {};
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(limit, 10) || 7, 1), 100);
+    const skip = (pageNum - 1) * pageSize;
+
+    if (searchRegex) {
+      match.$or = [
+        { template_code: searchRegex },
+        { name: searchRegex },
+        { description: searchRegex },
+      ];
+    }
+
+    const [templates, total] = await Promise.all([
+      projectActivity
+        .find(match)
+        .select("template_code name description createdAt")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      projectActivity.countDocuments(match),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    return res.status(200).json({
+      ok: true,
+      page: pageNum,
+      limit: pageSize,
+      total,
+      totalPages,
+      templates,
+    });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
 module.exports = {
   createProjectActivity,
   getAllProjectActivities,
@@ -468,4 +507,5 @@ module.exports = {
   pushActivityToProject,
   updateActivityInProject,
   getActivityInProject,
+  getAllTemplateNameSearch
 };

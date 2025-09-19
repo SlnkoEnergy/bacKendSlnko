@@ -20,7 +20,6 @@ const projectActivitySchema = new mongoose.Schema(
       type: String,
       unique: true,
       index: true,
-      required: true,
     },
     activities: [
       {
