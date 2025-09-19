@@ -33,6 +33,7 @@ const {
   getAllDepartment,
   finalizeBdLogin,
   backfillProfileFields,
+  getAllUserByDepartmentWithPagination,
 } = require("../Controllers/userController.js");
 
 const {
@@ -168,7 +169,8 @@ const {
   getByIdOrLeadId,
   getexportToCsv,
   migrateProjectToHandover,
-  listUsersNames
+  listUsersNames,
+  UpdateAssigneTo
 } = require("../Controllers/handoversheet.controller.js");
 const {
   addmoduleMaster,
@@ -231,6 +233,13 @@ router.get(
   jwtMW.authentication,
 
   getAllUserByDepartment
+);
+
+router.get(
+  "/all-user-with-pagination",
+  jwtMW.authentication,
+
+  getAllUserByDepartmentWithPagination
 );
 
 router.put(
@@ -853,6 +862,13 @@ router.put(
 
   edithandoversheetdata
 );
+router.put(
+  "/change-assignee",
+  jwtMW.authentication,
+
+  UpdateAssigneTo
+);
+
 router.put(
   "/update-status/:_id",
   jwtMW.authentication,
