@@ -558,9 +558,9 @@ const updatestatus = async function (req, res) {
           service: other_details.service || "",
           submitted_by: req?.user?.name || "",
           billing_type: other_details.billing_type || "",
-          // project_completion_date: project_detail.project_completion_date || "",
-          // completion_date:project_detail.completion_date || "",
-          // bd_commitment_date: project_detail.bd_commitment_date || "",
+          project_completion_date: project_detail.project_completion_date || "",
+          ppa_expiry_date:project_detail.ppa_expiry_date || "",
+          bd_commitment_date: project_detail.bd_commitment_date || "",
         });
 
         await projectData.save();

@@ -220,7 +220,7 @@ const getProjectActivitybyProjectId = async (req, res) => {
       .populate("created_by", "name")
       .populate(
         "project_id",
-        "code project_completion_date completion_date bd_commitment_date remaining_days"
+        "code project_completion_date ppa_expiry_date bd_commitment_date remaining_days"
       );
     if (!projectactivity) {
       return res.status(404).json({ message: "Project activity not found" });
@@ -455,7 +455,7 @@ const getAllTemplateNameSearch = async (req, res) => {
       search && String(search).trim() !== ""
         ? new RegExp(String(search).trim().replace(/\s+/g, ".*"), "i")
         : null;
-    const match = {};
+    const match = { status: "template" };
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(limit, 10) || 7, 1), 100);
@@ -497,6 +497,27 @@ const getAllTemplateNameSearch = async (req, res) => {
   }
 };
 
+const updateProjectActivityFromTemplate = async (req, res) => {
+  try {
+    const {projectId, templateId} = req.params;
+    const template = await projectActivity.findById(templateId);
+    if (!template) {
+      return res.status(404).json({ message: "Template not found" });
+    }
+    const projectActivityDoc = await projectActivity.findOne({project_id:projectId});
+    if (!projectActivityDoc) {
+      return res.status(404).json({ message: "Project activity not found" });
+    }
+
+    projectActivityDoc.activities = template.activities;
+    await projectActivityDoc.save();
+    return res.status(200).json({ message: "Project activity updated from template successfully", projectActivityDoc });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+
+}
+
 module.exports = {
   createProjectActivity,
   getAllProjectActivities,
@@ -507,5 +528,6 @@ module.exports = {
   pushActivityToProject,
   updateActivityInProject,
   getActivityInProject,
-  getAllTemplateNameSearch
+  getAllTemplateNameSearch,
+  updateProjectActivityFromTemplate
 };

@@ -210,7 +210,6 @@ router.get(
 router.get(
   "/all-user",
   jwtMW.authentication,
-
   getAllUserByDepartment
 );
 

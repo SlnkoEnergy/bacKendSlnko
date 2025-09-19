@@ -456,7 +456,7 @@ const getSingleUser = async function (req, res) {
 
 const getAllUserByDepartment = async (req, res) => {
   try {
-    const projection = "_id name attachment_url"; // <-- added attachment_url
+    const projection = "_id name attachment_url"; 
     const { department } = req.query;
 
     const query = {};
