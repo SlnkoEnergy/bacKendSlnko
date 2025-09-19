@@ -1,7 +1,14 @@
 const projectActivity = require("../models/projectactivities.model");
 const activityModel = require("../models/activities.model");
 const { default: mongoose } = require("mongoose");
-const { applyPredecessorLogic } = require("../utils/predecessor.utils");
+const {
+  rebuildSuccessorsFromPredecessors,
+  topoSort,
+  computeMinConstraints,
+  isBefore,
+  propagateForwardAdjustments,
+  durationFromStartFinish,
+} = require("../utils/predecessor.utils");
 
 const createProjectActivity = async (req, res) => {
   try {
@@ -115,7 +122,6 @@ const getProjectActivitybyProjectId = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
-
 const pushActivityToProject = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -150,149 +156,6 @@ const pushActivityToProject = async (req, res) => {
   }
 };
 
-// const projectActivity = require("..."); // your existing import
-
-// --- helpers ---
-function addDays(date, days) {
-  if (!date) return null;
-  const d = new Date(date);
-  d.setDate(d.getDate() + (Number(days) || 0));
-  return d;
-}
-function isBefore(a, b) {
-  return a && b && new Date(a).getTime() < new Date(b).getTime();
-}
-function isAfter(a, b) {
-  return a && b && new Date(a).getTime() > new Date(b).getTime();
-}
-
-/**
- * Build adjacency lists from predecessors array of each activity
- * Returns { adjOut, indeg, byId }
- */
-function buildGraph(activities) {
-  const byId = new Map();
-  activities.forEach((a) => byId.set(String(a.activity_id), a));
-
-  const adjOut = new Map(); // u -> [{v, type, lag}]
-  const indeg = new Map();
-  activities.forEach((a) => {
-    const u = String(a.activity_id);
-    indeg.set(u, 0);
-    adjOut.set(u, []);
-  });
-
-  activities.forEach((a) => {
-    const v = String(a.activity_id);
-    (a.predecessors || []).forEach((p) => {
-      const u = String(p.activity_id);
-      if (!byId.has(u)) return;
-      adjOut.get(u).push({ v, type: p.type, lag: Number(p.lag) || 0 });
-      indeg.set(v, (indeg.get(v) || 0) + 1);
-    });
-  });
-
-  return { adjOut, indeg, byId };
-}
-
-/** Kahn topo sort + cycle detection */
-function topoSort(activities) {
-  const { adjOut, indeg } = buildGraph(activities);
-  const q = [];
-  indeg.forEach((deg, node) => {
-    if (deg === 0) q.push(node);
-  });
-  const order = [];
-  while (q.length) {
-    const u = q.shift();
-    order.push(u);
-    (adjOut.get(u) || []).forEach(({ v }) => {
-      indeg.set(v, indeg.get(v) - 1);
-      if (indeg.get(v) === 0) q.push(v);
-    });
-  }
-  // cycle if not all visited
-  const total = indeg.size;
-  if (order.length !== total) {
-    return { ok: false, order };
-  }
-  return { ok: true, order };
-}
-
-/**
- * Compute minimum allowed planned_start / planned_finish for an activity
- * based on its predecessors and link type (FS/SS/FF) with lag in days.
- *
- * Returns { minStart: Date|null, minFinish: Date|null, reasons: string[] }
- */
-function computeMinConstraints(activity, byId) {
-  let minStart = null;
-  let minFinish = null;
-  const reasons = [];
-
-  (activity.predecessors || []).forEach((link) => {
-    const pred = byId.get(String(link.activity_id));
-    if (!pred) return;
-    const type = link.type;
-    const lag = Number(link.lag) || 0;
-
-    if (type === "FS") {
-      // successor.start >= pred.finish + lag
-      if (pred.planned_finish) {
-        const req = addDays(pred.planned_finish, lag);
-        if (!minStart || isAfter(req, minStart)) minStart = req;
-        reasons.push(
-          `FS: start ≥ finish(${pred.activity_id}) + ${lag}d → ${req.toDateString()}`
-        );
-      }
-    } else if (type === "SS") {
-      // successor.start >= pred.start + lag
-      if (pred.planned_start) {
-        const req = addDays(pred.planned_start, lag);
-        if (!minStart || isAfter(req, minStart)) minStart = req;
-        reasons.push(
-          `SS: start ≥ start(${pred.activity_id}) + ${lag}d → ${req.toDateString()}`
-        );
-      }
-    } else if (type === "FF") {
-      // successor.finish >= pred.finish + lag
-      if (pred.planned_finish) {
-        const req = addDays(pred.planned_finish, lag);
-        if (!minFinish || isAfter(req, minFinish)) minFinish = req;
-        reasons.push(
-          `FF: finish ≥ finish(${pred.activity_id}) + ${lag}d → ${req.toDateString()}`
-        );
-      }
-    }
-  });
-
-  return { minStart, minFinish, reasons };
-}
-
-/** Rebuild successors array purely from predecessors (do not trust input successors) */
-function rebuildSuccessorsFromPredecessors(activities) {
-  const map = new Map();
-  activities.forEach((a) => {
-    map.set(String(a.activity_id), []);
-  });
-  activities.forEach((a) => {
-    (a.predecessors || []).forEach((p) => {
-      const predId = String(p.activity_id);
-      if (!map.has(predId)) return;
-      const list = map.get(predId);
-      // de-dup on activity_id
-      if (!list.some((s) => String(s.activity_id) === String(a.activity_id))) {
-        list.push({ activity_id: a.activity_id, type: p.type, lag: p.lag || 0 });
-      }
-    });
-  });
-  // assign
-  activities.forEach((a) => {
-    a.successors = map.get(String(a.activity_id));
-  });
-}
-
-// --- Controller ---
 const updateActivityInProject = async (req, res) => {
   try {
     const { projectId, activityId } = req.params;
@@ -313,13 +176,14 @@ const updateActivityInProject = async (req, res) => {
       return res.status(404).json({ message: "Activity not found" });
     }
 
-    // --- Only accept predecessors; ignore any incoming successors per requirement ---
-    const allowedLinkTypes = new Set(["FS", "SS", "FF"]); // SF disabled
-    let incomingPreds = Array.isArray(data.predecessors) ? data.predecessors : null;
-    let incomingSuccs = Array.isArray(data.successors) ? data.successors : null
+    // --- Normalize links from request ---
+    const allowedLinkTypes = new Set(["FS", "SS", "FF"]);
+    let incomingPreds = Array.isArray(data.predecessors)
+      ? data.predecessors
+      : null;
+    let incomingSuccs = Array.isArray(data.successors) ? data.successors : null;
 
     if (incomingPreds) {
-      // sanitize: strip SF, normalize lag, dedupe by activity_id
       const seen = new Set();
       incomingPreds = incomingPreds
         .filter((p) => p && p.activity_id)
@@ -334,15 +198,10 @@ const updateActivityInProject = async (req, res) => {
           seen.add(key);
           return true;
         });
-
-      // set on the target activity
       activity.predecessors = incomingPreds;
     }
-    
-    console.log({incomingSuccs})
 
     if (incomingSuccs) {
-      // sanitize: strip SF, normalize lag, dedupe by activity_id
       const seen = new Set();
       incomingSuccs = incomingSuccs
         .filter((p) => p && p.activity_id)
@@ -357,20 +216,30 @@ const updateActivityInProject = async (req, res) => {
           seen.add(key);
           return true;
         });
-
-      // set on the target activity
       activity.successors = incomingSuccs;
     }
 
-    // apply simple scalar updates (but do not overwrite predecessors/successors from data.successors)
-    // You can whitelist allowed fields; keeping your Object.assign style but protecting arrays we control.
     const { predecessors, successors, ...rest } = data || {};
     Object.assign(activity, rest);
 
-    // --- Rebuild successors for ALL activities from their predecessors ---
+    if (activity.planned_start && activity.planned_finish) {
+      activity.duration =
+        durationFromStartFinish(
+          activity.planned_start,
+          activity.planned_finish
+        ) || activity.duration;
+    } else if (activity.planned_start && activity.duration) {
+      activity.planned_finish = finishFromStartAndDuration(
+        activity.planned_start,
+        activity.duration
+      );
+    } else if (activity.planned_finish && activity.duration) {
+      const d = Math.max(1, Number(activity.duration) || 0);
+      activity.planned_start = addDays(activity.planned_finish, -(d - 1));
+    }
+
     rebuildSuccessorsFromPredecessors(projectActivityDoc.activities);
 
-    // --- Topological sort & cycle check (build graph from predecessors only) ---
     const topo = topoSort(projectActivityDoc.activities);
     if (!topo.ok) {
       return res.status(400).json({
@@ -379,16 +248,19 @@ const updateActivityInProject = async (req, res) => {
       });
     }
 
-    // --- Validate date constraints for the CURRENT activity only (block invalid user input) ---
-    // Build byId map for constraint calc
     const byId = new Map(
       projectActivityDoc.activities.map((a) => [String(a.activity_id), a])
     );
+    const { minStart, minFinish, reasons } = computeMinConstraints(
+      activity,
+      byId
+    );
 
-    const { minStart, minFinish, reasons } = computeMinConstraints(activity, byId);
-
-    // If user provided planned_start/finish, block if violating constraints.
-    if (minStart && activity.planned_start && isBefore(activity.planned_start, minStart)) {
+    if (
+      minStart &&
+      activity.planned_start &&
+      isBefore(activity.planned_start, minStart)
+    ) {
       return res.status(400).json({
         message:
           "Invalid planned_start for this dependency setup. It is earlier than allowed.",
@@ -399,7 +271,11 @@ const updateActivityInProject = async (req, res) => {
         },
       });
     }
-    if (minFinish && activity.planned_finish && isBefore(activity.planned_finish, minFinish)) {
+    if (
+      minFinish &&
+      activity.planned_finish &&
+      isBefore(activity.planned_finish, minFinish)
+    ) {
       return res.status(400).json({
         message:
           "Invalid planned_finish for this dependency setup. It is earlier than allowed.",
@@ -411,13 +287,12 @@ const updateActivityInProject = async (req, res) => {
       });
     }
 
-    // Optionally: if duration is provided and only start changed, you might auto-set finish = start + duration
-    // Leaving behavior unchanged unless you want it:
-    // if (activity.duration && activity.planned_start && !activity.planned_finish) {
-    //   activity.planned_finish = addDays(activity.planned_start, activity.duration);
-    // }
+    propagateForwardAdjustments(
+      activity.activity_id,
+      projectActivityDoc.activities
+    );
 
-    // --- Status history append (unchanged) ---
+
     if (data.status) {
       const statusEntry = {
         status: data.status,
@@ -427,13 +302,6 @@ const updateActivityInProject = async (req, res) => {
       };
       activity.status_history = activity.status_history || [];
       activity.status_history.push(statusEntry);
-      // keep current_status in sync if you want (optional)
-      activity.current_status = {
-        status: data.status,
-        updated_at: new Date(),
-        updated_by: data.updated_by,
-        remarks: data.remarks || "",
-      };
     }
 
     await projectActivityDoc.save();
