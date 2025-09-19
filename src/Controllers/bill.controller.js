@@ -22,6 +22,16 @@ const addBill = catchAsyncError(async function (req, res, next) {
   } = req.body;
 
   const userId = req.user.userId;
+  
+  const trim_bill_number = bill_number.trim();
+
+  const existingBill = await billModel.findOne({bill_number: trim_bill_number});
+
+  if(existingBill){
+    return res.status(404).json({
+      message:"Bill Already Exists"
+    })
+  }
 
   const purchaseOrder = await purchaseOrderModel.findOne({ po_number });
   if (!purchaseOrder) {
