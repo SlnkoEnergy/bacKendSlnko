@@ -2,40 +2,162 @@ const projectActivity = require("../models/projectactivities.model");
 const activityModel = require("../models/activities.model");
 const { default: mongoose } = require("mongoose");
 const { applyPredecessorLogic } = require("../utils/predecessor.utils");
+const { nextTemplateId } = require("../utils/templatecounter.utils");
+
+// --- tiny helper to keep template_code immutable on updates ---
+function stripTemplateCode(payload = {}) {
+  const { template_code, ...rest } = payload; // drop any incoming template_code
+  return rest;
+}
 
 const createProjectActivity = async (req, res) => {
   try {
     const data = req.body;
+
+    // ensure template_code exists BEFORE save (satisfies "required")
+    const template_code = data.template_code || (await nextTemplateId());
+
     const projectactivityDoc = new projectActivity({
       ...data,
+      template_code,
       created_by: req.user.userId,
     });
+
     await projectactivityDoc.save();
-    res
+    return res
       .status(201)
       .json({ message: "Activity created successfully", projectactivityDoc });
   } catch (error) {
-    res
+    // In case of a rare race creating duplicate code, surface it clearly.
+    if (error?.code === 11000 && error?.keyPattern?.template_code) {
+      return res.status(409).json({
+        message: "Template code already exists. Please retry.",
+        error: error.message,
+      });
+    }
+    return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
+// GET /projectactivity/all?search=&status=&page=1&limit=10
+const getAllProjectActivities = async (req, res) => {
+  try {
+    const {
+      search = "",
+      status,                 // optional: "template" | "project"
+      page = 1,
+      limit = 10,
+    } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
+
+    // Base match (status filter optional)
+    const match = {};
+    if (status) match.status = status;
+
+    const searchRegex =
+      search && String(search).trim() !== ""
+        ? new RegExp(String(search).trim().replace(/\s+/g, ".*"), "i")
+        : null;
+
+    const pipeline = [
+      { $match: match },
+
+      // join creator name
+      {
+        $lookup: {
+          from: "users",
+          localField: "created_by",
+          foreignField: "_id",
+          as: "_creator",
+          pipeline: [{ $project: { _id: 1, name: 1 } }],
+        },
+      },
+      {
+        $addFields: {
+          created_by_name: { $ifNull: [{ $arrayElemAt: ["$_creator.name", 0] }, null] },
+        },
+      },
+
+      // project the fields you need for the table
+      {
+        $project: {
+          _id: 1,
+          template_code: 1,
+          template_name: "$name",
+          description: 1,
+          status: 1,
+          created_by: "$created_by_name",
+          createdAt: 1,
+        },
+      },
+    ];
+
+    // search across template_code, template_name, description, created_by
+    if (searchRegex) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { template_code: searchRegex },
+            { template_name: searchRegex },
+            { description: searchRegex },
+            { created_by: searchRegex },
+          ],
+        },
+      });
+    }
+
+    pipeline.push(
+      { $sort: { createdAt: -1, _id: -1 } },
+      {
+        $facet: {
+          items: [{ $skip: (pageNum - 1) * pageSize }, { $limit: pageSize }],
+          totalCount: [{ $count: "count" }],
+        },
+      }
+    );
+
+    const [result] = await projectActivity.aggregate(pipeline);
+    const items = result?.items ?? [];
+    const total = result?.totalCount?.[0]?.count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    return res.status(200).json({
+      ok: true,
+      page: pageNum,
+      limit: pageSize,
+      total,
+      totalPages,
+      rows: items,
+    });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+
 const editProjectActivity = async (req, res) => {
   try {
     const { id } = req.params;
-    const data = req.body;
+    // do not allow template_code to be edited
+    const data = stripTemplateCode(req.body);
+
     const projectactivity = await projectActivity.findByIdAndUpdate(id, data, {
       new: true,
     });
     if (!projectactivity) {
       return res.status(404).json({ message: "Activity not found" });
     }
-    res
+    return res
       .status(200)
       .json({ message: "Activity updated successfully", projectactivity });
   } catch (error) {
-    res
+    return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
@@ -48,9 +170,9 @@ const deleteProjectActivity = async (req, res) => {
     if (!projectactivity) {
       return res.status(404).json({ message: "Activity not found" });
     }
-    res.status(200).json({ message: "Activity deleted successfully" });
+    return res.status(200).json({ message: "Activity deleted successfully" });
   } catch (error) {
-    res
+    return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
@@ -81,11 +203,11 @@ const updateProjectActivityStatus = async (req, res) => {
     });
 
     await projectactivity.save();
-    res
+    return res
       .status(200)
       .json({ message: "Status updated successfully", projectactivity });
   } catch (error) {
-    res
+    return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
@@ -105,12 +227,12 @@ const getProjectActivitybyProjectId = async (req, res) => {
     if (!projectactivity) {
       return res.status(404).json({ message: "Project activity not found" });
     }
-    res.status(200).json({
+    return res.status(200).json({
       message: "Project activity fetched successfully",
       projectactivity,
     });
   } catch (error) {
-    res
+    return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
@@ -127,7 +249,6 @@ const pushActivityToProject = async (req, res) => {
       type,
       created_by: req.user.userId,
     });
-    await activity.save();
 
     const activity_id = activity._id;
 
@@ -139,20 +260,18 @@ const pushActivityToProject = async (req, res) => {
     }
     projectactivity.activities.push({ activity_id });
     await projectactivity.save();
-    res.status(200).json({
+    return res.status(200).json({
       message: "Activity added to project successfully",
       projectactivity,
     });
   } catch (error) {
-    res
+    return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
-// const projectActivity = require("..."); // your existing import
-
-// --- helpers ---
+// --- helpers for dependency logic ---
 function addDays(date, days) {
   if (!date) return null;
   const d = new Date(date);
@@ -166,15 +285,11 @@ function isAfter(a, b) {
   return a && b && new Date(a).getTime() > new Date(b).getTime();
 }
 
-/**
- * Build adjacency lists from predecessors array of each activity
- * Returns { adjOut, indeg, byId }
- */
 function buildGraph(activities) {
   const byId = new Map();
   activities.forEach((a) => byId.set(String(a.activity_id), a));
 
-  const adjOut = new Map(); // u -> [{v, type, lag}]
+  const adjOut = new Map();
   const indeg = new Map();
   activities.forEach((a) => {
     const u = String(a.activity_id);
@@ -195,7 +310,6 @@ function buildGraph(activities) {
   return { adjOut, indeg, byId };
 }
 
-/** Kahn topo sort + cycle detection */
 function topoSort(activities) {
   const { adjOut, indeg } = buildGraph(activities);
   const q = [];
@@ -211,7 +325,6 @@ function topoSort(activities) {
       if (indeg.get(v) === 0) q.push(v);
     });
   }
-  // cycle if not all visited
   const total = indeg.size;
   if (order.length !== total) {
     return { ok: false, order };
@@ -219,12 +332,6 @@ function topoSort(activities) {
   return { ok: true, order };
 }
 
-/**
- * Compute minimum allowed planned_start / planned_finish for an activity
- * based on its predecessors and link type (FS/SS/FF) with lag in days.
- *
- * Returns { minStart: Date|null, minFinish: Date|null, reasons: string[] }
- */
 function computeMinConstraints(activity, byId) {
   let minStart = null;
   let minFinish = null;
@@ -237,7 +344,6 @@ function computeMinConstraints(activity, byId) {
     const lag = Number(link.lag) || 0;
 
     if (type === "FS") {
-      // successor.start >= pred.finish + lag
       if (pred.planned_finish) {
         const req = addDays(pred.planned_finish, lag);
         if (!minStart || isAfter(req, minStart)) minStart = req;
@@ -246,7 +352,6 @@ function computeMinConstraints(activity, byId) {
         );
       }
     } else if (type === "SS") {
-      // successor.start >= pred.start + lag
       if (pred.planned_start) {
         const req = addDays(pred.planned_start, lag);
         if (!minStart || isAfter(req, minStart)) minStart = req;
@@ -255,7 +360,6 @@ function computeMinConstraints(activity, byId) {
         );
       }
     } else if (type === "FF") {
-      // successor.finish >= pred.finish + lag
       if (pred.planned_finish) {
         const req = addDays(pred.planned_finish, lag);
         if (!minFinish || isAfter(req, minFinish)) minFinish = req;
@@ -269,7 +373,6 @@ function computeMinConstraints(activity, byId) {
   return { minStart, minFinish, reasons };
 }
 
-/** Rebuild successors array purely from predecessors (do not trust input successors) */
 function rebuildSuccessorsFromPredecessors(activities) {
   const map = new Map();
   activities.forEach((a) => {
@@ -280,19 +383,16 @@ function rebuildSuccessorsFromPredecessors(activities) {
       const predId = String(p.activity_id);
       if (!map.has(predId)) return;
       const list = map.get(predId);
-      // de-dup on activity_id
       if (!list.some((s) => String(s.activity_id) === String(a.activity_id))) {
         list.push({ activity_id: a.activity_id, type: p.type, lag: p.lag || 0 });
       }
     });
   });
-  // assign
   activities.forEach((a) => {
     a.successors = map.get(String(a.activity_id));
   });
 }
 
-// --- Controller ---
 const updateActivityInProject = async (req, res) => {
   try {
     const { projectId, activityId } = req.params;
@@ -313,13 +413,11 @@ const updateActivityInProject = async (req, res) => {
       return res.status(404).json({ message: "Activity not found" });
     }
 
-    // --- Only accept predecessors; ignore any incoming successors per requirement ---
     const allowedLinkTypes = new Set(["FS", "SS", "FF"]); // SF disabled
     let incomingPreds = Array.isArray(data.predecessors) ? data.predecessors : null;
-    let incomingSuccs = Array.isArray(data.successors) ? data.successors : null
+    let incomingSuccs = Array.isArray(data.successors) ? data.successors : null;
 
     if (incomingPreds) {
-      // sanitize: strip SF, normalize lag, dedupe by activity_id
       const seen = new Set();
       incomingPreds = incomingPreds
         .filter((p) => p && p.activity_id)
@@ -334,15 +432,10 @@ const updateActivityInProject = async (req, res) => {
           seen.add(key);
           return true;
         });
-
-      // set on the target activity
       activity.predecessors = incomingPreds;
     }
-    
-    console.log({incomingSuccs})
 
     if (incomingSuccs) {
-      // sanitize: strip SF, normalize lag, dedupe by activity_id
       const seen = new Set();
       incomingSuccs = incomingSuccs
         .filter((p) => p && p.activity_id)
@@ -357,20 +450,15 @@ const updateActivityInProject = async (req, res) => {
           seen.add(key);
           return true;
         });
-
-      // set on the target activity
       activity.successors = incomingSuccs;
     }
 
-    // apply simple scalar updates (but do not overwrite predecessors/successors from data.successors)
-    // You can whitelist allowed fields; keeping your Object.assign style but protecting arrays we control.
-    const { predecessors, successors, ...rest } = data || {};
+    // protect arrays we control
+    const { predecessors, successors, template_code, ...rest } = data || {};
     Object.assign(activity, rest);
 
-    // --- Rebuild successors for ALL activities from their predecessors ---
     rebuildSuccessorsFromPredecessors(projectActivityDoc.activities);
 
-    // --- Topological sort & cycle check (build graph from predecessors only) ---
     const topo = topoSort(projectActivityDoc.activities);
     if (!topo.ok) {
       return res.status(400).json({
@@ -379,15 +467,11 @@ const updateActivityInProject = async (req, res) => {
       });
     }
 
-    // --- Validate date constraints for the CURRENT activity only (block invalid user input) ---
-    // Build byId map for constraint calc
     const byId = new Map(
       projectActivityDoc.activities.map((a) => [String(a.activity_id), a])
     );
-
     const { minStart, minFinish, reasons } = computeMinConstraints(activity, byId);
 
-    // If user provided planned_start/finish, block if violating constraints.
     if (minStart && activity.planned_start && isBefore(activity.planned_start, minStart)) {
       return res.status(400).json({
         message:
@@ -411,26 +495,24 @@ const updateActivityInProject = async (req, res) => {
       });
     }
 
-    // Optionally: if duration is provided and only start changed, you might auto-set finish = start + duration
-    // Leaving behavior unchanged unless you want it:
+    // optional: auto-calc finish from duration if you want; left commented
     // if (activity.duration && activity.planned_start && !activity.planned_finish) {
     //   activity.planned_finish = addDays(activity.planned_start, activity.duration);
     // }
 
-    // --- Status history append (unchanged) ---
     if (data.status) {
+      const now = new Date();
       const statusEntry = {
         status: data.status,
-        updated_at: new Date(),
+        updated_at: now,
         updated_by: data.updated_by,
         remarks: data.remarks || "",
       };
       activity.status_history = activity.status_history || [];
       activity.status_history.push(statusEntry);
-      // keep current_status in sync if you want (optional)
       activity.current_status = {
         status: data.status,
-        updated_at: new Date(),
+        updated_at: now,
         updated_by: data.updated_by,
         remarks: data.remarks || "",
       };
@@ -470,6 +552,7 @@ const getActivityInProject = async (req, res) => {
 
 module.exports = {
   createProjectActivity,
+  getAllProjectActivities,
   editProjectActivity,
   deleteProjectActivity,
   updateProjectActivityStatus,

@@ -16,6 +16,12 @@ const projectActivitySchema = new mongoose.Schema(
     description: {
       type: String,
     },
+    template_code: {
+      type: String,
+      unique: true,
+      index: true,
+      required: true,
+    },
     activities: [
       {
         activity_id: {
