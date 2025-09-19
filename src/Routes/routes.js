@@ -985,14 +985,7 @@ router.get(
 router.get(
   "/get-modified-expense-by-id",
   jwtMW.authentication,
-
   getModifiedExpenseById
-);
-router.get(
-  "/correct-po",
-  jwtMW.authentication,
-
-  updateCategoryNameAtPo
 );
 
 module.exports = router;
