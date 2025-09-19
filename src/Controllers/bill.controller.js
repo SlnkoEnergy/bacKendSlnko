@@ -8,6 +8,7 @@ const {
 } = require("../middlewares/catchasyncerror.middleware");
 const ErrorHandler = require("../middlewares/error.middleware");
 const userModells = require("../models/user.model");
+const materialcategoryModel = require("../models/materialcategory.model");
 
 const addBill = catchAsyncError(async function (req, res, next) {
   const {
@@ -21,6 +22,16 @@ const addBill = catchAsyncError(async function (req, res, next) {
   } = req.body;
 
   const userId = req.user.userId;
+  
+  const trim_bill_number = bill_number.trim();
+
+  const existingBill = await billModel.findOne({bill_number: trim_bill_number});
+
+  if(existingBill){
+    return res.status(404).json({
+      message:"Bill Already Exists"
+    })
+  }
 
   const purchaseOrder = await purchaseOrderModel.findOne({ po_number });
   if (!purchaseOrder) {
@@ -105,14 +116,14 @@ const getPaginatedBill = catchAsyncError(async (req, res) => {
 
   const matchStage = search
     ? {
-        $or: [
-          { bill_number: { $regex: searchRegex } },
-          { po_number: { $regex: searchRegex } },
-          { approved_by: { $regex: searchRegex } },
-          { "poData.vendor": { $regex: searchRegex } },
-          { "poData.item": { $regex: searchRegex } },
-        ],
-      }
+      $or: [
+        { bill_number: { $regex: searchRegex } },
+        { po_number: { $regex: searchRegex } },
+        { approved_by: { $regex: searchRegex } },
+        { "poData.vendor": { $regex: searchRegex } },
+        { "poData.item": { $regex: searchRegex } },
+      ],
+    }
     : {};
 
   const pipeline = [
@@ -240,7 +251,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
     po_number = String(po_number).trim();
   }
 
-  const rawSearch = (req.query.search ?? req.query.q ?? "").toString().trim();
+  const rawSearch = (req.query.search ?? req.query.q ?? req.body.search ?? "").toString().trim();
   const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   const filters = [];
@@ -262,7 +273,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
         from: "purchaseorders",
         localField: "po_number",
         foreignField: "po_number",
-        pipeline: [{ $project: { _id: 0, p_id: 1, vendor: 1, po_value: 1, total_billed: 1 } }],
+        pipeline: [{ $project: { _id: 0, p_id: 1, vendor: 1, po_value: 1, total_billed: 1, item: 1 } }],
         as: "po",
       },
     },
@@ -301,6 +312,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
     // flatten & compute status for filtering
     {
       $addFields: {
+        item: "$po.item",
         project_id: "$po.p_id",
         vendor: "$po.vendor",
         po_no: "$po_number",
@@ -327,55 +339,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
           // capture sort keys for stable re-sort after group
           { $addFields: { __sortAt: "$createdAt", __sortId: "$_id" } },
 
-          // normalize items
-          {
-            $addFields: {
-              _wasItemArray: { $isArray: "$item" },
-              _itemArr: {
-                $cond: [{ $isArray: "$item" }, "$item", [{ $ifNull: ["$item", null] }]],
-              },
-            },
-          },
-
-          // unwind items only after pagination
-          { $unwind: { path: "$_itemArr", preserveNullAndEmptyArrays: true } },
-
-          // category lookup per item
-          {
-            $lookup: {
-              from: "materialcategories",
-              localField: "_itemArr.category_id",
-              foreignField: "_id",
-              pipeline: [{ $project: { _id: 1, name: 1 } }],
-              as: "_cat",
-            },
-          },
-          {
-            $addFields: {
-              "_itemArr.category_name": {
-                $ifNull: [{ $arrayElemAt: ["$_cat.name", 0] }, null],
-              },
-            },
-          },
-
-          // regroup
-          {
-            $group: {
-              _id: "$_id",
-              doc: { $first: "$$ROOT" },
-              items: { $push: "$_itemArr" },
-            },
-          },
-          {
-            $addFields: {
-              items: { $filter: { input: "$items", as: "it", cond: { $ne: ["$$it", null] } } },
-              "doc.item": {
-                $cond: ["$doc._wasItemArray", "$items", { $arrayElemAt: ["$items", 0] }],
-              },
-            },
-          },
-          { $replaceRoot: { newRoot: "$doc" } },
-
+          
           // re-sort deterministically
           { $sort: { __sortAt: -1, __sortId: -1 } },
 
@@ -822,6 +786,131 @@ const manipulatebill = async (req, res) => {
   }
 };
 
+const updateCategoryNameAtPo = async (req, res) => {
+  try {
+
+    // const posNeedingUpdate = await purchaseOrderModel.find(
+    //   // {
+    //   //   item : {
+    //   //     $elemMatch : {
+    //   //       category : { $ne : null},
+    //   //       or : [
+    //   //         { category_name: { $exists : false}},
+    //   //         {category_name : null},
+    //   //         {category_name: ""},
+    //   //         {category_name : " "},
+    //   //       ],
+    //   //     },
+    //   //   },
+    //   // },
+    //   // { item: 1, po_number: 1}
+    // )
+    // .lean();
+
+    const pos = await purchaseOrderModel
+      .find(
+        { "item.category": { $exists: true, $ne: null } },
+        { item: 1, po_number: 1 } // minimal fields
+      )
+      .lean();
+
+    const catIdSet = new Set();
+    for (const po of pos) {
+      for (const it of po.item || []) {
+        if (!it?.category) continue;
+        const needs =
+          it.category_name == null || String(it.category_name).trim() === "";
+        if (needs) catIdSet.add(String(it.category));
+      }
+    }
+    const catIdStrs = [...catIdSet];
+    // console.log(catIdStrs);
+
+    const toObjectId = (v) => {
+      try {
+        return new mongoose.Types.ObjectId(v);
+      } catch {
+        return null;
+      }
+    };
+    const catObjectIds = catIdStrs.map(toObjectId).filter(Boolean);
+
+    const cats = await materialcategoryModel
+      .find({ _id: { $in: catObjectIds } })
+      .select({ name: 1 })
+      .lean();
+
+    const nameById = Object.fromEntries(
+      cats.map((c) => [String(c._id), c.name || ""])
+    );
+
+    const ops = [];
+    let itemsUpdated = 0;
+    for (const po of pos) {
+      let changed = false;
+
+      const newItems = (po.item || []).map((it) => {
+        if (!it?.category) return it;
+
+        
+        const needs =
+          it.category_name == null || String(it.category_name).trim() === "";
+
+        if (!needs) return it;
+
+        const resolved = nameById[String(it.category)] || null;
+        // console.log(resolved);
+        if (!resolved) return it; // skip if category not found
+
+        itemsUpdated++;
+        changed = true;
+        return { ...it, category_name: resolved };
+      });
+
+      if (changed) {
+        ops.push({
+          updateOne: {
+            filter: { _id: po._id },
+            update: {
+              $set: {
+                item: newItems,
+                updated_on: new Date().toISOString(),
+              },
+            },
+          },
+        });
+      }
+    }
+
+    if (!ops.length) {
+      return res.json({
+        ok: true,
+        processed: pos.length,
+        orders_updated: 0,
+        itemsUpdated,
+        message: "Nothing to update (no matching category names found).",
+      });
+    }
+
+    // 6) Execute bulk write
+    const bulkRes = await purchaseOrderModel.bulkWrite(ops, { ordered: false });
+
+    return res.json({
+      ok: true,
+      processed: pos.length,
+      orders_updated:
+        bulkRes.modifiedCount ??
+        bulkRes.nModified ??
+        (bulkRes.result && bulkRes.result.nModified) ??
+        ops.length,
+      items_updated: itemsUpdated,
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message, error: "internal error" })
+  }
+}
+
 
 module.exports = {
   addBill,
@@ -833,5 +922,6 @@ module.exports = {
   bill_approved,
   exportBills,
   getAllBill,
-  manipulatebill
+  manipulatebill,
+  updateCategoryNameAtPo,
 };

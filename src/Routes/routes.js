@@ -105,6 +105,7 @@ const {
   exportBills,
   getAllBill,
   manipulatebill,
+  updateCategoryNameAtPo,
 } = require("../Controllers/bill.controller.js");
 const {
   subtractmoney,
@@ -167,6 +168,7 @@ const {
   getByIdOrLeadId,
   getexportToCsv,
   migrateProjectToHandover,
+  listUsersNames
 } = require("../Controllers/handoversheet.controller.js");
 const {
   addmoduleMaster,
@@ -877,6 +879,7 @@ router.put(
   migrateProjectToHandover
 );
 
+
 //module master
 router.post(
   "/add-module-master",
@@ -984,6 +987,12 @@ router.get(
   jwtMW.authentication,
 
   getModifiedExpenseById
+);
+router.get(
+  "/correct-po",
+  jwtMW.authentication,
+
+  updateCategoryNameAtPo
 );
 
 module.exports = router;
