@@ -97,7 +97,7 @@ const handoversheetSchema = new mongoose.Schema(
     },
     status_of_handoversheet: { type: String, default: " " },
     submitted_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    assigned_to: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    assigned_to: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     comment: { type: String, default: "" },
     is_locked: { type: String, default: "locked" },
   },

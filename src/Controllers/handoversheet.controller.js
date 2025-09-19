@@ -113,6 +113,7 @@ const createhandoversheet = async function (req, res) {
     if (!submittedById) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+    const userId = submittedById;
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -123,7 +124,7 @@ const createhandoversheet = async function (req, res) {
       commercial_details,
       other_details: {
         ...other_details,
-        submitted_by_BD: other_details.submitted_by_BD || userId,
+        submitted_by_BD: userId,
       },
       invoice_detail,
       status_of_handoversheet: req.body.status_of_handoversheet || "draft",
@@ -131,7 +132,6 @@ const createhandoversheet = async function (req, res) {
       submitted_by: userId,
     });
 
-    const userId = submittedById;
     const user = await userModells.findById(userId);
 
     const checked_id = await hanoversheetmodells.findOne({ id: id });
@@ -439,62 +439,13 @@ const edithandoversheetdata = async function (req, res) {
     if (!id) return res.status(400).json({ message: "id not found" });
 
     const data = { ...req.body };
+    const userId = req.user.userId;
 
-  
-    if (data.assigned_to !== undefined) {
-      const items = Array.isArray(data.assigned_to) ? data.assigned_to : [data.assigned_to];
-      const ids = [];
-      const names = [];
-
-      for (const v of items) {
-        const val = v && v._id ? v._id : v;
-        if (!val) continue;
-        if (mongoose.isValidObjectId(val)) ids.push(val);
-        else if (typeof val === "string") names.push(val.trim());
-      }
-
-      if (names.length) {
-        const found = await userModells
-          .find({ name: { $in: names } })
-          .select("_id")
-          .lean();
-        ids.push(...found.map(u => u._id.toString()));
-      }
-
-    
-      data.assigned_to = [...new Set(ids)].map(x => new mongoose.Types.ObjectId(x));
+    if (data.is_locked === "locked") {
+      data.assigned_to = userId;
     }
 
- 
-    if (data.submitted_by !== undefined) {
-      if (mongoose.isValidObjectId(data.submitted_by)) {
-        data.submitted_by = new mongoose.Types.ObjectId(data.submitted_by);
-      } else if (typeof data.submitted_by === "string" && data.submitted_by.trim()) {
-        const u = await userModells.findOne({ name: data.submitted_by.trim() }).select("_id");
-        if (u) data.submitted_by = u._id;
-        else if (req.user?.userId && mongoose.isValidObjectId(req.user.userId)) {
-          data.submitted_by = new mongoose.Types.ObjectId(req.user.userId);
-        } else {
-          delete data.submitted_by;
-        }
-      } else {
-        delete data.submitted_by;
-      }
-    }
 
-    
-    if (data.other_details?.submitted_by_BD !== undefined) {
-      const v = data.other_details.submitted_by_BD;
-      if (mongoose.isValidObjectId(v)) {
-        data.other_details.submitted_by_BD = new mongoose.Types.ObjectId(v);
-      } else if (typeof v === "string" && v.trim()) {
-        const u = await userModells.findOne({ name: v.trim() }).select("_id");
-        if (u) data.other_details.submitted_by_BD = u._id;
-        else delete data.other_details.submitted_by_BD;
-      } else {
-        delete data.other_details.submitted_by_BD;
-      }
-    }
 
     const edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(id, data, { new: true });
 
