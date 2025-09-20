@@ -538,7 +538,11 @@ const updateDependencyStatus = async (req, res) => {
       if(idx === -1) {
         return res.status(404).json({ message: "Embedded activity not found in projectActivities.activities" });
       }
-    
+    const activity = projectactivityDoc.activities[idx];
+    if (!activity) {
+      return res.status(404).json({ message: "Activity not found in project" });
+    }
+
     const dependency = activity.dependency.id(dependencyId);
     if (!dependency) {
       return res.status(404).json({ message: "Dependency not found" });
@@ -548,10 +552,10 @@ const updateDependencyStatus = async (req, res) => {
       remarks,
       user_id: req.user.userId,
     });
-    await activity.save();
+    await projectactivityDoc.save();
     res
       .status(200)
-      .json({ message: "Dependency status updated successfully", activity });
+      .json({ message: "Dependency status updated successfully", projectactivityDoc });
   } catch (error) {
     res
       .status(500)
