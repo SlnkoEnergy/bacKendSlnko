@@ -584,13 +584,6 @@ const updateDependencyStatus = async (req, res) => {
   }
 };
 
-const isAllowedDependency = async(req, res) => {
-  try {
-    
-  } catch (error) {
-    
-  }
-}
 
 module.exports = {
   createProjectActivity,
