@@ -149,7 +149,9 @@ const deleteDependency = async (req, res) => {
     if (!activity) {
       return res.status(404).json({ message: "Activity not found" });
     }
-    activity.dependency.id(dependencyId).remove();
+    activity.dependency = activity.dependency.filter(
+      dep => dep._id.toString() !== dependencyId
+    );
     await activity.save();
     res
       .status(200)
