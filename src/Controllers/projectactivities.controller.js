@@ -44,7 +44,6 @@ const createProjectActivity = async (req, res) => {
   }
 };
 
-
 const getAllProjectActivities = async (req, res) => {
   try {
     const { search = "", status, page = 1, limit = 10 } = req.query;
@@ -172,15 +171,15 @@ const deleteProjectActivity = async (req, res) => {
 
 const updateProjectActivityStatus = async (req, res) => {
   try {
-    const { id, activityId } = req.params;
+    const { projectId, activityId } = req.params;
     const { status, remarks } = req.body;
-    const projectactivity = await projectActivity.findById(id);
+    const projectactivity = await projectActivity.findOne({project_id: projectId});
     if (!projectactivity) {
       return res.status(404).json({ message: "Project activity not found" });
     }
 
     const activity = projectactivity.activities?.find(
-      (act) => act._id.toString() === activityId
+      (act) => act.activity_id.toString() === activityId
     );
     if (!activity) {
       return res.status(404).json({ message: "Activity not found in project" });
@@ -193,6 +192,18 @@ const updateProjectActivityStatus = async (req, res) => {
       updated_by: req.user.userId,
       updated_at: new Date(),
     });
+    
+    if(status === 'completed') {
+       activity.dependency.forEach(dep => {
+          dep.status_history = dep.status_history || [];
+          dep.status_history.push({
+            status: 'allowed',
+            remarks: 'Auto-updated to allowed as parent activity is completed',
+            user_id: req.user.userId,
+            updatedAt: new Date()
+          });
+    })
+  }
 
     await projectactivity.save();
     return res
@@ -528,16 +539,23 @@ const updateDependencyStatus = async (req, res) => {
   try {
     const { projectId, activityId, dependencyId } = req.params;
     const { status, remarks } = req.body;
-    const projectactivityDoc = await projectActivity.findOne({project_id: projectId});
+    const projectactivityDoc = await projectActivity.findOne({
+      project_id: projectId,
+    });
     if (!projectactivityDoc) {
       return res.status(404).json({ message: "Project Activity not found" });
     }
-     const idx = (projectactivityDoc.activities || []).findIndex(
-        (a) => String(a.activity_id) === String(activityId)
-      );
-      if(idx === -1) {
-        return res.status(404).json({ message: "Embedded activity not found in projectActivities.activities" });
-      }
+    const idx = (projectactivityDoc.activities || []).findIndex(
+      (a) => String(a.activity_id) === String(activityId)
+    );
+    if (idx === -1) {
+      return res
+        .status(404)
+        .json({
+          message:
+            "Embedded activity not found in projectActivities.activities",
+        });
+    }
     const activity = projectactivityDoc.activities[idx];
     if (!activity) {
       return res.status(404).json({ message: "Activity not found in project" });
@@ -555,13 +573,24 @@ const updateDependencyStatus = async (req, res) => {
     await projectactivityDoc.save();
     res
       .status(200)
-      .json({ message: "Dependency status updated successfully", projectactivityDoc });
+      .json({
+        message: "Dependency status updated successfully",
+        projectactivityDoc,
+      });
   } catch (error) {
     res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
+
+const isAllowedDependency = async(req, res) => {
+  try {
+    
+  } catch (error) {
+    
+  }
+}
 
 module.exports = {
   createProjectActivity,
@@ -575,5 +604,5 @@ module.exports = {
   getActivityInProject,
   getAllTemplateNameSearch,
   updateProjectActivityFromTemplate,
-  updateDependencyStatus
+  updateDependencyStatus,
 };

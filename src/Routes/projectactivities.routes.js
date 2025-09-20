@@ -23,10 +23,11 @@ router.delete(
   deleteProjectActivity
 );
 router.put(
-  "/:id/projectactivity/status/:activityId",
+  "/:projectId/projectactivity/:activityId/projectstatus",
   jwtMW.authentication,
   updateProjectActivityStatus
 );
+
 router.get(
   "/projectactivity",
   jwtMW.authentication,
