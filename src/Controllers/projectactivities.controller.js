@@ -44,7 +44,7 @@ const createProjectActivity = async (req, res) => {
   }
 };
 
-// GET /projectactivity/all?search=&status=&page=1&limit=10
+
 const getAllProjectActivities = async (req, res) => {
   try {
     const { search = "", status, page = 1, limit = 10 } = req.query;
@@ -137,7 +137,6 @@ const getAllProjectActivities = async (req, res) => {
 const editProjectActivity = async (req, res) => {
   try {
     const { id } = req.params;
-    // do not allow template_code to be edited
     const data = stripTemplateCode(req.body);
 
     const projectactivity = await projectActivity.findByIdAndUpdate(id, data, {
@@ -230,6 +229,7 @@ const getProjectActivitybyProjectId = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
+
 const pushActivityToProject = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -524,6 +524,41 @@ const updateProjectActivityFromTemplate = async (req, res) => {
   }
 };
 
+const updateDependencyStatus = async (req, res) => {
+  try {
+    const { projectId, activityId, dependencyId } = req.params;
+    const { status, remarks } = req.body;
+    const projectactivityDoc = await projectActivity.findOne({project_id: projectId});
+    if (!projectactivityDoc) {
+      return res.status(404).json({ message: "Project Activity not found" });
+    }
+     const idx = (projectactivityDoc.activities || []).findIndex(
+        (a) => String(a.activity_id) === String(activityId)
+      );
+      if(idx === -1) {
+        return res.status(404).json({ message: "Embedded activity not found in projectActivities.activities" });
+      }
+    
+    const dependency = activity.dependency.id(dependencyId);
+    if (!dependency) {
+      return res.status(404).json({ message: "Dependency not found" });
+    }
+    dependency.status_history.push({
+      status,
+      remarks,
+      user_id: req.user.userId,
+    });
+    await activity.save();
+    res
+      .status(200)
+      .json({ message: "Dependency status updated successfully", activity });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
 module.exports = {
   createProjectActivity,
   getAllProjectActivities,
@@ -536,4 +571,5 @@ module.exports = {
   getActivityInProject,
   getAllTemplateNameSearch,
   updateProjectActivityFromTemplate,
+  updateDependencyStatus
 };

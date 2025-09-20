@@ -5,7 +5,7 @@ const {
   deleteActivity,
   namesearchOfActivities,
   updateDependency,
-  deleteDependency,
+  deleteDependency
 } = require("../controllers/activities.controller");
 const jwtMW = require("../middlewares/auth");
 

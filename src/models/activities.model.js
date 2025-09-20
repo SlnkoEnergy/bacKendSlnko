@@ -14,7 +14,10 @@ const activitySchema = new mongoose.Schema(
       type: String,
       enum: ["backend", "frontend"],
       default: "frontend",
-    },      
+    },
+    order: {
+      type: Number,
+    },
     dependency: [
       {
         model: { type: String },

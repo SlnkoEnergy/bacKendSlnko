@@ -68,6 +68,50 @@ const projectActivitySchema = new mongoose.Schema(
             remarks: String,
           },
         ],
+        dependency: [
+          {
+            model: { type: String },
+            model_id: {
+              type: mongoose.Schema.Types.ObjectId,
+              refPath: "dependency.model",
+              required: true,
+            },
+            updatedAt: { type: Date, default: Date.now },
+            updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            status_history: [
+              {
+                status: {
+                  type: String,
+                  enum: [
+                    "approved",
+                    "approval_pending",
+                    "allowed",
+                    "not allowed",
+                  ],
+                },
+                remarks: {
+                  type: String,
+                },
+                updatedAt: { type: Date, default: Date.now },
+                user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+              },
+            ],
+            current_status: {
+              status: {
+                type: String,
+                enum: [
+                  "approved",
+                  "approval_pending",
+                  "allowed",
+                  "not allowed",
+                ],
+              },
+              remarks: { type: String },
+              updatedAt: { type: Date, default: Date.now },
+              user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            },
+          },
+        ],
       },
     ],
     status: {
@@ -85,6 +129,15 @@ const projectActivitySchema = new mongoose.Schema(
 
 projectActivitySchema.pre("save", function (next) {
   updateStatus(this.activities, "not started");
+   if (Array.isArray(this.activities)) {
+    this.activities.forEach((activity) => {
+      if (Array.isArray(activity.dependency)) {
+        activity.dependency.forEach((dep) => {
+          updateStatus(dep, "not allowed");
+        });
+      }
+    });
+  }
   next();
 });
 
