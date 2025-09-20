@@ -10,11 +10,23 @@ const activitySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    type:{
+    type: {
       type: String,
-      enum:["backend", "frontend"],
-      default:'frontend'
-    },
+      enum: ["backend", "frontend"],
+      default: "frontend",
+    },      
+    dependency: [
+      {
+        model: { type: String },
+        model_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          refPath: "dependency.model",
+          required: true,
+        },
+        updatedAt: { type: Date, default: Date.now },
+        updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      },
+    ],
     created_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

@@ -47,12 +47,7 @@ const createProjectActivity = async (req, res) => {
 // GET /projectactivity/all?search=&status=&page=1&limit=10
 const getAllProjectActivities = async (req, res) => {
   try {
-    const {
-      search = "",
-      status,
-      page = 1,
-      limit = 10,
-    } = req.query;
+    const { search = "", status, page = 1, limit = 10 } = req.query;
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
@@ -238,13 +233,18 @@ const getProjectActivitybyProjectId = async (req, res) => {
 const pushActivityToProject = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { name, description, type } = req.body;
+    const { name, description, type, dependencies = [] } = req.body;
 
     const activity = await activityModel.create({
       name,
       description,
       type,
       created_by: req.user.userId,
+      dependency: dependencies.map((dep) => ({
+        model: dep.model,
+        model_id: dep.model_id,
+        updated_by: req.user.userId,
+      })),
     });
 
     const activity_id = activity._id;
@@ -499,24 +499,30 @@ const getAllTemplateNameSearch = async (req, res) => {
 
 const updateProjectActivityFromTemplate = async (req, res) => {
   try {
-    const {projectId, templateId} = req.params;
+    const { projectId, templateId } = req.params;
     const template = await projectActivity.findById(templateId);
     if (!template) {
       return res.status(404).json({ message: "Template not found" });
     }
-    const projectActivityDoc = await projectActivity.findOne({project_id:projectId});
+    const projectActivityDoc = await projectActivity.findOne({
+      project_id: projectId,
+    });
     if (!projectActivityDoc) {
       return res.status(404).json({ message: "Project activity not found" });
     }
 
     projectActivityDoc.activities = template.activities;
     await projectActivityDoc.save();
-    return res.status(200).json({ message: "Project activity updated from template successfully", projectActivityDoc });
+    return res.status(200).json({
+      message: "Project activity updated from template successfully",
+      projectActivityDoc,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Internal Server Error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
-
-}
+};
 
 module.exports = {
   createProjectActivity,
@@ -529,5 +535,5 @@ module.exports = {
   updateActivityInProject,
   getActivityInProject,
   getAllTemplateNameSearch,
-  updateProjectActivityFromTemplate
+  updateProjectActivityFromTemplate,
 };

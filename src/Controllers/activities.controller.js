@@ -67,7 +67,13 @@ const namesearchOfActivities = async (req, res) => {
         : {}),
     };
 
-    const projection = { _id: 1, name: 1 };
+    const projection = {
+      _id: 1,
+      name: 1,
+      description: 1,
+      type: 1,
+      dependency: 1,
+    };
     const sort = { name: 1, _id: 1 };
 
     const [items, total] = await Promise.all([
@@ -75,7 +81,7 @@ const namesearchOfActivities = async (req, res) => {
         .sort(sort)
         .skip(skip)
         .limit(pageSize)
-        .lean(),
+        .populate({ path: "dependency.model_id", select: "name" }),
       Activity.countDocuments(filter),
     ]);
 
@@ -103,9 +109,63 @@ const namesearchOfActivities = async (req, res) => {
   }
 };
 
+const updateDependency = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dependencies = Array.isArray(req.body.dependencies)
+      ? req.body.dependencies
+      : [{ model: req.body.model, model_id: req.body.model_id }];
+
+    const activity = await Activity.findById(id);
+    if (!activity) {
+      return res.status(404).json({ message: "Activity not found" });
+    }
+
+    dependencies.forEach((dep) => {
+      if (dep.model && dep.model_id) {
+        activity.dependency.push({
+          model: dep.model,
+          model_id: dep.model_id,
+          updated_by: req.user.userId,
+        });
+      }
+    });
+
+    await activity.save();
+    res
+      .status(200)
+      .json({ message: "Dependencies added successfully", activity });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+const deleteDependency = async (req, res) => {
+  try {
+    const { id, dependencyId } = req.params;
+    const activity = await Activity.findById(id);
+    if (!activity) {
+      return res.status(404).json({ message: "Activity not found" });
+    }
+    activity.dependency.id(dependencyId).remove();
+    await activity.save();
+    res
+      .status(200)
+      .json({ message: "Dependency removed successfully", activity });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
 module.exports = {
   createActivity,
   editActivity,
   deleteActivity,
   namesearchOfActivities,
+  updateDependency,
+  deleteDependency,
 };

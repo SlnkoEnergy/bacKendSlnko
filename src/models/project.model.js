@@ -1,4 +1,5 @@
 const { default: mongoose } = require("mongoose");
+const updateStatus = require("../utils/updatestatus.utils");
 
 const projectSchema = new mongoose.Schema(
   {
@@ -36,10 +37,28 @@ const projectSchema = new mongoose.Schema(
     tarrif: { type: String },
     land: { type: String },
     code: { type: String },
-    project_status: { type: String },
-    updated_on: { type: String },
+    status_history: {
+      status: {
+        type: String,
+        enum: ["to be started", "ongoing", "completed", "on hold", "delayed"],
+      },
+      remarks: {
+        type: String,
+      },
+      user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      updated_at: { type: Date, default: Date.now },
+    },
+    current_status: {
+      status: {
+        type: String,
+        enum: ["to be started", "ongoing", "completed", "on hold", "delayed"],
+      },
+      remarks: { type: String },
+      user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      updated_at: { type: Date, default: Date.now },
+    },
     service: { type: String },
-    submitted_by: { type: String },
+    submitted_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     billing_type: {
       type: String,
     },
@@ -50,5 +69,10 @@ const projectSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+projectSchema.pre("save", function (next) {
+  updateStatus(this, "to be started");
+  next();
+});
 
 module.exports = mongoose.model("projectDetail", projectSchema);
