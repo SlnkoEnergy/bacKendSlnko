@@ -38,6 +38,7 @@ const {
   getAllModule,
   getModuleById,
   createModule,
+  getAllowedModule,
 } = require("../Controllers/moduletemplate.controller");
 const {
   addMaterialCategory,
@@ -109,6 +110,11 @@ router.get(
   "/:projectId/moduletemplate/:module_template/statusHistory",
   jwtMW.authentication,
   getStatusHistoryForModuleCategory
+);
+router.get(
+  "/:projectId/allowedtemplates",
+  jwtMW.authentication,
+  getAllowedModule
 );
 
 // Boq Categories

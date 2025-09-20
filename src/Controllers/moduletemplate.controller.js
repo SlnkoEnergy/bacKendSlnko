@@ -1,4 +1,5 @@
 const moduleTemplate = require("../models/moduletemplate.model");
+const { isAllowedDependency } = require("../utils/isalloweddependency.utils");
 
 const createModule = async (req, res) => {
   try {
@@ -45,6 +46,26 @@ const getAllModule = async (req, res) => {
     res.status(200).json({
       message: "Module Category Retrieved Successfully",
       data: moduleData,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+const getAllowedModule = async (req, res) => {
+  try {
+    const {projectId} = req.params;
+    if (!projectId) {
+      return res.status(400).json({ message: "Project ID is required" });
+    }
+    const moduleIds = await isAllowedDependency(projectId, "moduleTemplates");
+    const modules = await moduleTemplate.find({ _id: { $in: moduleIds } });
+    res.status(200).json({
+      message: "Allowed Modules Retrieved Successfully",
+      data: modules,
     });
   } catch (error) {
     res.status(500).json({
@@ -118,5 +139,6 @@ module.exports = {
   getAllModule,
   updateModule,
   deleteModule,
-  updateModuleTemplateCategoryId
+  updateModuleTemplateCategoryId,
+  getAllowedModule
 };

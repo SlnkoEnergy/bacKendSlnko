@@ -624,7 +624,6 @@ router.put(
 router.get(
   "/get-export-bill",
   jwtMW.authentication,
-
   exportBills
 );
 router.put("/manipulatebill", manipulatebill);
@@ -632,13 +631,11 @@ router.put("/manipulatebill", manipulatebill);
 router.post(
   "/debit-moneY-IT",
   jwtMW.authentication,
-
   subtractmoney
 );
 router.get(
   "/get-subtract-amounT-IT",
   jwtMW.authentication,
-
   getsubtractMoney
 );
 router.delete(
