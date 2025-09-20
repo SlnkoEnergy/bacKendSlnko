@@ -837,15 +837,13 @@ async function fetchExcelFromBOQ(req, res) {
       return foundKey ? row[foundKey] : "";
     };
 
-    // ---- category synonyms -------------------------------------------------
-    // Canonical → aliases (all compared in normalized form)
     const EXPAND = {
       rms: ["rms", "wms"],
       "lt panel": ["acdb"],
       "ht panel": ["vcb"],
       "earthing & la": ["earthing", "la"],
       "meter box": ["ldb"],
-      "class c": ["bos"],
+      "class-c": ["bos"],
       gss: ["pss end", "bay end ext.", "bay end ext"],
       "i&c": ["i&c", "cleaning", "civil"],
     };
@@ -864,7 +862,7 @@ async function fetchExcelFromBOQ(req, res) {
     })();
 
     const CANON_DISPLAY = {
-      "class c": "Class C",
+      "class-c": "Class-C",
       "lt panel": "LT Panel",
       "ht panel": "HT Panel",
       "earthing & la": "Earthing & LA",
