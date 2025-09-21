@@ -30,8 +30,19 @@ const approvalSchema = new mongoose.Schema(
         },
       },
     ],
-    current_approver_sequence: {
-      type: Number,
+    current_approver: {
+      user_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      sequence: {
+        type: Number,
+      },
+      status: {
+        type: String,
+        enum: ["pending", "approved", "rejected"]
+      },
+      remarks: { type: String },
     },
     created_by: {
       type: mongoose.Schema.Types.ObjectId,
@@ -40,5 +51,10 @@ const approvalSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+approvalSchema.post("save", function(next){
+  updateApprover(this);
+  next();
+})
 
 module.exports = mongoose.model("Approvals", approvalSchema);
