@@ -1,10 +1,12 @@
 const { default: mongoose } = require("mongoose");
 const Approval = require("../models/approvals.model");
+const User = require("../models/user.model");
+const Project = require("../models/project.model");
 
 const createApproval = async (req, res) => {
   try {
     const data = req.body;
-    const newApproval = new Approval({ ...data, createdBy: req.user.userId });
+    const newApproval = new Approval({ ...data, created_by: req.user.userId });
     await newApproval.save();
     res.status(201).json({
       message: "Approval created successfully",
@@ -113,9 +115,10 @@ const updateStatus = async (req, res) => {
   }
 };
 
+const escapeRegex = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const getAllRequests = async (req, res) => {
   try {
-    // Add Pagination, limit and search by createdAt, createdBy and also filter by model_name
     const {
       page = 1,
       limit = 10,
@@ -124,37 +127,125 @@ const getAllRequests = async (req, res) => {
       createdAtFrom,
       createdAtTo,
     } = req.query;
-    const query = {
-      $or: [{ "created_by.name": { $regex: search, $options: "i" } }],
-    };
-    // Add external filters
-    if (model_name) {
-      query.model_name = model_name;
-    }
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.max(parseInt(limit, 10) || 10, 1);
+
+    // ---------- BASE FILTERS ----------
+    const andFilters = [];
+
+    if (model_name) andFilters.push({ model_name });
+
     if (createdAtFrom || createdAtTo) {
-      query.createdAt = {};
-      if (createdAtFrom) {
-        query.createdAt.$gte = new Date(createdAtFrom);
-      }
+      const range = {};
+      if (createdAtFrom) range.$gte = new Date(createdAtFrom);
       if (createdAtTo) {
-        query.createdAt.$lte = new Date(createdAtTo);
+        const to = new Date(createdAtTo);
+        if (!createdAtTo.includes("T")) to.setHours(23, 59, 59, 999);
+        range.$lte = to;
+      }
+      andFilters.push({ createdAt: range });
+    }
+
+    // ---------- TEXT SEARCH on creator (name/email) ----------
+    if (search && search.trim()) {
+      const rx = new RegExp(escapeRegex(search.trim()), "i");
+      const creators = await User.find(
+        { $or: [{ name: rx }, { email: rx }] },
+        { _id: 1 }
+      ).lean();
+
+      if (creators.length) {
+        andFilters.push({ created_by: { $in: creators.map((u) => u._id) } });
+      } else {
+        return res.status(200).json({
+          page: pageNum,
+          limit: limitNum,
+          total: 0,
+          requests: [],
+        });
       }
     }
-    const requests = await Approval.find(query)
-      .populate("created_by", "name email")
-      .populate("approvers.user_id", "name email")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
-    const total = await Approval.countDocuments(query);
-    res.status(200).json({
-      page: parseInt(page),
-      limit: parseInt(limit),
+
+    // ---------- ROLE / DEPT SCOPING ----------
+    const { user } = await User.findById(req.user.userId);
+    const userId = user?._id;
+    const department = user?.department;
+    const role = user?.role;
+    const name = user?.name;
+
+    const isPrivileged =
+      (department && ["admin", "superadmin"].includes(department.toLowerCase())) ||
+      name === "Prachi Singh";
+
+    if (!isPrivileged) {
+      if (role && role.toLowerCase() === "manager" && department) {
+        const deptUsers = await User.find({ department }, { _id: 1 }).lean();
+        const allowedIds = new Set([
+          ...(deptUsers?.map((u) => String(u._id)) || []),
+          String(userId || ""),
+        ]);
+        andFilters.push({ created_by: { $in: Array.from(allowedIds) } });
+      } else {
+        andFilters.push({ created_by: userId });
+      }
+    }
+
+    const finalQuery = andFilters.length ? { $and: andFilters } : {};
+
+    // ---------- MAIN QUERY (no populate on model_id) ----------
+    const [requests, total] = await Promise.all([
+      Approval.find(finalQuery)
+        .populate("created_by", "_id name")
+        .populate("approvers.user_id", "_id name attachment_url")
+        .populate("current_approver.user_id", "_id name attachment_url")
+        .populate("model_id", "project_id")
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .lean(),
+      Approval.countDocuments(finalQuery),
+    ]);
+
+    const projectIdSet = new Set();
+    for (const r of requests) {
+      const maybeId = r?.model_id?.project_id;
+      if (maybeId && mongoose.Types.ObjectId.isValid(String(maybeId))) {
+        projectIdSet.add(String(maybeId));
+      }
+    }
+
+    let projectMap = new Map();
+    if (projectIdSet.size) {
+      const projects = await Project.find(
+        { _id: { $in: Array.from(projectIdSet).map((id) => new mongoose.Types.ObjectId(id)) } },
+        { _id: 1, code: 1, name: 1 }
+      ).lean();
+
+      projectMap = new Map(projects.map((p) => [String(p._id), p]));
+    }
+
+    // ---------- ATTACH { _id, code, name } ----------
+    const requestsWithProject = requests.map((r) => {
+      const pid = r?.model_id?.project_id ? String(r.model_id.project_id) : null;
+      const proj = pid ? projectMap.get(pid) : null;
+
+      return {
+        ...r,
+        project: proj
+          ? { _id: proj._id, code: proj.code, name: proj.name }
+          : null,
+      };
+    });
+
+    return res.status(200).json({
+      page: pageNum,
+      limit: limitNum,
       total,
-      requests,
+      requests: requestsWithProject,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
     });
@@ -163,7 +254,6 @@ const getAllRequests = async (req, res) => {
 
 const getAllReviews = async (req, res) => {
   try {
-    // Add Pagination, limit and search by createdAt, createdBy and also filter by model_name
     const {
       page = 1,
       limit = 10,
@@ -173,14 +263,9 @@ const getAllReviews = async (req, res) => {
       createdAtTo,
     } = req.query;
     const userId = req.user.userId;
-    // check on approvers not on current_approver
-    // because if user has already approved/rejected then current_approver will be next approver
-    // but user should be able to see the request in reviews
-    // so that he can see the status of his approval/rejection
     const query = {
       $or: [
         { "created_by.name": { $regex: search, $options: "i" } },
-        // Approvers array user_id match
         { "approvers.user_id": userId },
       ],
     };
