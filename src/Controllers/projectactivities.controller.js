@@ -173,7 +173,9 @@ const updateProjectActivityStatus = async (req, res) => {
   try {
     const { projectId, activityId } = req.params;
     const { status, remarks } = req.body;
-    const projectactivity = await projectActivity.findOne({project_id: projectId});
+    const projectactivity = await projectActivity.findOne({
+      project_id: projectId,
+    });
     if (!projectactivity) {
       return res.status(404).json({ message: "Project activity not found" });
     }
@@ -192,18 +194,18 @@ const updateProjectActivityStatus = async (req, res) => {
       updated_by: req.user.userId,
       updated_at: new Date(),
     });
-    
-    if(status === 'completed') {
-       activity.dependency.forEach(dep => {
-          dep.status_history = dep.status_history || [];
-          dep.status_history.push({
-            status: 'allowed',
-            remarks: 'Auto-updated to allowed as parent activity is completed',
-            user_id: req.user.userId,
-            updatedAt: new Date()
-          });
-    })
-  }
+
+    if (status === "completed") {
+      activity.dependency.forEach((dep) => {
+        dep.status_history = dep.status_history || [];
+        dep.status_history.push({
+          status: "allowed",
+          remarks: "Auto-updated to allowed as parent activity is completed",
+          user_id: req.user.userId,
+          updatedAt: new Date(),
+        });
+      });
+    }
 
     await projectactivity.save();
     return res
@@ -233,6 +235,62 @@ const getProjectActivitybyProjectId = async (req, res) => {
     return res.status(200).json({
       message: "Project activity fetched successfully",
       projectactivity,
+    });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+const nameSearchActivityByProjectId = async (req, res) => {
+  try {
+    // Add Pagination, limit to 7 results
+    const { projectId, page, limit, search } = req.query;
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(limit, 10) || 7, 1), 100);
+    const skip = (pageNum - 1) * pageSize;
+    const searchRegex =
+      search && String(search).trim() !== ""
+        ? new RegExp(String(search).trim().replace(/\s+/g, ".*"), "i")
+        : null;
+    const match = { project_id: projectId };
+    if (searchRegex) {
+      match.$or = [
+        { "activities.name": searchRegex },
+        { "activities.description": searchRegex },
+      ];
+    }
+
+    const [result] = await projectActivity.aggregate([
+      { $match: match },
+      { $unwind: "$activities" },
+      { $match: match },
+      {
+        $project: {
+          _id: "$activities.activity_id",
+          name: "$activities.name",
+          description: "$activities.description",
+          type: "$activities.type",
+          dependency: "$activities.dependency",
+          createdAt: "$activities.createdAt",
+        },
+      },
+      { $sort: { createdAt: -1, _id: -1 } },
+      { $skip: skip },
+      { $limit: pageSize },
+      { $facet: { items: [], totalCount: [{ $count: "count" }] } },
+    ]);
+    const items = result?.items ?? [];
+    const total = result?.totalCount?.[0]?.count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    return res.status(200).json({
+      ok: true,
+      page: pageNum,
+      limit: pageSize,
+      total,
+      totalPages,
+      activities: items,
     });
   } catch (error) {
     return res
@@ -549,12 +607,9 @@ const updateDependencyStatus = async (req, res) => {
       (a) => String(a.activity_id) === String(activityId)
     );
     if (idx === -1) {
-      return res
-        .status(404)
-        .json({
-          message:
-            "Embedded activity not found in projectActivities.activities",
-        });
+      return res.status(404).json({
+        message: "Embedded activity not found in projectActivities.activities",
+      });
     }
     const activity = projectactivityDoc.activities[idx];
     if (!activity) {
@@ -571,19 +626,16 @@ const updateDependencyStatus = async (req, res) => {
       user_id: req.user.userId,
     });
     await projectactivityDoc.save();
-    res
-      .status(200)
-      .json({
-        message: "Dependency status updated successfully",
-        projectactivityDoc,
-      });
+    res.status(200).json({
+      message: "Dependency status updated successfully",
+      projectactivityDoc,
+    });
   } catch (error) {
     res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
-
 
 module.exports = {
   createProjectActivity,
@@ -598,4 +650,5 @@ module.exports = {
   getAllTemplateNameSearch,
   updateProjectActivityFromTemplate,
   updateDependencyStatus,
+  nameSearchActivityByProjectId,
 };

@@ -12,6 +12,7 @@ const {
   getAllProjectActivities,
   updateProjectActivityFromTemplate,
   updateDependencyStatus,
+  nameSearchActivityByProjectId,
 } = require("../controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
@@ -68,5 +69,6 @@ router.put(
   jwtMW.authentication,
   updateDependencyStatus
 );
+router.get('namesearchactivitybyprojectid', jwtMW.authentication, nameSearchActivityByProjectId);
 
 module.exports = router;

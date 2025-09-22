@@ -128,12 +128,12 @@ const projectActivitySchema = new mongoose.Schema(
 );
 
 projectActivitySchema.pre("save", function (next) {
-   if(Array.isArray(this.activities)){
-    this.activities.forEach(activity => {
+  if (Array.isArray(this.activities)) {
+    this.activities.forEach((activity) => {
       updateStatus(activity, "not started");
     });
   }
-   if (Array.isArray(this.activities)) {
+  if (Array.isArray(this.activities)) {
     this.activities.forEach((activity) => {
       if (Array.isArray(activity.dependency)) {
         activity.dependency.forEach((dep) => {

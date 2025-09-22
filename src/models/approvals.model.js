@@ -40,7 +40,7 @@ const approvalSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ["pending", "approved", "rejected"]
+        enum: ["pending", "approved", "rejected"],
       },
       remarks: { type: String },
     },
@@ -52,9 +52,9 @@ const approvalSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-approvalSchema.post("save", function(next){
+approvalSchema.post("save", function (next) {
   updateApprover(this);
   next();
-})
+});
 
 module.exports = mongoose.model("Approvals", approvalSchema);
