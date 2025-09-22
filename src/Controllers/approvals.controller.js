@@ -1,3 +1,4 @@
+const { default: mongoose } = require("mongoose");
 const Approval = require("../models/approvals.model");
 
 const createApproval = async (req, res) => {
@@ -19,34 +20,62 @@ const createApproval = async (req, res) => {
 
 const getUniqueApprovalModels = async (req, res) => {
   try {
-    const uniqueModels = await Approval.distinct("model_name");
     const userId = req.user.userId;
-    // In the response model_wise give count of reviews required by the user for that check current_approver.user_id
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    // 1) All distinct model names
+    const uniqueModels = await Approval.distinct("model_name");
+
+    // 2) Counts only for the current user & pending
+    const counts = await Approval.aggregate([
+      {
+        $match: {
+          "current_approver.user_id": userObjectId,
+          "current_approver.status": "pending",
+        },
+      },
+      {
+        $group: {
+          _id: "$model_name",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          model_name: "$_id",
+          count: 1,
+        },
+      },
+    ]);
+
+    // 3) Build response: { modelName: number }
+    const countMap = counts.reduce((acc, { model_name, count }) => {
+      acc[model_name] = count;
+      return acc;
+    }, {});
+
     const modelWise = {};
     for (const model of uniqueModels) {
-      const count = await Approval.countDocuments({
-        model_name: model,
-        "current_approver.user_id": userId,
-        "current_approver.status": "pending",
-      });
-      modelWise[model] = count;
+      modelWise[model] = countMap[model] ?? 0;
     }
-    res.status(200).json({
-      uniqueModels,
-      modelWise,
-    });
+
+    return res.status(200).json(modelWise);
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
     });
   }
 };
 
+
 const updateStatus = async (req, res) => {
   try {
-    const { approvalId, status, remarks } = req.body;
+    const { approvalId } = req.params;
+    const { status, remarks } = req.body;
     const userId = req.user.userId;
+    console.log({ userId });
     const approval = await Approval.findById(approvalId);
     if (!approval) {
       return res.status(404).json({ message: "Approval not found" });
@@ -62,12 +91,18 @@ const updateStatus = async (req, res) => {
         .status(400)
         .json({ message: "You have already acted on this approval" });
     }
-    approval.approvers.find(
-      (approver) => approver.user_id.toString() === userId
-    ).status = status;
-    approval.approvers.find(
-      (approver) => approver.user_id.toString() === userId
-    ).remarks = remarks;
+    const approver = approval.approvers.find(
+      (a) => a.user_id && a.user_id.toString() === userId
+    );
+
+    if (!approver) {
+      return res
+        .status(404)
+        .json({ message: "Approver not found for this user" });
+    }
+
+    approver.status = status;
+    approver.remarks = remarks;
     await approval.save();
     res.status(200).json({ message: "Approval status updated successfully" });
   } catch (error) {

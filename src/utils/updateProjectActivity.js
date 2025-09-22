@@ -1,8 +1,13 @@
-const projectActivities = require("../models/projectactivities.model");
+const mongoose = require("mongoose");
+const ProjectActivities = require("../models/projectactivities.model");
+
 async function updateProjectActivityFromApproval(
   approval,
-  { paId, activityId, dependencyId },
-  { remarks, session } = {}
+  model_id,
+  activityId,
+  dependencyId,
+  remarks,
+  session = null
 ) {
   if (!approval || !Array.isArray(approval.approvers)) {
     return { applied: false, modifiedCount: 0 };
@@ -10,27 +15,31 @@ async function updateProjectActivityFromApproval(
 
   const approvers = approval.approvers;
   const hasApprovers = approvers.length > 0;
-  const oneRejected = approvers.some(a => a.status === "rejected");
-  const allApproved = hasApprovers && approvers.every(a => a.status === "approved");
+  const oneRejected = approvers.some((a) => a.status === "rejected");
+  const allApproved =
+    hasApprovers && approvers.every((a) => a.status === "approved");
 
-  // Decide target status
+  const rejectStatus = "rejected";
   let targetStatus = null;
   if (oneRejected) targetStatus = "not allowed";
   else if (allApproved) targetStatus = "approved";
-
+  if (oneRejected) targetStatus = rejectStatus;
   if (!targetStatus) {
-    // nothing to do yet (still pending/mixed)
     return { applied: false, modifiedCount: 0 };
   }
 
   const now = new Date();
+  const reason =
+    remarks ||
+    (targetStatus === "approved"
+      ? "All approvers approved"
+      : "One of the approvers rejected");
+
   const update = {
     $set: {
       "activities.$[a].dependency.$[d].current_status": {
         status: targetStatus,
-        remarks: remarks || (targetStatus === "approved"
-          ? "All approvers approved"
-          : "One of the approvers rejected"),
+        remarks: reason,
         updatedAt: now,
         user_id: approval.current_approver?.user_id || null,
       },
@@ -38,9 +47,7 @@ async function updateProjectActivityFromApproval(
     $push: {
       "activities.$[a].dependency.$[d].status_history": {
         status: targetStatus,
-        remarks: remarks || (targetStatus === "approved"
-          ? "All approvers approved"
-          : "One of the approvers rejected"),
+        remarks: reason,
         updatedAt: now,
         user_id: approval.current_approver?.user_id || null,
       },
@@ -52,16 +59,23 @@ async function updateProjectActivityFromApproval(
     { "d._id": new mongoose.Types.ObjectId(dependencyId) },
   ];
 
-  const res = await ProjectActivities.updateOne(
-    {
-      _id: new mongoose.Types.ObjectId(paId),
-      "activities._id": new mongoose.Types.ObjectId(activityId),
-      "activities.dependency._id": new mongoose.Types.ObjectId(dependencyId),
-    },
-    update,
-    { arrayFilters, session }
-  );
+  // Base selector
+  const selector = {
+    _id: new mongoose.Types.ObjectId(model_id),
+    "activities._id": new mongoose.Types.ObjectId(activityId),
+    "activities.dependency._id": new mongoose.Types.ObjectId(dependencyId),
+  };
 
-  return { applied: res.modifiedCount > 0, status: targetStatus, modifiedCount: res.modifiedCount };
+  const res = await ProjectActivities.updateOne(selector, update, {
+    arrayFilters,
+    session,
+  });
+
+  return {
+    applied: res.modifiedCount > 0,
+    status: targetStatus,
+    modifiedCount: res.modifiedCount,
+  };
 }
-module.exports = updateProjectActivity;
+
+module.exports = updateProjectActivityFromApproval;
