@@ -248,9 +248,7 @@ const nameSearchActivityByProjectId = async (req, res) => {
     const { projectId, page, limit, search } = req.query;
 
     if (!projectId) {
-      return res
-        .status(400)
-        .json({ ok: false, message: "projectId is required" });
+      return res.status(400).json({ ok: false, message: "projectId is required" });
     }
 
     let projId;
@@ -260,9 +258,9 @@ const nameSearchActivityByProjectId = async (req, res) => {
       return res.status(400).json({ ok: false, message: "Invalid projectId" });
     }
 
-    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const pageNum  = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(limit, 10) || 7, 1), 100);
-    const skip = (pageNum - 1) * pageSize;
+    const skip     = (pageNum - 1) * pageSize;
 
     const searchRegex =
       search && String(search).trim() !== ""
@@ -272,6 +270,8 @@ const nameSearchActivityByProjectId = async (req, res) => {
     const baseStages = [
       { $match: { project_id: projId } },
       { $unwind: "$activities" },
+
+      // Join base activity info
       {
         $lookup: {
           from: "activities",
@@ -281,6 +281,8 @@ const nameSearchActivityByProjectId = async (req, res) => {
         },
       },
       { $unwind: "$actInfo" },
+
+      // Optional search
       ...(searchRegex
         ? [
             {
@@ -293,6 +295,160 @@ const nameSearchActivityByProjectId = async (req, res) => {
             },
           ]
         : []),
+
+      // Look up dependency targets (moduletemplates and materialcategories)
+      {
+        $lookup: {
+          from: "moduletemplates",
+          localField: "activities.dependency.model_id",
+          foreignField: "_id",
+          as: "depModules",
+        },
+      },
+      {
+        $lookup: {
+          from: "materialcategories",
+          localField: "activities.dependency.model_id",
+          foreignField: "_id",
+          as: "depMaterials",
+        },
+      },
+
+      // Enrich dependencies -> add model_name (FIXED NESTING)
+      {
+        $addFields: {
+          "activities.dependency": {
+            $map: {
+              input: { $ifNull: ["$activities.dependency", []] },
+              as: "dep",
+              in: {
+                // OUTER let: cheap/common values
+                $let: {
+                  vars: {
+                    depModelLower: { $toLower: { $ifNull: ["$$dep.model", ""] } },
+                    populatedName: {
+                      $cond: [
+                        { $eq: [{ $type: "$$dep.model_id" }, "object"] },
+                        { $ifNull: ["$$dep.model_id.name", "$$dep.model_id.title"] },
+                        null,
+                      ],
+                    },
+                  },
+                  in: {
+                    // INNER let #1: compute ObjectId once
+                    $let: {
+                      vars: {
+                        depModelIdObj: {
+                          $cond: [
+                            { $eq: [{ $type: "$$dep.model_id" }, "objectId"] },
+                            "$$dep.model_id",
+                            {
+                              $convert: {
+                                input: "$$dep.model_id",
+                                to: "objectId",
+                                onError: null,
+                                onNull: null,
+                              },
+                            },
+                          ],
+                        },
+                      },
+                      in: {
+                        // INNER let #2: now we can safely use depModelIdObj
+                        $let: {
+                          vars: {
+                            foundModule: {
+                              $arrayElemAt: [
+                                {
+                                  $filter: {
+                                    input: "$depModules",
+                                    as: "m",
+                                    cond: { $eq: ["$$m._id", "$$depModelIdObj"] },
+                                  },
+                                },
+                                0,
+                              ],
+                            },
+                            foundMaterial: {
+                              $arrayElemAt: [
+                                {
+                                  $filter: {
+                                    input: "$depMaterials",
+                                    as: "mc",
+                                    cond: { $eq: ["$$mc._id", "$$depModelIdObj"] },
+                                  },
+                                },
+                                0,
+                              ],
+                            },
+                          },
+                          in: {
+                            $mergeObjects: [
+                              "$$dep",
+                              {
+                                model_name: {
+                                  // 1) if populated object already has name/title, prefer it
+                                  $cond: [
+                                    { $ne: ["$$populatedName", null] },
+                                    "$$populatedName",
+                                    {
+                                      // 2) module-template like
+                                      $cond: [
+                                        {
+                                          $in: [
+                                            "$$depModelLower",
+                                            ["moduletemplate", "moduletemplates", "module", "modules"],
+                                          ],
+                                        },
+                                        {
+                                          $ifNull: [
+                                            { $ifNull: ["$$foundModule.name", "$$foundModule.title"] },
+                                            "$$dep.model",
+                                          ],
+                                        },
+                                        {
+                                          // 3) material-category like
+                                          $cond: [
+                                            {
+                                              $in: [
+                                                "$$depModelLower",
+                                                ["materialcategory", "materialcategories"],
+                                              ],
+                                            },
+                                            {
+                                              $ifNull: [
+                                                {
+                                                  $ifNull: [
+                                                    "$$foundMaterial.name",
+                                                    "$$foundMaterial.title",
+                                                  ],
+                                                },
+                                                "$$dep.model",
+                                              ],
+                                            },
+                                            // 4) fallback
+                                            "$$dep.model",
+                                          ],
+                                        },
+                                      ],
+                                    },
+                                  ],
+                                },
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+
+      // Final projection
       {
         $project: {
           activity_id: "$activities.activity_id",
@@ -333,13 +489,11 @@ const nameSearchActivityByProjectId = async (req, res) => {
       activities: items,
     });
   } catch (error) {
-    return res
-      .status(500)
-      .json({
-        ok: false,
-        message: "Internal Server Error",
-        error: error.message,
-      });
+    return res.status(500).json({
+      ok: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
 
