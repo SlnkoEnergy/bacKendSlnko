@@ -17,6 +17,8 @@ const {
   getProjectbyPId,
   getProjectDropwdown,
   getProjectNameSearch,
+  getProjectStatusFilter,
+  getProjectDetail,
 } = require("../Controllers/project.controller.js");
 const {
   userRegister,
@@ -279,6 +281,10 @@ router.get(
   getProjectDropwdown
 );
 router.get("/project-search", jwtMW.authentication, getProjectNameSearch);
+
+router.get("/project-status-filter", jwtMW.authentication, getProjectStatusFilter);
+
+router.get("/project-detail", jwtMW.authentication , getProjectDetail)
 
 //addMoney APi
 router.post(

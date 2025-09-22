@@ -240,14 +240,14 @@ const getProjectNameSearch = async (req, res) => {
     // 🔁 search by name OR code (project id)
     const filter = q
       ? {
-          $or: [
-            { name: { $regex: regex } },
-            { code: { $regex: regex } }, // <- project id field
-            // If your collection uses other fields for the id, add them too:
-            // { project_id: { $regex: regex } },
-            // { p_id: { $regex: regex } },
-          ],
-        }
+        $or: [
+          { name: { $regex: regex } },
+          { code: { $regex: regex } }, // <- project id field
+          // If your collection uses other fields for the id, add them too:
+          // { project_id: { $regex: regex } },
+          // { p_id: { $regex: regex } },
+        ],
+      }
       : {};
 
     const projection = { _id: 1, name: 1, code: 1, site_address: 1 };
@@ -283,6 +283,328 @@ const getProjectNameSearch = async (req, res) => {
   }
 };
 
+const getProjectStatusFilter = async (req, res) => {
+  try {
+
+    const match = {};
+
+    const rows = await projectModells.aggregate([
+
+      { $match: match },
+      { $group: { _id: "$current_status.status", count: { $sum: 1 } } },
+    ])
+
+    console.log(rows);
+    const data = {
+      "to be started": 0,
+      "ongoing": 0,
+      "completed": 0,
+      "on hold": 0,
+      "delayed": 0,
+    }
+
+    for (const r of rows) {
+      if (r._id && Object.prototype.hasOwnProperty.call(data, r._id)) {
+        data[r._id] = r.count;
+      }
+    }
+
+    return res.status(200).json({ data })
+  } catch (error) {
+
+    return res.status(500).json({
+      message: "Internal Server error",
+      error: error.message,
+    })
+  }
+}
+
+const getProjectDetail = async (req, res) => {
+
+  // const match  = {};
+
+  // const pipeline = [
+
+  //   {$match : match},
+
+  //   {
+  //     $project: {
+  //       code : 1,
+  //       name: 1, 
+  //       state: 1, 
+  //       current_status: 1, 
+  //       status_history: 1, 
+  //       updatedAt: 1, 
+  //     }
+  //   },
+
+  //   {
+  //     $lookup :{
+  //       from: "projectDetail",
+  //       let: {pid: "$_id"},
+  //       pipeline: [
+  //         { $match : {$expr : { $eq: ["$project_id", "$$pid"]}, status: "project"}},
+  //         { $unwind: { path: "$activities", preserveNullAndEmptyArrays: true}},
+
+  //         {
+  //           $lookup: {
+  //             from: "activities",
+  //             let: {actId : "$activities.activity_id"},
+
+  //             pipeline: [
+  //               { $match: {$expr: {$eq: ["$_id", "$$actId"]}}},
+  //               { $project : { _id: 1, name: 1, description: 1, dependency: 1 }},
+
+  //             ], 
+  //             as: "act"
+  //           },
+  //         },
+  //         {$unwind: {path: "$act", preserveNullAndEmptyArrays: true}},
+
+  //       ]
+
+  //     }
+  //   }
+  // ]
+
+  try {
+    const pipeline = [
+      { $match: matchStage },
+
+      // bring minimal project fields (code, name, state)
+      {
+        $lookup: {
+          from: "projectdetails",
+          localField: "project_id",
+          foreignField: "_id",
+          as: "project",
+          pipeline: [
+            {
+              $project: {
+                _id: 1,
+                code: 1,
+                name: 1,
+                state: 1,
+              },
+            },
+          ],
+        },
+      },
+      { $unwind: "$project" },
+
+      // explode activities to evaluate each activity separately
+      { $unwind: { path: "$activities", preserveNullAndEmptyArrays: true } },
+
+      // join activity master for name/description
+      {
+        $lookup: {
+          from: "activities",
+          let: { actId: "$activities.activity_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$actId"] } } },
+            { $project: { _id: 1, name: 1, description: 1 } },
+          ],
+          as: "act",
+        },
+      },
+      { $unwind: { path: "$act", preserveNullAndEmptyArrays: true } },
+
+      // compute helpers & a normalized activity object
+      {
+        $addFields: {
+          _now: "$$NOW",
+          _isInProgress: {
+            $eq: ["$activities.current_status.status", "in progress"],
+          },
+          _isNotStarted: {
+            $eq: ["$activities.current_status.status", "not started"],
+          },
+          _finish_time: {
+            $ifNull: ["$activities.actual_finish", "$activities.planned_finish"],
+          },
+          _planned_start: "$activities.planned_start",
+          _planned_finish: "$activities.planned_finish",
+          _activity_obj: {
+            _id: "$activities.activity_id",
+            name: "$act.name",
+            description: "$act.description",
+            planned_start: "$activities.planned_start",
+            planned_finish: "$activities.planned_finish",
+            actual_start: "$activities.actual_start",
+            actual_finish: "$activities.actual_finish",
+            duration: "$activities.duration",
+            percent_complete: "$activities.percent_complete",
+            status: "$activities.current_status.status",
+            status_updated_at: "$activities.current_status.updated_at",
+          },
+        },
+      },
+
+      // sort by planned_start ASC so grouped arrays maintain chronological order
+      { $sort: { "_planned_start": 1 } },
+
+      // group back per project and build candidate lists
+      {
+        $group: {
+          _id: "$project_id",
+          project: { $first: "$project" },
+
+          // activities "in progress" (ordered by planned_start due to $sort)
+          inProgressArr: {
+            $push: {
+              $cond: [
+                "$_isInProgress",
+                {
+                  activity: "$_activity_obj",
+                  finish_time: "$_finish_time",
+                },
+                null,
+              ],
+            },
+          },
+
+          // upcoming = not started and starts in future (>= now)
+          upcomingArr: {
+            $push: {
+              $cond: [
+                {
+                  $and: [
+                    "$_isNotStarted",
+                    { $gte: ["$_planned_start", "$_now"] },
+                  ],
+                },
+                {
+                  activity: "$_activity_obj",
+                },
+                null,
+              ],
+            },
+          },
+
+          // not-started in the past (candidate for "current" if none in progress)
+          notStartedPastArr: {
+            $push: {
+              $cond: [
+                {
+                  $and: [
+                    "$_isNotStarted",
+                    { $lt: ["$_planned_start", "$_now"] },
+                  ],
+                },
+                {
+                  activity: "$_activity_obj",
+                  finish_time: "$_finish_time",
+                },
+                null,
+              ],
+            },
+          },
+        },
+      },
+
+      // remove nulls from arrays and pick first elements
+      {
+        $project: {
+          project: 1,
+
+          // clean arrays
+          inProgressArr: {
+            $filter: {
+              input: "$inProgressArr",
+              as: "it",
+              cond: { $ne: ["$$it", null] },
+            },
+          },
+          upcomingArr: {
+            $filter: {
+              input: "$upcomingArr",
+              as: "it",
+              cond: { $ne: ["$$it", null] },
+            },
+          },
+          notStartedPastArr: {
+            $filter: {
+              input: "$notStartedPastArr",
+              as: "it",
+              cond: { $ne: ["$$it", null] },
+            },
+          },
+        },
+      },
+
+      // choose current & upcoming based on priority rules
+      {
+        $addFields: {
+          current_choice: {
+            $cond: [
+              { $gt: [{ $size: "$inProgressArr" }, 0] },
+              { $first: "$inProgressArr" },
+              {
+                $cond: [
+                  { $gt: [{ $size: "$notStartedPastArr" }, 0] },
+                  { $first: "$notStartedPastArr" },
+                  null,
+                ],
+              },
+            ],
+          },
+          upcoming_choice: {
+            $cond: [
+              { $gt: [{ $size: "$upcomingArr" }, 0] },
+              { $first: "$upcomingArr" },
+              null,
+            ],
+          },
+        },
+      },
+
+      // flatten the final shape
+      {
+        $project: {
+          _id: 0,
+          project_id: "$project._id",
+          code: "$project.code",
+          name: "$project.name",
+          state: "$project.state",
+
+          current_activity: "$current_choice.activity",
+          current_activity_finish_time: "$current_choice.finish_time",
+
+          upcoming_activity: "$upcoming_choice.activity",
+        },
+      },
+
+      // Optional project-level state filter
+      ...(state && String(state).trim()
+        ? [{ $match: { state: String(state).trim() } }]
+        : []),
+
+      // sort/paginate
+      { $sort: { code: 1 } },
+      { $skip: skip },
+      { $limit: pageSize },
+    ];
+
+    const [rows, total] = await Promise.all([
+      ProjectActivity.aggregate(pipeline).allowDiskUse(true),
+      // For total, repeat the initial match and optional state filter on PA joined with projectdetails.
+      // Cheaper approximation: count distinct project_ids with status 'project'
+      ProjectActivity.countDocuments(matchStage),
+    ]);
+
+    return res.status(200).json({
+      message: "Projects activity summary fetched",
+      page: pageNum,
+      limit: pageSize,
+      total,
+      count: rows.length,
+      data: rows,
+    });
+  } catch (error) {
+    return res.status(500).json({message: "internal server error", error: error.message})
+  }
+}
+
 
 module.exports = {
   createProject,
@@ -293,4 +615,6 @@ module.exports = {
   getProjectbyPId,
   getProjectDropwdown,
   getProjectNameSearch,
+  getProjectStatusFilter,
+  getProjectDetail
 };
