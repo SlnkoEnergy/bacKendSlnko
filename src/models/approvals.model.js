@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const updateProjectActivityFromApproval = require("../utils/updateProjectActivity");
+const updateApprover = require("../utils/updateapprover.utils");
 
 const approvalSchema = new mongoose.Schema(
   {
@@ -58,12 +60,19 @@ const approvalSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-approvalSchema.post("save", function (next) {
+approvalSchema.pre("save", function (next) {
   updateApprover(this);
-  if(this.dependency_id && this.activity_id){
-    updateProjectActivity(this, this.model_id,this.dependency_id, this.activity_id, remarks, );
-  }
   next();
+});
+approvalSchema.post("save", function (doc) {
+  if (doc.dependency_id && doc.activity_id) {
+    updateProjectActivityFromApproval(
+      doc,
+      doc.model_id,
+      doc.activity_id,
+      doc.dependency_id
+    );
+  }
 });
 
 module.exports = mongoose.model("Approvals", approvalSchema);

@@ -9,8 +9,8 @@ function updateApprover(approval) {
     if (nextApprover) {
       approval.current_approver = nextApprover;
     } else {
-      // All approvers have approved
-      approval.current_approver = null;
+      approval.current_approver =
+        approval.approvers[approval.approvers.length - 1];
     }
   } else {
     approval.current_approver = null;

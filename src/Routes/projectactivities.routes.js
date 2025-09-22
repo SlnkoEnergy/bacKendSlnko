@@ -69,6 +69,10 @@ router.put(
   jwtMW.authentication,
   updateDependencyStatus
 );
-router.get('/namesearchactivitybyprojectid', jwtMW.authentication, nameSearchActivityByProjectId);
+router.get(
+  "/namesearchactivitybyprojectid",
+  jwtMW.authentication,
+  nameSearchActivityByProjectId
+);
 
 module.exports = router;
