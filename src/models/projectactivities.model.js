@@ -85,6 +85,7 @@ const projectActivitySchema = new mongoose.Schema(
                   enum: [
                     "approved",
                     "approval_pending",
+                    "rejected",
                     "allowed",
                     "not allowed",
                   ],
@@ -102,6 +103,7 @@ const projectActivitySchema = new mongoose.Schema(
                 enum: [
                   "approved",
                   "approval_pending",
+                  "rejected",
                   "allowed",
                   "not allowed",
                 ],

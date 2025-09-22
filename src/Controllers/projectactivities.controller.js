@@ -245,45 +245,85 @@ const getProjectActivitybyProjectId = async (req, res) => {
 
 const nameSearchActivityByProjectId = async (req, res) => {
   try {
-    // Add Pagination, limit to 7 results
     const { projectId, page, limit, search } = req.query;
+
+    if (!projectId) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "projectId is required" });
+    }
+
+    let projId;
+    try {
+      projId = new mongoose.Types.ObjectId(projectId);
+    } catch {
+      return res.status(400).json({ ok: false, message: "Invalid projectId" });
+    }
+
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(limit, 10) || 7, 1), 100);
     const skip = (pageNum - 1) * pageSize;
+
     const searchRegex =
       search && String(search).trim() !== ""
         ? new RegExp(String(search).trim().replace(/\s+/g, ".*"), "i")
         : null;
-    const match = { project_id: projectId };
-    if (searchRegex) {
-      match.$or = [
-        { "activities.name": searchRegex },
-        { "activities.description": searchRegex },
-      ];
-    }
 
-    const [result] = await projectActivity.aggregate([
-      { $match: match },
+    const baseStages = [
+      { $match: { project_id: projId } },
       { $unwind: "$activities" },
-      { $match: match },
       {
-        $project: {
-          _id: "$activities.activity_id",
-          name: "$activities.name",
-          description: "$activities.description",
-          type: "$activities.type",
-          dependency: "$activities.dependency",
-          createdAt: "$activities.createdAt",
+        $lookup: {
+          from: "activities",
+          localField: "activities.activity_id",
+          foreignField: "_id",
+          as: "actInfo",
         },
       },
-      { $sort: { createdAt: -1, _id: -1 } },
-      { $skip: skip },
-      { $limit: pageSize },
-      { $facet: { items: [], totalCount: [{ $count: "count" }] } },
-    ]);
+      { $unwind: "$actInfo" },
+      ...(searchRegex
+        ? [
+            {
+              $match: {
+                $or: [
+                  { "actInfo.name": searchRegex },
+                  { "actInfo.description": searchRegex },
+                ],
+              },
+            },
+          ]
+        : []),
+      {
+        $project: {
+          activity_id: "$activities.activity_id",
+          name: "$actInfo.name",
+          description: "$actInfo.description",
+          type: "$actInfo.type",
+          dependency: "$activities.dependency",
+          createdAt: { $ifNull: ["$activities.createdAt", "$createdAt"] },
+        },
+      },
+    ];
+
+    const pipeline = [
+      ...baseStages,
+      {
+        $facet: {
+          items: [
+            { $sort: { createdAt: -1, _id: -1 } },
+            { $skip: skip },
+            { $limit: pageSize },
+          ],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const [result] = await projectActivity.aggregate(pipeline);
     const items = result?.items ?? [];
     const total = result?.totalCount?.[0]?.count ?? 0;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
     return res.status(200).json({
       ok: true,
       page: pageNum,
@@ -295,7 +335,11 @@ const nameSearchActivityByProjectId = async (req, res) => {
   } catch (error) {
     return res
       .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+      .json({
+        ok: false,
+        message: "Internal Server Error",
+        error: error.message,
+      });
   }
 };
 

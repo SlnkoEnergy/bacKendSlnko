@@ -11,6 +11,12 @@ const approvalSchema = new mongoose.Schema(
       required: true,
       refPath: "model_name",
     },
+    activity_id: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
+    dependency_id: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
     approvers: [
       {
         user_id: {
@@ -54,6 +60,9 @@ const approvalSchema = new mongoose.Schema(
 
 approvalSchema.post("save", function (next) {
   updateApprover(this);
+  if(this.dependency_id && this.activity_id){
+    updateProjectActivity(this, this.model_id,this.dependency_id, this.activity_id, remarks, );
+  }
   next();
 });
 
