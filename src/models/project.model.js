@@ -37,7 +37,7 @@ const projectSchema = new mongoose.Schema(
     tarrif: { type: String },
     land: { type: String },
     code: { type: String },
-    status_history: {
+    status_history: [{
       status: {
         type: String,
         enum: ["to be started", "ongoing", "completed", "on hold", "delayed"],
@@ -47,7 +47,7 @@ const projectSchema = new mongoose.Schema(
       },
       user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       updated_at: { type: Date, default: Date.now },
-    },
+    }],
     current_status: {
       status: {
         type: String,

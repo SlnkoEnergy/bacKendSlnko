@@ -514,7 +514,7 @@ const updatestatus = async function (req, res) {
             service: other_details.service || "",
             billing_type: other_details.billing_type || "",
             updated_on: new Date().toISOString(),
-            submitted_by: req?.user?.name || "",
+            submitted_by: req.user.userId,
           },
           { new: true }
         );
@@ -556,7 +556,7 @@ const updatestatus = async function (req, res) {
           project_status: "",
           updated_on: new Date().toISOString(),
           service: other_details.service || "",
-          submitted_by: req?.user?.name || "",
+          submitted_by: req.user.userId|| "",
           billing_type: other_details.billing_type || "",
           project_completion_date: project_detail.project_completion_date || "",
           ppa_expiry_date:project_detail.ppa_expiry_date || "",

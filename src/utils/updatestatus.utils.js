@@ -1,4 +1,5 @@
 function updateStatus(group, defaultStatus) {
+    console.log({group, defaultStatus})
     if (!group.status_history || group.status_history.length === 0) {
         group.current_status = {
             status: defaultStatus,
@@ -8,6 +9,7 @@ function updateStatus(group, defaultStatus) {
         return;
     }
     const latestStatus = group.status_history[group.status_history.length - 1];
+    console.log({latestStatus})
     const { user_id, status, remarks } = latestStatus;
     group.current_status = {
         user_id: user_id,
