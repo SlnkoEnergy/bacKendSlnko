@@ -518,7 +518,6 @@ const exportExpenseSheetsCSV = async (req, res) => {
     const objectIds = sheetIds.map(toObjectId);
 
     if (dashboard) {
-      // One summary row per sheet
       const rows = await ExpenseSheet.aggregate([
         { $match: { _id: { $in: objectIds } } },
         { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
@@ -529,7 +528,7 @@ const exportExpenseSheetsCSV = async (req, res) => {
             emp_name: { $first: "$emp_name" },
             current_status: { $first: "$current_status.status" },
             requested: { $sum: toNumberExpr("$items.invoice.invoice_amount") },
-            approved: { $sum: toNumberExpr("$items.approved_amount") }, // adjust path if different
+            approved: { $sum: toNumberExpr("$items.approved_amount") }, 
           },
         },
         {
@@ -579,6 +578,9 @@ const exportExpenseSheetsCSV = async (req, res) => {
             "Project Code": {
               $toString: { $ifNull: ["$items.project_code", ""] },
             },
+            "Project Name": {
+              $toString: { $ifNull: ["$items.project_name", ""] },
+            },
             "Sheet Current Status": "$current_status.status",
             From: {
               $dateToString: { format: "%d/%m/%Y", date: "$expense_term.from" },
@@ -603,7 +605,7 @@ const exportExpenseSheetsCSV = async (req, res) => {
             },
             "Invoice Number": "$items.invoice.invoice_number",
             "Invoice Amount": toNumberExpr("$items.invoice.invoice_amount"),
-            "Approved Amount": toNumberExpr("$items.approved_amount"), // ensure this path exists
+            "Approved Amount": toNumberExpr("$items.approved_amount"),
             "Item Remarks": "$items.remarks",
             "Attachment Available": {
               $cond: [
