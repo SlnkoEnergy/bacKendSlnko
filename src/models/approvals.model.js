@@ -4,6 +4,11 @@ const updateApprover = require("../utils/updateapprover.utils");
 
 const approvalSchema = new mongoose.Schema(
   {
+    approval_code: {
+      type: String,
+      required: true,
+      unique: true,
+    },
     model_name: {
       type: String,
       required: true,
@@ -55,6 +60,7 @@ const approvalSchema = new mongoose.Schema(
     created_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
   },
   { timestamps: true }
