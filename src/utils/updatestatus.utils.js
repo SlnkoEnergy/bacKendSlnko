@@ -1,5 +1,4 @@
 function updateStatus(group, defaultStatus) {
-    console.log({group, defaultStatus})
     if (!group.status_history || group.status_history.length === 0) {
         group.current_status = {
             status: defaultStatus,
