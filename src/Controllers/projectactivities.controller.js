@@ -515,14 +515,14 @@ const pushActivityToProject = async (req, res) => {
     });
 
     const activity_id = activity._id;
-
+    const dependency = activity.dependency;
     const projectactivity = await projectActivity.findOne({
       project_id: projectId,
     });
     if (!projectactivity) {
       return res.status(404).json({ message: "Project activity not found" });
     }
-    projectactivity.activities.push({ activity_id });
+    projectactivity.activities.push({ activity_id, dependency });
     await projectactivity.save();
     return res.status(200).json({
       message: "Activity added to project successfully",
