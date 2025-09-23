@@ -503,9 +503,6 @@ const searchNameAllCategory = async (req, res) => {
   }
 };
 
-
-
-
 const searchNameAllProduct = async (req, res) => {
   try {
     const { search = "", page = 1, limit = 7, categoryId = "" } = req.query;
