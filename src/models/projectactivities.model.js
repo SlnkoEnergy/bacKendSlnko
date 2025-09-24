@@ -76,6 +76,7 @@ const projectActivitySchema = new mongoose.Schema(
               refPath: "dependency.model",
               required: true,
             },
+            model_id_name: { type: String },
             updatedAt: { type: Date, default: Date.now },
             updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
             status_history: [

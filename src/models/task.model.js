@@ -89,7 +89,14 @@ const taskSchema = new mongoose.Schema(
       {
         status: {
           type: String,
-          enum: ["completed", "pending", "in progress", "draft", "cancelled"],
+          enum: [
+            "completed",
+            "pending",
+            "in progress",
+            "draft",
+            "cancelled",
+            "system",
+          ],
         },
         remarks: {
           type: String,
@@ -107,7 +114,14 @@ const taskSchema = new mongoose.Schema(
     current_status: {
       status: {
         type: String,
-        enum: ["completed", "pending", "in progress", "draft", "cancelled"],
+        enum: [
+          "completed",
+          "pending",
+          "in progress",
+          "draft",
+          "cancelled",
+          "system",
+        ],
       },
       remarks: {
         type: String,

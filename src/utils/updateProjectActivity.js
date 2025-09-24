@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const ProjectActivities = require("../models/projectactivities.model");
+const triggerTask = require("./triggertask.utils");
 
 async function updateProjectActivityFromApproval(
   approval,
@@ -21,9 +22,8 @@ async function updateProjectActivityFromApproval(
 
   const rejectStatus = "rejected";
   let targetStatus = null;
-  if (oneRejected) targetStatus = "not allowed";
-  else if (allApproved) targetStatus = "approved";
   if (oneRejected) targetStatus = rejectStatus;
+  else if (allApproved) targetStatus = "approved";
   if (!targetStatus) {
     return { applied: false, modifiedCount: 0 };
   }
@@ -70,6 +70,39 @@ async function updateProjectActivityFromApproval(
     arrayFilters,
     session,
   });
+
+  if (targetStatus === "approved") {
+    // Check if all dependencies of the activity are approved
+    const projectActivity = await ProjectActivities.findById(model_id);
+    const activity = projectActivity.activities.id(activityId);
+    const dependency = activity.dependency.id(dependencyId);
+    const allDepsApproved = activity.dependency.every(
+      (dep) =>
+        dep.current_status.status === "approved" ||
+        dep.current_status.status === "allowed"
+    );
+    if (allDepsApproved) {
+      // trigger task
+      const payload = {
+        title:
+          dependency.model === "moduleTemplates"
+            ? `${dependency.model_id_name}`
+            : `PR for ${dependency.model_id_name}`,
+        description: `Task generated for approved ${dependency.model_id_name}`,
+        project_id: [{ project_id: projectActivity.project_id }],
+        status_history: [
+          {
+            status: "system",
+            remarks: "Task created as dependency approved by system",
+            user_id: null,
+            updatedAt: new Date(),
+          },
+        ],
+        userId: approval.created_by,
+      };
+      await triggerTask(payload);
+    }
+  }
 
   return {
     applied: res.modifiedCount > 0,
