@@ -51,14 +51,9 @@ const createApproval = async (req, res) => {
 
 const getUniqueApprovalModels = async (req, res) => {
   try {
-    const userId = req.user.userId;
-    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const userObjectId = new mongoose.Types.ObjectId(req.user.userId);
 
-    // 1) All distinct model names
-    const uniqueModels = await Approval.distinct("model_name");
-
-    // 2) Counts only for the current user & pending
-    const counts = await Approval.aggregate([
+    const rows = await Approval.aggregate([
       {
         $match: {
           "current_approver.user_id": userObjectId,
@@ -66,32 +61,79 @@ const getUniqueApprovalModels = async (req, res) => {
         },
       },
       {
-        $group: {
-          _id: "$model_name",
-          count: { $sum: 1 },
+        $lookup: {
+          from: "projectactivities", 
+          let: {
+            modelId: "$model_id",
+            actId: "$activity_id",
+            depId: "$dependency_id",
+          },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$modelId"] } } },
+            { $unwind: "$activities" },
+            {
+              $match: {
+                $expr: {
+                  $cond: [
+                    { $ne: ["$$actId", null] },
+                    { $eq: ["$activities._id", "$$actId"] },
+                    true,
+                  ],
+                },
+              },
+            },
+            { $unwind: "$activities.dependency" },
+            {
+              $match: {
+                $expr: {
+                  $cond: [
+                    { $ne: ["$$depId", null] },
+                    { $eq: ["$activities.dependency._id", "$$depId"] },
+                    true,
+                  ],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                dep_model: "$activities.dependency.model",
+              },
+            },
+          ],
+          as: "depInfo",
         },
       },
       {
-        $project: {
-          _id: 0,
-          model_name: "$_id",
-          count: 1,
+        $addFields: {
+          resolved_name: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ["$activity_id", null] },
+                  { $ne: ["$dependency_id", null] },
+                  { $gt: [{ $size: "$depInfo" }, 0] },
+                ],
+              },
+              { $arrayElemAt: ["$depInfo.dep_model", 0] },
+              "$model_name",
+            ],
+          },
         },
       },
+
+      // Group and count
+      { $group: { _id: "$resolved_name", count: { $sum: 1 } } },
+      { $project: { _id: 0, model_name: "$_id", count: 1 } },
     ]);
 
-    // 3) Build response: { modelName: number }
-    const countMap = counts.reduce((acc, { model_name, count }) => {
-      acc[model_name] = count;
+    // Return as { name: count }
+    const result = rows.reduce((acc, r) => {
+      acc[r.model_name || "Unknown"] = r.count;
       return acc;
     }, {});
 
-    const modelWise = {};
-    for (const model of uniqueModels) {
-      modelWise[model] = countMap[model] ?? 0;
-    }
-
-    return res.status(200).json(modelWise);
+    return res.status(200).json(result);
   } catch (error) {
     return res.status(500).json({
       message: "Internal Server Error",
@@ -99,6 +141,7 @@ const getUniqueApprovalModels = async (req, res) => {
     });
   }
 };
+
 
 const updateStatus = async (req, res) => {
   try {
@@ -189,7 +232,6 @@ async function resolveRefDisplay(modelName, id) {
     doc?.name || doc?.code || doc?.approval_code || doc?.title || String(oid)
   );
 }
-
 const getAllRequests = async (req, res) => {
   try {
     const {
@@ -199,12 +241,14 @@ const getAllRequests = async (req, res) => {
       model_name,
       createdAtFrom,
       createdAtTo,
+      dependency_model,
+      status, 
     } = req.query;
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.max(parseInt(limit, 10) || 10, 1);
 
-    // ---------- BASE FILTERS ----------
+    // ---------- BASE FILTERS (fields on Approval) ----------
     const andFilters = [];
     if (model_name) andFilters.push({ model_name });
 
@@ -218,6 +262,34 @@ const getAllRequests = async (req, res) => {
       }
       andFilters.push({ createdAt: range });
     }
+
+    // ---------- STATUS FILTER ----------
+    const norm = String(status || "").trim().toLowerCase();
+    const statusAlias =
+      norm === "scopepending" || norm === "actionrequired" || norm === "waiting"
+        ? "pending"
+        : norm;
+
+    if (statusAlias === "pending") {
+      andFilters.push({ "current_approver.status": "pending" });
+    } else if (statusAlias === "approved") {
+      // at least one approver AND no approver with a non-approved status
+      andFilters.push({ "approvers.0": { $exists: true } });
+      andFilters.push({
+        approvers: { $not: { $elemMatch: { status: { $ne: "approved" } } } },
+      });
+    } else if (statusAlias === "rejected") {
+      andFilters.push({
+        approvers: { $elemMatch: { status: "rejected" } },
+      });
+    } else if (statusAlias === "acted" || statusAlias === "completed") {
+      andFilters.push({
+        approvers: {
+          $elemMatch: { status: { $in: ["approved", "rejected"] } },
+        },
+      });
+    }
+    // else: no extra status filter
 
     // ---------- ROLE / DEPT SCOPING ----------
     const user = await User.findById(req.user.userId);
@@ -244,9 +316,132 @@ const getAllRequests = async (req, res) => {
       }
     }
 
+    // ---------- dependency_model FILTER (computed; restrict by _ids) ----------
+    let depModelValues = [];
+    if (dependency_model) {
+      depModelValues = (Array.isArray(dependency_model)
+        ? dependency_model
+        : String(dependency_model).split(","))
+        .map((v) => v.trim())
+        .filter(Boolean);
+    }
+
     const baseQuery = andFilters.length ? { $and: andFilters } : {};
 
-    // ---------- SEARCH: ONLY approval_code (or code) + project code ----------
+    if (depModelValues.length) {
+      const depRegexes = depModelValues.map(
+        (v) => new RegExp(`^${escapeRegex(v)}$`, "i")
+      );
+
+      const restrict = await Approval.aggregate([
+        { $match: baseQuery },
+        {
+          $lookup: {
+            from: "projectactivities",
+            let: { modelId: "$model_id", actId: "$activity_id", depId: "$dependency_id" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$_id", "$$modelId"] } } },
+              { $unwind: "$activities" },
+              {
+                $match: {
+                  $expr: {
+                    $cond: [
+                      { $ne: ["$$actId", null] },
+                      {
+                        $eq: [
+                          "$activities._id",
+                          {
+                            $cond: [
+                              { $eq: [{ $type: "$$actId" }, "objectId"] },
+                              "$$actId",
+                              { $toObjectId: "$$actId" },
+                            ],
+                          },
+                        ],
+                      },
+                      true,
+                    ],
+                  },
+                },
+              },
+              { $unwind: "$activities.dependency" },
+              {
+                $match: {
+                  $expr: {
+                    $cond: [
+                      { $ne: ["$$depId", null] },
+                      {
+                        $eq: [
+                          "$activities.dependency._id",
+                          {
+                            $cond: [
+                              { $eq: [{ $type: "$$depId" }, "objectId"] },
+                              "$$depId",
+                              { $toObjectId: "$$depId" },
+                            ],
+                          },
+                        ],
+                      },
+                      true,
+                    ],
+                  },
+                },
+              },
+              { $project: { _id: 0, act_id: "$activities._id", dep_id: "$activities.dependency._id", dep_model: "$activities.dependency.model" } },
+            ],
+            as: "depInfo",
+          },
+        },
+        {
+          $addFields: {
+            _actIdCast: {
+              $cond: [
+                { $eq: [{ $type: "$activity_id" }, "objectId"] },
+                "$activity_id",
+                { $cond: [{ $ne: ["$activity_id", null] }, { $toObjectId: "$activity_id" }, null] },
+              ],
+            },
+            _depIdCast: {
+              $cond: [
+                { $eq: [{ $type: "$dependency_id" }, "objectId"] },
+                "$dependency_id",
+                { $cond: [{ $ne: ["$dependency_id", null] }, { $toObjectId: "$dependency_id" }, null] },
+              ],
+            },
+          },
+        },
+        {
+          $addFields: {
+            depMatch: {
+              $first: {
+                $filter: {
+                  input: "$depInfo",
+                  as: "d",
+                  cond: {
+                    $and: [
+                      { $cond: [{ $ne: ["$_actIdCast", null] }, { $eq: ["$$d.act_id", "$_actIdCast"] }, true] },
+                      { $cond: [{ $ne: ["$_depIdCast", null] }, { $eq: ["$$d.dep_id", "$_depIdCast"] }, true] },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+        { $addFields: { resolved_dep_model: "$depMatch.dep_model" } },
+        { $match: { resolved_dep_model: { $in: depRegexes } } },
+        { $project: { _id: 1 } },
+      ]);
+
+      const restrictIds = restrict.map((r) => r._id);
+      if (!restrictIds.length) {
+        return res.status(200).json({ page: pageNum, limit: limitNum, total: 0, requests: [] });
+      }
+      if (baseQuery.$and) baseQuery.$and.push({ _id: { $in: restrictIds } });
+      else baseQuery._id = { $in: restrictIds };
+    }
+
+    // ---------- SEARCH: approval_code/code + project code ----------
     let requests = [];
     let total = 0;
 
@@ -254,7 +449,6 @@ const getAllRequests = async (req, res) => {
       const term = search.trim();
       const rx = new RegExp(escapeRegex(term), "i");
 
-      // A) approval_code / code
       const idsByApproval = await Approval.find(
         { ...baseQuery, $or: [{ approval_code: rx }, { code: rx }] },
         { _id: 1, createdAt: 1 }
@@ -262,15 +456,10 @@ const getAllRequests = async (req, res) => {
         .sort({ createdAt: -1 })
         .lean();
 
-      // B) project code via model_id.project_id
-      const projectsByCode = await Project.find(
-        { code: rx },
-        { _id: 1 }
-      ).lean();
+      const projectsByCode = await Project.find({ code: rx }, { _id: 1 }).lean();
       let idsByProject = [];
       if (projectsByCode.length) {
         const projectIds = projectsByCode.map((p) => p._id);
-
         const raw = await Approval.find(baseQuery)
           .populate({
             path: "model_id",
@@ -280,18 +469,15 @@ const getAllRequests = async (req, res) => {
           .sort({ createdAt: -1 })
           .select("_id createdAt")
           .lean();
-
         idsByProject = raw.filter((r) => r.model_id);
       }
 
-      // UNION + date sort
       const mergedMap = new Map();
       for (const r of [...idsByApproval, ...idsByProject]) {
         const id = String(r._id);
-        const ts =
-          r.createdAt instanceof Date
-            ? r.createdAt.getTime()
-            : new Date(r.createdAt).getTime();
+        const ts = r.createdAt instanceof Date
+          ? r.createdAt.getTime()
+          : new Date(r.createdAt).getTime();
         if (!mergedMap.has(id) || mergedMap.get(id) < ts) mergedMap.set(id, ts);
       }
 
@@ -303,21 +489,18 @@ const getAllRequests = async (req, res) => {
 
       const start = (pageNum - 1) * limitNum;
       const end = start + limitNum;
-      const pageIds = orderedIds
-        .slice(start, end)
-        .map((s) => new mongoose.Types.ObjectId(s));
+      const pageIds = orderedIds.slice(start, end).map((s) => new mongoose.Types.ObjectId(s));
 
       const pageDocs = await Approval.find({ _id: { $in: pageIds } })
         .populate("created_by", "_id name attachment_url")
         .populate("approvers.user_id", "_id name attachment_url")
         .populate("current_approver.user_id", "_id name attachment_url")
-        .populate("model_id", "project_id") // note: populated doc has _id
+        .populate("model_id", "project_id")
         .lean();
 
       const order = new Map(pageIds.map((id, i) => [String(id), i]));
       requests = pageDocs.sort(
-        (a, b) =>
-          (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0)
+        (a, b) => (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0)
       );
     } else {
       [requests, total] = await Promise.all([
@@ -346,13 +529,7 @@ const getAllRequests = async (req, res) => {
     let projectMap = new Map();
     if (projectIdSet.size) {
       const projects = await Project.find(
-        {
-          _id: {
-            $in: Array.from(projectIdSet).map(
-              (id) => new mongoose.Types.ObjectId(id)
-            ),
-          },
-        },
+        { _id: { $in: Array.from(projectIdSet).map((id) => new mongoose.Types.ObjectId(id)) } },
         { _id: 1, code: 1, name: 1 }
       ).lean();
 
@@ -360,19 +537,15 @@ const getAllRequests = async (req, res) => {
     }
 
     const requestsWithProject = requests.map((r) => {
-      const pid = r?.model_id?.project_id
-        ? String(r.model_id.project_id)
-        : null;
+      const pid = r?.model_id?.project_id ? String(r.model_id.project_id) : null;
       const proj = pid ? projectMap.get(pid) : null;
-
       return {
         ...r,
-        project: proj
-          ? { _id: proj._id, code: proj.code, name: proj.name }
-          : null,
+        project: proj ? { _id: proj._id, code: proj.code, name: proj.name } : null,
       };
     });
 
+    // ---------- ENRICH (dependency_name, dependency_model, ...) ----------
     const enriched = await Promise.all(
       requestsWithProject.map(async (r) => {
         const modelName = r?.model_name;
@@ -382,18 +555,10 @@ const getAllRequests = async (req, res) => {
 
         if (!modelName || !modelId || !depId) return r;
 
-        const dep = await fetchDependencyRefById(
-          modelName,
-          modelId,
-          depId,
-          actId
-        );
+        const dep = await fetchDependencyRefById(modelName, modelId, depId, actId);
         if (!dep || !dep.model || !dep.model_id) return r;
 
-        const dependency_name = await resolveRefDisplay(
-          dep.model,
-          dep.model_id
-        );
+        const dependency_name = await resolveRefDisplay(dep.model, dep.model_id);
 
         return {
           ...r,
@@ -418,6 +583,7 @@ const getAllRequests = async (req, res) => {
   }
 };
 
+
 const getAllReviews = async (req, res) => {
   try {
     const {
@@ -427,13 +593,23 @@ const getAllReviews = async (req, res) => {
       model_name,
       createdAtFrom,
       createdAtTo,
+      dependency_model, 
+      status,        
     } = req.query;
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.max(parseInt(limit, 10) || 10, 1);
     const userId = toObjectId(req.user.userId);
 
-    // ---------- BASE FILTERS (ONLY approvals where the user is an approver) ----------
+    // ---------- STATUS NORMALIZATION ----------
+    const norm = String(status || "").trim().toLowerCase();
+    const statusAlias =
+      norm === "scopepending" || norm === "actionrequired" || norm === "waiting"
+        ? "pending"
+        : norm;
+
+    // ---------- BASE FILTERS (approvals where this user is relevant) ----------
+    // Always ensure the user is one of the approvers
     const andFilters = [{ "approvers.user_id": userId }];
 
     if (model_name) andFilters.push({ model_name });
@@ -449,9 +625,194 @@ const getAllReviews = async (req, res) => {
       andFilters.push({ createdAt: range });
     }
 
+    // ---------- APPLY STATUS (USER-WISE) ----------
+    // pending -> user is current approver & current status pending
+    if (statusAlias === "pending") {
+      andFilters.push(
+        { "current_approver.user_id": userId },
+        { "current_approver.status": "pending" }
+      );
+    }
+    // approved/rejected -> this user's approver entry has that status
+    else if (statusAlias === "approved" || statusAlias === "rejected") {
+      andFilters.push({
+        approvers: { $elemMatch: { user_id: userId, status: statusAlias } },
+      });
+    }
+    // acted/completed -> this user's approver entry is approved or rejected
+    else if (statusAlias === "acted" || statusAlias === "completed") {
+      andFilters.push({
+        approvers: {
+          $elemMatch: { user_id: userId, status: { $in: ["approved", "rejected"] } },
+        },
+      });
+    }
+    // else: default already restricts to approvers.user_id = userId
+
+    // Build baseQuery WITHOUT dependency_model (it's computed later)
     const baseQuery = andFilters.length ? { $and: andFilters } : {};
 
-    // ---------- SEARCH: ONLY approval_code (or code) + project code ----------
+    // ---------- dependency_model FILTER (computed via lookup → restrict to matching _ids) ----------
+    let depModelValues = [];
+    if (dependency_model) {
+      depModelValues = (Array.isArray(dependency_model)
+        ? dependency_model
+        : String(dependency_model).split(","))
+        .map((v) => v.trim())
+        .filter(Boolean);
+    }
+
+    if (depModelValues.length) {
+      const depRegexes = depModelValues.map(
+        (v) => new RegExp(`^${escapeRegex(v)}$`, "i")
+      );
+
+      const restrict = await Approval.aggregate([
+        { $match: baseQuery },
+        {
+          $lookup: {
+            from: "projectactivities",
+            let: {
+              modelId: "$model_id",
+              actId: "$activity_id",
+              depId: "$dependency_id",
+            },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$_id", "$$modelId"] } } },
+              { $unwind: "$activities" },
+              {
+                $match: {
+                  $expr: {
+                    $cond: [
+                      { $ne: ["$$actId", null] },
+                      {
+                        $eq: [
+                          "$activities._id",
+                          {
+                            $cond: [
+                              { $eq: [{ $type: "$$actId" }, "objectId"] },
+                              "$$actId",
+                              { $toObjectId: "$$actId" },
+                            ],
+                          },
+                        ],
+                      },
+                      true,
+                    ],
+                  },
+                },
+              },
+              { $unwind: "$activities.dependency" },
+              {
+                $match: {
+                  $expr: {
+                    $cond: [
+                      { $ne: ["$$depId", null] },
+                      {
+                        $eq: [
+                          "$activities.dependency._id",
+                          {
+                            $cond: [
+                              { $eq: [{ $type: "$$depId" }, "objectId"] },
+                              "$$depId",
+                              { $toObjectId: "$$depId" },
+                            ],
+                          },
+                        ],
+                      },
+                      true,
+                    ],
+                  },
+                },
+              },
+              {
+                $project: {
+                  _id: 0,
+                  act_id: "$activities._id",
+                  dep_id: "$activities.dependency._id",
+                  dep_model: "$activities.dependency.model",
+                },
+              },
+            ],
+            as: "depInfo",
+          },
+        },
+        {
+          $addFields: {
+            _actIdCast: {
+              $cond: [
+                { $eq: [{ $type: "$activity_id" }, "objectId"] },
+                "$activity_id",
+                {
+                  $cond: [
+                    { $ne: ["$activity_id", null] },
+                    { $toObjectId: "$activity_id" },
+                    null,
+                  ],
+                },
+              ],
+            },
+            _depIdCast: {
+              $cond: [
+                { $eq: [{ $type: "$dependency_id" }, "objectId"] },
+                "$dependency_id",
+                {
+                  $cond: [
+                    { $ne: ["$dependency_id", null] },
+                    { $toObjectId: "$dependency_id" },
+                    null,
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        {
+          $addFields: {
+            depMatch: {
+              $first: {
+                $filter: {
+                  input: "$depInfo",
+                  as: "d",
+                  cond: {
+                    $and: [
+                      {
+                        $cond: [
+                          { $ne: ["$_actIdCast", null] },
+                          { $eq: ["$$d.act_id", "$_actIdCast"] },
+                          true,
+                        ],
+                      },
+                      {
+                        $cond: [
+                          { $ne: ["$_depIdCast", null] },
+                          { $eq: ["$$d.dep_id", "$_depIdCast"] },
+                          true,
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+        { $addFields: { resolved_dep_model: "$depMatch.dep_model" } },
+        { $match: { resolved_dep_model: { $in: depRegexes } } },
+        { $project: { _id: 1 } },
+      ]);
+
+      const restrictIds = restrict.map((r) => r._id);
+      if (!restrictIds.length) {
+        return res
+          .status(200)
+          .json({ page: pageNum, limit: limitNum, total: 0, reviews: [] });
+      }
+      if (baseQuery.$and) baseQuery.$and.push({ _id: { $in: restrictIds } });
+      else baseQuery._id = { $in: restrictIds };
+    }
+
+    // ---------- SEARCH: approval_code/code + project code ----------
     let reviews = [];
     let total = 0;
 
@@ -459,7 +820,6 @@ const getAllReviews = async (req, res) => {
       const term = search.trim();
       const rx = new RegExp(escapeRegex(term), "i");
 
-      // A) approvals matching approval_code / code where user is an approver
       const idsByApproval = await Approval.find(
         { ...baseQuery, $or: [{ approval_code: rx }, { code: rx }] },
         { _id: 1, createdAt: 1 }
@@ -467,11 +827,7 @@ const getAllReviews = async (req, res) => {
         .sort({ createdAt: -1 })
         .lean();
 
-      // B) approvals whose project code matches `search` (via model_id.project_id)
-      const projectsByCode = await Project.find(
-        { code: rx },
-        { _id: 1 }
-      ).lean();
+      const projectsByCode = await Project.find({ code: rx }, { _id: 1 }).lean();
       let idsByProject = [];
       if (projectsByCode.length) {
         const projectIds = projectsByCode.map((p) => p._id);
@@ -489,7 +845,6 @@ const getAllReviews = async (req, res) => {
         idsByProject = raw.filter((r) => r.model_id);
       }
 
-      // UNION + sort by createdAt desc
       const mergedMap = new Map();
       for (const r of [...idsByApproval, ...idsByProject]) {
         const id = String(r._id);
@@ -512,7 +867,6 @@ const getAllReviews = async (req, res) => {
         .slice(start, end)
         .map((s) => new mongoose.Types.ObjectId(s));
 
-      // fetch full docs for page, then restore order
       const pageDocs = await Approval.find({ _id: { $in: pageIds } })
         .populate("created_by", "_id name attachment_url")
         .populate("approvers.user_id", "_id name attachment_url")
@@ -526,7 +880,6 @@ const getAllReviews = async (req, res) => {
           (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0)
       );
     } else {
-      // No search: regular paged query (still only approvals where user is approver)
       [reviews, total] = await Promise.all([
         Approval.find(baseQuery)
           .populate("created_by", "_id name attachment_url")
@@ -625,6 +978,8 @@ const getAllReviews = async (req, res) => {
     });
   }
 };
+
+
 
 module.exports = {
   createApproval,
