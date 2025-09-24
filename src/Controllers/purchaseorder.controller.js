@@ -20,6 +20,7 @@ const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const inspectionModel = require("../models/inspection.model");
 const billModel = require("../models/bill.model");
+const PohistoryModel = require("../models/Pohistory.model");
 
 const addPo = async function (req, res) {
   try {
@@ -552,10 +553,17 @@ const generatePurchaseOrderPdf = async (req, res) => {
 
     // Fetch the PO (await!)
     const doc = await purchaseOrderModells.findOne(query)
-      .select("item date po_number vendor p_id") // include what you need
+      .select("item date po_number vendor p_id _id") // include what you need
       .lean()
       .exec();
-    // console.log(doc);
+
+    const notes = await PohistoryModel.find({
+      subject_type: "purchase_order",
+      subject_id: String(doc._id),
+      event_type: "note",
+      message: { $regex: /^Payment Terms & Conditions/i } // starts with, case-insensitive
+    }).select("message").lean();
+
     if (!doc) {
       return res.status(404).json({ msg: "Purchase order not found" });
     }
@@ -587,7 +595,8 @@ const generatePurchaseOrderPdf = async (req, res) => {
         orderNumber: doc.po_number,
         vendorName: doc.vendor,
         Date: doc.date,
-        project_id: doc.p_id
+        project_id: doc.p_id,
+        message: notes[0]?.message,
       },
       responseType: "stream",
       maxContentLength: Infinity,
@@ -602,7 +611,7 @@ const generatePurchaseOrderPdf = async (req, res) => {
     })
 
     axiosResponse.data.pipe(res);
-   
+
   } catch (error) {
     console.error("PDF generation error:", error);
     return res
