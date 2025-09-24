@@ -333,7 +333,7 @@ const getProjectDetail = async (req, res) => {
           form : "projectactivities",
           localfield: _id,
           foreginfield : project_id,
-
+          as: "project_activity"
         }
         
       }
