@@ -106,7 +106,6 @@ const {
   exportBills,
   getAllBill,
   manipulatebill,
-  updateCategoryNameAtPo,
 } = require("../Controllers/bill.controller.js");
 const {
   subtractmoney,
