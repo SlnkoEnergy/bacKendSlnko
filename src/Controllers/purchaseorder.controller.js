@@ -583,7 +583,7 @@ const generatePurchaseOrderPdf = async (req, res) => {
         quantity: qty,
         unit_price: unit,
         taxes: taxPct,                 // percent
-        amount: qty * unit,            // base amount
+        amount: qty*unit + (qty * unit * taxPct)/100,            // base amount
       };
     });
 
