@@ -280,7 +280,7 @@ const getProjectNameSearch = async (req, res) => {
       message: "Error searching Project",
       error: error.message,
     });
-  }
+   }
 };
 
 const getProjectStatusFilter = async (req, res) => {
