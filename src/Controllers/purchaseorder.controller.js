@@ -20,6 +20,7 @@ const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const inspectionModel = require("../models/inspection.model");
 const billModel = require("../models/bill.model");
+const PohistoryModel = require("../models/Pohistory.model");
 
 const addPo = async function (req, res) {
   try {
@@ -518,6 +519,107 @@ const getPOByPONumber = async (req, res) => {
   }
 };
 
+const generatePurchaseOrderPdf = async (req, res) => {
+  try {
+    const { po_number, _id } = req.query;
+
+    if (!po_number && !_id) {
+      return res.status(400).json({ msg: "po number or id is required" });
+    }
+
+    // Build query
+    let query = {};
+    if (po_number && _id) {
+      // If you want BOTH to match, use $and instead of $or
+      query = {
+        $or: [
+          { po_number },
+          {
+            _id: mongoose.isValidObjectId(_id)
+              ? new mongoose.Types.ObjectId(_id)
+              : _id,
+          },
+        ],
+      };
+    } else if (po_number) {
+      query = { po_number };
+    } else {
+      query = {
+        _id: mongoose.isValidObjectId(_id)
+          ? new mongoose.Types.ObjectId(_id)
+          : _id,
+      };
+    }
+
+    // Fetch the PO (await!)
+    const doc = await purchaseOrderModells.findOne(query)
+      .select("item date po_number vendor p_id _id") // include what you need
+      .lean()
+      .exec();
+
+    const notes = await PohistoryModel.find({
+      subject_type: "purchase_order",
+      subject_id: String(doc._id),
+      event_type: "note",
+      message: { $regex: /^Payment Terms & Conditions/i } // starts with, case-insensitive
+    }).select("message").lean();
+
+    if (!doc) {
+      return res.status(404).json({ msg: "Purchase order not found" });
+    }
+
+    // Map DB items -> generator's expected shape
+    const Purchase = (doc.item || []).map((it) => {
+      const qty = Number(it?.quantity) || 0;
+      const unit = Number(it?.cost) || 0;
+      const taxPct = Number(it?.gst_percent) || 0;
+      return {
+        category: it?.category_name || "",
+        product: it?.product_name || "",
+        description: it?.description || "",
+        make: it?.make || "",
+        quantity: qty,
+        unit_price: unit,
+        taxes: taxPct,                 // percent
+        amount: qty * unit,            // base amount
+      };
+    });
+
+    const apiUrl = `${process.env.PDF_PORT}/purchase-order/po-sheet`;
+
+    const axiosResponse = await axios({
+      method: "post",
+      url: apiUrl,
+      data: {
+        Purchase,
+        orderNumber: doc.po_number,
+        vendorName: doc.vendor,
+        Date: doc.date,
+        project_id: doc.p_id,
+        message: notes[0]?.message,
+      },
+      responseType: "stream",
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+
+    res.set({
+      "Content-Type": axiosResponse.headers["content-type"],
+      "Content-Disposition":
+        axiosResponse.headers["content-disposition"] ||
+        `attachment; filename="Purchase_order.pdf"`,
+    })
+
+    axiosResponse.data.pipe(res);
+
+  } catch (error) {
+    console.error("PDF generation error:", error);
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
 const getPOById = async (req, res) => {
   try {
     const { p_id, _id } = req.body;
@@ -936,7 +1038,7 @@ const getPaginatedPo = async (req, res) => {
         ? [{ $match: { resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } } } }]
         : []),
 
-     
+
 
       {
         $addFields: {
@@ -944,17 +1046,17 @@ const getPaginatedPo = async (req, res) => {
           po_value: {
             $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
           },
-          total_advance_paid:{
-            $convert:{ input: "$total_advance_paid", to:"double", onError:0, onNull:0 }
+          total_advance_paid: {
+            $convert: { input: "$total_advance_paid", to: "double", onError: 0, onNull: 0 }
           }
         },
       },
 
-       { $sort: { createdAt: -1, po_number: 1 } },
+      { $sort: { createdAt: -1, po_number: 1 } },
       { $skip: skip },
       { $limit: pageSize },
 
-      
+
       {
         $project: {
           _id: 1,
@@ -1037,12 +1139,12 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-            .replace(/ /g, "/")
+          .toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+          .replace(/ /g, "/")
         : "";
 
     const data = result.map((it) => ({ ...it, date: formatDate(it.date) }));
@@ -1299,10 +1401,10 @@ const updateSalesPO = async (req, res) => {
     const files = req.file
       ? [req.file]
       : Array.isArray(req.files)
-      ? req.files
-      : req.files && typeof req.files === "object"
-      ? Object.values(req.files).flat()
-      : [];
+        ? req.files
+        : req.files && typeof req.files === "object"
+          ? Object.values(req.files).flat()
+          : [];
 
     const uploadedAttachments = [];
 
@@ -1382,7 +1484,7 @@ const updateSalesPO = async (req, res) => {
 
     po.isSales = true;
 
- 
+
     po.markModified("sales_Details");
 
     await po.save();
@@ -2046,4 +2148,5 @@ module.exports = {
   getPoBasic,
   updateSalesPO,
   bulkMarkDelivered,
+  generatePurchaseOrderPdf
 };

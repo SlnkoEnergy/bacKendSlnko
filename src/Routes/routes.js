@@ -55,6 +55,7 @@ const {
   getPoBasic,
   updateSalesPO,
   bulkMarkDelivered,
+  generatePurchaseOrderPdf,
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -424,6 +425,12 @@ router.put(
   jwtMW.authentication,
   bulkMarkDelivered
 );
+
+router.post(
+  "/purchase-generate-pdf",
+  jwtMW.authentication,
+  generatePurchaseOrderPdf
+)
 
 //Add vendor
 router.post(
