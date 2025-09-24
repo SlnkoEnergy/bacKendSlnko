@@ -46,6 +46,7 @@ const addPo = async function (req, res) {
       sales_Details,
     } = req.body;
 
+
     const userId = req.user.userId;
 
     if (!po_number && initial_status !== "approval_pending")
@@ -61,6 +62,7 @@ const addPo = async function (req, res) {
 
     const itemsSanitized = item.map((it) => ({
       category: it.category ?? null,
+      category_name: it.category_name ?? null,
       product_name: String(it.product_name ?? ""),
       gst_percent: String(it.gst_percent ?? ""),
       product_make: String(it.product_make ?? ""),
@@ -581,7 +583,7 @@ const generatePurchaseOrderPdf = async (req, res) => {
         quantity: qty,
         unit_price: unit,
         taxes: taxPct,                 // percent
-        amount: qty * unit,            // base amount
+        amount: qty * unit + (qty * unit * taxPct) / 100,            // base amount
       };
     });
 
@@ -2148,5 +2150,6 @@ module.exports = {
   getPoBasic,
   updateSalesPO,
   bulkMarkDelivered,
-  generatePurchaseOrderPdf
+  generatePurchaseOrderPdf,
+  
 };
