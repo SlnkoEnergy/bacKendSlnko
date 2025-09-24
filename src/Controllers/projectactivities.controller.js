@@ -835,6 +835,219 @@ const updateDependencyStatus = async (req, res) => {
   }
 };
 
+const getRejectedOrNotAllowedDependencies = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    if (!mongoose.isValidObjectId(projectId)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid projectId (must be ObjectId of projectDetail)" });
+    }
+
+    // ---- helpers & sets (scoped to this handler) ----
+    const ALLOW = new Set(["approved", "approval_pending", "allowed"]); // adjust if needed
+    const REJECT = new Set(["rejected", "not allowed"]);
+
+    const toStatus = (v) =>
+      v === undefined || v === null ? undefined : String(v).toLowerCase().trim();
+
+    function extractStatusFromDoc(doc) {
+      if (!doc || typeof doc !== "object") return undefined;
+      const candidates = [
+        doc.status,
+        doc?.current_status?.status,
+        doc.approval_status,
+        doc.state,
+        doc?.stage?.status,
+        doc?.status_text,
+        doc?.workflow_status,
+        doc?.approval?.status,
+      ];
+      for (const c of candidates) {
+        const s = toStatus(c);
+        if (s) return s;
+      }
+      return undefined;
+    }
+
+    // ✅ BROADER name extraction so different models still work
+    function extractNameFromDoc(doc) {
+      return (
+        doc?.name ??
+        doc?.title ??
+        doc?.label ??
+        doc?.code ??
+        doc?.category_name ??   // e.g., MaterialCategory
+        doc?.displayName ??     // some models use this
+        doc?.project_name ??    // if a project-like model is referenced
+        undefined
+      );
+    }
+
+    // Use plural for Mongoose if someone stored "moduleTemplate" in dependency.model
+    const normalizeModelNameForMongoose = (name = "") =>
+      name === "moduleTemplate" ? "moduleTemplates" : name;
+
+    // ---- fetch base doc ----
+    const doc = await projectActivity
+      .findOne(
+        { project_id: new mongoose.Types.ObjectId(projectId) },
+        {
+          project_id: 1,
+          template_code: 1,
+          "activities.activity_id": 1,
+          "activities.dependency": 1,
+        }
+      )
+      .lean();
+
+    if (!doc) {
+      return res
+        .status(404)
+        .json({ message: "No projectActivities found for this project_id" });
+    }
+
+    // ---- pre-filter candidates ----
+    const candidates = [];
+    for (const act of doc.activities || []) {
+      const deps = Array.isArray(act.dependency) ? act.dependency : [];
+      const kept = [];
+      for (const dep of deps) {
+        const depStatus = toStatus(dep?.current_status?.status);
+
+        if (REJECT.has(depStatus)) {
+          kept.push({ ...dep });
+          continue;
+        }
+
+        kept.push({ ...dep, __needsRefCheck: true });
+      }
+      if (kept.length) {
+        candidates.push({
+          activity_id: act.activity_id,
+          dependency: kept,
+        });
+      }
+    }
+
+    // ---- group refs by model ----
+    const byModel = new Map();
+    for (const a of candidates) {
+      for (const d of a.dependency) {
+        if (!d?.model || !d?.model_id) continue;
+        if (!byModel.has(d.model)) byModel.set(d.model, new Set());
+        byModel.get(d.model).add(String(d.model_id));
+      }
+    }
+
+    // ---- resolve reference statuses + names ----
+    const refStatusMap = new Map(); // `${origModel}:${id}` -> status
+    const refNameMap = new Map();   // `${origModel}:${id}` -> name
+
+    for (const [modelName, idSet] of byModel.entries()) {
+      try {
+        const modelForMongoose = normalizeModelNameForMongoose(modelName);
+        const RefModel = mongoose.model(modelForMongoose);
+        const ids = Array.from(idSet).map((s) => new mongoose.Types.ObjectId(s));
+        const refs = await RefModel.find(
+          { _id: { $in: ids } },
+          {
+            status: 1,
+            current_status: 1,
+            approval_status: 1,
+            state: 1,
+            stage: 1,
+            // ✅ include common name-like fields for ANY model
+            name: 1,
+            title: 1,
+            label: 1,
+            code: 1,
+            category_name: 1,
+            displayName: 1,
+            project_name: 1,
+          }
+        ).lean();
+
+        for (const r of refs) {
+          // keep ORIGINAL modelName in the key so it matches d.model later
+          const key = `${modelName}:${String(r._id)}`;
+          refStatusMap.set(key, extractStatusFromDoc(r));
+          refNameMap.set(key, extractNameFromDoc(r));
+        }
+      } catch {
+        // unknown model name — skip
+      }
+    }
+
+    // ---- final filter ----
+    const finalActivities = [];
+    for (const a of candidates) {
+      const filteredDeps = [];
+
+      for (const d of a.dependency) {
+        const depStatus = toStatus(d?.current_status?.status);
+        const key =
+          d?.model && d?.model_id ? `${d.model}:${String(d.model_id)}` : null;
+        const refStatus = key ? refStatusMap.get(key) : undefined;
+
+        const depRejected = REJECT.has(depStatus);
+        const refRejected = REJECT.has(toStatus(refStatus));
+
+        const depAllowed = ALLOW.has(depStatus);
+        const refAllowed = ALLOW.has(toStatus(refStatus));
+
+        if (depRejected || refRejected) {
+          const rawModel = String(d?.model || "");
+          const isModuleTemplates =
+            rawModel.toLowerCase() === "moduletemplates" ||
+            rawModel.toLowerCase() === "moduletemplate";
+          const modelOut = isModuleTemplates ? "moduleTemplates" : d.model;
+
+          filteredDeps.push({
+            model: modelOut,
+            model_id: d.model_id,
+            current_status: d.current_status,
+            status_history: d.status_history,
+            ref_status: toStatus(refStatus),
+            // ✅ always attach ref_name when we resolved the ref doc
+            ...(key ? { ref_name: refNameMap.get(key) } : {}),
+          });
+          continue;
+        }
+
+        if (depAllowed && refAllowed) {
+          continue;
+        }
+
+        // ambiguous -> drop (strict)
+        continue;
+      }
+
+      if (filteredDeps.length) {
+        finalActivities.push({
+          activity_id: a.activity_id,
+          dependency: filteredDeps,
+        });
+      }
+    }
+
+    return res.json({
+      project_id: doc.project_id,
+      template_code: doc.template_code,
+      activities: finalActivities,
+    });
+  } catch (err) {
+    console.error(err);
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: String(err?.message || err) });
+  }
+};
+
+
+
+
 module.exports = {
   createProjectActivity,
   getAllProjectActivities,
@@ -849,4 +1062,5 @@ module.exports = {
   updateProjectActivityFromTemplate,
   updateDependencyStatus,
   nameSearchActivityByProjectId,
+  getRejectedOrNotAllowedDependencies,
 };
