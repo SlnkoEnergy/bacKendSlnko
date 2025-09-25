@@ -22,15 +22,15 @@ const addBill = catchAsyncError(async function (req, res, next) {
   } = req.body;
 
   const userId = req.user.userId;
-  
+
   const trim_bill_number = bill_number.trim();
 
-  const existingBill = await billModel.findOne({bill_number: trim_bill_number});
+  const existingBill = await billModel.findOne({ bill_number: trim_bill_number });
 
-  if(existingBill.po_number === po_number){
+  if (existingBill && existingBill.po_number === po_number) {
     return res.status(404).json({
-      message:"Bill Already Exists For this Po Number"
-    })
+      message: "Bill Already Exists For this Po Number"
+    });
   }
 
   const purchaseOrder = await purchaseOrderModel.findOne({ po_number });
@@ -339,7 +339,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
           // capture sort keys for stable re-sort after group
           { $addFields: { __sortAt: "$createdAt", __sortId: "$_id" } },
 
-          
+
           // re-sort deterministically
           { $sort: { __sortAt: -1, __sortId: -1 } },
 
