@@ -1,7 +1,14 @@
 const mongoose = require("mongoose");
+const updateProjectActivityFromApproval = require("../utils/updateProjectActivity");
+const updateApprover = require("../utils/updateapprover.utils");
 
 const approvalSchema = new mongoose.Schema(
   {
+    approval_code: {
+      type: String,
+      required: true,
+      unique: true,
+    },
     model_name: {
       type: String,
       required: true,
@@ -10,6 +17,12 @@ const approvalSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       refPath: "model_name",
+    },
+    activity_id: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
+    dependency_id: {
+      type: mongoose.Schema.Types.ObjectId,
     },
     approvers: [
       {
@@ -40,21 +53,32 @@ const approvalSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ["pending", "approved", "rejected"]
+        enum: ["pending", "approved", "rejected"],
       },
       remarks: { type: String },
     },
     created_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
   },
   { timestamps: true }
 );
 
-approvalSchema.post("save", function(next){
+approvalSchema.pre("save", function (next) {
   updateApprover(this);
   next();
-})
+});
+approvalSchema.post("save", function (doc) {
+  if (doc.dependency_id && doc.activity_id) {
+    updateProjectActivityFromApproval(
+      doc,
+      doc.model_id,
+      doc.activity_id,
+      doc.dependency_id
+    );
+  }
+});
 
 module.exports = mongoose.model("Approvals", approvalSchema);

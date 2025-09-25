@@ -114,14 +114,14 @@ const namesearchOfActivities = async (req, res) => {
 const updateDependency = async (req, res) => {
   try {
     const { id } = req.params;
-    const {global, projectId} = req.query;
+    const { global, projectId } = req.query;
     const isGlobal = String(global).toLowerCase() === "true";
 
     const dependencies = Array.isArray(req.body.dependencies)
       ? req.body.dependencies
-      : (req.body.model && req.body.model_id
-          ? [{ model: req.body.model, model_id: req.body.model_id }]
-          : []);
+      : req.body.model && req.body.model_id
+        ? [{ model: req.body.model, model_id: req.body.model_id, model_id_name: req.body.model_id_name }]
+        : [];
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid :id" });
@@ -132,16 +132,21 @@ const updateDependency = async (req, res) => {
 
     for (const d of dependencies) {
       if (!d?.model || !d?.model_id) {
-        return res.status(400).json({ message: "Each dependency needs { model, model_id }" });
+        return res
+          .status(400)
+          .json({ message: "Each dependency needs { model, model_id }" });
       }
       if (!mongoose.isValidObjectId(d.model_id)) {
-        return res.status(400).json({ message: `Invalid model_id: ${d.model_id}` });
+        return res
+          .status(400)
+          .json({ message: `Invalid model_id: ${d.model_id}` });
       }
     }
 
-    const actor = req.user?.userId && mongoose.isValidObjectId(req.user.userId)
-      ? new mongoose.Types.ObjectId(req.user.userId)
-      : undefined;
+    const actor =
+      req.user?.userId && mongoose.isValidObjectId(req.user.userId)
+        ? new mongoose.Types.ObjectId(req.user.userId)
+        : undefined;
 
     if (isGlobal) {
       const activity = await Activity.findById(id);
@@ -153,13 +158,13 @@ const updateDependency = async (req, res) => {
       for (const dep of dependencies) {
         const exists = activity.dependency?.some(
           (d) =>
-            d.model === dep.model &&
-            String(d.model_id) === String(dep.model_id)
+            d.model === dep.model && String(d.model_id) === String(dep.model_id)
         );
         if (!exists) {
           activity.dependency.push({
             model: dep.model,
             model_id: dep.model_id,
+            model_id_name: dep.model_id_name,
             updated_by: actor,
             updatedAt: new Date(),
           });
@@ -168,7 +173,7 @@ const updateDependency = async (req, res) => {
       }
 
       if (added === 0) {
-        await activity.save(); 
+        await activity.save();
         return res.status(200).json({
           message: "No new dependencies to add (duplicates ignored)",
           activity,
@@ -183,12 +188,18 @@ const updateDependency = async (req, res) => {
     } else {
       const project_id = projectId;
       if (!project_id || !mongoose.isValidObjectId(project_id)) {
-        return res.status(400).json({ message: "projectId (valid ObjectId) is required when global=false" });
+        return res
+          .status(400)
+          .json({
+            message: "projectId (valid ObjectId) is required when global=false",
+          });
       }
 
       const projAct = await ProjectActivity.findOne({ project_id });
       if (!projAct) {
-        return res.status(404).json({ message: "ProjectActivity not found for given project_id" });
+        return res
+          .status(404)
+          .json({ message: "ProjectActivity not found for given project_id" });
       }
 
       const idx = (projAct.activities || []).findIndex(
@@ -196,7 +207,8 @@ const updateDependency = async (req, res) => {
       );
       if (idx === -1) {
         return res.status(404).json({
-          message: "Embedded activity not found in projectActivities.activities for provided :id",
+          message:
+            "Embedded activity not found in projectActivities.activities for provided :id",
         });
       }
 
@@ -208,15 +220,15 @@ const updateDependency = async (req, res) => {
       for (const dep of dependencies) {
         const exists = projAct.activities[idx].dependency.some(
           (d) =>
-            d.model === dep.model &&
-            String(d.model_id) === String(dep.model_id)
+            d.model === dep.model && String(d.model_id) === String(dep.model_id)
         );
         if (!exists) {
           projAct.activities[idx].dependency.push({
             model: dep.model,
             model_id: dep.model_id,
+            model_id_name: dep.model_id_name,
             updated_by: actor,
-            updatedAt: new Date()
+            updatedAt: new Date(),
           });
           added++;
         }
@@ -241,11 +253,14 @@ const updateDependency = async (req, res) => {
 
 const deleteDependency = async (req, res) => {
   try {
-    const { id, dependencyId } = req.params; 
+    const { id, dependencyId } = req.params;
     const { global, projectId } = req.query;
     const isGlobal = String(global).toLowerCase() === "true";
 
-    if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(dependencyId)) {
+    if (
+      !mongoose.isValidObjectId(id) ||
+      !mongoose.isValidObjectId(dependencyId)
+    ) {
       return res.status(400).json({ message: "Invalid id or dependencyId" });
     }
 
@@ -261,7 +276,9 @@ const deleteDependency = async (req, res) => {
       );
 
       if (activity.dependency.length === before) {
-        return res.status(404).json({ message: "Dependency not found in activity" });
+        return res
+          .status(404)
+          .json({ message: "Dependency not found in activity" });
       }
 
       await activity.save();
@@ -271,7 +288,12 @@ const deleteDependency = async (req, res) => {
       });
     } else {
       if (!projectId || !mongoose.isValidObjectId(projectId)) {
-        return res.status(400).json({ message: "projectId is required and must be valid when global=false" });
+        return res
+          .status(400)
+          .json({
+            message:
+              "projectId is required and must be valid when global=false",
+          });
       }
 
       const projAct = await ProjectActivity.findOne({ project_id: projectId });
@@ -283,7 +305,12 @@ const deleteDependency = async (req, res) => {
         (a) => String(a.activity_id) === String(id)
       );
       if (idx === -1) {
-        return res.status(404).json({ message: "Embedded activity not found in projectActivities.activities" });
+        return res
+          .status(404)
+          .json({
+            message:
+              "Embedded activity not found in projectActivities.activities",
+          });
       }
 
       const act = projAct.activities[idx];
@@ -294,7 +321,9 @@ const deleteDependency = async (req, res) => {
       );
 
       if (act.dependency.length === before) {
-        return res.status(404).json({ message: "Dependency not found in project activity" });
+        return res
+          .status(404)
+          .json({ message: "Dependency not found in project activity" });
       }
 
       await projAct.save();
@@ -317,5 +346,5 @@ module.exports = {
   deleteActivity,
   namesearchOfActivities,
   updateDependency,
-  deleteDependency
+  deleteDependency,
 };

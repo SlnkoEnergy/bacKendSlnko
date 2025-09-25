@@ -173,7 +173,9 @@ const updateProjectActivityStatus = async (req, res) => {
   try {
     const { projectId, activityId } = req.params;
     const { status, remarks } = req.body;
-    const projectactivity = await projectActivity.findOne({project_id: projectId});
+    const projectactivity = await projectActivity.findOne({
+      project_id: projectId,
+    });
     if (!projectactivity) {
       return res.status(404).json({ message: "Project activity not found" });
     }
@@ -192,18 +194,18 @@ const updateProjectActivityStatus = async (req, res) => {
       updated_by: req.user.userId,
       updated_at: new Date(),
     });
-    
-    if(status === 'completed') {
-       activity.dependency.forEach(dep => {
-          dep.status_history = dep.status_history || [];
-          dep.status_history.push({
-            status: 'allowed',
-            remarks: 'Auto-updated to allowed as parent activity is completed',
-            user_id: req.user.userId,
-            updatedAt: new Date()
-          });
-    })
-  }
+
+    if (status === "completed") {
+      activity.dependency.forEach((dep) => {
+        dep.status_history = dep.status_history || [];
+        dep.status_history.push({
+          status: "allowed",
+          remarks: "Auto-updated to allowed as parent activity is completed",
+          user_id: req.user.userId,
+          updatedAt: new Date(),
+        });
+      });
+    }
 
     await projectactivity.save();
     return res
@@ -241,6 +243,260 @@ const getProjectActivitybyProjectId = async (req, res) => {
   }
 };
 
+const nameSearchActivityByProjectId = async (req, res) => {
+  try {
+    const { projectId, page, limit, search } = req.query;
+
+    if (!projectId) {
+      return res.status(400).json({ ok: false, message: "projectId is required" });
+    }
+
+    let projId;
+    try {
+      projId = new mongoose.Types.ObjectId(projectId);
+    } catch {
+      return res.status(400).json({ ok: false, message: "Invalid projectId" });
+    }
+
+    const pageNum  = Math.max(parseInt(page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(limit, 10) || 7, 1), 100);
+    const skip     = (pageNum - 1) * pageSize;
+
+    const searchRegex =
+      search && String(search).trim() !== ""
+        ? new RegExp(String(search).trim().replace(/\s+/g, ".*"), "i")
+        : null;
+
+    const baseStages = [
+      { $match: { project_id: projId } },
+      { $unwind: "$activities" },
+
+      // Join base activity info
+      {
+        $lookup: {
+          from: "activities",
+          localField: "activities.activity_id",
+          foreignField: "_id",
+          as: "actInfo",
+        },
+      },
+      { $unwind: "$actInfo" },
+
+      // Optional search
+      ...(searchRegex
+        ? [
+            {
+              $match: {
+                $or: [
+                  { "actInfo.name": searchRegex },
+                  { "actInfo.description": searchRegex },
+                ],
+              },
+            },
+          ]
+        : []),
+
+      // Look up dependency targets (moduletemplates and materialcategories)
+      {
+        $lookup: {
+          from: "moduletemplates",
+          localField: "activities.dependency.model_id",
+          foreignField: "_id",
+          as: "depModules",
+        },
+      },
+      {
+        $lookup: {
+          from: "materialcategories",
+          localField: "activities.dependency.model_id",
+          foreignField: "_id",
+          as: "depMaterials",
+        },
+      },
+
+      // Enrich dependencies -> add model_name (FIXED NESTING)
+      {
+        $addFields: {
+          "activities.dependency": {
+            $map: {
+              input: { $ifNull: ["$activities.dependency", []] },
+              as: "dep",
+              in: {
+                // OUTER let: cheap/common values
+                $let: {
+                  vars: {
+                    depModelLower: { $toLower: { $ifNull: ["$$dep.model", ""] } },
+                    populatedName: {
+                      $cond: [
+                        { $eq: [{ $type: "$$dep.model_id" }, "object"] },
+                        { $ifNull: ["$$dep.model_id.name", "$$dep.model_id.title"] },
+                        null,
+                      ],
+                    },
+                  },
+                  in: {
+                    // INNER let #1: compute ObjectId once
+                    $let: {
+                      vars: {
+                        depModelIdObj: {
+                          $cond: [
+                            { $eq: [{ $type: "$$dep.model_id" }, "objectId"] },
+                            "$$dep.model_id",
+                            {
+                              $convert: {
+                                input: "$$dep.model_id",
+                                to: "objectId",
+                                onError: null,
+                                onNull: null,
+                              },
+                            },
+                          ],
+                        },
+                      },
+                      in: {
+                        // INNER let #2: now we can safely use depModelIdObj
+                        $let: {
+                          vars: {
+                            foundModule: {
+                              $arrayElemAt: [
+                                {
+                                  $filter: {
+                                    input: "$depModules",
+                                    as: "m",
+                                    cond: { $eq: ["$$m._id", "$$depModelIdObj"] },
+                                  },
+                                },
+                                0,
+                              ],
+                            },
+                            foundMaterial: {
+                              $arrayElemAt: [
+                                {
+                                  $filter: {
+                                    input: "$depMaterials",
+                                    as: "mc",
+                                    cond: { $eq: ["$$mc._id", "$$depModelIdObj"] },
+                                  },
+                                },
+                                0,
+                              ],
+                            },
+                          },
+                          in: {
+                            $mergeObjects: [
+                              "$$dep",
+                              {
+                                model_name: {
+                                  // 1) if populated object already has name/title, prefer it
+                                  $cond: [
+                                    { $ne: ["$$populatedName", null] },
+                                    "$$populatedName",
+                                    {
+                                      // 2) module-template like
+                                      $cond: [
+                                        {
+                                          $in: [
+                                            "$$depModelLower",
+                                            ["moduletemplate", "moduletemplates", "module", "modules"],
+                                          ],
+                                        },
+                                        {
+                                          $ifNull: [
+                                            { $ifNull: ["$$foundModule.name", "$$foundModule.title"] },
+                                            "$$dep.model",
+                                          ],
+                                        },
+                                        {
+                                          // 3) material-category like
+                                          $cond: [
+                                            {
+                                              $in: [
+                                                "$$depModelLower",
+                                                ["materialcategory", "materialcategories"],
+                                              ],
+                                            },
+                                            {
+                                              $ifNull: [
+                                                {
+                                                  $ifNull: [
+                                                    "$$foundMaterial.name",
+                                                    "$$foundMaterial.title",
+                                                  ],
+                                                },
+                                                "$$dep.model",
+                                              ],
+                                            },
+                                            // 4) fallback
+                                            "$$dep.model",
+                                          ],
+                                        },
+                                      ],
+                                    },
+                                  ],
+                                },
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+
+      // Final projection
+      {
+        $project: {
+          activity_id: "$activities.activity_id",
+          name: "$actInfo.name",
+          description: "$actInfo.description",
+          type: "$actInfo.type",
+          dependency: "$activities.dependency",
+          createdAt: { $ifNull: ["$activities.createdAt", "$createdAt"] },
+        },
+      },
+    ];
+
+    const pipeline = [
+      ...baseStages,
+      {
+        $facet: {
+          items: [
+            { $sort: { createdAt: -1, _id: -1 } },
+            { $skip: skip },
+            { $limit: pageSize },
+          ],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const [result] = await projectActivity.aggregate(pipeline);
+    const items = result?.items ?? [];
+    const total = result?.totalCount?.[0]?.count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    return res.status(200).json({
+      ok: true,
+      page: pageNum,
+      limit: pageSize,
+      total,
+      totalPages,
+      activities: items,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 const pushActivityToProject = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -254,19 +510,20 @@ const pushActivityToProject = async (req, res) => {
       dependency: dependencies.map((dep) => ({
         model: dep.model,
         model_id: dep.model_id,
+        model_id_name: dep.model_id_name,
         updated_by: req.user.userId,
       })),
     });
 
     const activity_id = activity._id;
-
+    const dependency = activity.dependency;
     const projectactivity = await projectActivity.findOne({
       project_id: projectId,
     });
     if (!projectactivity) {
       return res.status(404).json({ message: "Project activity not found" });
     }
-    projectactivity.activities.push({ activity_id });
+    projectactivity.activities.push({ activity_id, dependency });
     await projectactivity.save();
     return res.status(200).json({
       message: "Activity added to project successfully",
@@ -549,12 +806,9 @@ const updateDependencyStatus = async (req, res) => {
       (a) => String(a.activity_id) === String(activityId)
     );
     if (idx === -1) {
-      return res
-        .status(404)
-        .json({
-          message:
-            "Embedded activity not found in projectActivities.activities",
-        });
+      return res.status(404).json({
+        message: "Embedded activity not found in projectActivities.activities",
+      });
     }
     const activity = projectactivityDoc.activities[idx];
     if (!activity) {
@@ -571,18 +825,89 @@ const updateDependencyStatus = async (req, res) => {
       user_id: req.user.userId,
     });
     await projectactivityDoc.save();
-    res
-      .status(200)
-      .json({
-        message: "Dependency status updated successfully",
-        projectactivityDoc,
-      });
+    res.status(200).json({
+      message: "Dependency status updated successfully",
+      projectactivityDoc,
+    });
   } catch (error) {
     res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
+
+const getRejectedOrNotAllowedDependencies = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    if (!mongoose.isValidObjectId(projectId)) {
+      return res
+        .status(400)
+        .json({ ok: false, message: "Invalid projectId (must be ObjectId of projectDetail)" });
+    }
+
+    const pid = new mongoose.Types.ObjectId(projectId);
+
+    // fetch only what's needed (no aggregation)
+    const doc = await projectActivity.findOne(
+      { project_id: pid },
+      {
+        project_id: 1,
+        "activities.activity_id": 1,
+        "activities.dependency": 1,
+      }
+    ).lean();
+
+    if (!doc) {
+      return res.status(404).json({
+        ok: false,
+        message: "No projectActivities found for this project_id",
+      });
+    }
+
+    // filter dependencies by current_status.status
+    const activities = [];
+    for (const act of doc.activities || []) {
+      const deps = (act.dependency || []).filter((dep) => {
+        const s = String(dep?.current_status?.status || "").trim().toLowerCase();
+        return s === "rejected" || s === "not allowed";
+      });
+
+      if (deps.length) {
+        activities.push({
+          activity_id: act.activity_id,
+          dependencies: deps.map((d) => ({
+            model: d.model ?? null,
+            model_id: d.model_id ?? null,
+            model_id_name: d.model_id_name ?? null,
+            current_status: d.current_status ?? null,
+            status_history: d.status_history ?? [],
+            updatedAt: d.updatedAt ?? null,
+            updated_by: d.updated_by ?? null,
+          })),
+        });
+      }
+    }
+
+    // optional stable sort by activity_id
+    activities.sort((a, b) => String(a.activity_id).localeCompare(String(b.activity_id)));
+
+    return res.status(200).json({
+      ok: true,
+      project_id: doc.project_id,
+      count_activities: activities.length,
+      activities,
+    });
+  } catch (err) {
+    return res
+      .status(500)
+      .json({ ok: false, message: "Internal Server Error", error: String(err?.message || err) });
+  }
+};
+
+
+
+
 
 
 module.exports = {
@@ -598,4 +923,6 @@ module.exports = {
   getAllTemplateNameSearch,
   updateProjectActivityFromTemplate,
   updateDependencyStatus,
+  nameSearchActivityByProjectId,
+  getRejectedOrNotAllowedDependencies,
 };

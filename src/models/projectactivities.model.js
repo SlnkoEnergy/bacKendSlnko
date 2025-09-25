@@ -76,6 +76,7 @@ const projectActivitySchema = new mongoose.Schema(
               refPath: "dependency.model",
               required: true,
             },
+            model_id_name: { type: String },
             updatedAt: { type: Date, default: Date.now },
             updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
             status_history: [
@@ -85,6 +86,7 @@ const projectActivitySchema = new mongoose.Schema(
                   enum: [
                     "approved",
                     "approval_pending",
+                    "rejected",
                     "allowed",
                     "not allowed",
                   ],
@@ -102,6 +104,7 @@ const projectActivitySchema = new mongoose.Schema(
                 enum: [
                   "approved",
                   "approval_pending",
+                  "rejected",
                   "allowed",
                   "not allowed",
                 ],
@@ -128,12 +131,12 @@ const projectActivitySchema = new mongoose.Schema(
 );
 
 projectActivitySchema.pre("save", function (next) {
-   if(Array.isArray(this.activities)){
-    this.activities.forEach(activity => {
+  if (Array.isArray(this.activities)) {
+    this.activities.forEach((activity) => {
       updateStatus(activity, "not started");
     });
   }
-   if (Array.isArray(this.activities)) {
+  if (Array.isArray(this.activities)) {
     this.activities.forEach((activity) => {
       if (Array.isArray(activity.dependency)) {
         activity.dependency.forEach((dep) => {
