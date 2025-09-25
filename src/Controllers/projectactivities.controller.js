@@ -838,72 +838,64 @@ const updateDependencyStatus = async (req, res) => {
 
 const getRejectedOrNotAllowedDependencies = async (req, res) => {
   try {
-    const { projectId } = req.params;
+    const { projectId, activityId } = req.params;
 
-    if (!mongoose.isValidObjectId(projectId)) {
-      return res
-        .status(400)
-        .json({ ok: false, message: "Invalid projectId (must be ObjectId of projectDetail)" });
+    if (!mongoose.isValidObjectId(projectId) || !mongoose.isValidObjectId(activityId)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Invalid projectId or activityId (must be ObjectId)",
+      });
     }
 
     const pid = new mongoose.Types.ObjectId(projectId);
+    const aid = new mongoose.Types.ObjectId(activityId);
 
-    // fetch only what's needed (no aggregation)
+    // fetch only the matched embedded activity (positional projection)
     const doc = await projectActivity.findOne(
-      { project_id: pid },
-      {
-        project_id: 1,
-        "activities.activity_id": 1,
-        "activities.dependency": 1,
-      }
+      { project_id: pid, "activities.activity_id": aid },
+      { project_id: 1, "activities.$": 1 }
     ).lean();
 
-    if (!doc) {
+    if (!doc || !doc.activities?.length) {
       return res.status(404).json({
         ok: false,
-        message: "No projectActivities found for this project_id",
+        message: "Activity not found for this project",
       });
     }
 
-    // filter dependencies by current_status.status
-    const activities = [];
-    for (const act of doc.activities || []) {
-      const deps = (act.dependency || []).filter((dep) => {
-        const s = String(dep?.current_status?.status || "").trim().toLowerCase();
-        return s === "rejected" || s === "not allowed";
-      });
+    const act = doc.activities[0];
 
-      if (deps.length) {
-        activities.push({
-          activity_id: act.activity_id,
-          dependencies: deps.map((d) => ({
-            model: d.model ?? null,
-            model_id: d.model_id ?? null,
-            model_id_name: d.model_id_name ?? null,
-            current_status: d.current_status ?? null,
-            status_history: d.status_history ?? [],
-            updatedAt: d.updatedAt ?? null,
-            updated_by: d.updated_by ?? null,
-          })),
-        });
-      }
-    }
-
-    // optional stable sort by activity_id
-    activities.sort((a, b) => String(a.activity_id).localeCompare(String(b.activity_id)));
+    // only deps whose status is "rejected" or "not allowed"
+    const deps = (act.dependency || []).filter((dep) => {
+      const s = String(dep?.current_status?.status || "").trim().toLowerCase();
+      return s === "rejected" || s === "not allowed";
+    });
 
     return res.status(200).json({
       ok: true,
       project_id: doc.project_id,
-      count_activities: activities.length,
-      activities,
+      activity_id: act.activity_id,
+      count_dependencies: deps.length,
+      dependencies: deps.map((d) => ({
+        _id: d._id ?? null,
+        model: d.model ?? null,
+        model_id: d.model_id ?? null,
+        model_id_name: d.model_id_name ?? null,
+        current_status: d.current_status ?? null,
+        status_history: d.status_history ?? [],
+        updatedAt: d.updatedAt ?? null,
+        updated_by: d.updated_by ?? null,
+      })),
     });
   } catch (err) {
-    return res
-      .status(500)
-      .json({ ok: false, message: "Internal Server Error", error: String(err?.message || err) });
+    return res.status(500).json({
+      ok: false,
+      message: "Internal Server Error",
+      error: String(err?.message || err),
+    });
   }
 };
+
 
 
 
@@ -925,4 +917,5 @@ module.exports = {
   updateDependencyStatus,
   nameSearchActivityByProjectId,
   getRejectedOrNotAllowedDependencies,
+ 
 };
