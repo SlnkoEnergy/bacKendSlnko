@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const ProjectActivities = require("../models/projectactivities.model");
-const {triggerTasksBulk} = require("./triggertask.utils");
+const { triggerTasksBulk } = require("./triggertask.utils");
 
 async function updateProjectActivityFromApproval(
   approval,
