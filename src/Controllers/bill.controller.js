@@ -27,9 +27,9 @@ const addBill = catchAsyncError(async function (req, res, next) {
 
   const existingBill = await billModel.findOne({bill_number: trim_bill_number});
 
-  if(existingBill){
+  if(existingBill.po_number === po_number){
     return res.status(404).json({
-      message:"Bill Already Exists"
+      message:"Bill Already Exists For this Po Number"
     })
   }
 
