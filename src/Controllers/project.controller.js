@@ -280,7 +280,7 @@ const getProjectNameSearch = async (req, res) => {
       message: "Error searching Project",
       error: error.message,
     });
-   }
+  }
 };
 
 const getProjectStatusFilter = async (req, res) => {
@@ -320,26 +320,49 @@ const getProjectStatusFilter = async (req, res) => {
 }
 
 const getProjectDetail = async (req, res) => {
-  try{
-
-    const match = {};
+  try {
 
     const pipeline = [
-
-      {$match: match},
-
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          code: 1,
+          state: 1,
+        },
+      },
       {
         $lookup: {
-          form : "projectactivities",
-          localfield: _id,
-          foreginfield : project_id,
-          as: "project_activity"
-        }
-        
-      }
-    ]
-  } catch (error) {
-    return res.status(500).json({message: "internal server error", error: error.message})
+          from: "projectActivities",
+          let: { pId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$project_id", "$$pId"] } } },
+            { $sort: { updatedAt: -1, createdAt: -1, _id: -1 } },
+            { $limit: 1 },
+            { $project: { template_code: 1, activities: 1 } },
+          ],
+          as: "project_activity",
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          code: 1,
+          state: 1,
+          template: { $arrayElemAt: ["$project_activity.template_code", 0] },
+          activite: { $arrayElemAt: ["$project_activity.activities", 0] },
+        },
+      },
+    ];
+
+
+
+    const data = await projectModells.aggregate(pipeline).allowDiskUse(true);
+    res.json({ ok: true, count: data.length, data });
+  } catch (err) {
+    console.error("getProjectsWithEnrichedActivities error:", err);
+    res.status(500).json({ ok: false, message: "Internal Server Error" });
   }
 }
 
