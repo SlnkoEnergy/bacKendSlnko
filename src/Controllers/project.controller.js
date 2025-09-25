@@ -1,5 +1,6 @@
 const projectModells = require("../models/project.model");
 const handoversheetModells = require("../models/handoversheet.model");
+const projectactivitiesModel = require("../models/projectactivities.model");
 
 const createProject = async function (req, res) {
   try {
@@ -294,7 +295,6 @@ const getProjectStatusFilter = async (req, res) => {
       { $group: { _id: "$current_status.status", count: { $sum: 1 } } },
     ])
 
-    console.log(rows);
     const data = {
       "to be started": 0,
       "ongoing": 0,
@@ -321,50 +321,241 @@ const getProjectStatusFilter = async (req, res) => {
 
 const getProjectDetail = async (req, res) => {
   try {
-
-    const pipeline = [
-      {
-        $project: {
-          _id: 1,
-          name: 1,
-          code: 1,
-          state: 1,
-        },
-      },
+    const data = await projectactivitiesModel.aggregate([
+      // --- JOIN project details with robust type casting ---
       {
         $lookup: {
-          from: "projectActivities",
-          let: { pId: "$_id" },
+          from: "projectdetails", // ensure exact collection name
+          let: { pid: "$project_id" },
           pipeline: [
-            { $match: { $expr: { $eq: ["$project_id", "$$pId"] } } },
-            { $sort: { updatedAt: -1, createdAt: -1, _id: -1 } },
-            { $limit: 1 },
-            { $project: {  activities: 1 } },
+            {
+              $match: {
+                $expr: {
+                  $eq: [
+                    "$_id",
+                    {
+                      $cond: [
+                        { $eq: [{ $type: "$$pid" }, "string"] },
+                        { $toObjectId: "$$pid" },
+                        "$$pid",
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            { $project: { code: 1, name: 1, state: 1 } },
           ],
-          as: "project_activity",
+          as: "projectDoc",
         },
       },
+      { $unwind: { path: "$projectDoc", preserveNullAndEmptyArrays: true } },
+
+      // --- Keep a copy of ALL activities before filtering ---
+      { $addFields: { _allActs: { $ifNull: ["$activities", []] } } },
+
+      // --- Compute project_completed (all activities have both dates) ---
+      {
+        $addFields: {
+          project_completed: {
+            $and: [
+              { $gt: [{ $size: "$_allActs" }, 0] }, // avoid vacuous "all true" on empty array
+              {
+                $allElementsTrue: {
+                  $map: {
+                    input: "$_allActs",
+                    as: "a",
+                    in: {
+                      $and: [
+                        // actual_start present
+                        {
+                          $and: [
+                            { $not: { $in: [{ $type: "$$a.actual_start" }, ["missing", "null"]] } },
+                            { $ne: ["$$a.actual_start", ""] },
+                          ],
+                        },
+                        // actual_finish present
+                        {
+                          $and: [
+                            { $not: { $in: [{ $type: "$$a.actual_finish" }, ["missing", "null"]] } },
+                            { $ne: ["$$a.actual_finish", ""] },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+
+      // --- FILTER activities: started but not finished ---
+      {
+        $addFields: {
+          activities: {
+            $filter: {
+              input: "$_allActs",
+              as: "a",
+              cond: {
+                $and: [
+                  // actual_start is present (not missing/null/empty)
+                  {
+                    $and: [
+                      { $not: { $in: [{ $type: "$$a.actual_start" }, ["missing", "null"]] } },
+                      { $ne: ["$$a.actual_start", ""] },
+                    ],
+                  },
+                  // actual_finish is NOT set (missing/null/empty)
+                  {
+                    $or: [
+                      { $in: [{ $type: "$$a.actual_finish" }, ["missing", "null"]] },
+                      { $eq: ["$$a.actual_finish", ""] },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+
+      // --- Collect activity_ids from the (filtered) activities ---
+      {
+        $addFields: {
+          _activityIds: {
+            $map: {
+              input: { $ifNull: ["$activities", []] },
+              as: "a",
+              in: "$$a.activity_id",
+            },
+          },
+        },
+      },
+
+      // --- JOIN activity names for the filtered IDs ---
+      {
+        $lookup: {
+          from: "activities",
+          let: { ids: "$_activityIds" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
+            { $project: { name: 1 } },
+          ],
+          as: "activityDocs",
+        },
+      },
+
+      // --- Attach activity_name to each filtered activity ---
+      {
+        $addFields: {
+          activities: {
+            $map: {
+              input: { $ifNull: ["$activities", []] },
+              as: "a",
+              in: {
+                $mergeObjects: [
+                  "$$a",
+                  {
+                    activity_name: {
+                      $let: {
+                        vars: {
+                          m: {
+                            $first: {
+                              $filter: {
+                                input: "$activityDocs",
+                                as: "ad",
+                                cond: { $eq: ["$$ad._id", "$$a.activity_id"] },
+                              },
+                            },
+                          },
+                        },
+                        in: { $ifNull: ["$$m.name", null] },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+
+      // --- Final projection ---
+      // --- Final projection ---
       {
         $project: {
-          _id: 1,
-          name: 1,
-          code: 1,
-          state: 1,
-          template: { $arrayElemAt: ["$project_activity.template_code", 0] },
-          activite: { $arrayElemAt: ["$project_activity.activities", 0] },
+          project_id: 1,
+          status: 1,
+          project_code: "$projectDoc.code",
+          project_name: "$projectDoc.name",
+          state: "$projectDoc.state",
+
+          project_completed: 1,
+
+          // keep only: activity_name, actual_start_date, dependency, successors, predecessors, activity_id
+          activities: {
+            $map: {
+              input: { $ifNull: ["$activities", []] },
+              as: "a",
+              in: {
+                activity_id: "$$a.activity_id",
+                activity_name: "$$a.activity_name",
+                actual_start_date: "$$a.actual_start",
+                dependency: "$$a.dependency",
+                successors: "$$a.successors",
+                predecessors: "$$a.predecessors",
+              },
+            },
+          },
         },
       },
+
+    ]);
+
+    return res.json({ ok: true, count: data.length, data });
+  } catch (err) {
+    console.error("getProjectDetail error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Server error", error: String(err) });
+  }
+};
+
+
+
+// controller
+const getProjectStates = async (req, res) => {
+  try {
+    const match = {}; // add filters if needed (e.g., { service: req.query.service })
+
+    pipeline = [
+
+      { $group: { _id: "$state", count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
     ];
 
+    const states = await projectModells.aggregate(pipeline);
 
+    let totalCount = 0;
+    for (const state of states) {
+      totalCount += state.count;
+    }
 
-    const data = await projectModells.aggregate(pipeline).allowDiskUse(true);
-    res.json({ ok: true, count: data.length, data });
+    return res.status(200).json({
+      total: totalCount,
+      data: states,
+      message: "Fetch State Successfully"
+    })
+
   } catch (err) {
-    console.error("getProjectsWithEnrichedActivities error:", err);
-    res.status(500).json({ ok: false, message: "Internal Server Error" });
+    console.error("getProjectStates error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Server error", error: String(err) });
   }
-}
+};
 
 
 module.exports = {
@@ -377,5 +568,6 @@ module.exports = {
   getProjectDropwdown,
   getProjectNameSearch,
   getProjectStatusFilter,
-  getProjectDetail
+  getProjectDetail,
+  getProjectStates
 };
