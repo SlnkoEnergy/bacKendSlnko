@@ -510,6 +510,7 @@ const pushActivityToProject = async (req, res) => {
       dependency: dependencies.map((dep) => ({
         model: dep.model,
         model_id: dep.model_id,
+        model_id_name: dep.model_id_name,
         updated_by: req.user.userId,
       })),
     });

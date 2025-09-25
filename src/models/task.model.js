@@ -160,10 +160,17 @@ const taskSchema = new mongoose.Schema(
         },
       },
     ],
+    sourceKey: { type: String, required: true }, 
+    source: {
+      type: { type: String, default: "projectActivityDependency" },
+      model_id: { type: mongoose.Schema.Types.ObjectId },
+      activityId: { type: mongoose.Schema.Types.ObjectId },
+      dependencyId: { type: mongoose.Schema.Types.ObjectId },
+    },
   },
   { timestamps: true }
 );
-
+taskSchema.index({ sourceKey: 1 }, { unique: true });
 taskSchema.pre("save", function (next) {
   updateStatus(this, "pending");
   updateSubtaskStatus(this);

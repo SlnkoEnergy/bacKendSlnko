@@ -22,8 +22,11 @@ const createApproval = async (req, res) => {
     }
 
     const projectactivities = await projectactivitiesModel.findOne({
-      project_id: data.project_id,
+      project_id: mongoose.Types.ObjectId.isValid(data.project_id)
+        ? new mongoose.Types.ObjectId(data.project_id)
+        : data.project_id,
     });
+
     if (!projectactivities) {
       return res.status(404).json({
         message: "No project activities found for the given project_id",
@@ -70,7 +73,7 @@ const createApproval = async (req, res) => {
     const approvalCode = `APR/${user.emp_id}/${seq}`;
 
     const payload = {
-      ...req.body,
+      ...data,
       model_id: projectactivities._id,
       approval_code: approvalCode,
       created_by: userId,
