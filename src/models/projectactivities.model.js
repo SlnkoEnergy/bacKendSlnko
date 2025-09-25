@@ -29,7 +29,7 @@ const projectActivitySchema = new mongoose.Schema(
           required: true,
         },
         planned_start: Date,
-        planned_finish: Date,
+        planned_finish: Date,              
         actual_start: Date,
         actual_finish: Date,
         duration: Number,

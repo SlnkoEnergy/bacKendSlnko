@@ -339,7 +339,7 @@ const getProjectDetail = async (req, res) => {
             { $match: { $expr: { $eq: ["$project_id", "$$pId"] } } },
             { $sort: { updatedAt: -1, createdAt: -1, _id: -1 } },
             { $limit: 1 },
-            { $project: { template_code: 1, activities: 1 } },
+            { $project: {  activities: 1 } },
           ],
           as: "project_activity",
         },
