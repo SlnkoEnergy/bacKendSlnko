@@ -14,6 +14,7 @@ const {
   updateDependencyStatus,
   nameSearchActivityByProjectId,
   getRejectedOrNotAllowedDependencies,
+  getActivitiesByProjectId,
 } = require("../controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
@@ -77,9 +78,11 @@ router.get(
 );
 
 router.get(
-  "/dependencies/:projectId",
+  "/:projectId/dependencies/:activityId",
   jwtMW.authentication,
   getRejectedOrNotAllowedDependencies
 );
+
+
 
 module.exports = router;
