@@ -120,7 +120,13 @@ const updateDependency = async (req, res) => {
     const dependencies = Array.isArray(req.body.dependencies)
       ? req.body.dependencies
       : req.body.model && req.body.model_id
-        ? [{ model: req.body.model, model_id: req.body.model_id, model_id_name: req.body.model_id_name }]
+        ? [
+            {
+              model: req.body.model,
+              model_id: req.body.model_id,
+              model_id_name: req.body.model_id_name,
+            },
+          ]
         : [];
 
     if (!mongoose.isValidObjectId(id)) {
@@ -188,11 +194,9 @@ const updateDependency = async (req, res) => {
     } else {
       const project_id = projectId;
       if (!project_id || !mongoose.isValidObjectId(project_id)) {
-        return res
-          .status(400)
-          .json({
-            message: "projectId (valid ObjectId) is required when global=false",
-          });
+        return res.status(400).json({
+          message: "projectId (valid ObjectId) is required when global=false",
+        });
       }
 
       const projAct = await ProjectActivity.findOne({ project_id });
@@ -288,12 +292,9 @@ const deleteDependency = async (req, res) => {
       });
     } else {
       if (!projectId || !mongoose.isValidObjectId(projectId)) {
-        return res
-          .status(400)
-          .json({
-            message:
-              "projectId is required and must be valid when global=false",
-          });
+        return res.status(400).json({
+          message: "projectId is required and must be valid when global=false",
+        });
       }
 
       const projAct = await ProjectActivity.findOne({ project_id: projectId });
@@ -305,12 +306,10 @@ const deleteDependency = async (req, res) => {
         (a) => String(a.activity_id) === String(id)
       );
       if (idx === -1) {
-        return res
-          .status(404)
-          .json({
-            message:
-              "Embedded activity not found in projectActivities.activities",
-          });
+        return res.status(404).json({
+          message:
+            "Embedded activity not found in projectActivities.activities",
+        });
       }
 
       const act = projAct.activities[idx];

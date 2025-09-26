@@ -33,7 +33,9 @@ const createApproval = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId).select("emp_id department role name");
+    const user = await User.findById(userId).select(
+      "emp_id department role name"
+    );
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -42,7 +44,11 @@ const createApproval = async (req, res) => {
 
     let approverUsers = [];
 
-    if (role === "admin" || role === "superadmin" || /super\s*admin/.test(role)) {
+    if (
+      role === "admin" ||
+      role === "superadmin" ||
+      /super\s*admin/.test(role)
+    ) {
       approverUsers = await User.find({
         _id: { $ne: userId },
         $or: [
@@ -52,18 +58,20 @@ const createApproval = async (req, res) => {
         ],
       }).select("_id name role");
 
-      const roleRank = (r) => (/super\s*admin/i.test(r.role) || /superadmin/i.test(r.role) ? 1 : 2);
+      const roleRank = (r) =>
+        /super\s*admin/i.test(r.role) || /superadmin/i.test(r.role) ? 1 : 2;
       approverUsers = [
         ...new Map(approverUsers.map((u) => [String(u._id), u])).values(),
-      ].sort((a, b) => roleRank(a) - roleRank(b) || String(a.name).localeCompare(String(b.name)));
-    }
-
-    else if (user.department?.toLowerCase() === "cam") {
+      ].sort(
+        (a, b) =>
+          roleRank(a) - roleRank(b) ||
+          String(a.name).localeCompare(String(b.name))
+      );
+    } else if (user.department?.toLowerCase() === "cam") {
       approverUsers = await User.find({
         name: { $in: ["Sanjiv Kumar", "Sushant Ranjan Dubey"] },
       }).select("_id name");
-    }
-    else {
+    } else {
       approverUsers = await User.find({
         department: user.department,
         role: /manager/i,
@@ -95,7 +103,7 @@ const createApproval = async (req, res) => {
     const approvalCode = `APR/${user.emp_id}/${seq}`;
 
     const payload = {
-      ...data, 
+      ...data,
       model_id: projectactivities._id,
       approval_code: approvalCode,
       created_by: userId,
@@ -115,7 +123,6 @@ const createApproval = async (req, res) => {
     });
   }
 };
-
 
 const getUniqueApprovalModels = async (req, res) => {
   try {

@@ -11,7 +11,6 @@ function isBefore(a, b) {
 function isAfter(a, b) {
   return a && b && new Date(a).getTime() > new Date(b).getTime();
 }
-
 function finishFromStartAndDuration(start, duration) {
   const d = Math.max(1, Number(duration) || 0);
   return addDays(start, d - 1);
@@ -26,14 +25,12 @@ function durationFromStartFinish(start, finish) {
   return ms < 0 ? 0 : Math.floor(ms / 86400000) + 1;
 }
 
-/** ----------------- Graph helpers ----------------- */
+/* ------------------- Graph helpers ------------------- */
 function buildGraph(activities) {
   const byId = new Map();
-  activities.forEach((a) => {
-    byId.set(String(a.activity_id), a);
-  });
+  activities.forEach((a) => byId.set(String(a.activity_id), a));
 
-  const adjOut = new Map(); // u -> [{v, type, lag}]
+  const adjOut = new Map(); // u -> [{ v, type, lag }]
   const indeg = new Map();
   activities.forEach((a) => {
     const u = String(a.activity_id);
@@ -53,7 +50,7 @@ function buildGraph(activities) {
 
   return { adjOut, indeg, byId };
 }
-/** Kahn topo sort + cycle detection */
+
 function topoSort(activities) {
   const { adjOut, indeg } = buildGraph(activities);
   const q = [];
@@ -69,14 +66,24 @@ function topoSort(activities) {
       if (indeg.get(v) === 0) q.push(v);
     });
   }
-  const total = indeg.size;
-  if (order.length !== total) {
-    return { ok: false, order };
-  }
+  if (order.length !== indeg.size) return { ok: false, order };
   return { ok: true, order };
 }
 
-function computeMinConstraints(activity, byId) {
+/* ------------------- Actual/Planned selection ------------------- */
+function effectiveStart(a, useActuals) {
+  return useActuals
+    ? (a?.actual_start ?? a?.planned_start ?? null)
+    : (a?.planned_start ?? null);
+}
+function effectiveFinish(a, useActuals) {
+  return useActuals
+    ? (a?.actual_finish ?? a?.planned_finish ?? null)
+    : (a?.planned_finish ?? null);
+}
+
+/* ------------------- Constraint computation ------------------- */
+function computeMinConstraints(activity, byId, { useActuals = false } = {}) {
   let minStart = null;
   let minFinish = null;
   const reasons = [];
@@ -84,39 +91,45 @@ function computeMinConstraints(activity, byId) {
   (activity.predecessors || []).forEach((link) => {
     const pred = byId.get(String(link.activity_id));
     if (!pred) return;
+
     const type = String(link.type || "FS").toUpperCase();
     const lag = Number(link.lag) || 0;
+
+    const predStart = effectiveStart(pred, useActuals);
+    const predFinish = effectiveFinish(pred, useActuals);
+
     const predName =
       pred?.name ||
       pred?.activity_name ||
       (pred.activity_id ? String(pred.activity_id) : "•");
 
     if (type === "FS") {
-      // successor.start >= pred.finish + lag
-      if (pred.planned_finish) {
-        const req = addDays(pred.planned_finish, lag);
+      // successor.start ≥ pred.finish + lag
+      if (predFinish) {
+        const req = addDays(predFinish, lag);
         if (!minStart || isAfter(req, minStart)) minStart = req;
-        reasons.push(
-          `FS: start ≥ finish(${predName}) + ${lag}d → ${req.toDateString()}`
-        );
+        reasons.push(`FS: start ≥ finish(${predName}) + ${lag}d → ${req.toDateString()}`);
       }
     } else if (type === "SS") {
-      // successor.start >= pred.start + lag
-      if (pred.planned_start) {
-        const req = addDays(pred.planned_start, lag);
+      // successor.start ≥ pred.start + lag
+      if (predStart) {
+        const req = addDays(predStart, lag);
         if (!minStart || isAfter(req, minStart)) minStart = req;
-        reasons.push(
-          `SS: start ≥ start(${predName}) + ${lag}d → ${req.toDateString()}`
-        );
+        reasons.push(`SS: start ≥ start(${predName}) + ${lag}d → ${req.toDateString()}`);
       }
     } else if (type === "FF") {
-      // successor.finish >= pred.finish + lag
-      if (pred.planned_finish) {
-        const req = addDays(pred.planned_finish, lag);
+      // successor.finish ≥ pred.finish + lag
+      if (predFinish) {
+        const req = addDays(predFinish, lag);
         if (!minFinish || isAfter(req, minFinish)) minFinish = req;
-        reasons.push(
-          `FF: finish ≥ finish(${predName}) + ${lag}d → ${req.toDateString()}`
-        );
+        reasons.push(`FF: finish ≥ finish(${predName}) + ${lag}d → ${req.toDateString()}`);
+      }
+    } else if (type === "SF") {
+      // successor.finish ≥ pred.start + lag
+      if (predStart) {
+        const req = addDays(predStart, lag);
+        if (!minFinish || isAfter(req, minFinish)) minFinish = req;
+        reasons.push(`SF: finish ≥ start(${predName}) + ${lag}d → ${req.toDateString()}`);
       }
     }
   });
@@ -124,7 +137,21 @@ function computeMinConstraints(activity, byId) {
   return { minStart, minFinish, reasons };
 }
 
-/** Rebuild successors from predecessors (mirror) */
+/* ------------------- Scheduling choices ------------------- */
+function earliestStartGivenConstraints(dur, minStart, minFinish) {
+  const d = Math.max(1, Number(dur) || 0);
+  if (!d) return null;
+  const fromFinish = minFinish ? addDays(minFinish, -(d - 1)) : null;
+
+  if (minStart && fromFinish) {
+    return isAfter(minStart, fromFinish) ? new Date(minStart) : new Date(fromFinish);
+  }
+  if (minStart) return new Date(minStart);
+  if (fromFinish) return new Date(fromFinish);
+  return null;
+}
+
+/* ------------------- Mirror successors from predecessors ------------------- */
 function rebuildSuccessorsFromPredecessors(activities) {
   const map = new Map();
   activities.forEach((a) => map.set(String(a.activity_id), []));
@@ -134,11 +161,7 @@ function rebuildSuccessorsFromPredecessors(activities) {
       if (!map.has(predId)) return;
       const list = map.get(predId);
       if (!list.some((s) => String(s.activity_id) === String(a.activity_id))) {
-        list.push({
-          activity_id: a.activity_id,
-          type: p.type,
-          lag: Number(p.lag) || 0,
-        });
+        list.push({ activity_id: a.activity_id, type: p.type, lag: Number(p.lag) || 0 });
       }
     });
   });
@@ -147,22 +170,8 @@ function rebuildSuccessorsFromPredecessors(activities) {
   });
 }
 
-function earliestStartGivenConstraints(dur, minStart, minFinish) {
-  const d = Math.max(1, Number(dur) || 0);
-  if (!d) return null;
-  const needStartFromFinish = minFinish ? addDays(minFinish, -(d - 1)) : null;
-
-  if (minStart && needStartFromFinish) {
-    return isAfter(minStart, needStartFromFinish)
-      ? new Date(minStart)
-      : new Date(needStartFromFinish);
-  }
-  if (minStart) return new Date(minStart);
-  if (needStartFromFinish) return new Date(needStartFromFinish);
-  return null;
-}
-
-function propagateForwardAdjustments(changedId, activities) {
+/* ------------------- Forward propagation ------------------- */
+function propagateForwardAdjustments(changedId, activities, { useActuals = false } = {}) {
   const { adjOut, byId } = buildGraph(activities);
   const seen = new Set();
   const q = [String(changedId)];
@@ -177,39 +186,48 @@ function propagateForwardAdjustments(changedId, activities) {
       const succ = byId.get(String(v));
       if (!succ) return;
 
-      const hasBoth =
-        !!succ.planned_start &&
-        !!succ.planned_finish &&
-        !isNaN(new Date(succ.planned_start)) &&
-        !isNaN(new Date(succ.planned_finish));
+      const hasActualStart = useActuals && !!succ.actual_start;
+      const hasActualFinish = useActuals && !!succ.actual_finish;
 
-      if (hasBoth) {
-        const dur =
-          Number(succ.duration) ||
-          durationFromStartFinish(succ.planned_start, succ.planned_finish);
-        if (dur > 0) {
-          const { minStart, minFinish } = computeMinConstraints(succ, byId);
-          const desiredStart = earliestStartGivenConstraints(
-            dur,
-            minStart,
-            minFinish
-          );
+      // Completed tasks do not move
+      if (hasActualFinish) {
+        q.push(String(v));
+        return;
+      }
 
-          if (desiredStart) {
-            const desiredFinish = finishFromStartAndDuration(desiredStart, dur);
+      // Determine duration reference
+      let dur =
+        Number(succ.duration) ||
+        durationFromStartFinish(succ.planned_start, succ.planned_finish) ||
+        (hasActualStart && succ.planned_finish
+          ? durationFromStartFinish(succ.actual_start, succ.planned_finish)
+          : 0);
+      dur = Math.max(1, Number(dur) || 0);
 
-            const curStart = new Date(succ.planned_start);
-            const curFinish = new Date(succ.planned_finish);
-            curStart.setHours(0, 0, 0, 0);
-            curFinish.setHours(0, 0, 0, 0);
+      const { minStart, minFinish } = computeMinConstraints(succ, byId, { useActuals });
 
-            if (
-              curStart.getTime() !== desiredStart.getTime() ||
-              curFinish.getTime() !== desiredFinish.getTime()
-            ) {
-              succ.planned_start = desiredStart;
-              succ.planned_finish = desiredFinish;
-            }
+      if (hasActualStart && !hasActualFinish) {
+        // In progress: pin start to actual_start; extend finish if constraints require it
+        const pinnedStart = new Date(succ.actual_start);
+        const baseFinish = finishFromStartAndDuration(pinnedStart, dur);
+        const desiredFinish = (minFinish && isAfter(minFinish, baseFinish)) ? new Date(minFinish) : baseFinish;
+
+        if (!succ.planned_start || +new Date(succ.planned_start) !== +pinnedStart) {
+          succ.planned_start = pinnedStart;
+        }
+        if (!succ.planned_finish || +new Date(succ.planned_finish) !== +desiredFinish) {
+          succ.planned_finish = desiredFinish;
+        }
+      } else if (!hasActualStart && !hasActualFinish) {
+        // Not started: move both start & finish to satisfy constraints
+        const desiredStart = earliestStartGivenConstraints(dur, minStart, minFinish);
+        if (desiredStart) {
+          const desiredFinish = finishFromStartAndDuration(desiredStart, dur);
+          if (!succ.planned_start || +new Date(succ.planned_start) !== +desiredStart) {
+            succ.planned_start = desiredStart;
+          }
+          if (!succ.planned_finish || +new Date(succ.planned_finish) !== +desiredFinish) {
+            succ.planned_finish = desiredFinish;
           }
         }
       }
@@ -219,11 +237,14 @@ function propagateForwardAdjustments(changedId, activities) {
   }
 }
 
+
 module.exports = {
   addDays,
   isBefore,
   isAfter,
   finishFromStartAndDuration,
+  effectiveStart,
+  effectiveFinish,
   buildGraph,
   topoSort,
   earliestStartGivenConstraints,

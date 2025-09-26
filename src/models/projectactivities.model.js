@@ -115,6 +115,9 @@ const projectActivitySchema = new mongoose.Schema(
             },
           },
         ],
+        resources: {
+          type: Number,
+        },
       },
     ],
     status: {

@@ -248,7 +248,9 @@ const nameSearchActivityByProjectId = async (req, res) => {
     const { projectId, page, limit, search } = req.query;
 
     if (!projectId) {
-      return res.status(400).json({ ok: false, message: "projectId is required" });
+      return res
+        .status(400)
+        .json({ ok: false, message: "projectId is required" });
     }
 
     let projId;
@@ -258,9 +260,9 @@ const nameSearchActivityByProjectId = async (req, res) => {
       return res.status(400).json({ ok: false, message: "Invalid projectId" });
     }
 
-    const pageNum  = Math.max(parseInt(page, 10) || 1, 1);
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(limit, 10) || 7, 1), 100);
-    const skip     = (pageNum - 1) * pageSize;
+    const skip = (pageNum - 1) * pageSize;
 
     const searchRegex =
       search && String(search).trim() !== ""
@@ -325,11 +327,18 @@ const nameSearchActivityByProjectId = async (req, res) => {
                 // OUTER let: cheap/common values
                 $let: {
                   vars: {
-                    depModelLower: { $toLower: { $ifNull: ["$$dep.model", ""] } },
+                    depModelLower: {
+                      $toLower: { $ifNull: ["$$dep.model", ""] },
+                    },
                     populatedName: {
                       $cond: [
                         { $eq: [{ $type: "$$dep.model_id" }, "object"] },
-                        { $ifNull: ["$$dep.model_id.name", "$$dep.model_id.title"] },
+                        {
+                          $ifNull: [
+                            "$$dep.model_id.name",
+                            "$$dep.model_id.title",
+                          ],
+                        },
                         null,
                       ],
                     },
@@ -363,7 +372,9 @@ const nameSearchActivityByProjectId = async (req, res) => {
                                   $filter: {
                                     input: "$depModules",
                                     as: "m",
-                                    cond: { $eq: ["$$m._id", "$$depModelIdObj"] },
+                                    cond: {
+                                      $eq: ["$$m._id", "$$depModelIdObj"],
+                                    },
                                   },
                                 },
                                 0,
@@ -375,7 +386,9 @@ const nameSearchActivityByProjectId = async (req, res) => {
                                   $filter: {
                                     input: "$depMaterials",
                                     as: "mc",
-                                    cond: { $eq: ["$$mc._id", "$$depModelIdObj"] },
+                                    cond: {
+                                      $eq: ["$$mc._id", "$$depModelIdObj"],
+                                    },
                                   },
                                 },
                                 0,
@@ -397,12 +410,22 @@ const nameSearchActivityByProjectId = async (req, res) => {
                                         {
                                           $in: [
                                             "$$depModelLower",
-                                            ["moduletemplate", "moduletemplates", "module", "modules"],
+                                            [
+                                              "moduletemplate",
+                                              "moduletemplates",
+                                              "module",
+                                              "modules",
+                                            ],
                                           ],
                                         },
                                         {
                                           $ifNull: [
-                                            { $ifNull: ["$$foundModule.name", "$$foundModule.title"] },
+                                            {
+                                              $ifNull: [
+                                                "$$foundModule.name",
+                                                "$$foundModule.title",
+                                              ],
+                                            },
                                             "$$dep.model",
                                           ],
                                         },
@@ -412,7 +435,10 @@ const nameSearchActivityByProjectId = async (req, res) => {
                                             {
                                               $in: [
                                                 "$$depModelLower",
-                                                ["materialcategory", "materialcategories"],
+                                                [
+                                                  "materialcategory",
+                                                  "materialcategories",
+                                                ],
                                               ],
                                             },
                                             {
@@ -541,6 +567,9 @@ const updateActivityInProject = async (req, res) => {
     const { projectId, activityId } = req.params;
     const data = req.body;
 
+    // Feature flag: default OFF (planned-only)
+    const useActuals = req.query.actuals === "1" || data?.use_actuals === true;
+
     const projectActivityDoc = await projectActivity.findOne({
       project_id: projectId,
     });
@@ -556,8 +585,8 @@ const updateActivityInProject = async (req, res) => {
       return res.status(404).json({ message: "Activity not found" });
     }
 
-    // --- Normalize links from request ---
-    const allowedLinkTypes = new Set(["FS", "SS", "FF"]);
+    /* -------- Normalize and assign incoming fields -------- */
+    const allowedLinkTypes = new Set(["FS", "SS", "FF", "SF"]);
     let incomingPreds = Array.isArray(data.predecessors)
       ? data.predecessors
       : null;
@@ -569,7 +598,9 @@ const updateActivityInProject = async (req, res) => {
         .filter((p) => p && p.activity_id)
         .map((p) => ({
           activity_id: new mongoose.Types.ObjectId(p.activity_id),
-          type: allowedLinkTypes.has(p.type) ? p.type : "FS",
+          type: allowedLinkTypes.has(String(p.type).toUpperCase())
+            ? String(p.type).toUpperCase()
+            : "FS",
           lag: Number(p.lag) || 0,
         }))
         .filter((p) => {
@@ -587,7 +618,9 @@ const updateActivityInProject = async (req, res) => {
         .filter((p) => p && p.activity_id)
         .map((p) => ({
           activity_id: new mongoose.Types.ObjectId(p.activity_id),
-          type: allowedLinkTypes.has(p.type) ? p.type : "FS",
+          type: allowedLinkTypes.has(String(p.type).toUpperCase())
+            ? String(p.type).toUpperCase()
+            : "FS",
           lag: Number(p.lag) || 0,
         }))
         .filter((p) => {
@@ -596,12 +629,49 @@ const updateActivityInProject = async (req, res) => {
           seen.add(key);
           return true;
         });
-      activity.successors = incomingSuccs;
+      activity.successors = incomingSuccs; // will be mirrored anyway
     }
 
-    const { predecessors, successors, ...rest } = data || {};
+    // Assign any other editable scalar fields (planned_* etc., resources, remarks…)
+    const { predecessors, successors, actual_start, actual_finish, ...rest } =
+      data || {};
     Object.assign(activity, rest);
 
+    /* -------- Actuals: set ONLY via status transitions --------
+       We intentionally ignore body.actual_start / body.actual_finish.
+       - When status -> "in progress": set actual_start (if empty)
+       - When status -> "completed":  set actual_finish (if empty)
+    ------------------------------------------------------------ */
+    const prevStatus = activity.current_status?.status || "not started";
+    const newStatus = data.status || prevStatus;
+
+    if (newStatus && newStatus !== prevStatus) {
+      const now = new Date();
+      if (newStatus === "in progress" && !activity.actual_start) {
+        activity.actual_start = now;
+      }
+      if (newStatus === "completed" && !activity.actual_finish) {
+        // If jumping straight to completed, set start too if missing
+        if (!activity.actual_start) activity.actual_start = now;
+        activity.actual_finish = now;
+      }
+      // Update status history + current_status
+      activity.status_history = activity.status_history || [];
+      activity.status_history.push({
+        status: newStatus,
+        updated_at: now,
+        updated_by: data.updated_by,
+        remarks: data.remarks || "",
+      });
+      activity.current_status = {
+        status: newStatus,
+        updated_at: now,
+        updated_by: data.updated_by,
+        remarks: data.remarks || "",
+      };
+    }
+
+    /* -------- Planned fields & duration (legacy behavior) -------- */
     if (activity.planned_start && activity.planned_finish) {
       activity.duration =
         durationFromStartFinish(
@@ -618,6 +688,7 @@ const updateActivityInProject = async (req, res) => {
       activity.planned_start = addDays(activity.planned_finish, -(d - 1));
     }
 
+    /* -------- Mirror successors from predecessors & validate DAG -------- */
     rebuildSuccessorsFromPredecessors(projectActivityDoc.activities);
 
     const topo = topoSort(projectActivityDoc.activities);
@@ -628,12 +699,15 @@ const updateActivityInProject = async (req, res) => {
       });
     }
 
+    /* -------- Constraints for the changed activity -------- */
     const byId = new Map(
       projectActivityDoc.activities.map((a) => [String(a.activity_id), a])
     );
+
     const { minStart, minFinish, reasons } = computeMinConstraints(
       activity,
-      byId
+      byId,
+      { useActuals }
     );
 
     if (
@@ -667,22 +741,12 @@ const updateActivityInProject = async (req, res) => {
       });
     }
 
+    /* -------- Forward propagation (planned-only or actual-aware) -------- */
     propagateForwardAdjustments(
       activity.activity_id,
-      projectActivityDoc.activities
+      projectActivityDoc.activities,
+      { useActuals }
     );
-
-    if (data.status) {
-      const now = new Date();
-      const statusEntry = {
-        status: data.status,
-        updated_at: now,
-        updated_by: data.updated_by,
-        remarks: data.remarks || "",
-      };
-      activity.status_history = activity.status_history || [];
-      activity.status_history.push(statusEntry);
-    }
 
     await projectActivityDoc.save();
     return res.status(200).json({ message: "Activity updated", activity });
@@ -841,22 +905,25 @@ const getRejectedOrNotAllowedDependencies = async (req, res) => {
     const { projectId } = req.params;
 
     if (!mongoose.isValidObjectId(projectId)) {
-      return res
-        .status(400)
-        .json({ ok: false, message: "Invalid projectId (must be ObjectId of projectDetail)" });
+      return res.status(400).json({
+        ok: false,
+        message: "Invalid projectId (must be ObjectId of projectDetail)",
+      });
     }
 
     const pid = new mongoose.Types.ObjectId(projectId);
 
     // fetch only what's needed (no aggregation)
-    const doc = await projectActivity.findOne(
-      { project_id: pid },
-      {
-        project_id: 1,
-        "activities.activity_id": 1,
-        "activities.dependency": 1,
-      }
-    ).lean();
+    const doc = await projectActivity
+      .findOne(
+        { project_id: pid },
+        {
+          project_id: 1,
+          "activities.activity_id": 1,
+          "activities.dependency": 1,
+        }
+      )
+      .lean();
 
     if (!doc) {
       return res.status(404).json({
@@ -869,7 +936,9 @@ const getRejectedOrNotAllowedDependencies = async (req, res) => {
     const activities = [];
     for (const act of doc.activities || []) {
       const deps = (act.dependency || []).filter((dep) => {
-        const s = String(dep?.current_status?.status || "").trim().toLowerCase();
+        const s = String(dep?.current_status?.status || "")
+          .trim()
+          .toLowerCase();
         return s === "rejected" || s === "not allowed";
       });
 
@@ -890,7 +959,9 @@ const getRejectedOrNotAllowedDependencies = async (req, res) => {
     }
 
     // optional stable sort by activity_id
-    activities.sort((a, b) => String(a.activity_id).localeCompare(String(b.activity_id)));
+    activities.sort((a, b) =>
+      String(a.activity_id).localeCompare(String(b.activity_id))
+    );
 
     return res.status(200).json({
       ok: true,
@@ -899,16 +970,13 @@ const getRejectedOrNotAllowedDependencies = async (req, res) => {
       activities,
     });
   } catch (err) {
-    return res
-      .status(500)
-      .json({ ok: false, message: "Internal Server Error", error: String(err?.message || err) });
+    return res.status(500).json({
+      ok: false,
+      message: "Internal Server Error",
+      error: String(err?.message || err),
+    });
   }
 };
-
-
-
-
-
 
 module.exports = {
   createProjectActivity,
