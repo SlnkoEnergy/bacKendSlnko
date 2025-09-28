@@ -39,6 +39,7 @@ const {
   getModuleById,
   createModule,
   getAllowedModule,
+  getAllModulePaginated,
 } = require("../Controllers/moduletemplate.controller");
 const {
   addMaterialCategory,
@@ -63,6 +64,12 @@ const upload = require("../middlewares/multer");
 router.post("/create-module", jwtMW.authentication, createModule);
 router.get("/get-module-by-id/:_id", jwtMW.authentication, getModuleById);
 router.get("/get-module", jwtMW.authentication, getAllModule);
+router.get(
+  "/get-module-paginated",
+  jwtMW.authentication,
+  getAllModulePaginated
+);
+
 router.put("/update-module/:_id", jwtMW.authentication, updateModule);
 router.delete("/delete-module/:_id", jwtMW.authentication, deleteModule);
 router.put(

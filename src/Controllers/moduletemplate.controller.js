@@ -55,6 +55,67 @@ const getAllModule = async (req, res) => {
   }
 };
 
+const getAllModulePaginated = async (req, res) => {
+  try {
+    // ---- pagination ----
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit, 10) || 10, 1),
+      100
+    );
+    const skip = (page - 1) * limit;
+
+    // ---- optional search/sort ----
+    const search = (req.query.search || "").trim();
+    const sortBy = (req.query.sort || "createdAt").trim();
+    const order =
+      String(req.query.order || "desc").toLowerCase() === "asc" ? 1 : -1;
+
+    const filter = {};
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // ---- total + page data ----
+    const [totalDocs, data] = await Promise.all([
+      moduleTemplate.countDocuments(filter),
+      moduleTemplate
+        .find(filter)
+        .populate("boq.template_category", "name description")
+        .sort({ [sortBy]: order, _id: -1 }) // secondary _id keeps stable ordering
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(totalDocs / limit));
+
+    return res.status(200).json({
+      message: "Module Category Retrieved Successfully",
+      data,
+      pagination: {
+        page,
+        limit,
+        totalDocs,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+        nextPage: page < totalPages ? page + 1 : null,
+        prevPage: page > 1 ? page - 1 : null,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+
 const getAllowedModule = async (req, res) => {
   try {
     const {projectId} = req.params;
@@ -140,5 +201,6 @@ module.exports = {
   updateModule,
   deleteModule,
   updateModuleTemplateCategoryId,
-  getAllowedModule
+  getAllowedModule,
+  getAllModulePaginated,
 };
