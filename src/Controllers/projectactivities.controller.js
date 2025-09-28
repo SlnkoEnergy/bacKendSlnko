@@ -10,6 +10,9 @@ const {
   propagateForwardAdjustments,
   durationFromStartFinish,
 } = require("../utils/predecessor.utils");
+const { triggerTasksBulk } = require("../utils/triggertask.utils");
+const handoversheetModel = require("../models/handoversheet.model");
+const projectModel = require("../models/project.model");
 
 function stripTemplateCode(payload = {}) {
   const { template_code, ...rest } = payload;
@@ -221,21 +224,74 @@ const updateProjectActivityStatus = async (req, res) => {
 const getProjectActivitybyProjectId = async (req, res) => {
   try {
     const { projectId } = req.query;
-    const projectactivity = await projectActivity
+    const doc = await projectActivity
       .findOne({ project_id: projectId })
       .populate("activities.activity_id", "name description type")
       .populate("created_by", "name")
       .populate(
         "project_id",
         "code project_completion_date ppa_expiry_date bd_commitment_date remaining_days"
-      );
-    if (!projectactivity) {
+      )
+      .lean();
+
+    if (!doc) {
       return res.status(404).json({ message: "Project activity not found" });
     }
+
+    const acts = Array.isArray(doc.activities) ? doc.activities.slice() : [];
+    acts.sort((a, b) => {
+      const ao = Number.isFinite(a.order) ? a.order : Number.MAX_SAFE_INTEGER;
+      const bo = Number.isFinite(b.order) ? b.order : Number.MAX_SAFE_INTEGER;
+      if (ao !== bo) return ao - bo;
+      const an = a?.activity_id?.name || "";
+      const bn = b?.activity_id?.name || "";
+      return an.localeCompare(bn);
+    });
+
     return res.status(200).json({
       message: "Project activity fetched successfully",
-      projectactivity,
+      projectactivity: { ...doc, activities: acts },
     });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+const reorderProjectActivities = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { ordered_activity_ids } = req.body;
+
+    if (!Array.isArray(ordered_activity_ids) || !ordered_activity_ids.length) {
+      return res
+        .status(400)
+        .json({ message: "ordered_activity_ids array required" });
+    }
+
+    const doc = await projectActivity.findOne({ project_id: projectId });
+    if (!doc) {
+      return res.status(404).json({ message: "Project activity not found" });
+    }
+    const idToOrder = new Map(
+      ordered_activity_ids.map((id, idx) => [String(id), idx])
+    );
+
+    const tailStart = idToOrder.size;
+    let tailCursor = tailStart;
+    doc.activities.forEach((sub) => {
+      const key = String(sub.activity_id);
+      if (idToOrder.has(key)) {
+        sub.order = idToOrder.get(key);
+      } else {
+        sub.order = tailCursor++;
+      }
+    });
+
+    await doc.save();
+
+    return res.status(200).json({ message: "Order updated" });
   } catch (error) {
     return res
       .status(500)
@@ -567,7 +623,6 @@ const updateActivityInProject = async (req, res) => {
     const { projectId, activityId } = req.params;
     const data = req.body;
 
-    // Feature flag: default OFF (planned-only)
     const useActuals = req.query.actuals === "1" || data?.use_actuals === true;
 
     const projectActivityDoc = await projectActivity.findOne({
@@ -576,6 +631,14 @@ const updateActivityInProject = async (req, res) => {
     if (!projectActivityDoc) {
       return res.status(404).json({ message: "Project not found" });
     }
+    // safest + fast
+    const proj = await projectModel.findById(projectId).select("p_id").lean();
+
+    if (!proj || !proj.p_id) {
+      return res.status(404).json({ message: "Project or p_id not found" });
+    }
+
+    const handover = await handoversheetModel.findOne({ p_id: proj.p_id });
 
     const activityIdObj = new mongoose.Types.ObjectId(activityId);
     const activity = projectActivityDoc.activities.find((act) =>
@@ -629,7 +692,7 @@ const updateActivityInProject = async (req, res) => {
           seen.add(key);
           return true;
         });
-      activity.successors = incomingSuccs; // will be mirrored anyway
+      activity.successors = incomingSuccs;
     }
 
     // Assign any other editable scalar fields (planned_* etc., resources, remarks…)
@@ -637,11 +700,6 @@ const updateActivityInProject = async (req, res) => {
       data || {};
     Object.assign(activity, rest);
 
-    /* -------- Actuals: set ONLY via status transitions --------
-       We intentionally ignore body.actual_start / body.actual_finish.
-       - When status -> "in progress": set actual_start (if empty)
-       - When status -> "completed":  set actual_finish (if empty)
-    ------------------------------------------------------------ */
     const prevStatus = activity.current_status?.status || "not started";
     const newStatus = data.status || prevStatus;
 
@@ -650,11 +708,47 @@ const updateActivityInProject = async (req, res) => {
       if (newStatus === "in progress" && !activity.actual_start) {
         activity.actual_start = now;
       }
+      // ... you already computed `now` and have `activity` (a subdoc in activities[])
+
       if (newStatus === "completed" && !activity.actual_finish) {
-        // If jumping straight to completed, set start too if missing
         if (!activity.actual_start) activity.actual_start = now;
         activity.actual_finish = now;
+
+        if (Array.isArray(activity.dependency) && activity.dependency.length) {
+          for (const dep of activity.dependency) {
+            if (!Array.isArray(dep.status_history)) dep.status_history = [];
+            dep.status_history.push({
+              status: "allowed",
+              remarks: "Auto-allowed on activity completion",
+              updatedAt: now,
+              user_id: req.user?.userId,
+            });
+          }
+          const tasksPayloads = activity.dependency.map((dep) => {
+            const isModuleTemplate = dep?.model === "moduleTemplates";
+            const title = isModuleTemplate
+              ? `${dep?.model_id_name}`
+              : `PR for ${dep?.model_id_name}`;
+
+            return {
+              title,
+              description: `Task generated for approved ${dep?.model_id_name}`,
+              project_id: [projectActivity.project_id],
+              userId: handover.submitted_by,
+              sourceKey: `PA:${dep.model_id}:${activity._id}:${dep._id}`,
+              source: {
+                type: "projectActivityDependency",
+                model_id: new mongoose.Types.ObjectId(dep.model_id),
+                activityId: new mongoose.Types.ObjectId(activity._id),
+                dependencyId: dep._id,
+              },
+            };
+          });
+          const tasks = await triggerTasksBulk(tasksPayloads);
+          console.log({ tasks });
+        }
       }
+
       // Update status history + current_status
       activity.status_history = activity.status_history || [];
       activity.status_history.push({
@@ -663,12 +757,6 @@ const updateActivityInProject = async (req, res) => {
         updated_by: data.updated_by,
         remarks: data.remarks || "",
       });
-      activity.current_status = {
-        status: newStatus,
-        updated_at: now,
-        updated_by: data.updated_by,
-        remarks: data.remarks || "",
-      };
     }
 
     /* -------- Planned fields & duration (legacy behavior) -------- */
@@ -982,4 +1070,5 @@ module.exports = {
   updateDependencyStatus,
   nameSearchActivityByProjectId,
   getRejectedOrNotAllowedDependencies,
+  reorderProjectActivities,
 };

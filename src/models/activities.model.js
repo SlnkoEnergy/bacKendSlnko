@@ -31,6 +31,9 @@ const activitySchema = new mongoose.Schema(
         updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       },
     ],
+    completion_formula: {
+      type: String,
+    },
     created_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

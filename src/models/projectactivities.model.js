@@ -1,3 +1,4 @@
+// models/projectActivities.model.js
 const mongoose = require("mongoose");
 const updateStatus = require("../utils/updatestatus.utils");
 
@@ -6,21 +7,10 @@ const LinkType = ["FS", "SS", "FF", "SF"];
 
 const projectActivitySchema = new mongoose.Schema(
   {
-    project_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "projectDetail",
-    },
-    name: {
-      type: String,
-    },
-    description: {
-      type: String,
-    },
-    template_code: {
-      type: String,
-      unique: true,
-      index: true,
-    },
+    project_id: { type: mongoose.Schema.Types.ObjectId, ref: "projectDetail" },
+    name: String,
+    description: String,
+    template_code: { type: String, unique: true, index: true },
     activities: [
       {
         activity_id: {
@@ -28,8 +18,9 @@ const projectActivitySchema = new mongoose.Schema(
           ref: "activities",
           required: true,
         },
+        order: Number,
         planned_start: Date,
-        planned_finish: Date,
+        planned_finish: Date,              
         actual_start: Date,
         actual_finish: Date,
         duration: Number,
@@ -91,9 +82,7 @@ const projectActivitySchema = new mongoose.Schema(
                     "not allowed",
                   ],
                 },
-                remarks: {
-                  type: String,
-                },
+                remarks: { type: String },
                 updatedAt: { type: Date, default: Date.now },
                 user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
               },
@@ -115,15 +104,10 @@ const projectActivitySchema = new mongoose.Schema(
             },
           },
         ],
-        resources: {
-          type: Number,
-        },
+        resources: { type: Number },
       },
     ],
-    status: {
-      type: String,
-      enum: ["template", "project"],
-    },
+    status: { type: String, enum: ["template", "project"] },
     created_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -137,15 +121,17 @@ projectActivitySchema.pre("save", function (next) {
   if (Array.isArray(this.activities)) {
     this.activities.forEach((activity) => {
       updateStatus(activity, "not started");
-    });
-  }
-  if (Array.isArray(this.activities)) {
-    this.activities.forEach((activity) => {
       if (Array.isArray(activity.dependency)) {
-        activity.dependency.forEach((dep) => {
-          updateStatus(dep, "not allowed");
-        });
+        activity.dependency.forEach((dep) => updateStatus(dep, "not allowed"));
       }
+    });
+
+    let idx = 0;
+    this.activities.forEach((a) => {
+      if (a.order === undefined || a.order === null || Number.isNaN(a.order)) {
+        a.order = idx;
+      }
+      idx++;
     });
   }
   next();
