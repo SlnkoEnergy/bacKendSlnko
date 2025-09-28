@@ -224,17 +224,19 @@ const gethandoversheetdata = async function (req, res) {
       });
     }
 
-    const statuses = statusFilter
-      ?.split(",")
-      .map((s) => s.trim())
-      .filter(Boolean) || [];
+    const statuses =
+      statusFilter
+        ?.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean) || [];
 
     const hasHandoverPending = statuses.includes("handoverpending");
     const hasScopePending = statuses.includes("scopepending");
     const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
 
     const actualStatuses = statuses.filter(
-      (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
+      (s) =>
+        s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
     );
 
     if (actualStatuses.length === 1) {
@@ -556,10 +558,10 @@ const updatestatus = async function (req, res) {
           project_status: "",
           updated_on: new Date().toISOString(),
           service: other_details.service || "",
-          submitted_by: req.user.userId|| "",
+          submitted_by: req.user.userId || "",
           billing_type: other_details.billing_type || "",
           project_completion_date: project_detail.project_completion_date || "",
-          ppa_expiry_date:project_detail.ppa_expiry_date || "",
+          ppa_expiry_date: project_detail.ppa_expiry_date || "",
           bd_commitment_date: project_detail.bd_commitment_date || "",
         });
 
@@ -606,16 +608,33 @@ const updatestatus = async function (req, res) {
 
         await posts.save();
 
-        const activities = await activitiesModel.find();
-        const activitiesArray = activities.map(act => ({
+        // Fetch only dependency fields we care about
+        const activities = await activitiesModel
+          .find({})
+          .select(
+            "dependency.model dependency.model_id dependency.model_id_name dependency.updatedAt dependency.updated_by"
+          )
+          .lean();
+
+        const activitiesArray = activities.map((act) => ({
           activity_id: act._id,
-        }))
-        
+          dependency: Array.isArray(act.dependency)
+            ? act.dependency.map((d) => ({
+                model: d.model,
+                model_id: d.model_id,
+                model_id_name: d.model_id_name,
+                updatedAt: d.updatedAt || new Date(),
+                updated_by: d.updated_by || req.user.userId,
+              }))
+            : [],
+        }));
+
         const projectActivityDoc = new projectactivitiesModel({
           project_id: projectData._id,
           activities: activitiesArray,
           created_by: req.user.userId,
-        })
+          status: "project",
+        });
 
         await projectActivityDoc.save();
 
