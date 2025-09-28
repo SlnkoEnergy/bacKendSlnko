@@ -33,21 +33,24 @@ const projectSchema = new mongoose.Schema(
       type: String,
     },
     project_kwp: { type: String },
+    dc_capacity:{type: String},
     distance: { type: String },
     tarrif: { type: String },
     land: { type: String },
     code: { type: String },
-    status_history: [{
-      status: {
-        type: String,
-        enum: ["to be started", "ongoing", "completed", "on hold", "delayed"],
+    status_history: [
+      {
+        status: {
+          type: String,
+          enum: ["to be started", "ongoing", "completed", "on hold", "delayed"],
+        },
+        remarks: {
+          type: String,
+        },
+        user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        updated_at: { type: Date, default: Date.now },
       },
-      remarks: {
-        type: String,
-      },
-      user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-      updated_at: { type: Date, default: Date.now },
-    }],
+    ],
     current_status: {
       status: {
         type: String,

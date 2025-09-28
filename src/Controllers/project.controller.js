@@ -1,6 +1,7 @@
 const projectModells = require("../models/project.model");
 const handoversheetModells = require("../models/handoversheet.model");
 const projectactivitiesModel = require("../models/projectactivities.model");
+const { default: mongoose } = require("mongoose");
 
 const createProject = async function (req, res) {
   try {
@@ -82,8 +83,8 @@ const createProject = async function (req, res) {
 
 //update project
 const updateProject = async function (req, res) {
-  const { _id } = req.params; // Extracting Project ID from the request params
-  const updateData = req.body; // Extracting data to update from the request body
+  const { _id } = req.params;
+  const updateData = req.body;
 
   // Validate input
   if (!_id) {
@@ -123,7 +124,7 @@ const updateProject = async function (req, res) {
 //delete by id
 const deleteProjectById = async function (req, res) {
   try {
-    const id = req.params._id; // Project ID from the request params
+    const id = req.params._id;
     const deletedProject = await projectModells.findByIdAndDelete(id);
 
     if (!deletedProject) {
@@ -160,6 +161,108 @@ const getallproject = async function (req, res) {
     res
       .status(500)
       .json({ msg: "Internal Server Error", error: error.message });
+  }
+};
+
+const getAllProjects = async (req, res) => {
+  try {
+    const {
+      page = "1",
+      limit = "10",
+      search = "",
+      status,
+      sort = "-createdAt",
+    } = req.query;
+
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (p - 1) * l;
+
+    const query = {};
+    if (status && status.toLowerCase() !== "all") {
+      query["current_status.status"] = status;
+    }
+
+    if (search && String(search).trim() !== "") {
+      const safe = String(search)
+        .trim()
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const rx = new RegExp(safe, "i");
+
+      const or = [{ code: rx }, { name: rx }, { description: rx }];
+
+      if (mongoose.isValidObjectId(search)) {
+        or.push({ _id: new mongoose.Types.ObjectId(search) });
+      }
+      query.$or = or;
+    }
+
+    // choose fields to return
+    const projection =
+      "code name customer state project_kwp dc_capacity current_status project_completion_date ppa_expiry_date bd_commitment_date remaining_days";
+
+    // run query + count in parallel
+    const [items, total] = await Promise.all([
+      projectModells
+        .find(query)
+        .select(projection)
+        .sort(sort)
+        .skip(skip)
+        .limit(l)
+        .lean(),
+      projectModells.countDocuments(query),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / l));
+
+    return res.status(200).json({
+      message: "Projects fetched successfully",
+      data: items,
+      pagination: {
+        page: p,
+        limit: l,
+        totalDocs: total,
+        totalPages,
+        hasPrevPage: p > 1,
+        hasNextPage: p < totalPages,
+      },
+      query: {
+        search: search || null,
+        status: status || null,
+        sort,
+      },
+    });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+const updateProjectStatus = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { status, remarks } = req.body;
+    const project = await projectModells.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        message: "Project Not Found",
+      });
+    }
+    project.status_history.push({
+      status,
+      remarks,
+      user_id: req.user.userId,
+    });
+    await project.save();
+    res.status(200).json({
+      message: "Project Status Updated Successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
 
@@ -232,23 +335,16 @@ const getProjectNameSearch = async (req, res) => {
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
 
-    // escape user text for safe regex
     const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const q = search.trim();
-    const regex =
-      q ? new RegExp(escapeRegex(q).replace(/\s+/g, ".*"), "i") : null;
+    const regex = q
+      ? new RegExp(escapeRegex(q).replace(/\s+/g, ".*"), "i")
+      : null;
 
-    // 🔁 search by name OR code (project id)
     const filter = q
       ? {
-        $or: [
-          { name: { $regex: regex } },
-          { code: { $regex: regex } }, // <- project id field
-          // If your collection uses other fields for the id, add them too:
-          // { project_id: { $regex: regex } },
-          // { p_id: { $regex: regex } },
-        ],
-      }
+          $or: [{ name: { $regex: regex } }, { code: { $regex: regex } }],
+        }
       : {};
 
     const projection = { _id: 1, name: 1, code: 1, site_address: 1 };
@@ -256,7 +352,11 @@ const getProjectNameSearch = async (req, res) => {
     const skip = (pageNum - 1) * pageSize;
 
     const [items, total] = await Promise.all([
-      projectModells.find(filter, projection).sort(sort).skip(skip).limit(pageSize),
+      projectModells
+        .find(filter, projection)
+        .sort(sort)
+        .skip(skip)
+        .limit(pageSize),
       projectModells.countDocuments(filter),
     ]);
 
@@ -286,22 +386,20 @@ const getProjectNameSearch = async (req, res) => {
 
 const getProjectStatusFilter = async (req, res) => {
   try {
-
     const match = {};
 
     const rows = await projectModells.aggregate([
-
       { $match: match },
       { $group: { _id: "$current_status.status", count: { $sum: 1 } } },
-    ])
+    ]);
 
     const data = {
       "to be started": 0,
-      "ongoing": 0,
-      "completed": 0,
+      ongoing: 0,
+      completed: 0,
       "on hold": 0,
-      "delayed": 0,
-    }
+      delayed: 0,
+    };
 
     for (const r of rows) {
       if (r._id && Object.prototype.hasOwnProperty.call(data, r._id)) {
@@ -309,15 +407,14 @@ const getProjectStatusFilter = async (req, res) => {
       }
     }
 
-    return res.status(200).json({ data })
+    return res.status(200).json({ data });
   } catch (error) {
-
     return res.status(500).json({
       message: "Internal Server error",
       error: error.message,
-    })
+    });
   }
-}
+};
 
 const getProjectDetail = async (req, res) => {
   try {
@@ -370,14 +467,28 @@ const getProjectDetail = async (req, res) => {
                         // actual_start present
                         {
                           $and: [
-                            { $not: { $in: [{ $type: "$$a.actual_start" }, ["missing", "null"]] } },
+                            {
+                              $not: {
+                                $in: [
+                                  { $type: "$$a.actual_start" },
+                                  ["missing", "null"],
+                                ],
+                              },
+                            },
                             { $ne: ["$$a.actual_start", ""] },
                           ],
                         },
                         // actual_finish present
                         {
                           $and: [
-                            { $not: { $in: [{ $type: "$$a.actual_finish" }, ["missing", "null"]] } },
+                            {
+                              $not: {
+                                $in: [
+                                  { $type: "$$a.actual_finish" },
+                                  ["missing", "null"],
+                                ],
+                              },
+                            },
                             { $ne: ["$$a.actual_finish", ""] },
                           ],
                         },
@@ -403,14 +514,26 @@ const getProjectDetail = async (req, res) => {
                   // actual_start is present (not missing/null/empty)
                   {
                     $and: [
-                      { $not: { $in: [{ $type: "$$a.actual_start" }, ["missing", "null"]] } },
+                      {
+                        $not: {
+                          $in: [
+                            { $type: "$$a.actual_start" },
+                            ["missing", "null"],
+                          ],
+                        },
+                      },
                       { $ne: ["$$a.actual_start", ""] },
                     ],
                   },
                   // actual_finish is NOT set (missing/null/empty)
                   {
                     $or: [
-                      { $in: [{ $type: "$$a.actual_finish" }, ["missing", "null"]] },
+                      {
+                        $in: [
+                          { $type: "$$a.actual_finish" },
+                          ["missing", "null"],
+                        ],
+                      },
                       { $eq: ["$$a.actual_finish", ""] },
                     ],
                   },
@@ -440,7 +563,9 @@ const getProjectDetail = async (req, res) => {
           from: "activities",
           let: { ids: "$_activityIds" },
           pipeline: [
-            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
+            {
+              $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
+            },
             { $project: { name: 1 } },
           ],
           as: "activityDocs",
@@ -511,7 +636,6 @@ const getProjectDetail = async (req, res) => {
           },
         },
       },
-
     ]);
 
     return res.json({ ok: true, count: data.length, data });
@@ -523,17 +647,14 @@ const getProjectDetail = async (req, res) => {
   }
 };
 
-
-
 // controller
 const getProjectStates = async (req, res) => {
   try {
-    const match = {}; // add filters if needed (e.g., { service: req.query.service })
+    const match = {};
 
     pipeline = [
-
       { $group: { _id: "$state", count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
+      { $sort: { count: -1 } },
     ];
 
     const states = await projectModells.aggregate(pipeline);
@@ -546,9 +667,8 @@ const getProjectStates = async (req, res) => {
     return res.status(200).json({
       total: totalCount,
       data: states,
-      message: "Fetch State Successfully"
-    })
-
+      message: "Fetch State Successfully",
+    });
   } catch (err) {
     console.error("getProjectStates error:", err);
     return res
@@ -557,11 +677,12 @@ const getProjectStates = async (req, res) => {
   }
 };
 
-
 module.exports = {
   createProject,
   updateProject,
   getallproject,
+  getAllProjects,
+  updateProjectStatus,
   deleteProjectById,
   getProjectById,
   getProjectbyPId,
@@ -569,5 +690,5 @@ module.exports = {
   getProjectNameSearch,
   getProjectStatusFilter,
   getProjectDetail,
-  getProjectStates
+  getProjectStates,
 };
