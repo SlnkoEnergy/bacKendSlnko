@@ -227,13 +227,13 @@ const editPO = async function (req, res) {
 
           const respData = response.data;
           // Common shapes you used in createExpense
-          url = Array.isArray(respData) && respData.length > 0
-            ? respData[0]
-            : respData.url ||
-            respData.fileUrl ||
-            (respData.data && respData.data.url) ||
-            null;
-
+          url =
+            Array.isArray(respData) && respData.length > 0
+              ? respData[0]
+              : respData.url ||
+                respData.fileUrl ||
+                (respData.data && respData.data.url) ||
+                null;
         } catch (e) {
           console.error("Upload failed for:", attachment_name, e?.message);
         }
@@ -252,7 +252,6 @@ const editPO = async function (req, res) {
     const updateOps = {
       $set: { ...payload },
     };
-
     if (currStatus === "approval_rejected") {
       updateOps.$push = {
         status_history: {
@@ -260,6 +259,11 @@ const editPO = async function (req, res) {
           remarks: "",
           user_id: req.user.userId,
         },
+      };
+      updateOps.$set.current_status = {
+        status: "approval_pending",
+        user_id: req.user.userId,
+        remarks: "",
       };
     }
 
@@ -430,9 +434,9 @@ const getPOByPONumber = async (req, res) => {
       // Fetch missing category names
       const catDocs = catIdSet.size
         ? await materialCategoryModells
-          .find({ _id: { $in: Array.from(catIdSet) } })
-          .select({ name: 1 })
-          .lean()
+            .find({ _id: { $in: Array.from(catIdSet) } })
+            .select({ name: 1 })
+            .lean()
         : [];
 
       const catMap = new Map(
@@ -461,7 +465,6 @@ const getPOByPONumber = async (req, res) => {
       const cat = it?.category;
       if (!cat) continue;
 
-
       if (
         typeof cat === "object" &&
         cat?._id &&
@@ -476,9 +479,9 @@ const getPOByPONumber = async (req, res) => {
     // Fetch missing category names
     const catDocs = catIdSet.size
       ? await materialCategoryModells
-        .find({ _id: { $in: Array.from(catIdSet) } })
-        .select({ name: 1 })
-        .lean()
+          .find({ _id: { $in: Array.from(catIdSet) } })
+          .select({ name: 1 })
+          .lean()
       : [];
 
     const catMap = new Map(
@@ -496,7 +499,7 @@ const getPOByPONumber = async (req, res) => {
         return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
       }
       return it;
-    })
+    });
     const inspectionCount = await inspectionModel.countDocuments({
       po_number: poDoc.po_number,
     });
@@ -748,7 +751,9 @@ const getPaginatedPo = async (req, res) => {
     const deliveryTo = parseCustomDate(req.query.deliveryTo);
 
     const itemSearch =
-      typeof req.query.itemSearch === "string" ? req.query.itemSearch.trim() : "";
+      typeof req.query.itemSearch === "string"
+        ? req.query.itemSearch.trim()
+        : "";
     const itemSearchRegex = itemSearch ? new RegExp(itemSearch, "i") : null;
 
     const andClauses = [];
@@ -786,29 +791,29 @@ const getPaginatedPo = async (req, res) => {
       // created date range uses dateObj (computed below)
       ...(createdFrom || createdTo
         ? {
-          dateObj: {
-            ...(createdFrom ? { $gte: createdFrom } : {}),
-            ...(createdTo ? { $lte: createdTo } : {}),
-          },
-        }
+            dateObj: {
+              ...(createdFrom ? { $gte: createdFrom } : {}),
+              ...(createdTo ? { $lte: createdTo } : {}),
+            },
+          }
         : {}),
 
       ...(etdFrom || etdTo
         ? {
-          etd: {
-            ...(etdFrom ? { $gte: etdFrom } : {}),
-            ...(etdTo ? { $lte: etdTo } : {}),
-          },
-        }
+            etd: {
+              ...(etdFrom ? { $gte: etdFrom } : {}),
+              ...(etdTo ? { $lte: etdTo } : {}),
+            },
+          }
         : {}),
 
       ...(deliveryFrom || deliveryTo
         ? {
-          delivery_date: {
-            ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
-            ...(deliveryTo ? { $lte: deliveryTo } : {}),
-          },
-        }
+            delivery_date: {
+              ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
+              ...(deliveryTo ? { $lte: deliveryTo } : {}),
+            },
+          }
         : {}),
     };
 
@@ -853,7 +858,9 @@ const getPaginatedPo = async (req, res) => {
       }
     }
 
-    const preMatch = andClauses.length ? { $and: andClauses, ...baseEq } : baseEq;
+    const preMatch = andClauses.length
+      ? { $and: andClauses, ...baseEq }
+      : baseEq;
 
     // Reusable first stage: safe compute dateObj from possibly empty/invalid strings
     const safeDateObjStage = {
@@ -895,10 +902,20 @@ const getPaginatedPo = async (req, res) => {
       {
         $addFields: {
           total_billed_num: {
-            $convert: { input: "$total_billed", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$total_billed",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           po_value_num: {
-            $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
         },
       },
@@ -933,28 +950,41 @@ const getPaginatedPo = async (req, res) => {
         },
       },
       ...(itemSearch
-        ? [{ $match: { resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } } } }]
+        ? [
+            {
+              $match: {
+                resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
+              },
+            },
+          ]
         : []),
-
-     
 
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
           po_value: {
-            $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
-          total_advance_paid:{
-            $convert:{ input: "$total_advance_paid", to:"double", onError:0, onNull:0 }
-          }
+          total_advance_paid: {
+            $convert: {
+              input: "$total_advance_paid",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
         },
       },
 
-       { $sort: { createdAt: -1, po_number: 1 } },
+      { $sort: { createdAt: -1, po_number: 1 } },
       { $skip: skip },
       { $limit: pageSize },
 
-      
       {
         $project: {
           _id: 1,
@@ -987,10 +1017,20 @@ const getPaginatedPo = async (req, res) => {
       {
         $addFields: {
           total_billed_num: {
-            $convert: { input: "$total_billed", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$total_billed",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           po_value_num: {
-            $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
         },
       },
@@ -1021,7 +1061,13 @@ const getPaginatedPo = async (req, res) => {
         },
       },
       ...(itemSearch
-        ? [{ $match: { resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } } } }]
+        ? [
+            {
+              $match: {
+                resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
+              },
+            },
+          ]
         : []),
       ...(status ? [{ $match: { partial_billing: status } }] : []),
       { $count: "total" },
@@ -1060,7 +1106,6 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
-
 
 const getExportPo = async (req, res) => {
   try {
@@ -1234,12 +1279,12 @@ const getExportPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-          .toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })
-          .replace(/ /g, "/")
+            .toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+            .replace(/ /g, "/")
         : "";
 
     const formatted = result.map((item) => ({
@@ -1292,17 +1337,19 @@ const updateSalesPO = async (req, res) => {
     //   return res.status(400).json({ message: "This PO is not a Sales PO" });
 
     const safePo = (s) =>
-      String(s || "").trim().replace(/[\/\s]+/g, "_");
+      String(s || "")
+        .trim()
+        .replace(/[\/\s]+/g, "_");
     const folderPath = `Account/PO/${safePo(po.po_number)}`;
     const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
 
     const files = req.file
       ? [req.file]
       : Array.isArray(req.files)
-      ? req.files
-      : req.files && typeof req.files === "object"
-      ? Object.values(req.files).flat()
-      : [];
+        ? req.files
+        : req.files && typeof req.files === "object"
+          ? Object.values(req.files).flat()
+          : [];
 
     const uploadedAttachments = [];
 
@@ -1350,7 +1397,8 @@ const updateSalesPO = async (req, res) => {
 
         const data = resp?.data || null;
         const url =
-          (Array.isArray(data) && (typeof data[0] === "string" ? data[0] : data[0]?.url)) ||
+          (Array.isArray(data) &&
+            (typeof data[0] === "string" ? data[0] : data[0]?.url)) ||
           data?.url ||
           data?.fileUrl ||
           data?.data?.url ||
@@ -1382,7 +1430,6 @@ const updateSalesPO = async (req, res) => {
 
     po.isSales = true;
 
- 
     po.markModified("sales_Details");
 
     await po.save();
@@ -1648,8 +1695,12 @@ const updateStatusPO = async (req, res) => {
 
     // Notification on Status Change to Approval Pending
 
-    if (status === "approval_pending" || status === "approval_done" || status === "approval_rejected" || status === "po_created") {
-
+    if (
+      status === "approval_pending" ||
+      status === "approval_done" ||
+      status === "approval_rejected" ||
+      status === "po_created"
+    ) {
       let text = "";
       if (status === "approval_pending") text = "Approval Pending";
       if (status === "approval_done") text = "Approval Done";
@@ -1657,40 +1708,46 @@ const updateStatusPO = async (req, res) => {
       if (status === "po_created") text = "Po Created";
 
       try {
-        const workflow = 'purchase-order';
+        const workflow = "purchase-order";
         let senders = [];
 
         if (status === "approval_pending" || status === "po_created") {
-          senders = await userModells.find({
-            department: "CAM"
-          }).select('_id').lean().then(users => users.map(u => u._id));
+          senders = await userModells
+            .find({
+              department: "CAM",
+            })
+            .select("_id")
+            .lean()
+            .then((users) => users.map((u) => u._id));
         }
         if (status === "approval_done" || status === "approval_rejected") {
-          senders = await userModells.find({
-            $or: [
-              {
-                department: "Projects",
-                role: "visitor"
-              },
+          senders = await userModells
+            .find({
+              $or: [
+                {
+                  department: "Projects",
+                  role: "visitor",
+                },
 
-              { department: "SCM" }
-            ]
-
-          }).select('_id').lean().then(users => users.map(u => u._id));
+                { department: "SCM" },
+              ],
+            })
+            .select("_id")
+            .lean()
+            .then((users) => users.map((u) => u._id));
         }
         const data = {
           Module: purchaseOrder.p_id,
           sendBy_Name: sendBy_Name.name,
           message: `Purchase Order is now marked as ${text}`,
-          link: `/add_po?mode=edit&_id=${purchaseOrder._id}`
-        }
+          link: `/add_po?mode=edit&_id=${purchaseOrder._id}`,
+        };
 
         setImmediate(() => {
-          getnovuNotification(workflow, senders, data).catch(err =>
+          getnovuNotification(workflow, senders, data).catch((err) =>
             console.error("Notification error:", err)
           );
         });
-
       } catch (error) {
         console.log(error);
       }
@@ -1698,7 +1755,7 @@ const updateStatusPO = async (req, res) => {
     res.status(201).json({
       message: "Purchase Order Status Updated and PR Item Statuses Evaluated",
       data: purchaseOrder,
-    })
+    });
   } catch (error) {
     return res.status(500).json({
       message: "Internal Server Error",
@@ -1706,7 +1763,6 @@ const updateStatusPO = async (req, res) => {
     });
   }
 };
-
 
 const getPoBasic = async (req, res) => {
   try {
@@ -1736,14 +1792,14 @@ const getPoBasic = async (req, res) => {
         },
         ...(search
           ? [
-            {
-              $or: [
-                { p_id: { $regex: searchRegex } },
-                { po_number: { $regex: searchRegex } },
-                { vendor: { $regex: searchRegex } },
-              ],
-            },
-          ]
+              {
+                $or: [
+                  { p_id: { $regex: searchRegex } },
+                  { po_number: { $regex: searchRegex } },
+                  { vendor: { $regex: searchRegex } },
+                ],
+              },
+            ]
           : []),
       ],
     };
@@ -1897,13 +1953,17 @@ const bulkMarkDelivered = async (req, res) => {
     const { ids = [], date, remarks = "Bulk marked as delivered" } = req.body;
 
     if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ message: "Provide a non-empty 'ids' array." });
+      return res
+        .status(400)
+        .json({ message: "Provide a non-empty 'ids' array." });
     }
 
     // Helper: get 'now' in IST unless a date is provided
     const nowIST = () => {
       const now = new Date();
-      return new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      return new Date(
+        now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+      );
     };
     const effectiveDate = date ? new Date(date) : nowIST();
 
@@ -1911,7 +1971,8 @@ const bulkMarkDelivered = async (req, res) => {
     const objectIds = [];
     const poNumbers = [];
     for (const x of ids) {
-      if (typeof x === "string" && mongoose.Types.ObjectId.isValid(x)) objectIds.push(new mongoose.Types.ObjectId(x));
+      if (typeof x === "string" && mongoose.Types.ObjectId.isValid(x))
+        objectIds.push(new mongoose.Types.ObjectId(x));
       else poNumbers.push(String(x));
     }
 
@@ -1927,7 +1988,11 @@ const bulkMarkDelivered = async (req, res) => {
       .lean();
 
     if (!foundPOs.length) {
-      return res.status(404).json({ message: "No matching Purchase Orders found for provided ids." });
+      return res
+        .status(404)
+        .json({
+          message: "No matching Purchase Orders found for provided ids.",
+        });
     }
 
     // Build bulk updates: set delivered + same-day dates + status history entry
@@ -1936,10 +2001,10 @@ const bulkMarkDelivered = async (req, res) => {
         filter: { _id: po._id },
         update: {
           $set: {
-            etd: effectiveDate,                  // Expected Time/Date (set to same day)
-            material_ready_date: effectiveDate,              // Material Received Date (same day)
-            dispatch_date: effectiveDate,             // Ready To Dispatch Date (same day)
-            delivery_date: effectiveDate,        // Delivery Date (same day)
+            etd: effectiveDate, // Expected Time/Date (set to same day)
+            material_ready_date: effectiveDate, // Material Received Date (same day)
+            dispatch_date: effectiveDate, // Ready To Dispatch Date (same day)
+            delivery_date: effectiveDate, // Delivery Date (same day)
             "current_status.status": "delivered",
             "current_status.updated_at": effectiveDate,
           },
@@ -1955,15 +2020,13 @@ const bulkMarkDelivered = async (req, res) => {
       },
     }));
 
-    const bulkResult = await purchaseOrderModells.bulkWrite(bulkOps, { ordered: false });
+    const bulkResult = await purchaseOrderModells.bulkWrite(bulkOps, {
+      ordered: false,
+    });
 
     // Recompute PR items for affected PRs (reuse your status aggregation logic)
     const prIds = Array.from(
-      new Set(
-        foundPOs
-          .map((p) => String(p.pr_id || ""))
-          .filter(Boolean)
-      )
+      new Set(foundPOs.map((p) => String(p.pr_id || "")).filter(Boolean))
     );
 
     // Helper: recompute statuses for a single PR (same logic style as updateStatusPO)
@@ -2014,7 +2077,11 @@ const bulkMarkDelivered = async (req, res) => {
         prUpdated: prIds.length,
         effectiveDate,
       },
-      data: foundPOs.map((p) => ({ _id: p._id, po_number: p.po_number, pr_id: p.pr_id })),
+      data: foundPOs.map((p) => ({
+        _id: p._id,
+        po_number: p.po_number,
+        pr_id: p.pr_id,
+      })),
     });
   } catch (error) {
     console.error("bulkMarkDelivered error:", error);

@@ -2,6 +2,7 @@ const projectModells = require("../models/project.model");
 const handoversheetModells = require("../models/handoversheet.model");
 const projectactivitiesModel = require("../models/projectactivities.model");
 const { default: mongoose } = require("mongoose");
+const postsModel = require("../models/posts.model");
 
 const createProject = async function (req, res) {
   try {
@@ -616,10 +617,7 @@ const getProjectDetail = async (req, res) => {
           project_code: "$projectDoc.code",
           project_name: "$projectDoc.name",
           state: "$projectDoc.state",
-
           project_completed: 1,
-
-          // keep only: activity_name, actual_start_date, dependency, successors, predecessors, activity_id
           activities: {
             $map: {
               input: { $ifNull: ["$activities", []] },
@@ -677,6 +675,219 @@ const getProjectStates = async (req, res) => {
   }
 };
 
+const getAllPosts = async (req, res) => {
+  try {
+    const LIMIT = 200;
+
+    const pipeline = [
+      {
+        $match: {
+          $or: [
+            { comments: { $exists: true, $ne: [] } },
+            { attachment: { $exists: true, $ne: [] } },
+          ],
+        },
+      },
+      {
+        $lookup: {
+          from: "projectdetails",
+          localField: "project_id",
+          foreignField: "_id",
+          as: "project",
+          pipeline: [{ $project: { _id: 1, code: 1, name: 1 } }],
+        },
+      },
+      { $set: { project: { $first: "$project" } } },
+
+      {
+        $facet: {
+          comments: [
+            { $unwind: "$comments" },
+            {
+              $lookup: {
+                from: "users",
+                localField: "comments.user_id",
+                foreignField: "_id",
+                as: "commentUser",
+                pipeline: [
+                  {
+                    $project: { _id: 1, name: 1, emp_id: 1, attachment_url: 1 },
+                  },
+                ],
+              },
+            },
+            { $set: { commentUser: { $first: "$commentUser" } } },
+            {
+              $project: {
+                _id: 0,
+                type_order: { $literal: 0 },
+                createdAt: "$comments.updatedAt",
+                project_id: "$project_id",
+                project_code: "$project.code",
+                project_name: "$project.name",
+                comment: "$comments.comment",
+                user_id: "$comments.user_id",
+                updatedAt: "$comments.updatedAt",
+                name: "$commentUser.name",
+                emp_id: "$commentUser.emp_id",
+                attachment_url: "$commentUser.attachment_url",
+              },
+            },
+            { $sort: { createdAt: -1 } },
+          ],
+          attachments: [
+            { $unwind: "$attachment" },
+            {
+              $project: {
+                _id: 0,
+                type_order: { $literal: 1 },
+                createdAt: "$attachment.updatedAt",
+                project_id: "$project_id",
+                project_code: "$project.code",
+                project_name: "$project.name",
+                comment: { $literal: "" },
+                user_id: { $literal: "" },
+                updatedAt: "$attachment.updatedAt",
+                name: { $literal: "" },
+                emp_id: { $literal: "" },
+                attachment_url: "$attachment.url",
+              },
+            },
+            { $sort: { createdAt: -1 } },
+          ],
+        },
+      },
+
+      { $project: { all: { $concatArrays: ["$comments", "$attachments"] } } },
+      { $unwind: "$all" },
+      { $replaceRoot: { newRoot: "$all" } },
+      { $sort: { type_order: 1, createdAt: -1 } },
+      { $limit: LIMIT },
+
+      // Add ago string + action
+      {
+        $set: {
+          updatedAtIso: "$updatedAt",
+          ago: {
+            $let: {
+              vars: {
+                yrs: {
+                  $dateDiff: {
+                    startDate: "$updatedAt",
+                    endDate: "$$NOW",
+                    unit: "year",
+                  },
+                },
+                mos: {
+                  $dateDiff: {
+                    startDate: "$updatedAt",
+                    endDate: "$$NOW",
+                    unit: "month",
+                  },
+                },
+                wks: {
+                  $dateDiff: {
+                    startDate: "$updatedAt",
+                    endDate: "$$NOW",
+                    unit: "week",
+                  },
+                },
+                dys: {
+                  $dateDiff: {
+                    startDate: "$updatedAt",
+                    endDate: "$$NOW",
+                    unit: "day",
+                  },
+                },
+                hrs: {
+                  $dateDiff: {
+                    startDate: "$updatedAt",
+                    endDate: "$$NOW",
+                    unit: "hour",
+                  },
+                },
+                mins: {
+                  $dateDiff: {
+                    startDate: "$updatedAt",
+                    endDate: "$$NOW",
+                    unit: "minute",
+                  },
+                },
+              },
+              in: {
+                $switch: {
+                  branches: [
+                    {
+                      case: { $gt: ["$$yrs", 0] },
+                      then: { $concat: [{ $toString: "$$yrs" }, " y ago"] },
+                    },
+                    {
+                      case: { $gt: ["$$mos", 0] },
+                      then: { $concat: [{ $toString: "$$mos" }, " mo ago"] },
+                    },
+                    {
+                      case: { $gt: ["$$wks", 0] },
+                      then: { $concat: [{ $toString: "$$wks" }, " w ago"] },
+                    },
+                    {
+                      case: { $gt: ["$$dys", 0] },
+                      then: { $concat: [{ $toString: "$$dys" }, " d ago"] },
+                    },
+                    {
+                      case: { $gt: ["$$hrs", 0] },
+                      then: { $concat: [{ $toString: "$$hrs" }, " h ago"] },
+                    },
+                    {
+                      case: { $gt: ["$$mins", 1] },
+                      then: { $concat: [{ $toString: "$$mins" }, " m ago"] },
+                    },
+                  ],
+                  default: "just now",
+                },
+              },
+            },
+          },
+          action: {
+            $cond: [{ $ne: ["$comment", ""] }, "commented on", "attached"],
+          },
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          project_id: 1,
+          project_code: 1,
+          project_name: 1,
+          comment: 1,
+          user_id: 1,
+          updatedAtIso: 1,
+          ago: 1,
+          action: 1,
+          name: 1,
+          emp_id: 1,
+          attachment_url: 1,
+        },
+      },
+    ];
+
+    const rows = await postsModel.aggregate(pipeline);
+
+    return res.status(200).json({
+      message: "Activity feed (flat) fetched successfully",
+      data: rows,
+    });
+  } catch (error) {
+    console.error("getAllPosts error:", error);
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error?.message || String(error),
+    });
+  }
+};
+
+
+
 module.exports = {
   createProject,
   updateProject,
@@ -691,4 +902,5 @@ module.exports = {
   getProjectStatusFilter,
   getProjectDetail,
   getProjectStates,
+  getAllPosts,
 };

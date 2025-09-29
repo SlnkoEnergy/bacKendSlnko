@@ -16,6 +16,7 @@ const {
   getRejectedOrNotAllowedDependencies,
   getActivitiesByProjectId,
   reorderProjectActivities,
+  getAllProjectActivityForView,
 } = require("../controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
@@ -82,7 +83,11 @@ router.get(
   jwtMW.authentication,
   getRejectedOrNotAllowedDependencies
 );
-router.patch('/reorder/:projectId', jwtMW.authentication, reorderProjectActivities);
-
+router.patch(
+  "/reorder/:projectId",
+  jwtMW.authentication,
+  reorderProjectActivities
+);
+router.get('/allprojectactivityforview', jwtMW.authentication, getAllProjectActivityForView);
 
 module.exports = router;

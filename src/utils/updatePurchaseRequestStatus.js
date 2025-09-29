@@ -1,6 +1,6 @@
 const statusPriority = {
   draft: 0,
-  ready_to_dispatch:1,
+  ready_to_dispatch: 1,
   out_for_delivery: 2,
   delivered: 3,
 };
@@ -9,7 +9,6 @@ const getLowerPriorityStatus = (statuses) => {
   const sorted = statuses.sort((a, b) => statusPriority[a] - statusPriority[b]);
   return sorted[0];
 };
-
 
 async function updatePurchaseRequestStatus(
   doc,
@@ -30,4 +29,4 @@ async function updatePurchaseRequestStatus(
   }
 }
 
-module.exports = {updatePurchaseRequestStatus, getLowerPriorityStatus};
+module.exports = { updatePurchaseRequestStatus, getLowerPriorityStatus };
