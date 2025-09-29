@@ -32,7 +32,6 @@ async function triggerTasksBulk(payloads, session = null) {
 
   const ops = payloads.map((p, i) => {
     const taskCode = `T/${deptCode}/${String(start + i).padStart(3, "0")}`;
-
     return {
       updateOne: {
         filter: { sourceKey: p.sourceKey },
@@ -43,7 +42,9 @@ async function triggerTasksBulk(payloads, session = null) {
             taskCode,
             title: p.title,
             description: p.description,
-            project_id: Array.isArray(p.project_id) ? p.project_id : [p.project_id],
+            project_id: Array.isArray(p.project_id)
+              ? p.project_id
+              : [p.project_id],
             type: "project",
             createdBy: p.userId,
             current_status: {

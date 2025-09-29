@@ -730,7 +730,7 @@ const updateActivityInProject = async (req, res) => {
             return {
               title,
               description: `Task generated for approved ${dep?.model_id_name}`,
-              project_id: projectActivity.project_id,
+              project_id: projectActivityDoc.project_id,
               userId: handover.submitted_by,
               sourceKey: `PA:${dep.model_id}:${activity._id}:${dep._id}`,
               source: {
@@ -1057,12 +1057,18 @@ const getAllProjectActivityForView = async (req, res) => {
 
     // Parse & normalize the optional window
     const hasRange = Boolean(baselineStart && baselineEnd);
-    let rangeStart = null, rangeEnd = null;
+    let rangeStart = null,
+      rangeEnd = null;
     if (hasRange) {
       rangeStart = new Date(baselineStart);
       rangeEnd = new Date(baselineEnd);
       if (isNaN(rangeStart) || isNaN(rangeEnd))
-        return res.status(400).json({ success: false, message: "Invalid baselineStart/baselineEnd" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Invalid baselineStart/baselineEnd",
+          });
       // inclusive day window
       rangeStart.setHours(0, 0, 0, 0);
       rangeEnd.setHours(23, 59, 59, 999);
@@ -1144,7 +1150,6 @@ const getAllProjectActivityForView = async (req, res) => {
     });
   }
 };
-
 
 module.exports = {
   createProjectActivity,

@@ -421,37 +421,54 @@ const gethandoversheetdata = async function (req, res) {
   }
 };
 
-//edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
   try {
-    let id = req.params._id;
-    let data = req.body;
-    if (!id) {
-      res.status(400).json({ message: "id not found" });
+    const id = req.params._id;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Valid _id param is required" });
     }
 
-    let edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(
+    const body = req.body || {};
+
+    const update = {
+      ...body,
+      submitted_by: req?.user?.userId, 
+    };
+
+    const handoverSheet = await hanoversheetmodells.findByIdAndUpdate(
       id,
-      data,
-      { new: true }
+      { $set: update },
+      { new: true, runValidators: true }
     );
 
-    if (typeof data.is_locked !== "undefined") {
+    if (!handoverSheet) {
+      return res.status(404).json({ message: "Handover sheet not found" });
+    }
+    const leadUpdate = {};
+    if (typeof body.is_locked !== "undefined") {
+      leadUpdate.handover_lock = body.is_locked;
+    }
+    if (typeof body.status_of_handoversheet !== "undefined") {
+      leadUpdate.status_of_handoversheet = body.status_of_handoversheet;
+    }
+
+    if (Object.keys(leadUpdate).length) {
       await bdleadsModells.findOneAndUpdate(
-        { id: edithandoversheet.id },
-        { handover_lock: data.is_locked },
-        { status_of_handoversheet: data.status_of_handoversheet }
+        { id: handoverSheet.id },      
+        { $set: leadUpdate },
+        { new: true }               
       );
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Status updated successfully",
-      handoverSheet: edithandoversheet,
+      handoverSheet,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
+
 
 // update status of handovesheet
 const updatestatus = async function (req, res) {
