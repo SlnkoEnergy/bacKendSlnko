@@ -264,6 +264,11 @@ const editPO = async function (req, res) {
           user_id: req.user.userId,
         },
       };
+       updateOps.$set.current_status = {
+        status: "approval_pending",
+        user_id: req.user.userId,
+        remarks: "",
+      };
     }
 
     if (uploadedAttachments.length) {
