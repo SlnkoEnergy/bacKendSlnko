@@ -617,10 +617,7 @@ const getProjectDetail = async (req, res) => {
           project_code: "$projectDoc.code",
           project_name: "$projectDoc.name",
           state: "$projectDoc.state",
-
           project_completed: 1,
-
-          // keep only: activity_name, actual_start_date, dependency, successors, predecessors, activity_id
           activities: {
             $map: {
               input: { $ifNull: ["$activities", []] },
@@ -888,6 +885,8 @@ const getAllPosts = async (req, res) => {
     });
   }
 };
+
+
 
 module.exports = {
   createProject,

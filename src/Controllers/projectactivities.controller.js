@@ -695,7 +695,6 @@ const updateActivityInProject = async (req, res) => {
       activity.successors = incomingSuccs;
     }
 
-    // Assign any other editable scalar fields (planned_* etc., resources, remarks…)
     const { predecessors, successors, actual_start, actual_finish, ...rest } =
       data || {};
     Object.assign(activity, rest);
@@ -708,8 +707,6 @@ const updateActivityInProject = async (req, res) => {
       if (newStatus === "in progress" && !activity.actual_start) {
         activity.actual_start = now;
       }
-      // ... you already computed `now` and have `activity` (a subdoc in activities[])
-
       if (newStatus === "completed" && !activity.actual_finish) {
         if (!activity.actual_start) activity.actual_start = now;
         activity.actual_finish = now;
@@ -733,7 +730,7 @@ const updateActivityInProject = async (req, res) => {
             return {
               title,
               description: `Task generated for approved ${dep?.model_id_name}`,
-              project_id: [projectActivity.project_id],
+              project_id: projectActivity.project_id,
               userId: handover.submitted_by,
               sourceKey: `PA:${dep.model_id}:${activity._id}:${dep._id}`,
               source: {
@@ -745,7 +742,6 @@ const updateActivityInProject = async (req, res) => {
             };
           });
           const tasks = await triggerTasksBulk(tasksPayloads);
-          console.log({ tasks });
         }
       }
 
@@ -1054,66 +1050,91 @@ const getRejectedOrNotAllowedDependencies = async (req, res) => {
   }
 };
 
+// GET /api/project-activities/view?baselineStart=2025-09-28&baselineEnd=2025-10-07
 const getAllProjectActivityForView = async (req, res) => {
   try {
-    // fetch all project activities
-    const paDocs = await projectActivity.find({})
-      .populate("project_id", "code name") 
+    const { baselineStart, baselineEnd } = req.query;
+
+    // Parse & normalize the optional window
+    const hasRange = Boolean(baselineStart && baselineEnd);
+    let rangeStart = null, rangeEnd = null;
+    if (hasRange) {
+      rangeStart = new Date(baselineStart);
+      rangeEnd = new Date(baselineEnd);
+      if (isNaN(rangeStart) || isNaN(rangeEnd))
+        return res.status(400).json({ success: false, message: "Invalid baselineStart/baselineEnd" });
+      // inclusive day window
+      rangeStart.setHours(0, 0, 0, 0);
+      rangeEnd.setHours(23, 59, 59, 999);
+    }
+
+    // Query only docs that have at least one overlapping baseline activity (if a range is provided)
+    const match = hasRange
+      ? {
+          activities: {
+            $elemMatch: {
+              planned_start: { $lte: rangeEnd },
+              planned_finish: { $gte: rangeStart },
+            },
+          },
+        }
+      : {};
+
+    const paDocs = await projectActivity
+      .find(match)
+      .populate("project_id", "code name")
       .populate("activities.activity_id", "name type")
       .lean();
 
-    const data = paDocs.map((doc) => {
-      const activities = (doc.activities || []).map((a) => {
-        const planned = {
-          start: a.planned_start || null,
-          finish: a.planned_finish || null,
-        };
-        const actual = {
-          start: a.actual_start || null,
-          finish: a.actual_finish || null,
-        };
+    const toYMD = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+    const overlaps = (a) =>
+      a?.planned_start &&
+      a?.planned_finish &&
+      new Date(a.planned_start) <= rangeEnd &&
+      new Date(a.planned_finish) >= rangeStart;
+
+    const data = paDocs
+      .map((doc) => {
+        // keep only activities that match the window when range supplied
+        const filteredActs = (doc.activities || []).filter((a) =>
+          hasRange ? overlaps(a) : true
+        );
+
+        const activities = filteredActs.map((a) => {
+          const plannedStart = a.planned_start || null;
+          const plannedFinish = a.planned_finish || null;
+          const actualStart = a.actual_start || null;
+          const actualFinish = a.actual_finish || null;
+
+          const statusRaw = a?.current_status?.status || null;
+          const isCompleted =
+            statusRaw === "completed" || Boolean(actualFinish);
+
+          return {
+            name: a.activity_id?.name || "",
+            baselineStart: toYMD(plannedStart),
+            baselineEnd: toYMD(plannedFinish),
+            start: actualStart ? toYMD(actualStart) : null,
+            end: actualFinish ? toYMD(actualFinish) : null,
+            status: isCompleted ? "done" : statusRaw || null,
+            ...(typeof a.percent_complete === "number"
+              ? { progress: Math.max(0, Math.min(1, a.percent_complete / 100)) }
+              : {}),
+            ...(isCompleted ? { completed: true } : {}),
+          };
+        });
+
+        if (hasRange && activities.length === 0) return null;
 
         return {
-          activity_id: a.activity_id?._id || a.activity_id || null,
-          activity_name: a.activity_id?.name || "",
-          planned,
-          actual,
-          bars: [
-            { key: "planned", start: planned.start, finish: planned.finish, label: "Planned" },
-            { key: "actual", start: actual.start, finish: actual.finish, label: "Actual" },
-          ],
-          percent_complete: a.percent_complete ?? null,
-          status: a.current_status?.status || null,
-          duration: a.duration ?? null,
-          resources: a.resources ?? null,
+          project_code: doc.project_id?.code || "",
+          project_name: doc.project_id?.name || "",
+          activities,
         };
-      });
+      })
+      .filter(Boolean);
 
-      // compute overall min/max
-      const allDates = [];
-      for (const act of activities) {
-        [act.planned.start, act.planned.finish, act.actual.start, act.actual.finish]
-          .filter(Boolean)
-          .forEach((d) => allDates.push(new Date(d).getTime()));
-      }
-
-      const date_min = allDates.length ? new Date(Math.min(...allDates)).toISOString() : null;
-      const date_max = allDates.length ? new Date(Math.max(...allDates)).toISOString() : null;
-
-      return {
-        project_id: doc.project_id?._id || null,
-        project_code: doc.project_id?.code || "",
-        project_name: doc.project_id?.name || "",
-        date_min,
-        date_max,
-        activities,
-      };
-    });
-
-    return res.status(200).json({
-      success: true,
-      data,
-    });
+    return res.status(200).json({ success: true, data });
   } catch (error) {
     console.error("getAllProjectActivityForView error:", error);
     return res.status(500).json({
@@ -1123,6 +1144,7 @@ const getAllProjectActivityForView = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   createProjectActivity,
@@ -1140,5 +1162,5 @@ module.exports = {
   nameSearchActivityByProjectId,
   getRejectedOrNotAllowedDependencies,
   reorderProjectActivities,
-  getAllProjectActivityForView
+  getAllProjectActivityForView,
 };

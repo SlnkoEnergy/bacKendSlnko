@@ -43,7 +43,7 @@ async function triggerTasksBulk(payloads, session = null) {
             taskCode,
             title: p.title,
             description: p.description,
-            project_id: p.project_id,
+            project_id: Array.isArray(p.project_id) ? p.project_id : [p.project_id],
             type: "project",
             createdBy: p.userId,
             current_status: {
