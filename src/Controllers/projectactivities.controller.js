@@ -1005,7 +1005,6 @@ const getRejectedOrNotAllowedDependencies = async (req, res) => {
     const pid = new mongoose.Types.ObjectId(projectId);
     const aid = new mongoose.Types.ObjectId(activityId);
 
-    // fetch only the matched embedded activity (positional projection)
     const doc = await projectActivity
       .findOne(
         { project_id: pid, "activities.activity_id": aid },
@@ -1055,6 +1054,76 @@ const getRejectedOrNotAllowedDependencies = async (req, res) => {
   }
 };
 
+const getAllProjectActivityForView = async (req, res) => {
+  try {
+    // fetch all project activities
+    const paDocs = await projectActivity.find({})
+      .populate("project_id", "code name") 
+      .populate("activities.activity_id", "name type")
+      .lean();
+
+    const data = paDocs.map((doc) => {
+      const activities = (doc.activities || []).map((a) => {
+        const planned = {
+          start: a.planned_start || null,
+          finish: a.planned_finish || null,
+        };
+        const actual = {
+          start: a.actual_start || null,
+          finish: a.actual_finish || null,
+        };
+
+        return {
+          activity_id: a.activity_id?._id || a.activity_id || null,
+          activity_name: a.activity_id?.name || "",
+          planned,
+          actual,
+          bars: [
+            { key: "planned", start: planned.start, finish: planned.finish, label: "Planned" },
+            { key: "actual", start: actual.start, finish: actual.finish, label: "Actual" },
+          ],
+          percent_complete: a.percent_complete ?? null,
+          status: a.current_status?.status || null,
+          duration: a.duration ?? null,
+          resources: a.resources ?? null,
+        };
+      });
+
+      // compute overall min/max
+      const allDates = [];
+      for (const act of activities) {
+        [act.planned.start, act.planned.finish, act.actual.start, act.actual.finish]
+          .filter(Boolean)
+          .forEach((d) => allDates.push(new Date(d).getTime()));
+      }
+
+      const date_min = allDates.length ? new Date(Math.min(...allDates)).toISOString() : null;
+      const date_max = allDates.length ? new Date(Math.max(...allDates)).toISOString() : null;
+
+      return {
+        project_id: doc.project_id?._id || null,
+        project_code: doc.project_id?.code || "",
+        project_name: doc.project_id?.name || "",
+        date_min,
+        date_max,
+        activities,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    console.error("getAllProjectActivityForView error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch project activities for view",
+      error: error?.message || String(error),
+    });
+  }
+};
+
 module.exports = {
   createProjectActivity,
   getAllProjectActivities,
@@ -1071,4 +1140,5 @@ module.exports = {
   nameSearchActivityByProjectId,
   getRejectedOrNotAllowedDependencies,
   reorderProjectActivities,
+  getAllProjectActivityForView
 };
