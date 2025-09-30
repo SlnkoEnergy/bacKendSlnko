@@ -56,6 +56,7 @@ const {
   getPoBasic,
   updateSalesPO,
   bulkMarkDelivered,
+  generatePurchaseOrderPdf,
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -106,7 +107,6 @@ const {
   exportBills,
   getAllBill,
   manipulatebill,
-  updateCategoryNameAtPo,
 } = require("../Controllers/bill.controller.js");
 const {
   subtractmoney,
@@ -200,6 +200,7 @@ const {
 } = require("../Controllers/modifiedexpensesheet.controller.js");
 
 const upload = require("../middlewares/multer.js");
+const { syncAllProjectBalances } = require("../Controllers/Accounting/ProjectBalance.js");
 
 
 // Admin router
@@ -433,6 +434,12 @@ router.put(
   jwtMW.authentication,
   bulkMarkDelivered
 );
+
+router.post(
+  "/purchase-generate-pdf",
+  jwtMW.authentication,
+  generatePurchaseOrderPdf
+)
 
 //Add vendor
 router.post(
@@ -895,11 +902,6 @@ router.put(
   migrateProjectToHandover
 );
 
-router.get(
-  "/all-list",
-  jwtMW.authentication,
-  listUsersNames
-)
 
 //module master
 router.post(
@@ -1006,14 +1008,8 @@ router.get(
 router.get(
   "/get-modified-expense-by-id",
   jwtMW.authentication,
-
   getModifiedExpenseById
 );
-router.get(
-  "/correct-po",
-  jwtMW.authentication,
-
-  updateCategoryNameAtPo
-);
+router.post("/project-balances/sync-all", syncAllProjectBalances);
 
 module.exports = router;

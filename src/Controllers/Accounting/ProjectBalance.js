@@ -1,5 +1,6 @@
 const projectModells = require("../../models/project.model");
 const { Parser } = require("json2csv");
+const projectBalanceModel = require("../../models/projectBalance.model");
 
 const projectBalance = async (req, res) => {
   const toNum = (expr) => ({
@@ -698,21 +699,53 @@ const exportProjectBalance = async (req, res) => {
     const matchConditions = [];
     if (search) {
       const regex = new RegExp(search, "i");
-      matchConditions.push({ $or: [{ name: regex }, { code: regex }, { customer: regex }] });
+      matchConditions.push({
+        $or: [{ name: regex }, { code: regex }, { customer: regex }],
+      });
     }
     if (selectedIds.length > 0) {
       matchConditions.push({ code: { $in: selectedIds } });
     }
 
     const matchStage =
-      matchConditions.length > 0 ? { $match: { $and: matchConditions } } : { $match: {} };
+      matchConditions.length > 0
+        ? { $match: { $and: matchConditions } }
+        : { $match: {} };
 
     const aggregationPipeline = [
       matchStage,
-      { $lookup: { from: "addmoneys", localField: "p_id", foreignField: "p_id", as: "credits" } },
-      { $lookup: { from: "subtract moneys", localField: "p_id", foreignField: "p_id", as: "debits" } },
-      { $lookup: { from: "adjustmentrequests", localField: "p_id", foreignField: "p_id", as: "adjustments" } },
-      { $lookup: { from: "purchaseorders", localField: "code", foreignField: "p_id", as: "pos" } },
+      {
+        $lookup: {
+          from: "addmoneys",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "credits",
+        },
+      },
+      {
+        $lookup: {
+          from: "subtract moneys",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "debits",
+        },
+      },
+      {
+        $lookup: {
+          from: "adjustmentrequests",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "adjustments",
+        },
+      },
+      {
+        $lookup: {
+          from: "purchaseorders",
+          localField: "code",
+          foreignField: "p_id",
+          as: "pos",
+        },
+      },
 
       {
         $lookup: {
@@ -735,7 +768,14 @@ const exportProjectBalance = async (req, res) => {
         },
       },
 
-      { $lookup: { from: "biildetails", localField: "pos.po_number", foreignField: "po_number", as: "bills" } },
+      {
+        $lookup: {
+          from: "biildetails",
+          localField: "pos.po_number",
+          foreignField: "po_number",
+          as: "bills",
+        },
+      },
 
       // Totals derived from POs
       {
@@ -774,7 +814,13 @@ const exportProjectBalance = async (req, res) => {
           },
         },
       },
-      { $addFields: { total_po_with_gst: { $round: [{ $add: ["$total_po_basic", "$gst_as_po_basic"] }, 2] } } },
+      {
+        $addFields: {
+          total_po_with_gst: {
+            $round: [{ $add: ["$total_po_basic", "$gst_as_po_basic"] }, 2],
+          },
+        },
+      },
 
       // Credit / Debit / Available
       {
@@ -813,12 +859,20 @@ const exportProjectBalance = async (req, res) => {
                 $subtract: [
                   {
                     $sum: {
-                      $map: { input: "$credits", as: "c", in: toNum("$$c.cr_amount") },
+                      $map: {
+                        input: "$credits",
+                        as: "c",
+                        in: toNum("$$c.cr_amount"),
+                      },
                     },
                   },
                   {
                     $sum: {
-                      $map: { input: "$debits", as: "d", in: toNum("$$d.amount_paid") },
+                      $map: {
+                        input: "$debits",
+                        as: "d",
+                        in: toNum("$$d.amount_paid"),
+                      },
                     },
                   },
                 ],
@@ -834,7 +888,11 @@ const exportProjectBalance = async (req, res) => {
                 $sum: {
                   $map: {
                     input: {
-                      $filter: { input: "$debits", as: "d", cond: { $eq: ["$$d.paid_for", "Customer Adjustment"] } },
+                      $filter: {
+                        input: "$debits",
+                        as: "d",
+                        cond: { $eq: ["$$d.paid_for", "Customer Adjustment"] },
+                      },
                     },
                     as: "d",
                     in: toNum("$$d.amount_paid"),
@@ -849,7 +907,13 @@ const exportProjectBalance = async (req, res) => {
               {
                 $sum: {
                   $map: {
-                    input: { $filter: { input: "$adjustments", as: "adj", cond: { $eq: ["$$adj.adj_type", "Add"] } } },
+                    input: {
+                      $filter: {
+                        input: "$adjustments",
+                        as: "adj",
+                        cond: { $eq: ["$$adj.adj_type", "Add"] },
+                      },
+                    },
                     as: "a",
                     in: { $abs: toNum("$$a.adj_amount") },
                   },
@@ -863,7 +927,13 @@ const exportProjectBalance = async (req, res) => {
               {
                 $sum: {
                   $map: {
-                    input: { $filter: { input: "$adjustments", as: "adj", cond: { $eq: ["$$adj.adj_type", "Subtract"] } } },
+                    input: {
+                      $filter: {
+                        input: "$adjustments",
+                        as: "adj",
+                        cond: { $eq: ["$$adj.adj_type", "Subtract"] },
+                      },
+                    },
                     as: "a",
                     in: { $abs: toNum("$$a.adj_amount") },
                   },
@@ -879,7 +949,13 @@ const exportProjectBalance = async (req, res) => {
                   {
                     $sum: {
                       $map: {
-                        input: { $filter: { input: "$adjustments", as: "adj", cond: { $eq: ["$$adj.adj_type", "Add"] } } },
+                        input: {
+                          $filter: {
+                            input: "$adjustments",
+                            as: "adj",
+                            cond: { $eq: ["$$adj.adj_type", "Add"] },
+                          },
+                        },
                         as: "a",
                         in: { $abs: toNum("$$a.adj_amount") },
                       },
@@ -888,7 +964,13 @@ const exportProjectBalance = async (req, res) => {
                   {
                     $sum: {
                       $map: {
-                        input: { $filter: { input: "$adjustments", as: "adj", cond: { $eq: ["$$adj.adj_type", "Subtract"] } } },
+                        input: {
+                          $filter: {
+                            input: "$adjustments",
+                            as: "adj",
+                            cond: { $eq: ["$$adj.adj_type", "Subtract"] },
+                          },
+                        },
                         as: "a",
                         in: { $abs: toNum("$$a.adj_amount") },
                       },
@@ -908,12 +990,20 @@ const exportProjectBalance = async (req, res) => {
                   { $gt: [{ $size: "$pays" }, 0] },
                   {
                     $sum: {
-                      $map: { input: "$pays", as: "p", in: toNum("$$p.amount_paid") },
+                      $map: {
+                        input: "$pays",
+                        as: "p",
+                        in: toNum("$$p.amount_paid"),
+                      },
                     },
                   },
                   {
                     $sum: {
-                      $map: { input: "$debits", as: "d", in: toNum("$$d.amount_paid") },
+                      $map: {
+                        input: "$debits",
+                        as: "d",
+                        in: toNum("$$d.amount_paid"),
+                      },
                     },
                   },
                 ],
@@ -935,7 +1025,11 @@ const exportProjectBalance = async (req, res) => {
             $round: [
               {
                 $sum: {
-                  $map: { input: "$bills", as: "bill", in: toNum("$$bill.bill_value") },
+                  $map: {
+                    input: "$bills",
+                    as: "bill",
+                    in: toNum("$$bill.bill_value"),
+                  },
                 },
               },
               2,
@@ -945,8 +1039,24 @@ const exportProjectBalance = async (req, res) => {
             $round: [
               {
                 $subtract: [
-                  { $sum: { $map: { input: "$pays", as: "pay", in: toNum("$$pay.amount_paid") } } },
-                  { $sum: { $map: { input: "$bills", as: "bill", in: toNum("$$bill.bill_value") } } },
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$pays",
+                        as: "pay",
+                        in: toNum("$$pay.amount_paid"),
+                      },
+                    },
+                  },
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$bills",
+                        as: "bill",
+                        in: toNum("$$bill.bill_value"),
+                      },
+                    },
+                  },
                 ],
               },
               2,
@@ -962,11 +1072,27 @@ const exportProjectBalance = async (req, res) => {
             $round: [
               {
                 $subtract: [
-                  { $sum: { $map: { input: "$credits", as: "c", in: toNum("$$c.cr_amount") } } },
                   {
                     $sum: {
                       $map: {
-                        input: { $filter: { input: "$debits", as: "d", cond: { $eq: ["$$d.paid_for", "Customer Adjustment"] } } },
+                        input: "$credits",
+                        as: "c",
+                        in: toNum("$$c.cr_amount"),
+                      },
+                    },
+                  },
+                  {
+                    $sum: {
+                      $map: {
+                        input: {
+                          $filter: {
+                            input: "$debits",
+                            as: "d",
+                            cond: {
+                              $eq: ["$$d.paid_for", "Customer Adjustment"],
+                            },
+                          },
+                        },
                         as: "d",
                         in: toNum("$$d.amount_paid"),
                       },
@@ -987,7 +1113,12 @@ const exportProjectBalance = async (req, res) => {
             $round: [
               {
                 $subtract: [
-                  { $subtract: [{ $ifNull: ["$netBalance", 0] }, { $ifNull: ["$totalAmountPaid", 0] }] },
+                  {
+                    $subtract: [
+                      { $ifNull: ["$netBalance", 0] },
+                      { $ifNull: ["$totalAmountPaid", 0] },
+                    ],
+                  },
                   { $ifNull: ["$totalAdjustment", 0] },
                 ],
               },
@@ -1005,13 +1136,37 @@ const exportProjectBalance = async (req, res) => {
                   {
                     $subtract: [
                       { $ifNull: ["$total_po_with_gst", 0] },
-                      { $sum: { $map: { input: "$bills", as: "bill", in: toNum("$$bill.bill_value") } } },
+                      {
+                        $sum: {
+                          $map: {
+                            input: "$bills",
+                            as: "bill",
+                            in: toNum("$$bill.bill_value"),
+                          },
+                        },
+                      },
                     ],
                   },
                   {
                     $subtract: [
-                      { $sum: { $map: { input: "$pays", as: "pay", in: toNum("$$pay.amount_paid") } } },
-                      { $sum: { $map: { input: "$bills", as: "bill", in: toNum("$$bill.bill_value") } } },
+                      {
+                        $sum: {
+                          $map: {
+                            input: "$pays",
+                            as: "pay",
+                            in: toNum("$$pay.amount_paid"),
+                          },
+                        },
+                      },
+                      {
+                        $sum: {
+                          $map: {
+                            input: "$bills",
+                            as: "bill",
+                            in: toNum("$$bill.bill_value"),
+                          },
+                        },
+                      },
                     ],
                   },
                 ],
@@ -1026,13 +1181,33 @@ const exportProjectBalance = async (req, res) => {
           tcs: {
             $cond: [
               { $gt: ["$netBalance", 5000000] },
-              { $round: [{ $multiply: [{ $subtract: ["$netBalance", 5000000] }, 0.001] }, 0] },
+              {
+                $round: [
+                  {
+                    $multiply: [{ $subtract: ["$netBalance", 5000000] }, 0.001],
+                  },
+                  0,
+                ],
+              },
               0,
             ],
           },
         },
       },
-      { $addFields: { balanceRequired: { $round: [{ $subtract: [{ $subtract: ["$balanceSlnko", "$balancePayable"] }, "$tcs"] }] } } },
+      {
+        $addFields: {
+          balanceRequired: {
+            $round: [
+              {
+                $subtract: [
+                  { $subtract: ["$balanceSlnko", "$balancePayable"] },
+                  "$tcs",
+                ],
+              },
+            ],
+          },
+        },
+      },
 
       // Capacity cleanup (kept as-is)
       {
@@ -1046,15 +1221,33 @@ const exportProjectBalance = async (req, res) => {
                     "$project_kwp",
                     {
                       $cond: [
-                        { $and: [{ $ne: ["$project_kwp", null] }, { $ne: ["$project_kwp", ""] }] },
-                        { $convert: { input: "$project_kwp", to: "double", onError: 0, onNull: 0 } },
+                        {
+                          $and: [
+                            { $ne: ["$project_kwp", null] },
+                            { $ne: ["$project_kwp", ""] },
+                          ],
+                        },
+                        {
+                          $convert: {
+                            input: "$project_kwp",
+                            to: "double",
+                            onError: 0,
+                            onNull: 0,
+                          },
+                        },
                         0,
                       ],
                     },
                   ],
                 },
               },
-              in: { $cond: [{ $gt: ["$$v", 100] }, { $divide: ["$$v", 1000] }, "$$v"] },
+              in: {
+                $cond: [
+                  { $gt: ["$$v", 100] },
+                  { $divide: ["$$v", 1000] },
+                  "$$v",
+                ],
+              },
             },
           },
         },
@@ -1119,5 +1312,628 @@ const exportProjectBalance = async (req, res) => {
   }
 };
 
+const toNum = (expr) => ({
+  $convert: {
+    input: {
+      $cond: [
+        { $eq: [{ $type: expr }, "string"] },
+        { $trim: { input: expr } },
+        expr,
+      ],
+    },
+    to: "double",
+    onError: 0,
+    onNull: 0,
+  },
+});
+const syncAllProjectBalances = async (req, res) => {
+  try {
+    const aggregationPipeline = [
+      // --- Lookups ---
+      {
+        $lookup: {
+          from: "addmoneys",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "credits",
+        },
+      },
+      {
+        $lookup: {
+          from: "subtract moneys",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "debits",
+        },
+      },
+      {
+        $lookup: {
+          from: "adjustmentrequests",
+          localField: "p_id",
+          foreignField: "p_id",
+          as: "adjustments",
+        },
+      },
+      {
+        $lookup: {
+          from: "purchaseorders",
+          localField: "code",
+          foreignField: "p_id",
+          as: "pos",
+        },
+      },
+      {
+        $lookup: {
+          from: "payrequests",
+          let: { poNumbers: "$pos.po_number" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $in: ["$po_number", "$$poNumbers"] },
+                    { $eq: ["$approved", "Approved"] },
+                    { $ne: ["$utr", null] },
+                    { $ne: ["$utr", ""] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "pays",
+        },
+      },
+      {
+        $lookup: {
+          from: "biildetails",
+          localField: "pos.po_number",
+          foreignField: "po_number",
+          as: "bills",
+        },
+      },
 
-module.exports = { projectBalance, exportProjectBalance };
+      // --- Totals ---
+      {
+        $addFields: {
+          totalCredit: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$credits",
+                    as: "c",
+                    in: toNum("$$c.cr_amount"),
+                  },
+                },
+              },
+              2,
+            ],
+          },
+          totalDebit: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$debits",
+                    as: "d",
+                    in: toNum("$$d.amount_paid"),
+                  },
+                },
+              },
+              2,
+            ],
+          },
+          availableAmount: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$credits",
+                        as: "c",
+                        in: toNum("$$c.cr_amount"),
+                      },
+                    },
+                  },
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$debits",
+                        as: "d",
+                        in: toNum("$$d.amount_paid"),
+                      },
+                    },
+                  },
+                ],
+              },
+              2,
+            ],
+          },
+          totalAdjustment: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $sum: {
+                      $map: {
+                        input: {
+                          $filter: {
+                            input: "$adjustments",
+                            as: "a",
+                            cond: { $eq: ["$$a.adj_type", "Add"] },
+                          },
+                        },
+                        as: "a",
+                        in: { $abs: toNum("$$a.adj_amount") },
+                      },
+                    },
+                  },
+                  {
+                    $sum: {
+                      $map: {
+                        input: {
+                          $filter: {
+                            input: "$adjustments",
+                            as: "a",
+                            cond: { $eq: ["$$a.adj_type", "Subtract"] },
+                          },
+                        },
+                        as: "a",
+                        in: { $abs: toNum("$$a.adj_amount") },
+                      },
+                    },
+                  },
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+      // --- Paid amount ---
+      {
+        $addFields: {
+          paidAmount: {
+            $cond: [
+              { $gt: [{ $size: "$pays" }, 0] },
+              {
+                $sum: {
+                  $map: {
+                    input: "$pays",
+                    as: "p",
+                    in: toNum("$$p.amount_paid"),
+                  },
+                },
+              },
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$debits",
+                        as: "d",
+                        cond: {
+                          $and: [
+                            { $eq: ["$$d.approved", "Approved"] },
+                            { $ne: ["$$d.utr", null] },
+                            { $ne: ["$$d.utr", ""] },
+                          ],
+                        },
+                      },
+                    },
+                    as: "d",
+                    in: toNum("$$d.amount_paid"),
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+
+      // --- balancePayable ---
+      {
+        $addFields: {
+          total_po_basic: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$pos",
+                    as: "po",
+                    in: {
+                      $convert: {
+                        input: { $trim: { input: "$$po.po_basic" } },
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                  },
+                },
+              },
+              2,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          gst_as_po_basic: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$pos",
+                    as: "d",
+                    in: {
+                      $convert: {
+                        input: { $trim: { input: "$$d.gst" } },
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                  },
+                },
+              },
+              2,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          total_po_with_gst: {
+            $round: [{ $add: ["$total_po_basic", "$gst_as_po_basic"] }, 2],
+          },
+        },
+      },
+
+      {
+        $addFields: {
+          totalAmountPaid: { $round: [{ $ifNull: ["$paidAmount", 0] }, 2] },
+          netAdvance: {
+            $round: [
+              {
+                $subtract: [
+                  { $ifNull: ["$paidAmount", 0] },
+                  { $ifNull: ["$totalBillValue", 0] },
+                ],
+              },
+              2,
+            ],
+          },
+          balancePayable: {
+            $round: [
+              {
+                $subtract: [
+                  { $ifNull: ["$total_po_with_gst", 0] },
+                  { $ifNull: ["$paidAmount", 0] },
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+      // --- balanceSlnko ---
+      {
+        $addFields: {
+          netBalance: {
+            $subtract: [
+              { $ifNull: ["$totalCredit", 0] },
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$debits",
+                        as: "d",
+                        cond: { $eq: ["$$d.paid_for", "Customer Adjustment"] },
+                      },
+                    },
+                    as: "d",
+                    in: toNum("$$d.amount_paid"),
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          balanceSlnko: {
+            $round: [
+              {
+                $subtract: [
+                  {
+                    $subtract: [
+                      { $ifNull: ["$netBalance", 0] },
+                      { $ifNull: ["$totalAmountPaid", 0] },
+                    ],
+                  },
+                  { $ifNull: ["$totalAdjustment", 0] },
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+      // --- TCS & balanceRequired ---
+      {
+        $addFields: {
+          tcs: {
+            $cond: {
+              if: { $gt: ["$netBalance", 5000000] },
+              then: {
+                $round: [
+                  {
+                    $multiply: [{ $subtract: ["$netBalance", 5000000] }, 0.001],
+                  },
+                  0,
+                ],
+              },
+              else: 0,
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          balanceRequired: {
+            $round: [
+              {
+                $subtract: [
+                  { $subtract: ["$balanceSlnko", "$balancePayable"] },
+                  "$tcs",
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+      // --- Projection ---
+      {
+        $project: {
+          _id: 1,
+          p_id: 1,
+          code: 1,
+          customer: 1,
+          name: 1,
+          p_group: 1,
+          totalCredit: 1,
+          totalDebit: 1,
+          availableAmount: 1,
+          totalAdjustment: 1,
+          totalAmountPaid: 1,
+          balanceSlnko: 1,
+          balancePayable: 1,
+          balanceRequired: 1,
+        },
+      },
+    ];
+
+    const results = await projectModells.aggregate(aggregationPipeline);
+
+    if (!results.length) {
+      return res
+        .status(404)
+        .json({ success: false, message: "No projects found" });
+    }
+
+    // Prepare bulk upserts
+    const ops = results.map((row) => ({
+      updateOne: {
+        filter: { p_id: row._id },
+        update: {
+          $set: {
+            p_id: row._id,
+            totalCredited: row.totalCredit,
+            totalDebited: row.totalDebit,
+            amountAvailable: row.availableAmount,
+            totalAdjustment: row.totalAdjustment,
+            balanceSlnko: row.balanceSlnko,
+            balancePayable: row.balancePayable,
+            balanceRequired: row.balanceRequired,
+          },
+        },
+        upsert: true,
+      },
+    }));
+
+    await projectBalanceModel.bulkWrite(ops, { ordered: false });
+
+    return res.status(200).json({
+      success: true,
+      message: "All project balances synced successfully",
+      count: results.length,
+    });
+  } catch (err) {
+    console.error("syncAllProjectBalances error:", err);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+const getProjectBalances = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    const search = (req.query.search || "").trim();
+
+    const searchMatch = search
+      ? {
+          $or: [
+            { "project.code": { $regex: search, $options: "i" } },
+            { "project.name": { $regex: search, $options: "i" } },
+            { "project.customer": { $regex: search, $options: "i" } },
+            { "project.p_group": { $regex: search, $options: "i" } },
+          ],
+        }
+      : {};
+
+    const base = [
+      {
+        $lookup: {
+          from: "projectdetails",
+          localField: "p_id",
+          foreignField: "_id",
+          as: "project",
+        },
+      },
+      { $unwind: "$project" },
+      {
+        $addFields: {
+          project_kwp: {
+            $let: {
+              vars: {
+                v: {
+                  $cond: [
+                    { $isNumber: "$project.project_kwp" },
+                    "$project.project_kwp",
+                    {
+                      $cond: [
+                        {
+                          $and: [
+                            { $ne: ["$project.project_kwp", null] },
+                            { $ne: ["$project.project_kwp", ""] },
+                          ],
+                        },
+                        {
+                          $convert: {
+                            input: "$project.project_kwp",
+                            to: "double",
+                            onError: 0,
+                            onNull: 0,
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+              },
+              in: {
+                $cond: [
+                  { $gt: ["$$v", 100] },
+                  { $divide: ["$$v", 1000] },
+                  "$$v",
+                ],
+              },
+            },
+          },
+        },
+      },
+      ...(search ? [{ $match: searchMatch }] : []),
+    ];
+
+    // Data (page) pipeline
+    const dataPipeline = [
+      ...base,
+      {
+        $project: {
+          _id: "$project._id",
+          p_id:"$project.p_id",
+          code: "$project.code",
+          name: "$project.name",
+          customer: "$project.customer",
+          p_group: { $ifNull: ["$project.p_group", "-"] },
+          project_kwp: 1,
+          totalCredited: { $ifNull: ["$totalCredited", 0] },
+          totalDebited: { $ifNull: ["$totalDebited", 0] },
+          totalAdjustment: { $ifNull: ["$totalAdjustment", 0] },
+          amountAvailable: { $ifNull: ["$amountAvailable", 0] },
+          balanceSlnko: { $ifNull: ["$balanceSlnko", 0] },
+          balancePayable: { $ifNull: ["$balancePayable", 0] },
+          balanceRequired: { $ifNull: ["$balanceRequired", 0] },
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      },
+      { $sort: { updatedAt: -1 } },
+      { $skip: (page - 1) * pageSize },
+      { $limit: pageSize },
+    ];
+
+    const countPipeline = [...base, { $count: "total" }];
+
+    const totalsPipeline = [
+      ...base,
+      {
+        $group: {
+          _id: null,
+          totalProjectMw: { $sum: { $ifNull: ["$project_kwp", 0] } },
+          totalCredited: { $sum: { $ifNull: ["$totalCredited", 0] } },
+          totalDebited: { $sum: { $ifNull: ["$totalDebited", 0] } },
+          totalAdjustment: { $sum: { $ifNull: ["$totalAdjustment", 0] } },
+          amountAvailable: { $sum: { $ifNull: ["$amountAvailable", 0] } },
+          balanceSlnko: { $sum: { $ifNull: ["$balanceSlnko", 0] } },
+          balancePayable: { $sum: { $ifNull: ["$balancePayable", 0] } },
+          balanceRequired: { $sum: { $ifNull: ["$balanceRequired", 0] } },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          totalProjectMw: { $round: ["$totalProjectMw", 2] },
+          totalCredited: { $round: ["$totalCredited", 2] },
+          totalDebited: { $round: ["$totalDebited", 2] },
+          totalAdjustment: { $round: ["$totalAdjustment", 2] },
+          amountAvailable: { $round: ["$amountAvailable", 2] },
+          balanceSlnko: { $round: ["$balanceSlnko", 2] },
+          balancePayable: { $round: ["$balancePayable", 2] },
+          balanceRequired: { $round: ["$balanceRequired", 2] },
+        },
+      },
+    ];
+
+    const [rows, countArr, totalsArr] = await Promise.all([
+      projectBalanceModel.aggregate(dataPipeline),
+      projectBalanceModel.aggregate(countPipeline),
+      projectBalanceModel.aggregate(totalsPipeline),
+    ]);
+
+    const total = countArr[0]?.total || 0;
+    const totals = totalsArr[0] || {
+      totalProjectMw: 0,
+      totalCredited: 0,
+      totalDebited: 0,
+      totalAdjustment: 0,
+      amountAvailable: 0,
+      balanceSlnko: 0,
+      balancePayable: 0,
+      balanceRequired: 0,
+    };
+
+    return res.status(200).json({
+      success: true,
+      meta: { total, page, pageSize, count: rows.length },
+      data: rows,
+      totals,
+    });
+  } catch (err) {
+    console.error("getProjectBalances error:", err);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: "Internal Server Error",
+        error: err.message,
+      });
+  }
+};
+
+module.exports = {
+  projectBalance,
+  exportProjectBalance,
+  syncAllProjectBalances,
+  getProjectBalances,
+};

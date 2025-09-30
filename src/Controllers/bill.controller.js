@@ -22,15 +22,15 @@ const addBill = catchAsyncError(async function (req, res, next) {
   } = req.body;
 
   const userId = req.user.userId;
-  
+
   const trim_bill_number = bill_number.trim();
 
-  const existingBill = await billModel.findOne({bill_number: trim_bill_number});
+  const existingBill = await billModel.findOne({ bill_number: trim_bill_number });
 
-  if(existingBill){
+  if (existingBill && existingBill.po_number === po_number) {
     return res.status(404).json({
-      message:"Bill Already Exists"
-    })
+      message: "Bill Already Exists For this Po Number"
+    });
   }
 
   const purchaseOrder = await purchaseOrderModel.findOne({ po_number });
@@ -339,7 +339,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
           // capture sort keys for stable re-sort after group
           { $addFields: { __sortAt: "$createdAt", __sortId: "$_id" } },
 
-          
+
           // re-sort deterministically
           { $sort: { __sortAt: -1, __sortId: -1 } },
 
@@ -368,16 +368,10 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
               },
             },
           },
-
-          // created_on alias for your output
           { $addFields: { created_on: "$createdAt" } },
-
-          // ✅ UNSET temp fields first (fixes your error)
           {
             $unset: ["__sortAt", "__sortId", "_cat", "_itemArr", "_approvedUser", "_wasItemArray", "items"],
           },
-
-          // final projection (pure inclusion)
           {
             $project: {
               _id: 1,
@@ -786,132 +780,6 @@ const manipulatebill = async (req, res) => {
   }
 };
 
-const updateCategoryNameAtPo = async (req, res) => {
-  try {
-
-    // const posNeedingUpdate = await purchaseOrderModel.find(
-    //   // {
-    //   //   item : {
-    //   //     $elemMatch : {
-    //   //       category : { $ne : null},
-    //   //       or : [
-    //   //         { category_name: { $exists : false}},
-    //   //         {category_name : null},
-    //   //         {category_name: ""},
-    //   //         {category_name : " "},
-    //   //       ],
-    //   //     },
-    //   //   },
-    //   // },
-    //   // { item: 1, po_number: 1}
-    // )
-    // .lean();
-
-    const pos = await purchaseOrderModel
-      .find(
-        { "item.category": { $exists: true, $ne: null } },
-        { item: 1, po_number: 1 } // minimal fields
-      )
-      .lean();
-
-    const catIdSet = new Set();
-    for (const po of pos) {
-      for (const it of po.item || []) {
-        if (!it?.category) continue;
-        const needs =
-          it.category_name == null || String(it.category_name).trim() === "";
-        if (needs) catIdSet.add(String(it.category));
-      }
-    }
-    const catIdStrs = [...catIdSet];
-    // console.log(catIdStrs);
-
-    const toObjectId = (v) => {
-      try {
-        return new mongoose.Types.ObjectId(v);
-      } catch {
-        return null;
-      }
-    };
-    const catObjectIds = catIdStrs.map(toObjectId).filter(Boolean);
-
-    const cats = await materialcategoryModel
-      .find({ _id: { $in: catObjectIds } })
-      .select({ name: 1 })
-      .lean();
-
-    const nameById = Object.fromEntries(
-      cats.map((c) => [String(c._id), c.name || ""])
-    );
-
-    const ops = [];
-    let itemsUpdated = 0;
-    for (const po of pos) {
-      let changed = false;
-
-      const newItems = (po.item || []).map((it) => {
-        if (!it?.category) return it;
-
-        
-        const needs =
-          it.category_name == null || String(it.category_name).trim() === "";
-
-        if (!needs) return it;
-
-        const resolved = nameById[String(it.category)] || null;
-        // console.log(resolved);
-        if (!resolved) return it; // skip if category not found
-
-        itemsUpdated++;
-        changed = true;
-        return { ...it, category_name: resolved };
-      });
-
-      if (changed) {
-        ops.push({
-          updateOne: {
-            filter: { _id: po._id },
-            update: {
-              $set: {
-                item: newItems,
-                updated_on: new Date().toISOString(),
-              },
-            },
-          },
-        });
-      }
-    }
-
-    if (!ops.length) {
-      return res.json({
-        ok: true,
-        processed: pos.length,
-        orders_updated: 0,
-        itemsUpdated,
-        message: "Nothing to update (no matching category names found).",
-      });
-    }
-
-    // 6) Execute bulk write
-    const bulkRes = await purchaseOrderModel.bulkWrite(ops, { ordered: false });
-
-    return res.json({
-      ok: true,
-      processed: pos.length,
-      orders_updated:
-        bulkRes.modifiedCount ??
-        bulkRes.nModified ??
-        (bulkRes.result && bulkRes.result.nModified) ??
-        ops.length,
-      items_updated: itemsUpdated,
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message, error: "internal error" })
-  }
-}
-
-
 module.exports = {
   addBill,
   getBill,
@@ -923,5 +791,4 @@ module.exports = {
   exportBills,
   getAllBill,
   manipulatebill,
-  updateCategoryNameAtPo,
 };
