@@ -2,6 +2,8 @@ const { default: mongoose } = require("mongoose");
 const Activity = require("../models/activities.model");
 const ProjectActivity = require("../models/projectactivities.model");
 
+const LINK_TYPES = new Set(["FS", "SS", "FF", "SF"]);
+
 const createActivity = async (req, res) => {
   try {
     const data = req.body;
@@ -117,25 +119,44 @@ const updateDependency = async (req, res) => {
     const { global, projectId } = req.query;
     const isGlobal = String(global).toLowerCase() === "true";
 
+    // Parse dependencies (existing behavior)
     const dependencies = Array.isArray(req.body.dependencies)
       ? req.body.dependencies
       : req.body.model && req.body.model_id
-        ? [
-            {
-              model: req.body.model,
-              model_id: req.body.model_id,
-              model_id_name: req.body.model_id_name,
-            },
-          ]
-        : [];
+      ? [
+          {
+            model: req.body.model,
+            model_id: req.body.model_id,
+            model_id_name: req.body.model_id_name,
+          },
+        ]
+      : [];
+
+    // Parse predecessors (NEW)
+    const predecessors = Array.isArray(req.body.predecessors)
+      ? req.body.predecessors
+      : req.body.predecessor_activity_id
+      ? [
+          {
+            activity_id: req.body.predecessor_activity_id,
+            type: req.body.predecessor_type, // "FS" | "SS" | "FF" | "SF"
+            lag: req.body.predecessor_lag,   // number-ish
+          },
+        ]
+      : [];
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid :id" });
     }
-    if (!dependencies.length) {
-      return res.status(400).json({ message: "No dependencies provided" });
+
+    // Allow updating if EITHER dependencies or predecessors present
+    if (!dependencies.length && !predecessors.length) {
+      return res.status(400).json({
+        message: "Nothing to update. Provide dependencies or predecessors.",
+      });
     }
 
+    // Validate dependencies (existing behavior)
     for (const d of dependencies) {
       if (!d?.model || !d?.model_id) {
         return res
@@ -149,6 +170,19 @@ const updateDependency = async (req, res) => {
       }
     }
 
+    // Validate & normalize predecessors (NEW)
+    for (const p of predecessors) {
+      if (!p?.activity_id || !mongoose.isValidObjectId(p.activity_id)) {
+        return res.status(400).json({
+          message: `Invalid predecessor activity_id: ${p?.activity_id}`,
+        });
+      }
+      const t = String(p.type || "FS").toUpperCase();
+      p.type = LINK_TYPES.has(t) ? t : "FS";
+      const lagNum = Number(p.lag);
+      p.lag = Number.isFinite(lagNum) ? lagNum : 0;
+    }
+
     const actor =
       req.user?.userId && mongoose.isValidObjectId(req.user.userId)
         ? new mongoose.Types.ObjectId(req.user.userId)
@@ -160,7 +194,8 @@ const updateDependency = async (req, res) => {
         return res.status(404).json({ message: "Activity not found" });
       }
 
-      let added = 0;
+      // ---- Dependencies (existing behavior)
+      let depsAdded = 0;
       for (const dep of dependencies) {
         const exists = activity.dependency?.some(
           (d) =>
@@ -174,24 +209,71 @@ const updateDependency = async (req, res) => {
             updated_by: actor,
             updatedAt: new Date(),
           });
-          added++;
+          depsAdded++;
         }
       }
 
-      if (added === 0) {
-        await activity.save();
-        return res.status(200).json({
-          message: "No new dependencies to add (duplicates ignored)",
-          activity,
-        });
+      // ---- Predecessors (NEW)
+      let predsAdded = 0;
+      let predsUpdated = 0;
+
+      if (predecessors.length) {
+        if (!Array.isArray(activity.predecessors)) activity.predecessors = [];
+        for (const pred of predecessors) {
+          const idx = activity.predecessors.findIndex(
+            (x) => String(x.activity_id) === String(pred.activity_id)
+          );
+          if (idx === -1) {
+            activity.predecessors.push({
+              activity_id: pred.activity_id,
+              type: pred.type,
+              lag: pred.lag,
+            });
+            predsAdded++;
+          } else {
+            const cur = activity.predecessors[idx];
+            let changed = false;
+            if (cur.type !== pred.type) {
+              cur.type = pred.type;
+              changed = true;
+            }
+            if (Number(cur.lag) !== Number(pred.lag)) {
+              cur.lag = pred.lag;
+              changed = true;
+            }
+            if (changed) predsUpdated++;
+          }
+        }
       }
 
       await activity.save();
+
+      const parts = [];
+      if (dependencies.length) {
+        parts.push(
+          depsAdded > 0
+            ? `Dependencies added successfully (${depsAdded})`
+            : "No new dependencies to add (duplicates ignored)"
+        );
+      }
+      if (predecessors.length) {
+        parts.push(
+          `Predecessors processed (added: ${predsAdded}, updated: ${predsUpdated})`
+        );
+      }
+
       return res.status(200).json({
-        message: `Dependencies added successfully (${added})`,
+        message: parts.join("; "),
         activity,
       });
     } else {
+      // Predecessors are GLOBAL-ONLY
+      if (predecessors.length) {
+        return res.status(400).json({
+          message: "Predecessors can only be updated in global scope.",
+        });
+      }
+
       const project_id = projectId;
       if (!project_id || !mongoose.isValidObjectId(project_id)) {
         return res.status(400).json({
@@ -254,6 +336,7 @@ const updateDependency = async (req, res) => {
     });
   }
 };
+
 
 const deleteDependency = async (req, res) => {
   try {

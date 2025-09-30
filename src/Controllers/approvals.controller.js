@@ -124,6 +124,101 @@ const createApproval = async (req, res) => {
   }
 };
 
+const getApprovalFormById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ message: "Invalid approval id" });
+    }
+
+    // 1) Core approval (by Approval _id)
+    const approval = await Approval.findById(id)
+      .select("_id approval_code model_name model_id activity_id dependency_id created_by createdAt")
+      .lean();
+    if (!approval) {
+      return res.status(404).json({ message: "Approval not found" });
+    }
+
+    // 2) model_id → projectactivities (populate activity ref so we can read its name)
+    const pa = await projectactivitiesModel
+      .findById(approval.model_id)
+      .select("_id project_id activities")
+      .populate("activities.activity_id", "name description") // <-- activity_name comes from here
+      .lean();
+
+    if (!pa) {
+      return res.status(404).json({ message: "Linked project activities not found" });
+    }
+
+    // 3) projectactivities.project_id → projects (fetch project name & code)
+    const project = await Project.findById(pa.project_id)
+      .select("_id code name")
+      .lean();
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    // 4) Resolve activity_name
+    const act = (pa.activities || []).find(a => String(a._id) === String(approval.activity_id));
+    const activity_name =
+      act?.activity_id?.name || act?.name || "Untitled Activity";
+
+    // 5) Resolve dependency_name
+    let dependency_name = null;
+    if (act && Array.isArray(act.dependency)) {
+      const dep = act.dependency.find(d => String(d._id) === String(approval.dependency_id));
+      if (dep) {
+        // Preferred: resolve via referenced model/model_id (e.g., moduleTemplates)
+        if (dep.model && dep.model_id) {
+          try {
+            const display = await resolveRefDisplay(dep.model, dep.model_id);
+            dependency_name = display || dep.name || null;
+          } catch {
+            dependency_name = dep.name || null;
+          }
+        } else {
+          dependency_name = dep.name || null;
+        }
+      }
+    }
+
+    // 6) Minimal, form-shaped response
+    return res.status(200).json({
+      message: "Prefill data fetched successfully",
+      form: {
+        // Project Id & Name come from approval.model_id → pa.project_id → Project
+        project: { _id: project._id, code: project.code, name: project.name },
+        project_activities_id: pa._id,
+
+        // Selected items (names explicitly provided)
+        selected_activity: {
+          _id: approval.activity_id,
+          name: activity_name,
+        },
+        selected_dependency: {
+          _id: approval.dependency_id,
+          name: dependency_name, // resolved human-readable name
+        },
+      },
+      // Keep the core approval fields if needed by the UI
+      approval: {
+        _id: approval._id,
+        approval_code: approval.approval_code,
+        model_name: approval.model_name,
+        model_id: approval.model_id,
+        activity_id: approval.activity_id,
+        dependency_id: approval.dependency_id,
+        created_by: approval.created_by,
+        createdAt: approval.createdAt,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+
+
 const getUniqueApprovalModels = async (req, res) => {
   try {
     const userObjectId = new mongoose.Types.ObjectId(req.user.userId);
@@ -1201,6 +1296,7 @@ const getAllReviews = async (req, res) => {
 
 module.exports = {
   createApproval,
+  getApprovalFormById,
   getUniqueApprovalModels,
   updateStatus,
   getAllRequests,

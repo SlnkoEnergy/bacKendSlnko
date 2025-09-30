@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+const LinkType = ["FS", "SS", "FF", "SF"];
 const activitySchema = new mongoose.Schema(
   {
     name: {
@@ -29,6 +29,16 @@ const activitySchema = new mongoose.Schema(
         model_id_name: { type: String },
         updatedAt: { type: Date, default: Date.now },
         updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      },
+    ],
+    predecessors: [
+      {
+        activity_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "activities",
+        },
+        type: { type: String, enum: LinkType, default: "FS" },
+        lag: { type: Number, default: 0 },
       },
     ],
     completion_formula: {

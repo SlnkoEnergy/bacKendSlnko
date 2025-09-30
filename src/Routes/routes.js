@@ -23,6 +23,7 @@ const {
   updateProjectStatus,
   getActivityLineForProject,
   getProjectsDropdown,
+  getAllPosts,
 } = require("../Controllers/project.controller.js");
 const {
   userRegister,
@@ -40,7 +41,6 @@ const {
   finalizeBdLogin,
   backfillProfileFields,
 } = require("../Controllers/userController.js");
-
 const {
   addPo,
   editPO,
@@ -156,7 +156,6 @@ const {
   getCommBDRateByOfferId,
 } = require("../Controllers/coomBDRateController.js");
 
-
 const {
   addmoduleMaster,
   getmoduleMasterdata,
@@ -187,7 +186,6 @@ const {
 const upload = require("../middlewares/multer.js");
 const { getProjectActivitybyProjectId } = require("../controllers/projectactivities.controller.js");
 
-
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
 router.post("/logiN-IT", login);
@@ -214,11 +212,7 @@ router.get(
 
   getSingleUser
 );
-router.get(
-  "/all-user",
-  jwtMW.authentication,
-  getAllUserByDepartment
-);
+router.get("/all-user", jwtMW.authentication, getAllUserByDepartment);
 
 router.put(
   "/edit-user/:_id",
@@ -235,55 +229,31 @@ router.get(
   getAllDepartment
 );
 
-router.post(
-  "/backfill",
-  jwtMW.authentication,
-  backfillProfileFields
-);
+router.post("/backfill", jwtMW.authentication, backfillProfileFields);
 
 //project router
-router.post(
-  "/add-new-projecT-IT",
-  jwtMW.authentication,
-  createProject
-);
+router.post("/add-new-projecT-IT", jwtMW.authentication, createProject);
+router.put("/update-projecT-IT/:_id", jwtMW.authentication, updateProject);
+router.get("/get-all-projecT-IT", jwtMW.authentication, getallproject);
+router.get("/projects", jwtMW.authentication, getAllProjects);
 router.put(
-  "/update-projecT-IT/:_id",
+  "/:projectId/updateProjectStatus",
   jwtMW.authentication,
-  updateProject
+  updateProjectStatus
 );
-router.get(
-  "/get-all-projecT-IT",
-  jwtMW.authentication,
-  getallproject
-);
-router.get('/projects', jwtMW.authentication, getAllProjects);
-router.put('/:projectId/updateProjectStatus', jwtMW.authentication, updateProjectStatus);
-router.delete(
-  "/delete-by-iD-IT/:_id",
-  jwtMW.authentication,
-  deleteProjectById
-);
-router.get(
-  "/get-project-iD-IT/:_id",
-  jwtMW.authentication,
-  getProjectById
-);
-router.get(
-  "/project",
-  jwtMW.authentication,
-  getProjectbyPId
-);
-router.get(
-  "/project-dropdown",
-  jwtMW.authentication,
-  getProjectDropwdown
-);
+router.delete("/delete-by-iD-IT/:_id", jwtMW.authentication, deleteProjectById);
+router.get("/get-project-iD-IT/:_id", jwtMW.authentication, getProjectById);
+router.get("/project", jwtMW.authentication, getProjectbyPId);
+router.get("/project-dropdown", jwtMW.authentication, getProjectDropwdown);
 router.get("/project-search", jwtMW.authentication, getProjectNameSearch);
 
-router.get("/project-status-filter", jwtMW.authentication, getProjectStatusFilter);
+router.get(
+  "/project-status-filter",
+  jwtMW.authentication,
+  getProjectStatusFilter
+);
 
-router.get("/project-detail", jwtMW.authentication , getProjectDetail)
+router.get("/project-detail", jwtMW.authentication, getProjectDetail);
 
 router.get("/project-activity-chart/:projectId", jwtMW.authentication, getActivityLineForProject);
 
@@ -291,6 +261,7 @@ router.get("/project-dropdown-detail", jwtMW.authentication, getProjectsDropdown
 
 
 router.get("/project-state-detail", jwtMW.authentication, getProjectStates)
+router.get("/allposts", jwtMW.authentication, getAllPosts);
 
 //addMoney APi
 router.post(
@@ -314,131 +285,41 @@ router.delete(
 );
 
 //purchase order controller
-router.post(
-  "/Add-purchase-ordeR-IT",
-  jwtMW.authentication,
-  addPo
-);
-router.put(
-  "/edit-pO-IT/:_id",
-  jwtMW.authentication,
-  upload,
-  editPO
-);
+router.post("/Add-purchase-ordeR-IT", jwtMW.authentication, addPo);
+router.put("/edit-pO-IT/:_id", jwtMW.authentication, upload, editPO);
 router.get("/get-pO-IT/:_id", jwtMW.authentication, getPO);
-router.get(
-  "/get-all-pO-IT",
-  jwtMW.authentication,
-  getallpo
-);
-router.get(
-  "/get-paginated-po",
-  jwtMW.authentication,
-  getPaginatedPo
-);
-router.get(
-  "/get-po-basic",
-  jwtMW.authentication,
-  getPoBasic
-);
-router.get(
-  "/get-export-po",
-  jwtMW.authentication,
-  getExportPo
-);
-router.post(
-  "/export-to-csv",
-  jwtMW.authentication,
-  exportCSV
-);
-router.put(
-  "/remove-to-recovery/:_id",
-  jwtMW.authentication,
-  moverecovery
-);
-router.get(
-  "/get-po-by-po_number",
-  jwtMW.authentication,
-  getPOByPONumber
-);
-router.get(
-  "/get-po-by-id",
-  jwtMW.authentication,
-  getPOById
-);
-router.get(
-  "/get-po-detail",
-  jwtMW.authentication,
-  getallpodetail
-);
-router.delete(
-  "/delete-pO-IT/:_id",
-  jwtMW.authentication,
-  deletePO
-);
-router.get(
-  "/get-po-historY-IT",
-  jwtMW.authentication,
-  getpohistory
-);
-router.get(
-  "/get-po-history",
-  jwtMW.authentication,
-  getPOHistoryById
-);
-router.put(
-  "/updateStatusPO",
-  jwtMW.authentication,
-  updateStatusPO
-);
+router.get("/get-all-pO-IT", jwtMW.authentication, getallpo);
+router.get("/get-paginated-po", jwtMW.authentication, getPaginatedPo);
+router.get("/get-po-basic", jwtMW.authentication, getPoBasic);
+router.get("/get-export-po", jwtMW.authentication, getExportPo);
+router.post("/export-to-csv", jwtMW.authentication, exportCSV);
+router.put("/remove-to-recovery/:_id", jwtMW.authentication, moverecovery);
+router.get("/get-po-by-po_number", jwtMW.authentication, getPOByPONumber);
+router.get("/get-po-by-id", jwtMW.authentication, getPOById);
+router.get("/get-po-detail", jwtMW.authentication, getallpodetail);
+router.delete("/delete-pO-IT/:_id", jwtMW.authentication, deletePO);
+router.get("/get-po-historY-IT", jwtMW.authentication, getpohistory);
+router.get("/get-po-history", jwtMW.authentication, getPOHistoryById);
+router.put("/updateStatusPO", jwtMW.authentication, updateStatusPO);
 
 router.put(
   "/:id/updateEtdOrDelivery",
   jwtMW.authentication,
   updateEditandDeliveryDate
 );
-router.put(
-  "/sales-update/:id",
-  jwtMW.authentication,
-  upload,
-  updateSalesPO
-);
-router.put(
-  "/bulk-mark-delivered",
-  jwtMW.authentication,
-  bulkMarkDelivered
-);
+router.put("/sales-update/:id", jwtMW.authentication, upload, updateSalesPO);
+router.put("/bulk-mark-delivered", jwtMW.authentication, bulkMarkDelivered);
 
 //Add vendor
-router.post(
-  "/Add-vendoR-IT",
-  jwtMW.authentication,
-  addVendor
-);
-router.get(
-  "/get-all-vendoR-IT",
-  jwtMW.authentication,
-  getVendor
-);
-router.put(
-  "/update-vendoR-IT/:_id",
-  jwtMW.authentication,
-  updateVendor
-); 
+router.post("/Add-vendoR-IT", jwtMW.authentication, addVendor);
+router.get("/get-all-vendoR-IT", jwtMW.authentication, getVendor);
+router.put("/update-vendoR-IT/:_id", jwtMW.authentication, updateVendor);
 
 //update vendor
-router.delete(
-  "/delete-vendoR-IT/:_id",
-  jwtMW.authentication,
-  deleteVendor
-); 
+router.delete("/delete-vendoR-IT/:_id", jwtMW.authentication, deleteVendor);
 
 //delete vendor
-router.get(
-  "/vendor-dropdown",
-  jwtMW.authentication,
-  getVendorDropwdown
-);
+router.get("/vendor-dropdown", jwtMW.authentication, getVendorDropwdown);
 router.get("/vendor-search", jwtMW.authentication, getVendorNameSearch);
 
 //pay Request api
@@ -624,23 +505,11 @@ router.put(
 
   bill_approved
 );
-router.get(
-  "/get-export-bill",
-  jwtMW.authentication,
-  exportBills
-);
+router.get("/get-export-bill", jwtMW.authentication, exportBills);
 router.put("/manipulatebill", manipulatebill);
 //subtractmoney-debitmoney
-router.post(
-  "/debit-moneY-IT",
-  jwtMW.authentication,
-  subtractmoney
-);
-router.get(
-  "/get-subtract-amounT-IT",
-  jwtMW.authentication,
-  getsubtractMoney
-);
+router.post("/debit-moneY-IT", jwtMW.authentication, subtractmoney);
+router.get("/get-subtract-amounT-IT", jwtMW.authentication, getsubtractMoney);
 router.delete(
   "/delete-debit-money/:_id",
   jwtMW.authentication,
