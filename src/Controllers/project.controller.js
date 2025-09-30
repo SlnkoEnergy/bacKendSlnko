@@ -2,6 +2,7 @@ const projectModells = require("../models/project.model");
 const handoversheetModells = require("../models/handoversheet.model");
 const projectactivitiesModel = require("../models/projectactivities.model");
 const { default: mongoose } = require("mongoose");
+const activitiesModel = require("../models/activities.model");
 const postsModel = require("../models/posts.model");
 
 const createProject = async function (req, res) {
@@ -344,8 +345,8 @@ const getProjectNameSearch = async (req, res) => {
 
     const filter = q
       ? {
-          $or: [{ name: { $regex: regex } }, { code: { $regex: regex } }],
-        }
+        $or: [{ name: { $regex: regex } }, { code: { $regex: regex } }],
+      }
       : {};
 
     const projection = { _id: 1, name: 1, code: 1, site_address: 1 };
@@ -419,11 +420,20 @@ const getProjectStatusFilter = async (req, res) => {
 
 const getProjectDetail = async (req, res) => {
   try {
-    const data = await projectactivitiesModel.aggregate([
+    const { q = "" } = req.query;
+
+    // Escape regex special chars to avoid ReDoS or unintended patterns
+    const escapeRegex = (s = "") =>
+      s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const hasQuery = typeof q === "string" && q.trim().length > 0;
+    const rx = hasQuery ? new RegExp(escapeRegex(q.trim()), "i") : null;
+
+    const pipeline = [
       // --- JOIN project details with robust type casting ---
       {
         $lookup: {
-          from: "projectdetails", // ensure exact collection name
+          from: "projectdetails",
           let: { pid: "$project_id" },
           pipeline: [
             {
@@ -457,7 +467,7 @@ const getProjectDetail = async (req, res) => {
         $addFields: {
           project_completed: {
             $and: [
-              { $gt: [{ $size: "$_allActs" }, 0] }, // avoid vacuous "all true" on empty array
+              { $gt: [{ $size: "$_allActs" }, 0] }, // non-empty
               {
                 $allElementsTrue: {
                   $map: {
@@ -512,7 +522,7 @@ const getProjectDetail = async (req, res) => {
               as: "a",
               cond: {
                 $and: [
-                  // actual_start is present (not missing/null/empty)
+                  // actual_start present
                   {
                     $and: [
                       {
@@ -523,10 +533,10 @@ const getProjectDetail = async (req, res) => {
                           ],
                         },
                       },
-                      { $ne: ["$$a.actual_start", ""] },
+                      { $ne: ["$$a.actual_start", ""], },
                     ],
                   },
-                  // actual_finish is NOT set (missing/null/empty)
+                  // actual_finish not set
                   {
                     $or: [
                       {
@@ -535,7 +545,7 @@ const getProjectDetail = async (req, res) => {
                           ["missing", "null"],
                         ],
                       },
-                      { $eq: ["$$a.actual_finish", ""] },
+                      { $eq: ["$$a.actual_finish", ""], },
                     ],
                   },
                 ],
@@ -545,7 +555,7 @@ const getProjectDetail = async (req, res) => {
         },
       },
 
-      // --- Collect activity_ids from the (filtered) activities ---
+      // --- Collect activity_ids from the filtered activities ---
       {
         $addFields: {
           _activityIds: {
@@ -607,35 +617,70 @@ const getProjectDetail = async (req, res) => {
           },
         },
       },
+    ];
 
-      // --- Final projection ---
-      // --- Final projection ---
-      {
-        $project: {
-          project_id: 1,
-          status: 1,
-          project_code: "$projectDoc.code",
-          project_name: "$projectDoc.name",
-          state: "$projectDoc.state",
-          project_completed: 1,
-          activities: {
-            $map: {
-              input: { $ifNull: ["$activities", []] },
-              as: "a",
-              in: {
-                activity_id: "$$a.activity_id",
-                activity_name: "$$a.activity_name",
-                actual_start_date: "$$a.actual_start",
-                dependency: "$$a.dependency",
-                successors: "$$a.successors",
-                predecessors: "$$a.predecessors",
+    // --- Apply search on project fields (after $lookup/$unwind) ---
+    if (hasQuery) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { "projectDoc.code": rx },
+            { "projectDoc.name": rx },
+            { "projectDoc.state": rx },
+          ],
+        },
+      });
+    }
+
+    // --- If searching, also allow matching any activityDocs.name ---
+    if (hasQuery) {
+      pipeline.push({
+        $match: {
+          $or: [
+            {}, // keep previous matches
+            {
+              $expr: {
+                $anyElementTrue: {
+                  $map: {
+                    input: { $ifNull: ["$activityDocs", []] },
+                    as: "ad",
+                    in: { $regexMatch: { input: "$$ad.name", regex: rx } },
+                  },
+                },
               },
+            },
+          ],
+        },
+      });
+    }
+
+    // --- Final projection ---
+    pipeline.push({
+      $project: {
+        project_id: 1,
+        status: 1,
+        project_code: "$projectDoc.code",
+        project_name: "$projectDoc.name",
+        state: "$projectDoc.state",
+        project_completed: 1,
+        activities: {
+          $map: {
+            input: { $ifNull: ["$activities", []] },
+            as: "a",
+            in: {
+              activity_id: "$$a.activity_id",
+              activity_name: "$$a.activity_name",
+              actual_start_date: "$$a.actual_start",
+              dependency: "$$a.dependency",
+              successors: "$$a.successors",
+              predecessors: "$$a.predecessors",
             },
           },
         },
       },
-    ]);
+    });
 
+    const data = await projectactivitiesModel.aggregate(pipeline);
     return res.json({ ok: true, count: data.length, data });
   } catch (err) {
     console.error("getProjectDetail error:", err);
@@ -644,6 +689,7 @@ const getProjectDetail = async (req, res) => {
       .json({ ok: false, message: "Server error", error: String(err) });
   }
 };
+
 
 // controller
 const getProjectStates = async (req, res) => {
@@ -672,6 +718,93 @@ const getProjectStates = async (req, res) => {
     return res
       .status(500)
       .json({ ok: false, message: "Server error", error: String(err) });
+  }
+};
+
+const getActivityLineForProject = async (req, res) => {
+
+  try {
+    const { projectId } = req.params;
+
+
+    const asMs = (d) => (d ? new Date(d).getTime() : null);
+
+    // Prefer the latest “project”-status doc for that project
+    const doc = await projectactivitiesModel.findOne({ project_id: projectId })
+      .lean()
+      .exec();
+
+    if (!doc) return res.json({ data: [], project_id: projectId });
+
+    // Build a map to resolve activity names
+    const ids = (doc.activities || []).map((a) => a.activity_id).filter(Boolean);
+    const actDocs = await activitiesModel.find({ _id: { $in: ids } }, { name: 1 }).lean();
+    const nameById = Object.fromEntries(actDocs.map((a) => [String(a._id), a.name]));
+
+    // Flatten + sanitize dates → milliseconds (numeric for charts)
+    const rows = (doc.activities || [])
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((a, idx) => {
+        const planned_start_ms = asMs(a.planned_start);
+        const planned_finish_ms = asMs(a.planned_finish);
+        const actual_start_ms = asMs(a.actual_start);
+        const actual_finish_ms = asMs(a.actual_finish);
+        const ongoing = !!(actual_start_ms && !actual_finish_ms);
+
+        return {
+          idx,
+          activity_id: a.activity_id,
+          activity_name: nameById[String(a.activity_id)] || `Activity ${idx + 1}`,
+          planned_start_ms,
+          planned_finish_ms,
+          actual_start_ms,
+          actual_finish_ms,
+          ongoing,
+        };
+      });
+
+    // Provide convenient min/max for axis domain
+    const allDates = rows.flatMap((r) => [
+      r.planned_start_ms,
+      r.planned_finish_ms,
+      r.actual_start_ms,
+      r.actual_finish_ms,
+    ]).filter(Boolean);
+
+    const minDate = allDates.length ? Math.min(...allDates) : null;
+    const maxDate = allDates.length ? Math.max(...allDates) : null;
+
+    return res.json({
+      project_id: projectId,
+      data: rows,
+      domain: { min: minDate, max: maxDate, now: Date.now() },
+    });
+  } catch (err) {
+    console.error("getActivityLineForProject error:", err);
+    res.status(500).json({ message: "Server error", error: err?.message });
+  }
+}
+
+const getProjectsDropdown = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page ?? "1", 10), 1);
+    const pageSize = Math.min(parseInt(req.query.pageSize ?? "7", 10), 50);
+
+    const data = await projectModells
+      .find({}, "name code")
+      .sort({ updatedAt: -1, _id: -1 })
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean();
+
+    return res.status(200).json({
+      message: "fetch Successfully",
+      data,
+      pagination: { page, pageSize }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error", err: error });
   }
 };
 
@@ -902,5 +1035,7 @@ module.exports = {
   getProjectStatusFilter,
   getProjectDetail,
   getProjectStates,
+  getActivityLineForProject,
+  getProjectsDropdown,
   getAllPosts,
 };

@@ -21,6 +21,8 @@ const {
   getProjectStates,
   getAllProjects,
   updateProjectStatus,
+  getActivityLineForProject,
+  getProjectsDropdown,
   getAllPosts,
 } = require("../Controllers/project.controller.js");
 const {
@@ -182,6 +184,7 @@ const {
 } = require("../Controllers/modifiedexpensesheet.controller.js");
 
 const upload = require("../middlewares/multer.js");
+const { getProjectActivitybyProjectId } = require("../controllers/projectactivities.controller.js");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -252,7 +255,12 @@ router.get(
 
 router.get("/project-detail", jwtMW.authentication, getProjectDetail);
 
-router.get("/project-state-detail", jwtMW.authentication, getProjectStates);
+router.get("/project-activity-chart/:projectId", jwtMW.authentication, getActivityLineForProject);
+
+router.get("/project-dropdown-detail", jwtMW.authentication, getProjectsDropdown)
+
+
+router.get("/project-state-detail", jwtMW.authentication, getProjectStates)
 router.get("/allposts", jwtMW.authentication, getAllPosts);
 
 //addMoney APi
