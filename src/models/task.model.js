@@ -160,7 +160,7 @@ const taskSchema = new mongoose.Schema(
         },
       },
     ],
-    sourceKey: { type: String, required: true }, 
+    sourceKey: { type: String },
     source: {
       type: { type: String, default: "projectActivityDependency" },
       model_id: { type: mongoose.Schema.Types.ObjectId },
