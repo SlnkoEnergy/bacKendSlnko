@@ -270,7 +270,6 @@ const updateDependency = async (req, res) => {
         }
       }
 
-      // NEW: completion_formula (global only)
       let formulaChanged = false;
       if (hasFormulaUpdate) {
         const before = activity.completion_formula ?? "";

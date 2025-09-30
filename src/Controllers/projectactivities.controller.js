@@ -1067,12 +1067,11 @@ const getAllProjectActivityForView = async (req, res) => {
           success: false,
           message: "Invalid baselineStart/baselineEnd",
         });
-      // inclusive day window
+
       rangeStart.setHours(0, 0, 0, 0);
       rangeEnd.setHours(23, 59, 59, 999);
     }
 
-    // Query only docs that have at least one overlapping baseline activity (if a range is provided)
     const match = hasRange
       ? {
           activities: {
@@ -1099,7 +1098,6 @@ const getAllProjectActivityForView = async (req, res) => {
 
     const data = paDocs
       .map((doc) => {
-        // keep only activities that match the window when range supplied
         const filteredActs = (doc.activities || []).filter((a) =>
           hasRange ? overlaps(a) : true
         );
