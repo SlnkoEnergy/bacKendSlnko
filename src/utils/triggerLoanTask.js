@@ -45,6 +45,7 @@ async function triggerLoanTasksBulk(payloads, session = null) {
             type: "project",
             createdBy: p.userId,
             deadline: p.deadline,
+            priority: "3",
             assigned_to: Array.isArray(p.assigned_to)
               ? p.assigned_to
               : [p.assigned_to],
