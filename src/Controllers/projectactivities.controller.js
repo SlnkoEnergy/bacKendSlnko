@@ -1063,12 +1063,10 @@ const getAllProjectActivityForView = async (req, res) => {
       rangeStart = new Date(baselineStart);
       rangeEnd = new Date(baselineEnd);
       if (isNaN(rangeStart) || isNaN(rangeEnd))
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Invalid baselineStart/baselineEnd",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Invalid baselineStart/baselineEnd",
+        });
       // inclusive day window
       rangeStart.setHours(0, 0, 0, 0);
       rangeEnd.setHours(23, 59, 59, 999);
