@@ -679,7 +679,6 @@ const editPO = async function (req, res) {
     const updateOps = {
       $set: { ...payload },
     };
-
     if (currStatus === "approval_rejected") {
       updateOps.$push = {
         status_history: {
@@ -687,6 +686,11 @@ const editPO = async function (req, res) {
           remarks: "",
           user_id: req.user.userId,
         },
+      };
+      updateOps.$set.current_status = {
+        status: "approval_pending",
+        user_id: req.user.userId,
+        remarks: "",
       };
     }
 
@@ -2640,5 +2644,4 @@ module.exports = {
   updateSalesPO,
   bulkMarkDelivered,
   generatePurchaseOrderPdf,
-  
 };

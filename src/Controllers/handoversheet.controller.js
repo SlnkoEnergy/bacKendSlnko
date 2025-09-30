@@ -10,7 +10,9 @@ const scopeModel = require("../models/scope.model");
 const bdleadsModells = require("../models/bdleads.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const postsModel = require("../models/posts.model");
-
+const activitiesModel = require("../models/activities.model");
+const projectactivitiesModel = require("../models/projectactivities.model");
+const { triggerLoanTasksBulk } = require("../utils/triggerLoanTask");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -107,9 +109,12 @@ const createhandoversheet = async function (req, res) {
       commercial_details,
       other_details,
       invoice_detail,
-      submitted_by,
     } = req.body;
 
+    const userId = req.user.userId;
+    const user = await userModells.findById(userId);
+
+    other_details.submitted_by_BD = userId;
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -121,11 +126,8 @@ const createhandoversheet = async function (req, res) {
       other_details,
       invoice_detail,
       status_of_handoversheet: req.body.status_of_handoversheet || "draft",
-      submitted_by,
+      submitted_by: userId,
     });
-
-    const userId = req.user.userId;
-    const user = await userModells.findById(userId);
 
     cheched_id = await hanoversheetmodells.findOne({ id: id });
     if (cheched_id) {
@@ -153,23 +155,26 @@ const createhandoversheet = async function (req, res) {
     lead.handover_lock = req.body.handover_lock || "locked";
     await lead.save();
     await handoversheet.save();
-    
+
     // Notification for Creating Handover
     try {
-      const workflow = 'handover-submit';
-      const Ids = await userModells.find({ department: 'Internal', role: 'manager' }).select('_id').lean().then(users => users.map(u => u._id));
+      const workflow = "handover-submit";
+      const Ids = await userModells
+        .find({ department: "Internal", role: "manager" })
+        .select("_id")
+        .lean()
+        .then((users) => users.map((u) => u._id));
       const data = {
         message: `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`,
-        link:`leadProfile?id=${lead._id}&tab=handover`,
+        link: `leadProfile?id=${lead._id}&tab=handover`,
         type: "sales",
         link1: `/sales`,
-      }
+      };
       setImmediate(() => {
-        getnovuNotification(workflow, Ids, data).catch(err =>
+        getnovuNotification(workflow, Ids, data).catch((err) =>
           console.error("Notification error:", err)
         );
       });
-
     } catch (error) {
       console.log(error);
     }
@@ -220,17 +225,19 @@ const gethandoversheetdata = async function (req, res) {
       });
     }
 
-    const statuses = statusFilter
-      ?.split(",")
-      .map((s) => s.trim())
-      .filter(Boolean) || [];
+    const statuses =
+      statusFilter
+        ?.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean) || [];
 
     const hasHandoverPending = statuses.includes("handoverpending");
     const hasScopePending = statuses.includes("scopepending");
     const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
 
     const actualStatuses = statuses.filter(
-      (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
+      (s) =>
+        s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
     );
 
     if (actualStatuses.length === 1) {
@@ -415,37 +422,159 @@ const gethandoversheetdata = async function (req, res) {
   }
 };
 
-//edit handover sheet data
 const edithandoversheetdata = async function (req, res) {
   try {
-    let id = req.params._id;
-    let data = req.body;
-    if (!id) {
-      res.status(400).json({ message: "id not found" });
+    const id = req.params._id;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Valid _id param is required" });
     }
 
-    let edithandoversheet = await hanoversheetmodells.findByIdAndUpdate(
+    const body = req.body || {};
+
+    const update = {
+      ...body,
+      submitted_by: req?.user?.userId,
+    };
+
+    const handoverSheet = await hanoversheetmodells.findByIdAndUpdate(
       id,
-      data,
-      { new: true }
+      { $set: update },
+      { new: true, runValidators: true }
     );
 
-    if (typeof data.is_locked !== "undefined") {
+    if (!handoverSheet) {
+      return res.status(404).json({ message: "Handover sheet not found" });
+    }
+    const leadUpdate = {};
+    if (typeof body.is_locked !== "undefined") {
+      leadUpdate.handover_lock = body.is_locked;
+    }
+    if (typeof body.status_of_handoversheet !== "undefined") {
+      leadUpdate.status_of_handoversheet = body.status_of_handoversheet;
+    }
+
+    if (Object.keys(leadUpdate).length) {
       await bdleadsModells.findOneAndUpdate(
-        { id: edithandoversheet.id },
-        { handover_lock: data.is_locked },
-        { status_of_handoversheet: data.status_of_handoversheet }
+        { id: handoverSheet.id },
+        { $set: leadUpdate },
+        { new: true }
       );
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Status updated successfully",
-      handoverSheet: edithandoversheet,
+      handoverSheet,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
+
+function parseFraction(formula) {
+  if (!formula) return null;
+  const m = String(formula)
+    .trim()
+    .match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (!m) return null;
+  const num = Number(m[1]);
+  const den = Number(m[2]);
+  if (!Number.isFinite(num) || !Number.isFinite(den) || den === 0) return null;
+  return num / den;
+}
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function daysBetweenCeil(from, to) {
+  const DAY = 24 * 60 * 60 * 1000;
+  const diffMs = (to?.getTime?.() ?? 0) - (from?.getTime?.() ?? 0);
+  return Math.max(0, Math.ceil(diffMs / DAY));
+}
+
+function addDays(date, days) {
+  const DAY = 24 * 60 * 60 * 1000;
+  return new Date(date.getTime() + days * DAY);
+}
+
+function minDate(...dates) {
+  const valid = dates.filter((d) => d instanceof Date && !isNaN(d));
+  if (valid.length === 0) return null;
+  return new Date(Math.min(...valid.map((d) => d.getTime())));
+}
+
+async function getLoanManagers(session = null) {
+  const deptOrTeamLoan = { $or: [{ department: /loan/i }, { team: /loan/i }] };
+  const roleIsManager = {
+    $or: [
+      { role: /manager/i },
+      { designation: /manager/i },
+      { title: /manager/i },
+    ],
+  };
+
+  let managers = await userModells
+    .find({ $and: [deptOrTeamLoan, roleIsManager] })
+    .select("_id")
+    .session(session)
+    .lean();
+
+  if (!managers?.length) {
+    managers = await userModells
+      .find(deptOrTeamLoan)
+      .select("_id")
+      .session(session)
+      .lean();
+  }
+  return (managers || []).map((u) => u._id);
+}
+
+function buildLoanTaskPayloadsForActivity({
+  projectActivityDoc,
+  activityRow,
+  createdByUserId,
+  assignedToIds,
+  activityName,
+}) {
+  // ensure dates present
+  if (!activityRow?.planned_start || !activityRow?.planned_finish) return [];
+
+  const activityId = activityRow.activity_id;
+  const common = {
+    sourceKey: `PA:LOAN_DOC:${projectActivityDoc._id}:${activityId}`,
+    source: {
+      type: "Loan",
+      model_id: new mongoose.Types.ObjectId(activityId),
+      activityId: new mongoose.Types.ObjectId(activityId),
+      projectActivityId: projectActivityDoc._id,
+      phase: "documentation",
+    },
+    title: "Loan Task",
+    description:
+      `Auto task for loan process` +
+      (activityName ? ` (Activity: ${activityName})` : ""),
+    project_id: projectActivityDoc.project_id,
+    userId: createdByUserId,
+    assigned_to: assignedToIds,
+    deadline: activityRow.planned_finish,
+    status_history: [
+      {
+        status: "pending",
+        remarks: "Task created for Loan team by system",
+        user_id: null,
+        updatedAt: new Date(),
+      },
+    ],
+  };
+
+  return [
+    {
+      ...common,
+    },
+  ];
+}
 
 // update status of handovesheet
 const updatestatus = async function (req, res) {
@@ -480,7 +609,6 @@ const updatestatus = async function (req, res) {
       let projectData;
 
       if (updatedHandoversheet.p_id) {
-        // Update existing project
         projectData = await projectmodells.findOneAndUpdate(
           { p_id: updatedHandoversheet.p_id },
           {
@@ -510,7 +638,7 @@ const updatestatus = async function (req, res) {
             service: other_details.service || "",
             billing_type: other_details.billing_type || "",
             updated_on: new Date().toISOString(),
-            submitted_by: req?.user?.name || "",
+            submitted_by: req.user.userId,
           },
           { new: true }
         );
@@ -552,8 +680,11 @@ const updatestatus = async function (req, res) {
           project_status: "",
           updated_on: new Date().toISOString(),
           service: other_details.service || "",
-          submitted_by: req?.user?.name || "",
+          submitted_by: req.user.userId || "",
           billing_type: other_details.billing_type || "",
+          project_completion_date: project_detail.project_completion_date || "",
+          ppa_expiry_date: project_detail.ppa_expiry_date || "",
+          bd_commitment_date: project_detail.bd_commitment_date || "",
         });
 
         await projectData.save();
@@ -584,7 +715,6 @@ const updatestatus = async function (req, res) {
           uom: "",
         }));
 
-        // 3) Instantiate and save
         const scopeDoc = new scopeModel({
           project_id: projectData._id,
           items,
@@ -599,6 +729,100 @@ const updatestatus = async function (req, res) {
 
         await posts.save();
 
+        const earliestProjectDate = minDate(
+          projectData?.ppa_expiry_date,
+          projectData?.bd_commitment_date,
+          projectData?.project_completion_date
+        );
+        const startOfDay = startOfToday;
+        const todayStart = startOfDay(new Date());
+        const totalDaysToEarliest = earliestProjectDate
+          ? Math.max(0, daysBetweenCeil(todayStart, earliestProjectDate))
+          : null;
+
+        const activities = await activitiesModel
+          .find({})
+          .select(
+            "name completion_formula dependency.model dependency.model_id dependency.model_id_name predecessors.activity_id predecessors.type predecessors.lag"
+          )
+          .lean();
+
+        const activitiesMapById = new Map(
+          activities.map((a) => [String(a._id), a])
+        );
+
+        const activitiesArray = activities.map((act) => {
+          let planned_start = undefined;
+          let planned_finish = undefined;
+
+          if (totalDaysToEarliest !== null) {
+            const frac = parseFraction(act?.completion_formula);
+            console.log({ frac });
+            if (frac !== null) {
+              const durationDays = Math.max(
+                0,
+                Math.ceil(totalDaysToEarliest * frac)
+              );
+              planned_start = new Date(todayStart);
+              planned_finish = addDays(todayStart, durationDays);
+              console.log({ planned_start, planned_finish, durationDays });
+            }
+          }
+
+          return {
+            activity_id: act._id,
+            dependency: Array.isArray(act.dependency)
+              ? act.dependency.map((d) => ({
+                  model: d.model,
+                  model_id: d.model_id,
+                  model_id_name: d.model_id_name,
+                  updatedAt: d.updatedAt || new Date(),
+                  updated_by: d.updated_by || req.user.userId,
+                }))
+              : [],
+            predecessors: Array.isArray(act.predecessors)
+              ? act.predecessors.map((p) => ({
+                  activity_id: p.activity_id,
+                  type: p.type,
+                  lag: p.lag,
+                }))
+              : [],
+            planned_start,
+            planned_finish,
+          };
+        });
+
+        // Create the ProjectActivities doc
+        const projectActivityDoc = new projectactivitiesModel({
+          project_id: projectData._id,
+          activities: activitiesArray,
+          created_by: req.user.userId,
+          status: "project",
+        });
+        await projectActivityDoc.save();
+
+        const createdByUserId = req.user.userId;
+        const loanManagers = await getLoanManagers();
+        const assignedTo = loanManagers?.length ? loanManagers : [];
+
+        const loanTaskPayloads = projectActivityDoc.activities
+          .filter((a) => a.planned_start && a.planned_finish)
+          .flatMap((a) => {
+            const master = activitiesMapById.get(String(a.activity_id));
+            const activityName = master?.name || null;
+            return buildLoanTaskPayloadsForActivity({
+              projectActivityDoc,
+              activityRow: a,
+              createdByUserId,
+              assignedToIds: assignedTo,
+              activityName,
+            });
+          });
+
+        if (loanTaskPayloads.length) {
+          await triggerLoanTasksBulk(loanTaskPayloads);
+        }
+
         return res.status(200).json({
           message:
             "Status updated, new project and moduleCategory created successfully",
@@ -609,28 +833,25 @@ const updatestatus = async function (req, res) {
       }
     }
 
-    // Notification Functionality on Status Update 
-
     try {
-      const owner = await userModells.find({ name: submitted_by })
+      const owner = await userModells.find({ name: submitted_by });
 
       senders = [owner._id];
-      workflow = 'handover-submit';
+      workflow = "handover-submit";
       data = {
         Module: "Handover Status",
         sendBy_Name: owner.name,
         message: `Handover Sheet status updated for Lead #${updatedHandoversheet.id}`,
-        link:`leadProfile?id=${_id}&tab=handover`,
-        type:"sales",
-        link1: `/sales`
-      }
+        link: `leadProfile?id=${_id}&tab=handover`,
+        type: "sales",
+        link1: `/sales`,
+      };
 
       setImmediate(() => {
-        getnovuNotification(workflow, senders, data).catch(err =>
+        getnovuNotification(workflow, senders, data).catch((err) =>
           console.error("Notification error:", err)
         );
       });
-
     } catch (error) {
       console.log(error);
     }
@@ -638,21 +859,6 @@ const updatestatus = async function (req, res) {
       message: "Status updated",
       handoverSheet: updatedHandoversheet,
     });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-const checkid = async function (req, res) {
-  try {
-    let _id = req.params._id;
-
-    let checkid = await projectmodells.findOne({ _id: _id });
-    if (checkid) {
-      return res.status(200).json({ status: true });
-    } else {
-      return res.status(404).json({ status: false });
-    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -672,7 +878,10 @@ const getByIdOrLeadId = async function (req, res) {
     if (leadId) query.id = leadId;
     if (p_id) query.p_id = p_id;
 
-    const handoverSheet = await hanoversheetmodells.findOne(query);
+    const handoverSheet = await hanoversheetmodells
+      .findOne(query)
+      .populate("other_details.submitted_by_BD", "_id name")
+      .populate("submitted_by", "_id name");
 
     if (!handoverSheet) {
       return res.status(404).json({ message: "Data not found" });
@@ -683,25 +892,6 @@ const getByIdOrLeadId = async function (req, res) {
       .json({ message: "Data fetched successfully", data: handoverSheet });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  }
-};
-
-//sercher api
-const search = async function (req, res) {
-  const letter = req.params.letter;
-  try {
-    const regex = new RegExp("^" + letter, "i"); // Case-insensitive regex
-    const items = await hanoversheetmodells
-      .find({
-        $or: [
-          { "customer_details.name": { $regex: regex } },
-          { "customer_details.code": { $regex: regex } },
-        ],
-      })
-      .sort({ "customer_details.name": 1 });
-    res.json(items);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
 };
 
@@ -742,7 +932,7 @@ const getexportToCsv = async (req, res) => {
           project_type: "$project_detail.project_type",
           module_make_capacity: "project_detail.module_make_capacity",
           module_make: "$project_detail.module_make",
-          module_capacity: "$project_detail.module_capacity",
+          module_capacity: "$project_detail.module_type",
           module_type: "$project_detail.module_type",
           module_make_other: "$project_detail.madule_make_other",
           inverter_make_capacity: "$project_detail.inverter_make_capacity",
@@ -914,6 +1104,32 @@ const getexportToCsv = async (req, res) => {
   }
 };
 
+const updateAssignedTo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { assigned_to } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ message: "id is required" });
+    }
+    const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
+      { _id: id },
+      { assigned_to },
+      { new: true }
+    );
+    if (!updatedHandoversheet) {
+      return res.status(404).json({ message: "Handoversheet not found" });
+    }
+    return res.status(200).json({
+      message: "Assigned to updated",
+      handoverSheet: updatedHandoversheet,
+    });
+  }
+  catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const listUsersNames = async function (req, res) {
   try {
     const users = await userModel.find({}, "_id name").sort({ name: 1 }).lean();
@@ -966,10 +1182,9 @@ module.exports = {
   getByIdOrLeadId,
   edithandoversheetdata,
   updatestatus,
-  checkid,
-  search,
   getexportToCsv,
   migrateProjectToHandover,
+  updateAssignedTo,
   listUsersNames,
   UpdateAssigneTo,
 };

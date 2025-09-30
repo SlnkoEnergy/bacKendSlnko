@@ -163,7 +163,7 @@ const forgettpass = async function (req, res) {
     console.error(error);
     res
       .status(500)
-      .json({ message: "An error occurred. Please try again." });
+      .json({ message: "An error occurred. Please try again.", error: error.message });
   }
 };
 
@@ -456,7 +456,7 @@ const getSingleUser = async function (req, res) {
 
 const getAllUserByDepartment = async (req, res) => {
   try {
-    const projection = "_id name attachment_url"; // <-- added attachment_url
+    const projection = "_id name attachment_url"; 
     const { department } = req.query;
 
     const query = {};
