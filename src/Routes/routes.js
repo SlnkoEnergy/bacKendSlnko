@@ -40,6 +40,7 @@ const {
   getAllDepartment,
   finalizeBdLogin,
   backfillProfileFields,
+  getAllUserByDepartmentWithPagination,
 } = require("../Controllers/userController.js");
 const {
   addPo,
@@ -61,6 +62,7 @@ const {
   getPoBasic,
   updateSalesPO,
   bulkMarkDelivered,
+  generatePurchaseOrderPdf,
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -185,6 +187,8 @@ const {
 
 const upload = require("../middlewares/multer.js");
 const { getProjectActivitybyProjectId } = require("../controllers/projectactivities.controller.js");
+const { syncAllProjectBalances } = require("../Controllers/Accounting/ProjectBalance.js");
+
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -213,6 +217,13 @@ router.get(
   getSingleUser
 );
 router.get("/all-user", jwtMW.authentication, getAllUserByDepartment);
+
+router.get(
+  "/all-user-with-pagination",
+  jwtMW.authentication,
+
+  getAllUserByDepartmentWithPagination
+);
 
 router.put(
   "/edit-user/:_id",
@@ -309,6 +320,12 @@ router.put(
 );
 router.put("/sales-update/:id", jwtMW.authentication, upload, updateSalesPO);
 router.put("/bulk-mark-delivered", jwtMW.authentication, bulkMarkDelivered);
+
+router.post(
+  "/purchase-generate-pdf",
+  jwtMW.authentication,
+  generatePurchaseOrderPdf
+)
 
 //Add vendor
 router.post("/Add-vendoR-IT", jwtMW.authentication, addVendor);
@@ -779,5 +796,6 @@ router.get(
   jwtMW.authentication,
   getModifiedExpenseById
 );
+router.post("/project-balances/sync-all", syncAllProjectBalances);
 
 module.exports = router;

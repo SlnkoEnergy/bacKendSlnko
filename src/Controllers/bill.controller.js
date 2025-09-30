@@ -8,6 +8,7 @@ const {
 } = require("../middlewares/catchasyncerror.middleware");
 const ErrorHandler = require("../middlewares/error.middleware");
 const userModells = require("../models/user.model");
+const materialcategoryModel = require("../models/materialcategory.model");
 
 const addBill = catchAsyncError(async function (req, res, next) {
   const {
@@ -21,6 +22,16 @@ const addBill = catchAsyncError(async function (req, res, next) {
   } = req.body;
 
   const userId = req.user.userId;
+
+  const trim_bill_number = bill_number.trim();
+
+  const existingBill = await billModel.findOne({ bill_number: trim_bill_number });
+
+  if (existingBill && existingBill.po_number === po_number) {
+    return res.status(404).json({
+      message: "Bill Already Exists For this Po Number"
+    });
+  }
 
   const purchaseOrder = await purchaseOrderModel.findOne({ po_number });
   if (!purchaseOrder) {
@@ -105,14 +116,14 @@ const getPaginatedBill = catchAsyncError(async (req, res) => {
 
   const matchStage = search
     ? {
-        $or: [
-          { bill_number: { $regex: searchRegex } },
-          { po_number: { $regex: searchRegex } },
-          { approved_by: { $regex: searchRegex } },
-          { "poData.vendor": { $regex: searchRegex } },
-          { "poData.item": { $regex: searchRegex } },
-        ],
-      }
+      $or: [
+        { bill_number: { $regex: searchRegex } },
+        { po_number: { $regex: searchRegex } },
+        { approved_by: { $regex: searchRegex } },
+        { "poData.vendor": { $regex: searchRegex } },
+        { "poData.item": { $regex: searchRegex } },
+      ],
+    }
     : {};
 
   const pipeline = [
@@ -240,7 +251,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
     po_number = String(po_number).trim();
   }
 
-  const rawSearch = (req.query.search ?? req.query.q ?? "").toString().trim();
+  const rawSearch = (req.query.search ?? req.query.q ?? req.body.search ?? "").toString().trim();
   const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   const filters = [];
@@ -262,7 +273,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
         from: "purchaseorders",
         localField: "po_number",
         foreignField: "po_number",
-        pipeline: [{ $project: { _id: 0, p_id: 1, vendor: 1, po_value: 1, total_billed: 1 } }],
+        pipeline: [{ $project: { _id: 0, p_id: 1, vendor: 1, po_value: 1, total_billed: 1, item: 1 } }],
         as: "po",
       },
     },
@@ -301,6 +312,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
     // flatten & compute status for filtering
     {
       $addFields: {
+        item: "$po.item",
         project_id: "$po.p_id",
         vendor: "$po.vendor",
         po_no: "$po_number",
@@ -327,54 +339,6 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
           // capture sort keys for stable re-sort after group
           { $addFields: { __sortAt: "$createdAt", __sortId: "$_id" } },
 
-          // normalize items
-          {
-            $addFields: {
-              _wasItemArray: { $isArray: "$item" },
-              _itemArr: {
-                $cond: [{ $isArray: "$item" }, "$item", [{ $ifNull: ["$item", null] }]],
-              },
-            },
-          },
-
-          // unwind items only after pagination
-          { $unwind: { path: "$_itemArr", preserveNullAndEmptyArrays: true } },
-
-          // category lookup per item
-          {
-            $lookup: {
-              from: "materialcategories",
-              localField: "_itemArr.category_id",
-              foreignField: "_id",
-              pipeline: [{ $project: { _id: 1, name: 1 } }],
-              as: "_cat",
-            },
-          },
-          {
-            $addFields: {
-              "_itemArr.category_name": {
-                $ifNull: [{ $arrayElemAt: ["$_cat.name", 0] }, null],
-              },
-            },
-          },
-
-          // regroup
-          {
-            $group: {
-              _id: "$_id",
-              doc: { $first: "$$ROOT" },
-              items: { $push: "$_itemArr" },
-            },
-          },
-          {
-            $addFields: {
-              items: { $filter: { input: "$items", as: "it", cond: { $ne: ["$$it", null] } } },
-              "doc.item": {
-                $cond: ["$doc._wasItemArray", "$items", { $arrayElemAt: ["$items", 0] }],
-              },
-            },
-          },
-          { $replaceRoot: { newRoot: "$doc" } },
 
           // re-sort deterministically
           { $sort: { __sortAt: -1, __sortId: -1 } },
@@ -404,16 +368,10 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
               },
             },
           },
-
-          // created_on alias for your output
           { $addFields: { created_on: "$createdAt" } },
-
-          // ✅ UNSET temp fields first (fixes your error)
           {
             $unset: ["__sortAt", "__sortId", "_cat", "_itemArr", "_approvedUser", "_wasItemArray", "items"],
           },
-
-          // final projection (pure inclusion)
           {
             $project: {
               _id: 1,
@@ -822,7 +780,6 @@ const manipulatebill = async (req, res) => {
   }
 };
 
-
 module.exports = {
   addBill,
   getBill,
@@ -833,5 +790,5 @@ module.exports = {
   bill_approved,
   exportBills,
   getAllBill,
-  manipulatebill
+  manipulatebill,
 };

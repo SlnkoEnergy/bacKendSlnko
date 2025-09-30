@@ -20,6 +20,430 @@ const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const inspectionModel = require("../models/inspection.model");
 const billModel = require("../models/bill.model");
+const projectModel = require("../models/project.model");
+
+function toSafeNumber(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+const toNum = (expr) => ({
+  $convert: {
+    input: {
+      $cond: [
+        { $eq: [{ $type: expr }, "string"] },
+        {
+          $replaceAll: {
+            input: { $trim: { input: expr } },
+            find: ",",
+            replacement: "",
+          },
+        },
+        expr,
+      ],
+    },
+    to: "double",
+    onError: 0,
+    onNull: 0,
+  },
+});
+
+// --- Pipeline stays same ---
+const aggregationPipeline = [
+  {
+    $lookup: {
+      from: "addmoneys",
+      localField: "p_id",
+      foreignField: "p_id",
+      as: "credits",
+    },
+  },
+  {
+    $lookup: {
+      from: "subtract moneys",
+      localField: "p_id",
+      foreignField: "p_id",
+      as: "debits",
+    },
+  },
+  {
+    $lookup: {
+      from: "adjustmentrequests",
+      localField: "p_id",
+      foreignField: "p_id",
+      as: "adjustments",
+    },
+  },
+  {
+    $lookup: {
+      from: "purchaseorders",
+      localField: "code",
+      foreignField: "p_id",
+      as: "pos",
+    },
+  },
+  {
+    $lookup: {
+      from: "payrequests",
+      let: { poNumbers: "$pos.po_number" },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $in: ["$po_number", "$$poNumbers"] },
+                { $eq: ["$approved", "Approved"] },
+                { $ne: ["$utr", null] },
+                { $ne: ["$utr", ""] },
+              ],
+            },
+          },
+        },
+      ],
+      as: "pays",
+    },
+  },
+  {
+    $lookup: {
+      from: "biildetails",
+      localField: "pos.po_number",
+      foreignField: "po_number",
+      as: "bills",
+    },
+  },
+
+  {
+    $addFields: {
+      totalCredit: {
+        $round: [
+          {
+            $sum: {
+              $map: { input: "$credits", as: "c", in: toNum("$$c.cr_amount") },
+            },
+          },
+          2,
+        ],
+      },
+      totalDebit: {
+        $round: [
+          {
+            $sum: {
+              $map: { input: "$debits", as: "d", in: toNum("$$d.amount_paid") },
+            },
+          },
+          2,
+        ],
+      },
+      availableAmount: {
+        $round: [
+          {
+            $subtract: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$credits",
+                    as: "c",
+                    in: toNum("$$c.cr_amount"),
+                  },
+                },
+              },
+              {
+                $sum: {
+                  $map: {
+                    input: "$debits",
+                    as: "d",
+                    in: toNum("$$d.amount_paid"),
+                  },
+                },
+              },
+            ],
+          },
+          2,
+        ],
+      },
+      totalAdjustment: {
+        $round: [
+          {
+            $subtract: [
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$adjustments",
+                        as: "a",
+                        cond: { $eq: ["$$a.adj_type", "Add"] },
+                      },
+                    },
+                    as: "a",
+                    in: { $abs: toNum("$$a.adj_amount") },
+                  },
+                },
+              },
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$adjustments",
+                        as: "a",
+                        cond: { $eq: ["$$a.adj_type", "Subtract"] },
+                      },
+                    },
+                    as: "a",
+                    in: { $abs: toNum("$$a.adj_amount") },
+                  },
+                },
+              },
+            ],
+          },
+          2,
+        ],
+      },
+    },
+  },
+
+  {
+    $addFields: {
+      paidAmount: {
+        $cond: [
+          { $gt: [{ $size: "$pays" }, 0] },
+          {
+            $sum: {
+              $map: { input: "$pays", as: "p", in: toNum("$$p.amount_paid") },
+            },
+          },
+          {
+            $sum: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: "$debits",
+                    as: "d",
+                    cond: {
+                      $and: [
+                        { $eq: ["$$d.approved", "Approved"] },
+                        { $ne: ["$$d.utr", null] },
+                        { $ne: ["$$d.utr", ""] },
+                      ],
+                    },
+                  },
+                },
+                as: "d",
+                in: toNum("$$d.amount_paid"),
+              },
+            },
+          },
+        ],
+      },
+    },
+  },
+  {
+    $addFields: {
+      total_po_basic: {
+        $round: [
+          {
+            $sum: {
+              $map: {
+                input: "$pos",
+                as: "po",
+                in: {
+                  $convert: {
+                    input: { $trim: { input: "$$po.po_basic" } },
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+              },
+            },
+          },
+          2,
+        ],
+      },
+    },
+  },
+  {
+    $addFields: {
+      gst_as_po_basic: {
+        $round: [
+          {
+            $sum: {
+              $map: {
+                input: "$pos",
+                as: "d",
+                in: {
+                  $convert: {
+                    input: { $trim: { input: "$$d.gst" } },
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+              },
+            },
+          },
+          2,
+        ],
+      },
+    },
+  },
+  {
+    $addFields: {
+      total_po_with_gst: {
+        $round: [{ $add: ["$total_po_basic", "$gst_as_po_basic"] }, 2],
+      },
+    },
+  },
+  {
+    $addFields: {
+      totalAmountPaid: {
+        $round: [{ $ifNull: ["$paidAmount", 0] }, 2],
+      },
+      balancePayable: {
+        $round: [
+          {
+            $subtract: [
+              { $ifNull: ["$total_po_with_gst", 0] }, // always fallback 0
+              { $ifNull: ["$paidAmount", 0] }, // always fallback 0
+            ],
+          },
+          2,
+        ],
+      },
+    },
+  },
+
+  {
+    $addFields: {
+      netBalance: {
+        $subtract: [
+          { $ifNull: ["$totalCredit", 0] },
+          {
+            $sum: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: "$debits",
+                    as: "d",
+                    cond: { $eq: ["$$d.paid_for", "Customer Adjustment"] },
+                  },
+                },
+                as: "d",
+                in: toNum("$$d.amount_paid"),
+              },
+            },
+          },
+        ],
+      },
+    },
+  },
+  {
+    $addFields: {
+      balanceSlnko: {
+        $round: [
+          {
+            $subtract: [
+              {
+                $subtract: [
+                  { $ifNull: ["$netBalance", 0] },
+                  { $ifNull: ["$totalAmountPaid", 0] },
+                ],
+              },
+              { $ifNull: ["$totalAdjustment", 0] },
+            ],
+          },
+          2,
+        ],
+      },
+    },
+  },
+
+  {
+    $addFields: {
+      tcs: {
+        $cond: {
+          if: { $gt: ["$netBalance", 5000000] },
+          then: {
+            $round: [
+              { $multiply: [{ $subtract: ["$netBalance", 5000000] }, 0.001] },
+              0,
+            ],
+          },
+          else: 0,
+        },
+      },
+    },
+  },
+  {
+    $addFields: {
+      balanceRequired: {
+        $round: [
+          {
+            $subtract: [
+              { $subtract: ["$balanceSlnko", "$balancePayable"] },
+              "$tcs",
+            ],
+          },
+          2,
+        ],
+      },
+    },
+  },
+
+  {
+    $project: {
+      _id: 1,
+      p_id: 1,
+      code: 1,
+      customer: 1,
+      name: 1,
+      p_group: 1,
+      totalCredit: 1,
+      totalDebit: 1,
+      availableAmount: 1,
+      totalAdjustment: 1,
+      totalAmountPaid: 1,
+      balanceSlnko: 1,
+      balancePayable: 1,
+      balanceRequired: 1,
+    },
+  },
+];
+
+// --- Recompute helper ---
+async function recomputeProjectBalanceForPo(pid) {
+  const pidNum = toSafeNumber(pid);
+  if (!pidNum) return;
+
+  const project = await projectModel
+    .findOne({ p_id: pidNum }, { _id: 1 })
+    .lean();
+  if (!project) return;
+
+  const rows = await projectModel.aggregate([
+    { $match: { p_id: pidNum } },
+    ...aggregationPipeline,
+  ]);
+  if (!rows.length) return;
+
+  const r = rows[0];
+  await projectBalanceModel.updateOne(
+    { p_id: project._id },
+    {
+      $set: {
+        p_id: project._id,
+        totalCredited: r.totalCredit || 0,
+        totalDebited: r.totalDebit || 0,
+        amountAvailable: r.availableAmount || 0,
+        totalAdjustment: r.totalAdjustment || 0,
+        balanceSlnko: r.balanceSlnko || 0,
+        balancePayable: r.balancePayable || 0,
+        balanceRequired: r.balanceRequired || 0,
+      },
+    },
+    { upsert: true }
+  );
+}
 
 const addPo = async function (req, res) {
   try {
@@ -45,6 +469,7 @@ const addPo = async function (req, res) {
       sales_Details,
     } = req.body;
 
+
     const userId = req.user.userId;
 
     if (!po_number && initial_status !== "approval_pending")
@@ -60,6 +485,7 @@ const addPo = async function (req, res) {
 
     const itemsSanitized = item.map((it) => ({
       category: it.category ?? null,
+      category_name: it.category_name ?? null,
       product_name: String(it.product_name ?? ""),
       gst_percent: String(it.gst_percent ?? ""),
       product_make: String(it.product_make ?? ""),
@@ -130,6 +556,7 @@ const addPo = async function (req, res) {
     });
 
     await newPO.save();
+    await recomputeProjectBalanceForPo(newPO.p_id);
 
     res.status(200).send({
       message: "Purchase Order has been added successfully!",
@@ -298,6 +725,8 @@ const editPO = async function (req, res) {
     };
 
     await pohisttoryModells.create(pohistory);
+
+    await recomputeProjectBalanceForPo(update.p_id);
 
     return res.status(200).json({
       msg: "PO updated successfully",
@@ -515,6 +944,107 @@ const getPOByPONumber = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getPOByPONumber:", error);
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+const generatePurchaseOrderPdf = async (req, res) => {
+  try {
+    const { po_number, _id } = req.query;
+
+    if (!po_number && !_id) {
+      return res.status(400).json({ msg: "po number or id is required" });
+    }
+
+    // Build query
+    let query = {};
+    if (po_number && _id) {
+      // If you want BOTH to match, use $and instead of $or
+      query = {
+        $or: [
+          { po_number },
+          {
+            _id: mongoose.isValidObjectId(_id)
+              ? new mongoose.Types.ObjectId(_id)
+              : _id,
+          },
+        ],
+      };
+    } else if (po_number) {
+      query = { po_number };
+    } else {
+      query = {
+        _id: mongoose.isValidObjectId(_id)
+          ? new mongoose.Types.ObjectId(_id)
+          : _id,
+      };
+    }
+
+    // Fetch the PO (await!)
+    const doc = await purchaseOrderModells.findOne(query)
+      .select("item date po_number vendor p_id _id") // include what you need
+      .lean()
+      .exec();
+
+    const notes = await PohistoryModel.find({
+      subject_type: "purchase_order",
+      subject_id: String(doc._id),
+      event_type: "note",
+      message: { $regex: /^Payment Terms & Conditions/i } // starts with, case-insensitive
+    }).select("message").lean();
+
+    if (!doc) {
+      return res.status(404).json({ msg: "Purchase order not found" });
+    }
+
+    // Map DB items -> generator's expected shape
+    const Purchase = (doc.item || []).map((it) => {
+      const qty = Number(it?.quantity) || 0;
+      const unit = Number(it?.cost) || 0;
+      const taxPct = Number(it?.gst_percent) || 0;
+      return {
+        category: it?.category_name || "",
+        product: it?.product_name || "",
+        description: it?.description || "",
+        make: it?.make || "",
+        quantity: qty,
+        unit_price: unit,
+        taxes: taxPct,                 // percent
+        amount: qty * unit + (qty * unit * taxPct) / 100,            // base amount
+      };
+    });
+
+    const apiUrl = `${process.env.PDF_PORT}/purchase-order/po-sheet`;
+
+    const axiosResponse = await axios({
+      method: "post",
+      url: apiUrl,
+      data: {
+        Purchase,
+        orderNumber: doc.po_number,
+        vendorName: doc.vendor,
+        Date: doc.date,
+        project_id: doc.p_id,
+        message: notes[0]?.message,
+      },
+      responseType: "stream",
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+
+    res.set({
+      "Content-Type": axiosResponse.headers["content-type"],
+      "Content-Disposition":
+        axiosResponse.headers["content-disposition"] ||
+        `attachment; filename="Purchase_order.pdf"`,
+    })
+
+    axiosResponse.data.pipe(res);
+
+  } catch (error) {
+    console.error("PDF generation error:", error);
     return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
@@ -1083,12 +1613,12 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-            .replace(/ /g, "/")
+          .toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+          .replace(/ /g, "/")
         : "";
 
     const data = result.map((it) => ({ ...it, date: formatDate(it.date) }));
@@ -2113,4 +2643,5 @@ module.exports = {
   getPoBasic,
   updateSalesPO,
   bulkMarkDelivered,
+  generatePurchaseOrderPdf,
 };

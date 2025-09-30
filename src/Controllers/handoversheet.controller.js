@@ -1124,10 +1124,57 @@ const updateAssignedTo = async (req, res) => {
       message: "Assigned to updated",
       handoverSheet: updatedHandoversheet,
     });
+  }
+  catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const listUsersNames = async function (req, res) {
+  try {
+    const users = await userModel.find({}, "_id name").sort({ name: 1 }).lean();
+
+    res.status(200).json({
+      message: "Users fetched",
+      users,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
+const UpdateAssigneTo = async function (req, res) {
+  try {
+    const { handoverIds, AssignedTo } = req.body;
+
+    if (!handoverIds || !Array.isArray(handoverIds) || handoverIds.length === 0) {
+      return res.status(400).json({ message: "Handover Required" });
+    }
+
+    if (!AssignedTo) {
+      return res.status(400).json({ message: "Assignee is Required" })
+    }
+
+    const result = await handoversheetModells.updateMany(
+      { _id: { $in: handoverIds } },
+      { $set: { assigned_to: AssignedTo } }
+    );
+
+    return res.status(200).json({
+      message: "Assignee updated successfully",
+      modifiedCount: result.modifiedCount,
+      matchedCount: result.matchedCount,
+    });
+  } catch (error) {
+
+    console.error("Error updating assignee:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+
+  }
+}
 
 module.exports = {
   createhandoversheet,
@@ -1138,4 +1185,7 @@ module.exports = {
   getexportToCsv,
   migrateProjectToHandover,
   updateAssignedTo,
+  listUsersNames,
+  UpdateAssigneTo,
 };
+

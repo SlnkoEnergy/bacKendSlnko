@@ -1,49 +1,48 @@
 const addMoneyModells = require("../models/addMoneyModells");
 const projectModells = require("../models/project.model");
+const projectBalanceModel = require("../models/projectBalance.model");
 const { getBill } = require("./bill.controller");
 
 //Add Money
-const addMoney = async function (req, res) {
+const addMoney = async (req, res) => {
   try {
-    const {
+    const { p_id, submitted_by, cr_amount, cr_mode, cr_date, comment } = req.body;
+
+    const project = await projectModells.findOne({ p_id: Number(p_id) });
+    if (!project) return res.status(404).json({ msg: "Project not found" });
+
+    const admoney = await addMoneyModells.create({
       p_id,
       submitted_by,
       cr_amount,
       cr_mode,
       cr_date,
-
-      comment,
-    } = req.body;
-
-    // Check if the project exists
-    let checkProject = await projectModells.find({ p_id: p_id });
-    if (!checkProject) {
-      return res.status(400).json({ msg: "Project not found" });
-    }
-
-    // Create the money addition record
-    const admoney = new addMoneyModells({
-      p_id,
-      submitted_by,
-      cr_amount,
-      cr_date,
-
-      cr_mode,
-
       comment,
     });
 
-    await admoney.save();
+    const amount = Number(cr_amount) || 0;
+    const updatedBalance = await projectBalanceModel.findOneAndUpdate(
+      { p_id: project._id },
+      [
+        {
+          $set: {
+            totalCredited: { $add: [{ $ifNull: ["$totalCredited", 0] }, amount] },
+            amountAvailable: {
+              $subtract: [
+                { $add: [{ $ifNull: ["$totalCredited", 0] }, amount] },
+                { $ifNull: ["$totalDebited", 0] },
+              ],
+            },
+          },
+        },
+      ],
+      { new: true, upsert: true }
+    );
 
- 
-    return res.status(201).json({
-      msg: "Money added successfully",
-      data: admoney,
-    });
-  } catch (error) {
-    // Handle errors
-    console.error(error);
-    return res.status(400).json({ msg: "Server error", error: error.message });
+    res.status(201).json({ msg: "Money added", data: admoney, balance: updatedBalance });
+  } catch (err) {
+    console.error("addMoney error:", err);
+    res.status(500).json({ msg: "Server error", error: err.message });
   }
 };
 
@@ -88,35 +87,25 @@ const deletecredit = async function (req, res) {
       .status(200)
       .json({ message: "Credit amount deleted successfully." });
   } catch (error) {
-
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-
-
 //Delete -Crerdit Amount IN USE
 
 const deleteCreditAmount = async function (req, res) {
-          let _id = req.params._id;
+  let _id = req.params._id;
   try {
     let credit = await addMoneyModells.findByIdAndDelete(_id);
     if (!credit) {
       return res.status(404).json({ message: "Credit Amount Not Found" });
     }
 
-    res.status(200).json({ msg: "Credit Amount Deleted", credit:credit });
-    
+    res.status(200).json({ msg: "Credit Amount Deleted", credit: credit });
   } catch (error) {
-   
     return res.status(500).json({ message: "Internal Server Error" + error });
-    
   }
- 
 };
-
-
-
 
 //  Credit Amount
 const credit_amount = async function (req, res) {
