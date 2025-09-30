@@ -12,6 +12,7 @@ const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const postsModel = require("../models/posts.model");
 const activitiesModel = require("../models/activities.model");
 const projectactivitiesModel = require("../models/projectactivities.model");
+const { triggerLoanTasksBulk } = require("../utils/triggerLoanTask");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -432,7 +433,7 @@ const edithandoversheetdata = async function (req, res) {
 
     const update = {
       ...body,
-      submitted_by: req?.user?.userId, 
+      submitted_by: req?.user?.userId,
     };
 
     const handoverSheet = await hanoversheetmodells.findByIdAndUpdate(
@@ -454,9 +455,9 @@ const edithandoversheetdata = async function (req, res) {
 
     if (Object.keys(leadUpdate).length) {
       await bdleadsModells.findOneAndUpdate(
-        { id: handoverSheet.id },      
+        { id: handoverSheet.id },
         { $set: leadUpdate },
-        { new: true }               
+        { new: true }
       );
     }
 
@@ -469,6 +470,111 @@ const edithandoversheetdata = async function (req, res) {
   }
 };
 
+function parseFraction(formula) {
+  if (!formula) return null;
+  const m = String(formula)
+    .trim()
+    .match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (!m) return null;
+  const num = Number(m[1]);
+  const den = Number(m[2]);
+  if (!Number.isFinite(num) || !Number.isFinite(den) || den === 0) return null;
+  return num / den;
+}
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function daysBetweenCeil(from, to) {
+  const DAY = 24 * 60 * 60 * 1000;
+  const diffMs = (to?.getTime?.() ?? 0) - (from?.getTime?.() ?? 0);
+  return Math.max(0, Math.ceil(diffMs / DAY));
+}
+
+function addDays(date, days) {
+  const DAY = 24 * 60 * 60 * 1000;
+  return new Date(date.getTime() + days * DAY);
+}
+
+function minDate(...dates) {
+  const valid = dates.filter((d) => d instanceof Date && !isNaN(d));
+  if (valid.length === 0) return null;
+  return new Date(Math.min(...valid.map((d) => d.getTime())));
+}
+
+async function getLoanManagers(session = null) {
+  const deptOrTeamLoan = { $or: [{ department: /loan/i }, { team: /loan/i }] };
+  const roleIsManager = {
+    $or: [
+      { role: /manager/i },
+      { designation: /manager/i },
+      { title: /manager/i },
+    ],
+  };
+
+  let managers = await userModells
+    .find({ $and: [deptOrTeamLoan, roleIsManager] })
+    .select("_id")
+    .session(session)
+    .lean();
+
+  if (!managers?.length) {
+    managers = await userModells
+      .find(deptOrTeamLoan)
+      .select("_id")
+      .session(session)
+      .lean();
+  }
+  return (managers || []).map((u) => u._id);
+}
+
+function buildLoanTaskPayloadsForActivity({
+  projectActivityDoc,
+  activityRow,
+  createdByUserId,
+  assignedToIds,
+  activityName,
+}) {
+  // ensure dates present
+  if (!activityRow?.planned_start || !activityRow?.planned_finish) return [];
+
+  const activityId = activityRow.activity_id;
+  const common = {
+    sourceKey: `PA:LOAN_DOC:${projectActivityDoc._id}:${activityId}`,
+    source: {
+      type: "Loan",
+      model_id: new mongoose.Types.ObjectId(activityId),
+      activityId: new mongoose.Types.ObjectId(activityId),
+      projectActivityId: projectActivityDoc._id,
+      phase: "documentation",
+    },
+    title: "Loan Task",
+    description:
+      `Auto task for loan process` +
+      (activityName ? ` (Activity: ${activityName})` : ""),
+    project_id: projectActivityDoc.project_id,
+    userId: createdByUserId,
+    assigned_to: assignedToIds,
+    deadline: activityRow.planned_finish,
+    status_history: [
+      {
+        status: "pending",
+        remarks: "Task created for Loan team by system",
+        user_id: null,
+        updatedAt: new Date(),
+      },
+    ],
+  };
+
+  return [
+    {
+      ...common,
+    },
+  ];
+}
 
 // update status of handovesheet
 const updatestatus = async function (req, res) {
@@ -503,7 +609,6 @@ const updatestatus = async function (req, res) {
       let projectData;
 
       if (updatedHandoversheet.p_id) {
-        // Update existing project
         projectData = await projectmodells.findOneAndUpdate(
           { p_id: updatedHandoversheet.p_id },
           {
@@ -610,7 +715,6 @@ const updatestatus = async function (req, res) {
           uom: "",
         }));
 
-        // 3) Instantiate and save
         const scopeDoc = new scopeModel({
           project_id: projectData._id,
           items,
@@ -625,35 +729,99 @@ const updatestatus = async function (req, res) {
 
         await posts.save();
 
-        // Fetch only dependency fields we care about
+        const earliestProjectDate = minDate(
+          projectData?.ppa_expiry_date,
+          projectData?.bd_commitment_date,
+          projectData?.project_completion_date
+        );
+        const startOfDay = startOfToday;
+        const todayStart = startOfDay(new Date());
+        const totalDaysToEarliest = earliestProjectDate
+          ? Math.max(0, daysBetweenCeil(todayStart, earliestProjectDate))
+          : null;
+
         const activities = await activitiesModel
           .find({})
           .select(
-            "dependency.model dependency.model_id dependency.model_id_name dependency.updatedAt dependency.updated_by"
+            "name completion_formula dependency.model dependency.model_id dependency.model_id_name predecessors.activity_id predecessors.type predecessors.lag"
           )
           .lean();
 
-        const activitiesArray = activities.map((act) => ({
-          activity_id: act._id,
-          dependency: Array.isArray(act.dependency)
-            ? act.dependency.map((d) => ({
-                model: d.model,
-                model_id: d.model_id,
-                model_id_name: d.model_id_name,
-                updatedAt: d.updatedAt || new Date(),
-                updated_by: d.updated_by || req.user.userId,
-              }))
-            : [],
-        }));
+        const activitiesMapById = new Map(
+          activities.map((a) => [String(a._id), a])
+        );
 
+        const activitiesArray = activities.map((act) => {
+          let planned_start = undefined;
+          let planned_finish = undefined;
+
+          if (totalDaysToEarliest !== null) {
+            const frac = parseFraction(act?.completion_formula);
+            console.log({ frac });
+            if (frac !== null) {
+              const durationDays = Math.max(
+                0,
+                Math.ceil(totalDaysToEarliest * frac)
+              );
+              planned_start = new Date(todayStart);
+              planned_finish = addDays(todayStart, durationDays);
+              console.log({ planned_start, planned_finish, durationDays });
+            }
+          }
+
+          return {
+            activity_id: act._id,
+            dependency: Array.isArray(act.dependency)
+              ? act.dependency.map((d) => ({
+                  model: d.model,
+                  model_id: d.model_id,
+                  model_id_name: d.model_id_name,
+                  updatedAt: d.updatedAt || new Date(),
+                  updated_by: d.updated_by || req.user.userId,
+                }))
+              : [],
+            predecessors: Array.isArray(act.predecessors)
+              ? act.predecessors.map((p) => ({
+                  activity_id: p.activity_id,
+                  type: p.type,
+                  lag: p.lag,
+                }))
+              : [],
+            planned_start,
+            planned_finish,
+          };
+        });
+
+        // Create the ProjectActivities doc
         const projectActivityDoc = new projectactivitiesModel({
           project_id: projectData._id,
           activities: activitiesArray,
           created_by: req.user.userId,
           status: "project",
         });
-
         await projectActivityDoc.save();
+
+        const createdByUserId = req.user.userId;
+        const loanManagers = await getLoanManagers();
+        const assignedTo = loanManagers?.length ? loanManagers : [];
+
+        const loanTaskPayloads = projectActivityDoc.activities
+          .filter((a) => a.planned_start && a.planned_finish)
+          .flatMap((a) => {
+            const master = activitiesMapById.get(String(a.activity_id));
+            const activityName = master?.name || null;
+            return buildLoanTaskPayloadsForActivity({
+              projectActivityDoc,
+              activityRow: a,
+              createdByUserId,
+              assignedToIds: assignedTo,
+              activityName,
+            });
+          });
+
+        if (loanTaskPayloads.length) {
+          await triggerLoanTasksBulk(loanTaskPayloads);
+        }
 
         return res.status(200).json({
           message:
@@ -664,8 +832,6 @@ const updatestatus = async function (req, res) {
         });
       }
     }
-
-    // Notification Functionality on Status Update
 
     try {
       const owner = await userModells.find({ name: submitted_by });

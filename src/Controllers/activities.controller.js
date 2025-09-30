@@ -77,6 +77,7 @@ const namesearchOfActivities = async (req, res) => {
       description: 1,
       type: 1,
       dependency: 1,
+      predecessors: 1,
     };
     const sort = { name: 1, _id: 1 };
 
@@ -85,6 +86,10 @@ const namesearchOfActivities = async (req, res) => {
         .sort(sort)
         .skip(skip)
         .limit(pageSize)
+        .populate({
+          path: "predecessors.activity_id",
+          select: "name",
+        })
         .populate({ path: "dependency.model_id", select: "name" }),
       Activity.countDocuments(filter),
     ]);
@@ -119,7 +124,11 @@ const updateDependency = async (req, res) => {
     const { global, projectId } = req.query;
     const isGlobal = String(global).toLowerCase() === "true";
 
-    // Parse dependencies (existing behavior)
+    const LINK_TYPES =
+      typeof globalThis.LINK_TYPES === "object" && globalThis.LINK_TYPES instanceof Set
+        ? globalThis.LINK_TYPES
+        : new Set(["FS", "SS", "FF"]);
+
     const dependencies = Array.isArray(req.body.dependencies)
       ? req.body.dependencies
       : req.body.model && req.body.model_id
@@ -132,31 +141,46 @@ const updateDependency = async (req, res) => {
         ]
       : [];
 
-    // Parse predecessors (NEW)
     const predecessors = Array.isArray(req.body.predecessors)
       ? req.body.predecessors
-      : req.body.predecessor_activity_id
+      : req.body.activity_id
       ? [
           {
-            activity_id: req.body.predecessor_activity_id,
-            type: req.body.predecessor_type, // "FS" | "SS" | "FF" | "SF"
-            lag: req.body.predecessor_lag,   // number-ish
+            activity_id: req.body.activity_id,
+            type: req.body.type,
+            lag: req.body.lag,
           },
         ]
       : [];
+
+    const hasFormulaUpdate = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "completion_formula"
+    );
+    const completion_formula = hasFormulaUpdate
+      ? String(req.body.completion_formula ?? "")
+      : undefined;
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid :id" });
     }
 
-    // Allow updating if EITHER dependencies or predecessors present
-    if (!dependencies.length && !predecessors.length) {
+    if (!isGlobal && hasFormulaUpdate) {
       return res.status(400).json({
-        message: "Nothing to update. Provide dependencies or predecessors.",
+        message:
+          "completion_formula can only be updated in global scope (global=true).",
       });
     }
 
-    // Validate dependencies (existing behavior)
+    // If none of the 3 are provided, nothing to do
+    if (!dependencies.length && !predecessors.length && !hasFormulaUpdate) {
+      return res.status(400).json({
+        message:
+          "Nothing to update. Provide dependencies, predecessors, or completion_formula.",
+      });
+    }
+
+    // Validate dependencies
     for (const d of dependencies) {
       if (!d?.model || !d?.model_id) {
         return res
@@ -170,7 +194,7 @@ const updateDependency = async (req, res) => {
       }
     }
 
-    // Validate & normalize predecessors (NEW)
+    // Validate + normalize predecessors
     for (const p of predecessors) {
       if (!p?.activity_id || !mongoose.isValidObjectId(p.activity_id)) {
         return res.status(400).json({
@@ -194,7 +218,7 @@ const updateDependency = async (req, res) => {
         return res.status(404).json({ message: "Activity not found" });
       }
 
-      // ---- Dependencies (existing behavior)
+      // Dependencies (global master)
       let depsAdded = 0;
       for (const dep of dependencies) {
         const exists = activity.dependency?.some(
@@ -213,7 +237,7 @@ const updateDependency = async (req, res) => {
         }
       }
 
-      // ---- Predecessors (NEW)
+      // Predecessors (global master)
       let predsAdded = 0;
       let predsUpdated = 0;
 
@@ -246,6 +270,15 @@ const updateDependency = async (req, res) => {
         }
       }
 
+      let formulaChanged = false;
+      if (hasFormulaUpdate) {
+        const before = activity.completion_formula ?? "";
+        if (before !== completion_formula) {
+          activity.completion_formula = completion_formula;
+          formulaChanged = true;
+        }
+      }
+
       await activity.save();
 
       const parts = [];
@@ -261,74 +294,86 @@ const updateDependency = async (req, res) => {
           `Predecessors processed (added: ${predsAdded}, updated: ${predsUpdated})`
         );
       }
+      if (hasFormulaUpdate) {
+        parts.push(
+          formulaChanged
+            ? "Completion formula updated"
+            : "Completion formula unchanged"
+        );
+      }
 
       return res.status(200).json({
         message: parts.join("; "),
         activity,
       });
-    } else {
-      // Predecessors are GLOBAL-ONLY
-      if (predecessors.length) {
-        return res.status(400).json({
-          message: "Predecessors can only be updated in global scope.",
-        });
-      }
+    }
 
-      const project_id = projectId;
-      if (!project_id || !mongoose.isValidObjectId(project_id)) {
-        return res.status(400).json({
-          message: "projectId (valid ObjectId) is required when global=false",
-        });
-      }
-
-      const projAct = await ProjectActivity.findOne({ project_id });
-      if (!projAct) {
-        return res
-          .status(404)
-          .json({ message: "ProjectActivity not found for given project_id" });
-      }
-
-      const idx = (projAct.activities || []).findIndex(
-        (a) => String(a.activity_id) === String(id)
-      );
-      if (idx === -1) {
-        return res.status(404).json({
-          message:
-            "Embedded activity not found in projectActivities.activities for provided :id",
-        });
-      }
-
-      if (!Array.isArray(projAct.activities[idx].dependency)) {
-        projAct.activities[idx].dependency = [];
-      }
-
-      let added = 0;
-      for (const dep of dependencies) {
-        const exists = projAct.activities[idx].dependency.some(
-          (d) =>
-            d.model === dep.model && String(d.model_id) === String(dep.model_id)
-        );
-        if (!exists) {
-          projAct.activities[idx].dependency.push({
-            model: dep.model,
-            model_id: dep.model_id,
-            model_id_name: dep.model_id_name,
-            updated_by: actor,
-            updatedAt: new Date(),
-          });
-          added++;
-        }
-      }
-
-      await projAct.save();
-      return res.status(200).json({
-        message:
-          added > 0
-            ? `Dependencies added successfully (${added})`
-            : "No new dependencies to add (duplicates ignored)",
-        projectActivity: projAct,
+    // ---- Project scope (embedded activity) ----
+    if (predecessors.length) {
+      return res.status(400).json({
+        message: "Predecessors can only be updated in global scope.",
       });
     }
+    if (hasFormulaUpdate) {
+      return res.status(400).json({
+        message: "completion_formula can only be updated in global scope.",
+      });
+    }
+
+    const project_id = projectId;
+    if (!project_id || !mongoose.isValidObjectId(project_id)) {
+      return res.status(400).json({
+        message: "projectId (valid ObjectId) is required when global=false",
+      });
+    }
+
+    const projAct = await ProjectActivity.findOne({ project_id });
+    if (!projAct) {
+      return res
+        .status(404)
+        .json({ message: "ProjectActivity not found for given project_id" });
+    }
+
+    const idx = (projAct.activities || []).findIndex(
+      (a) => String(a.activity_id) === String(id)
+    );
+    if (idx === -1) {
+      return res.status(404).json({
+        message:
+          "Embedded activity not found in projectActivities.activities for provided :id",
+      });
+    }
+
+    if (!Array.isArray(projAct.activities[idx].dependency)) {
+      projAct.activities[idx].dependency = [];
+    }
+
+    let added = 0;
+    for (const dep of dependencies) {
+      const exists = projAct.activities[idx].dependency.some(
+        (d) =>
+          d.model === dep.model && String(d.model_id) === String(dep.model_id)
+      );
+      if (!exists) {
+        projAct.activities[idx].dependency.push({
+          model: dep.model,
+          model_id: dep.model_id,
+          model_id_name: dep.model_id_name,
+          updated_by: actor,
+          updatedAt: new Date(),
+        });
+        added++;
+      }
+    }
+
+    await projAct.save();
+    return res.status(200).json({
+      message:
+        added > 0
+          ? `Dependencies added successfully (${added})`
+          : "No new dependencies to add (duplicates ignored)",
+      projectActivity: projAct,
+    });
   } catch (error) {
     return res.status(500).json({
       message: "Internal Server Error",
