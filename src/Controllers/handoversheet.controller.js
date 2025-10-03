@@ -1104,32 +1104,6 @@ const getexportToCsv = async (req, res) => {
   }
 };
 
-const updateAssignedTo = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { assigned_to } = req.body;
-
-    if (!id) {
-      return res.status(400).json({ message: "id is required" });
-    }
-    const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
-      { _id: id },
-      { assigned_to },
-      { new: true }
-    );
-    if (!updatedHandoversheet) {
-      return res.status(404).json({ message: "Handoversheet not found" });
-    }
-    return res.status(200).json({
-      message: "Assigned to updated",
-      handoverSheet: updatedHandoversheet,
-    });
-  }
-  catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 const listUsersNames = async function (req, res) {
   try {
     const users = await userModel.find({}, "_id name").sort({ name: 1 }).lean();
@@ -1143,7 +1117,7 @@ const listUsersNames = async function (req, res) {
   }
 };
 
-const UpdateAssigneTo = async function (req, res) {
+const updateAssignedTo = async function (req, res) {
   try {
     const { handoverIds, AssignedTo } = req.body;
 
@@ -1185,7 +1159,6 @@ module.exports = {
   getexportToCsv,
   migrateProjectToHandover,
   updateAssignedTo,
-  listUsersNames,
-  UpdateAssigneTo,
+  listUsersNames
 };
 
