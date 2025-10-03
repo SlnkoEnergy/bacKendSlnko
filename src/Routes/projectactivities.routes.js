@@ -17,7 +17,8 @@ const {
   getActivitiesByProjectId,
   reorderProjectActivities,
   getAllProjectActivityForView,
-} = require("../Controllers/projectactivities.controller");
+  getResources,
+} = require("../controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
 router.post("/projectactivity", jwtMW.authentication, createProjectActivity);
@@ -92,6 +93,12 @@ router.get(
   "/allprojectactivityforview",
   jwtMW.authentication,
   getAllProjectActivityForView
+);
+
+router.get(
+  "/resources",
+  jwtMW.authentication,
+  getResources
 );
 
 module.exports = router;
