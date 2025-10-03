@@ -20,7 +20,7 @@ const projectActivitySchema = new mongoose.Schema(
         },
         order: Number,
         planned_start: Date,
-        planned_finish: Date,              
+        planned_finish: Date,
         actual_start: Date,
         actual_finish: Date,
         duration: Number,
@@ -104,7 +104,26 @@ const projectActivitySchema = new mongoose.Schema(
             },
           },
         ],
-        resources: { type: Number },
+        resources: [
+          {
+            type: {
+              type: String,
+              enum: [
+                "surveyor",
+                "civil engineer",
+                "civil i&c",
+                "electric engineer",
+                "electric i&c",
+                "soil testing team",
+                "tline engineer",
+                "tline subcontractor",
+              ],
+            },
+            number: {
+              type: Number,
+            },
+          },
+        ],
       },
     ],
     status: { type: String, enum: ["template", "project"] },

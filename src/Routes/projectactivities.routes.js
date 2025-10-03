@@ -88,6 +88,10 @@ router.patch(
   jwtMW.authentication,
   reorderProjectActivities
 );
-router.get('/allprojectactivityforview', jwtMW.authentication, getAllProjectActivityForView);
+router.get(
+  "/allprojectactivityforview",
+  jwtMW.authentication,
+  getAllProjectActivityForView
+);
 
 module.exports = router;
