@@ -18,7 +18,7 @@ const {
   reorderProjectActivities,
   getAllProjectActivityForView,
   getResources,
-} = require("../controllers/projectactivities.controller");
+} = require("../Controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
 router.post("/projectactivity", jwtMW.authentication, createProjectActivity);
