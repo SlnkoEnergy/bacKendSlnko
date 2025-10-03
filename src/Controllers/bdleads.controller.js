@@ -187,6 +187,7 @@ const getAllLeads = async (req, res) => {
       "Abhishek Sawhney": ["chhattisgarh"],
       "Sankalp Choudhary": ["chhattisgarh"],
       "Kunal Kumar": ["rajasthan"],
+      "Mohit Soni": ["rajasthan"],
     };
 
     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {
@@ -369,6 +370,7 @@ const getLeadCounts = async (req, res) => {
       "Abhishek Sawhney": ["chhattisgarh"],
       "Sankalp Choudhary": ["chhattisgarh"],
       "Kunal Kumar": ["rajasthan"],
+      "Mohit Soni": ["rajasthan"],
     };
 
     if (!isPrivilegedUser && !regionalAccessMap[user.name]) {

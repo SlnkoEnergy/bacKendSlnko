@@ -6,7 +6,7 @@ const {
   namesearchOfActivities,
   updateDependency,
   deleteDependency
-} = require("../controllers/activities.controller");
+} = require("../Controllers/activities.controller");
 const jwtMW = require("../middlewares/auth");
 
 router.post("/activity", jwtMW.authentication, createActivity);
