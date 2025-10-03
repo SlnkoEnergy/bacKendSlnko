@@ -19,6 +19,50 @@ function stripTemplateCode(payload = {}) {
   return rest;
 }
 
+
+function parseYMDLocal(s) {
+  if (!s || typeof s !== "string") return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const [_, Y, M, D] = m;
+  const dt = new Date(Number(Y), Number(M) - 1, Number(D));
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+}
+function endOfDayLocal(d) {
+  const dt = new Date(d);
+  dt.setHours(23, 59, 59, 999);
+  return dt;
+}
+function ymd(date) {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function startOfWeekLocal(base = new Date()) {
+  const d = new Date(base);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();                 // 0=Sun, 1=Mon
+  const diff = day === 0 ? -6 : 1 - day;  // Monday start
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+// keep in sync with your schema enum
+const RESOURCE_TYPES = [
+  "surveyor",
+  "civil engineer",
+  "civil i&c",
+  "electric engineer",
+  "electric i&c",
+  "soil testing team",
+  "tline engineer",
+  "tline subcontractor",
+];
+
+
 const createProjectActivity = async (req, res) => {
   try {
     const data = req.body;
@@ -1147,6 +1191,119 @@ const getAllProjectActivityForView = async (req, res) => {
   }
 };
 
+const getResources = async (req, res) => {
+  try {
+    const startParam = parseYMDLocal(req.query.start);
+    const endParam   = parseYMDLocal(req.query.end);
+    const { project_id } = req.query;
+
+    // Build a 7-day window as needed
+    let start = startParam;
+    let end   = endParam;
+
+    if (!start && !end) {
+      // Default: current week Mon..Sun
+      start = startOfWeekLocal(new Date());
+      end = new Date(start);
+      end.setDate(start.getDate() + 6);
+    } else if (start && !end) {
+      // 7 days starting from start
+      end = new Date(start);
+      end.setDate(start.getDate() + 6);
+    } else if (!start && end) {
+      // 7 days ending at end
+      start = new Date(end);
+      start.setDate(end.getDate() - 6);
+    }
+
+    // Normalize to day bounds
+    start.setHours(0, 0, 0, 0);
+    end = endOfDayLocal(end);
+
+    if (!start || !end || end < start) {
+      return res.status(400).json({ ok: false, message: "Invalid start/end (YYYY-MM-DD)" });
+    }
+
+    // Optional project filter
+    const match = {};
+    if (project_id) {
+      if (!mongoose.isValidObjectId(project_id)) {
+        return res.status(400).json({ ok: false, message: "Invalid project_id" });
+      }
+      match.project_id = new mongoose.Types.ObjectId(project_id);
+    }
+
+    // Aggregate by PLANNED dates only; sum numbers by resource type
+    const rows = await projectActivity.aggregate([
+      { $match: match },
+      { $unwind: "$activities" },
+      {
+        $match: {
+          "activities.planned_start": { $ne: null },
+          "activities.planned_finish": { $ne: null },
+          $expr: {
+            $and: [
+              { $lte: ["$activities.planned_start", end] },   // planned_start <= end
+              { $gte: ["$activities.planned_finish", start] } // planned_finish >= start
+            ],
+          },
+        },
+      },
+      { $unwind: "$activities.resources" },
+      // guard against null/typo types (optional)
+      { $match: { "activities.resources.type": { $in: RESOURCE_TYPES } } },
+      {
+        $group: {
+          _id: "$activities.resources.type",
+          number: { $sum: { $ifNull: ["$activities.resources.number", 0] } },
+        },
+      },
+      // sort by enum order so output stays consistent
+      {
+        $addFields: {
+          order: { $indexOfArray: [RESOURCE_TYPES, "$_id"] },
+        },
+      },
+      { $sort: { order: 1 } },
+      {
+        $project: {
+          _id: 0,
+          type: "$_id",
+          number: { $ifNull: ["$number", 0] },
+        },
+      },
+    ]);
+
+    // Always return all 8 types, zero-filled for missing types
+    const map = new Map(rows.map(r => [String(r.type), Number(r.number) || 0]));
+    const data = RESOURCE_TYPES.map(t => ({
+      type: t,
+      number: map.get(t) ?? 0, // e.g., "civil engineer" = 25, "surveyor" = 45
+    }));
+
+    // Quick lookup object if you need "civil engineer: 25" style
+    const summary = Object.fromEntries(data.map(d => [d.type, d.number]));
+
+    return res.status(200).json({
+      ok: true,
+      mode: project_id ? "by-project (planned)" : "all-projects (planned)",
+      start: ymd(start),
+      end: ymd(end),
+      ...(project_id ? { project_id } : {}),
+      data,       // [{type, number}] -> e.g., civil engineer = 25, surveyor = 45, ...
+      summary,    // {"civil engineer":25, "surveyor":45, ...}
+    });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to fetch resources",
+      error: String(err?.message || err),
+    });
+  }
+};
+
+
+
 module.exports = {
   createProjectActivity,
   getAllProjectActivities,
@@ -1164,4 +1321,5 @@ module.exports = {
   getRejectedOrNotAllowedDependencies,
   reorderProjectActivities,
   getAllProjectActivityForView,
+  getResources,
 };
