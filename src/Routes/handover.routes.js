@@ -31,10 +31,6 @@ router.put(
 );
 router.put("/update-status/:_id", jwtMW.authentication, updatestatus);
 router.get("/get-handoversheet", jwtMW.authentication, getByIdOrLeadId);
-router.put(
-  "/migrateProject",
-  jwtMW.authentication,
-  migrateProjectToHandover
-);
-router.put('/updateAssignedto/:id', jwtMW.authentication, updateAssignedTo);
+router.put("/migrateProject", jwtMW.authentication, migrateProjectToHandover);
+router.put("/updateAssignedto", jwtMW.authentication, updateAssignedTo);
 module.exports = router;
