@@ -20,18 +20,32 @@ function stripTemplateCode(payload = {}) {
 }
 
 
-function parseYMDLocal(s) {
-  if (!s || typeof s !== "string") return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) return null;
-  const [_, Y, M, D] = m;
-  const dt = new Date(Number(Y), Number(M) - 1, Number(D));
+const IST_OFFSET_MIN = 5 * 60 + 30; // Asia/Kolkata
+const RESOURCE_TYPES = [
+  "civil engineer",
+  "surveyor",
+  "electrical engineer",
+  "mechanical engineer",
+  "i&c",
+  "safety",
+  "logistics",
+  "store",
+];
+
+function startOfDayLocal(d) {
+  const dt = new Date(d);
   dt.setHours(0, 0, 0, 0);
   return dt;
 }
 function endOfDayLocal(d) {
   const dt = new Date(d);
   dt.setHours(23, 59, 59, 999);
+  return dt;
+}
+function addDays(d, n) {
+  const dt = new Date(d);
+  dt.setDate(dt.getDate() + n);
+  dt.setHours(0, 0, 0, 0);
   return dt;
 }
 function ymd(date) {
@@ -41,26 +55,14 @@ function ymd(date) {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-function startOfWeekLocal(base = new Date()) {
-  const d = new Date(base);
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay();                 // 0=Sun, 1=Mon
-  const diff = day === 0 ? -6 : 1 - day;  // Monday start
-  d.setDate(d.getDate() + diff);
-  return d;
+function parseYMDLocal(s) {
+  if (!s) return null;
+  // Expect "YYYY-MM-DD"
+  const [y, m, d] = String(s).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return startOfDayLocal(new Date(y, m - 1, d));
 }
 
-// keep in sync with your schema enum
-const RESOURCE_TYPES = [
-  "surveyor",
-  "civil engineer",
-  "civil i&c",
-  "electric engineer",
-  "electric i&c",
-  "soil testing team",
-  "tline engineer",
-  "tline subcontractor",
-];
 
 
 const createProjectActivity = async (req, res) => {
@@ -1192,32 +1194,27 @@ const getAllProjectActivityForView = async (req, res) => {
 };
 
 const getResources = async (req, res) => {
-  try {
+ try {
     const startParam = parseYMDLocal(req.query.start);
-    const endParam   = parseYMDLocal(req.query.end);
+    const endParam = parseYMDLocal(req.query.end);
     const { project_id } = req.query;
 
-    // Build a 7-day window as needed
+    // ----- Build a 7-day window -----
     let start = startParam;
-    let end   = endParam;
+    let end = endParam;
 
     if (!start && !end) {
-      // Default: current week Mon..Sun
-      start = startOfWeekLocal(new Date());
-      end = new Date(start);
-      end.setDate(start.getDate() + 6);
+      // Default: today .. today+6
+      start = startOfDayLocal(new Date());
+      end = addDays(start, 6);
     } else if (start && !end) {
-      // 7 days starting from start
-      end = new Date(start);
-      end.setDate(start.getDate() + 6);
+      end = addDays(start, 6);
     } else if (!start && end) {
-      // 7 days ending at end
-      start = new Date(end);
-      start.setDate(end.getDate() - 6);
+      start = addDays(end, -6);
     }
 
     // Normalize to day bounds
-    start.setHours(0, 0, 0, 0);
+    start = startOfDayLocal(start);
     end = endOfDayLocal(end);
 
     if (!start || !end || end < start) {
@@ -1233,73 +1230,159 @@ const getResources = async (req, res) => {
       match.project_id = new mongoose.Types.ObjectId(project_id);
     }
 
-    // Aggregate by PLANNED dates only; sum numbers by resource type
+    // Pipeline:
+    // 1) unwind activities
+    // 2) compute overlap [overlapStart, overlapEnd] = intersection of [planned_start, planned_finish] with [start, end]
+    // 3) if overlap exists, unwind resources
+    // 4) expand to each day in overlap via $range + $dateAdd
+    // 5) group by {day, resource.type}, sum resources.number
     const rows = await projectActivity.aggregate([
       { $match: match },
       { $unwind: "$activities" },
       {
+        $project: {
+          planned_start: "$activities.planned_start",
+          planned_finish: "$activities.planned_finish",
+          resources: "$activities.resources",
+        },
+      },
+      // Only activities with both planned dates and any overlap with [start,end]
+      {
         $match: {
-          "activities.planned_start": { $ne: null },
-          "activities.planned_finish": { $ne: null },
+          planned_start: { $ne: null },
+          planned_finish: { $ne: null },
+          // coarse pre-filter: start <= end && finish >= start
           $expr: {
             $and: [
-              { $lte: ["$activities.planned_start", end] },   // planned_start <= end
-              { $gte: ["$activities.planned_finish", start] } // planned_finish >= start
+              { $lte: ["$planned_start", end] },
+              { $gte: ["$planned_finish", start] },
             ],
           },
         },
       },
-      { $unwind: "$activities.resources" },
-      // guard against null/typo types (optional)
-      { $match: { "activities.resources.type": { $in: RESOURCE_TYPES } } },
-      {
-        $group: {
-          _id: "$activities.resources.type",
-          number: { $sum: { $ifNull: ["$activities.resources.number", 0] } },
-        },
-      },
-      // sort by enum order so output stays consistent
       {
         $addFields: {
-          order: { $indexOfArray: [RESOURCE_TYPES, "$_id"] },
+          overlapStart: {
+            $cond: [
+              { $gt: ["$planned_start", start] },
+              "$planned_start",
+              start,
+            ],
+          },
+          overlapEnd: {
+            $cond: [
+              { $lt: ["$planned_finish", end] },
+              "$planned_finish",
+              end,
+            ],
+          },
         },
       },
-      { $sort: { order: 1 } },
+      // If overlapStart > overlapEnd, skip
+      {
+        $addFields: {
+          daySpan: {
+            $add: [
+              1,
+              {
+                $dateDiff: {
+                  startDate: { $dateTrunc: { date: "$overlapStart", unit: "day" } },
+                  endDate: { $dateTrunc: { date: "$overlapEnd", unit: "day" } },
+                  unit: "day",
+                },
+              },
+            ],
+          },
+        },
+      },
+      { $match: { daySpan: { $gt: 0 } } },
+      { $unwind: { path: "$resources", preserveNullAndEmptyArrays: false } },
+      { $match: { "resources.type": { $in: RESOURCE_TYPES } } },
+      // Create array of each active day within overlap
+      {
+        $addFields: {
+          activeDays: {
+            $map: {
+              input: { $range: [0, "$daySpan"] },
+              as: "offset",
+              in: {
+                $dateTrunc: {
+                  date: { $dateAdd: { startDate: { $dateTrunc: { date: "$overlapStart", unit: "day" } }, unit: "day", amount: "$$offset" } },
+                  unit: "day",
+                },
+              },
+            },
+          },
+        },
+      },
+      { $unwind: "$activeDays" },
+      {
+        $group: {
+          _id: { day: "$activeDays", type: "$resources.type" },
+          count: { $sum: { $ifNull: ["$resources.number", 0] } },
+        },
+      },
       {
         $project: {
           _id: 0,
-          type: "$_id",
-          number: { $ifNull: ["$number", 0] },
+          day: "$_id.day",
+          type: "$_id.type",
+          count: { $ifNull: ["$count", 0] },
         },
       },
+      { $sort: { day: 1 } },
     ]);
 
-    // Always return all 8 types, zero-filled for missing types
-    const map = new Map(rows.map(r => [String(r.type), Number(r.number) || 0]));
-    const data = RESOURCE_TYPES.map(t => ({
-      type: t,
-      number: map.get(t) ?? 0, // e.g., "civil engineer" = 25, "surveyor" = 45
+    // ------------- Normalize to 7 days × 8 resource types -------------
+    const dayKeys = [];
+    for (let i = 0; i < 7; i++) {
+      dayKeys.push(ymd(addDays(start, i)));
+    }
+
+    // Build nested { [dateYMD]: { [type]: count } }
+    const temp = {};
+    for (const d of dayKeys) {
+      temp[d] = Object.fromEntries(RESOURCE_TYPES.map((t) => [t, 0]));
+    }
+    for (const r of rows) {
+      const dayKey = ymd(r.day);
+      if (temp[dayKey] && RESOURCE_TYPES.includes(r.type)) {
+        temp[dayKey][r.type] += Number(r.count) || 0;
+      }
+    }
+
+    // Table format for grouped bars (one object per date, keys = resource types)
+    const series = dayKeys.map((dKey) => ({
+      date: dKey,
+      ...temp[dKey],
     }));
 
-    // Quick lookup object if you need "civil engineer: 25" style
-    const summary = Object.fromEntries(data.map(d => [d.type, d.number]));
+    // Also include a "logs" list if you want to reuse other components
+    const logs = [];
+    for (const dKey of dayKeys) {
+      for (const t of RESOURCE_TYPES) {
+        logs.push({ date: dKey, type: t, count: temp[dKey][t] });
+      }
+    }
 
     return res.status(200).json({
       ok: true,
       mode: project_id ? "by-project (planned)" : "all-projects (planned)",
       start: ymd(start),
-      end: ymd(end),
+      end: ymd(endOfDayLocal(end)),
       ...(project_id ? { project_id } : {}),
-      data,       // [{type, number}] -> e.g., civil engineer = 25, surveyor = 45, ...
-      summary,    // {"civil engineer":25, "surveyor":45, ...}
+      resource_types: RESOURCE_TYPES,
+      series, // [{date:'YYYY-MM-DD', 'civil engineer': N, ... 8 keys}]
+      logs,   // [{date, type, count}] – useful for other visualizations
     });
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      message: "Failed to fetch resources",
+      message: "Failed to fetch resources by day",
       error: String(err?.message || err),
     });
   }
+
 };
 
 
