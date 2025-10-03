@@ -69,7 +69,15 @@ const createTask = async (req, res) => {
   }
 };
 
-// make sure mongoose is imported somewhere above
+
+const norm = (s = "") => String(s).trim().toLowerCase();
+
+const VISIBILITY_MATRIX = [
+  ["rahul kushwaha", ["izhan mustafa", "rajhans prasad", "subhadra chandel"]],
+  ["saresh kumar", ["ritesh kumar mishra", "vasu bhardwaj", "shivam kumar"]],
+  ["ashish kumar", ["ribha kumari", "ayush dwivedi", "aditya kashyap"]]
+];
+
 const getAllTasks = async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.userId);
@@ -92,6 +100,7 @@ const getAllTasks = async (req, res) => {
       priorityFilter = "",
       createdById,
       assignedToId,
+      visibleUsers = "", 
     } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -115,40 +124,76 @@ const getAllTasks = async (req, res) => {
 
     const escRx = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    // ---- ACCESS CONTROL (pre lookup) ----
-    const preLookupMatch = [];
-    if (
-      currentUser.emp_id === "SE-013" ||
-      userRole === "admin" ||
-      userRole === "superadmin"
-    ) {
-      // full access
-    } else if (userRole === "manager") {
-      // handled later by department visibility
-    } else if (userRole === "visitor") {
-      // handled later by department visibility
-    } else {
-      // authored OR follower OR assigned (task or subtask)
-      preLookupMatch.push({
-        $or: [
-          { createdBy: currentUser._id },
-          { followers: currentUser._id },
-          { assigned_to: currentUser._id },
-          { "sub_tasks.assigned_to": currentUser._id },
-        ],
-      });
+    const currentNameLc = norm(currentUser?.name);
+
+    const matrixRow = VISIBILITY_MATRIX.find(
+      ([mgr]) => norm(mgr) === currentNameLc
+    );
+    const matrixNames = matrixRow ? matrixRow[1] : [];
+
+    const adHocNames = String(visibleUsers)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const delegatedNamesLcSet = new Set(
+      [...matrixNames, ...adHocNames].map((n) => norm(n))
+    );
+
+    let delegatedUserIds = [];
+    if (delegatedNamesLcSet.size > 0) {
+      const nameRegexes = Array.from(delegatedNamesLcSet).map(
+        (n) => new RegExp(`^${escRx(n)}$`, "i")
+      );
+      const delegates = await User.find({ name: { $in: nameRegexes } })
+        .select("_id name")
+        .lean();
+      delegatedUserIds = delegates.map((u) => u._id);
     }
 
-    const basePipeline = [];
-    if (preLookupMatch.length > 0)
-      basePipeline.push({ $match: { $and: preLookupMatch } });
+    /** ------------ Visibility --------------- */
 
-    // expose current user id inside pipeline
+    const isFullAccess =
+      currentUser.emp_id === "SE-013" ||
+      userRole === "admin" ||
+      userRole === "superadmin";
+
+    const ownVisibility = {
+      $or: [
+        { createdBy: currentUser._id },
+        { followers: currentUser._id },
+        { assigned_to: currentUser._id },
+        { "sub_tasks.assigned_to": currentUser._id },
+      ],
+    };
+
+    const delegatedVisibility =
+      delegatedUserIds.length > 0
+        ? {
+            $or: [
+              { createdBy: { $in: delegatedUserIds } },
+              { assigned_to: { $in: delegatedUserIds } },
+              { "sub_tasks.assigned_to": { $in: delegatedUserIds } },
+            ],
+          }
+        : null;
+
+    const basePipeline = [];
+
+    if (!isFullAccess) {
+
+      const visibilityOr = [ownVisibility];
+
+      if (delegatedVisibility) {
+        visibilityOr.push(delegatedVisibility);
+      }
+
+      basePipeline.push({ $match: { $or: visibilityOr } });
+    }
+
     basePipeline.push({ $addFields: { __currentUserId: currentUser._id } });
 
-    // ---- LOOKUPS ----
     basePipeline.push(
-      // project (for search/display)
       {
         $lookup: {
           from: "projectdetails",
@@ -157,7 +202,6 @@ const getAllTasks = async (req, res) => {
           as: "project_details",
         },
       },
-      // top-level assigned_to -> users
       {
         $lookup: {
           from: "users",
@@ -166,7 +210,6 @@ const getAllTasks = async (req, res) => {
           as: "assigned_to_users",
         },
       },
-      // task createdBy -> user
       {
         $lookup: {
           from: "users",
@@ -178,8 +221,6 @@ const getAllTasks = async (req, res) => {
       {
         $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
       },
-
-      // comment authors
       {
         $lookup: {
           from: "users",
@@ -188,8 +229,6 @@ const getAllTasks = async (req, res) => {
           as: "comment_users",
         },
       },
-
-      // collect subtask assignee ids
       {
         $addFields: {
           sub_assignee_ids: {
@@ -344,7 +383,7 @@ const getAllTasks = async (req, res) => {
         postLookupMatch.push({ priority: { $in: priorities } });
     }
 
-    // Manager / Visitor visibility by department
+    // Manager / Visitor visibility by department (retained)
     if (userRole === "manager" || userRole === "visitor") {
       const nameLc = String(currentUser?.name || "")
         .trim()
@@ -379,13 +418,11 @@ const getAllTasks = async (req, res) => {
       basePipeline.push({ $match: { $and: postLookupMatch } });
 
     // ---- Derive fields from the current user's subtask:
-    // pick the earliest-deadline subtask (if multiple) and override top-level fields
     const dataPipeline = [
       ...basePipeline,
 
       {
         $addFields: {
-          // all subtasks where the current user is assigned
           __mySubs: {
             $filter: {
               input: { $ifNull: ["$sub_tasks", []] },
@@ -446,13 +483,9 @@ const getAllTasks = async (req, res) => {
         },
       },
 
-      // override: deadline, assigned_to, createdBy from __mySub (fallback to originals)
       {
         $addFields: {
-          // deadline -> my earliest subtask deadline else task deadline
           deadline: { $ifNull: ["$__myMinDl", "$deadline"] },
-
-          // assigned_to -> users from __mySub.assigned_to else assigned_to_users
           assigned_to: {
             $cond: [
               { $gt: [{ $size: "$__mySubs" }, 0] },
@@ -505,8 +538,6 @@ const getAllTasks = async (req, res) => {
               },
             ],
           },
-
-          // createdBy -> __mySub.createdBy (enriched) else task createdBy
           createdBy: {
             $cond: [
               { $gt: [{ $size: "$__mySubs" }, 0] },
@@ -545,7 +576,6 @@ const getAllTasks = async (req, res) => {
         },
       },
 
-      // ---- Final projection (keep subtasks limited to those assigned to current user)
       {
         $project: {
           _id: 1,
@@ -555,17 +585,15 @@ const getAllTasks = async (req, res) => {
           sub_type: 1,
           description: 1,
           createdAt: 1,
-          deadline: 1, // already overridden above
+          deadline: 1,
           priority: 1,
           status_history: 1,
           current_status: 1,
           followers: 1,
 
-          // already enriched/overridden above
           assigned_to: 1,
           createdBy: 1,
 
-          // project details (for display/search)
           project_details: {
             $map: {
               input: { $ifNull: ["$project_details", []] },
@@ -574,7 +602,6 @@ const getAllTasks = async (req, res) => {
             },
           },
 
-          // return only current user's subtasks (enriched)
           sub_tasks: {
             $map: {
               input: "$__mySubs",
@@ -646,7 +673,6 @@ const getAllTasks = async (req, res) => {
             },
           },
 
-          // comments (unchanged)
           comments: {
             $map: {
               input: { $ifNull: ["$comments", []] },
@@ -721,6 +747,7 @@ const getAllTasks = async (req, res) => {
       page: Number(page),
       totalPages: Math.ceil(totalCount / Number(limit)),
       tasks,
+      delegatedViewOf: delegatedUserIds, 
     });
   } catch (err) {
     console.error("Error fetching tasks:", err);
@@ -729,6 +756,7 @@ const getAllTasks = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
