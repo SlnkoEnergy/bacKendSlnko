@@ -69,13 +69,14 @@ const createTask = async (req, res) => {
   }
 };
 
-
+// --- helpers / config ---
 const norm = (s = "") => String(s).trim().toLowerCase();
 
+// Map: manager -> people they can see
 const VISIBILITY_MATRIX = [
   ["rahul kushwaha", ["izhan mustafa", "rajhans prasad", "subhadra chandel"]],
   ["saresh kumar", ["ritesh kumar mishra", "vasu bhardwaj", "shivam kumar"]],
-  ["ashish kumar", ["ribha kumari", "ayush dwivedi", "aditya kashyap"]]
+  ["ashish kumar", ["ribha kumari", "ayush dwivedi", "aditya kashyap"]],
 ];
 
 const getAllTasks = async (req, res) => {
@@ -100,7 +101,7 @@ const getAllTasks = async (req, res) => {
       priorityFilter = "",
       createdById,
       assignedToId,
-      visibleUsers = "", 
+      visibleUsers = "",
     } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -122,13 +123,9 @@ const getAllTasks = async (req, res) => {
       return d;
     };
 
-    const escRx = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
+    // ---------- delegated people resolution ----------
     const currentNameLc = norm(currentUser?.name);
-
-    const matrixRow = VISIBILITY_MATRIX.find(
-      ([mgr]) => norm(mgr) === currentNameLc
-    );
+    const matrixRow = VISIBILITY_MATRIX.find(([mgr]) => norm(mgr) === currentNameLc);
     const matrixNames = matrixRow ? matrixRow[1] : [];
 
     const adHocNames = String(visibleUsers)
@@ -136,9 +133,7 @@ const getAllTasks = async (req, res) => {
       .map((s) => s.trim())
       .filter(Boolean);
 
-    const delegatedNamesLcSet = new Set(
-      [...matrixNames, ...adHocNames].map((n) => norm(n))
-    );
+    const delegatedNamesLcSet = new Set([...matrixNames, ...adHocNames].map((n) => norm(n)));
 
     let delegatedUserIds = [];
     if (delegatedNamesLcSet.size > 0) {
@@ -151,48 +146,21 @@ const getAllTasks = async (req, res) => {
       delegatedUserIds = delegates.map((u) => u._id);
     }
 
-    /** ------------ Visibility --------------- */
-
+    // ---------- full access? ----------
     const isFullAccess =
       currentUser.emp_id === "SE-013" ||
       userRole === "admin" ||
       userRole === "superadmin";
 
-    const ownVisibility = {
-      $or: [
-        { createdBy: currentUser._id },
-        { followers: currentUser._id },
-        { assigned_to: currentUser._id },
-        { "sub_tasks.assigned_to": currentUser._id },
-      ],
-    };
-
-    const delegatedVisibility =
-      delegatedUserIds.length > 0
-        ? {
-            $or: [
-              { createdBy: { $in: delegatedUserIds } },
-              { assigned_to: { $in: delegatedUserIds } },
-              { "sub_tasks.assigned_to": { $in: delegatedUserIds } },
-            ],
-          }
-        : null;
-
+    // ---------- base pipeline ----------
     const basePipeline = [];
 
-    if (!isFullAccess) {
-
-      const visibilityOr = [ownVisibility];
-
-      if (delegatedVisibility) {
-        visibilityOr.push(delegatedVisibility);
-      }
-
-      basePipeline.push({ $match: { $or: visibilityOr } });
-    }
+    // 🚫 REMOVE the early visibility gate here (it blocks managers)
+    // if (!isFullAccess) { basePipeline.push({ $match: { ... } }); } // <<< REMOVED
 
     basePipeline.push({ $addFields: { __currentUserId: currentUser._id } });
 
+    // lookups
     basePipeline.push(
       {
         $lookup: {
@@ -218,9 +186,7 @@ const getAllTasks = async (req, res) => {
           as: "createdBy_info",
         },
       },
-      {
-        $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true },
-      },
+      { $unwind: { path: "$createdBy_info", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "users",
@@ -229,6 +195,7 @@ const getAllTasks = async (req, res) => {
           as: "comment_users",
         },
       },
+      // collect subtask ids for further lookups
       {
         $addFields: {
           sub_assignee_ids: {
@@ -255,11 +222,6 @@ const getAllTasks = async (req, res) => {
               },
             },
           },
-        },
-      },
-      // collect subtask creator ids
-      {
-        $addFields: {
           subtask_creator_ids: {
             $map: {
               input: { $ifNull: ["$sub_tasks", []] },
@@ -269,29 +231,23 @@ const getAllTasks = async (req, res) => {
           },
         },
       },
-      // lookup subtask assignees
       {
         $lookup: {
           from: "users",
           let: { ids: "$sub_assignee_ids" },
           pipeline: [
-            {
-              $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
-            },
+            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
             { $project: { _id: 1, name: 1, department: 1, attachment_url: 1 } },
           ],
           as: "sub_assignees",
         },
       },
-      // lookup subtask creators
       {
         $lookup: {
           from: "users",
           let: { ids: "$subtask_creator_ids" },
           pipeline: [
-            {
-              $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } },
-            },
+            { $match: { $expr: { $in: ["$_id", { $ifNull: ["$$ids", []] }] } } },
             { $project: { _id: 1, name: 1, department: 1, attachment_url: 1 } },
           ],
           as: "subtask_creators",
@@ -299,7 +255,64 @@ const getAllTasks = async (req, res) => {
       }
     );
 
-    // ---- POST LOOKUP FILTERS ----
+    // ✅ Final, single visibility gate AFTER lookups (key fix)
+    if (!isFullAccess) {
+      const ownVisibility = {
+        $or: [
+          { createdBy: currentUser._id },
+          { followers: currentUser._id },
+          { assigned_to: currentUser._id },
+          { "sub_tasks.assigned_to": currentUser._id },
+        ],
+      };
+
+      const delegatedVisibility =
+        delegatedUserIds.length > 0
+          ? {
+              $or: [
+                { createdBy: { $in: delegatedUserIds } },
+                { assigned_to: { $in: delegatedUserIds } },
+                { "sub_tasks.assigned_to": { $in: delegatedUserIds } },
+              ],
+            }
+          : null;
+
+      // Department list for manager/visitor
+      let deptVisibility = null;
+      if (userRole === "manager" || userRole === "visitor") {
+        const nameLc = norm(currentUser?.name || "");
+        const camOverrideNames = new Set(["sushant ranjan dubey", "sanjiv kumar"]);
+        let deptList = [];
+
+        if (camOverrideNames.has(nameLc)) {
+          deptList = ["CAM", "Projects"];
+        } else if (userRole === "visitor") {
+          deptList = ["Projects", "CAM"];
+        } else if (currentUser?.department) {
+          deptList = [currentUser.department];
+        }
+
+        if (deptList.length > 0) {
+          const deptRegexes = deptList.map((d) => new RegExp(`${escRx(d)}`, "i"));
+          // IMPORTANT: make this an OR, so department can EXPAND visibility
+          deptVisibility = {
+            $or: [
+              { "createdBy_info.department": { $in: deptRegexes } },
+              { "assigned_to_users.department": { $in: deptRegexes } },
+              { "sub_assignees.department": { $in: deptRegexes } },
+            ],
+          };
+        }
+      }
+
+      const visibilityOr = [ownVisibility];
+      if (delegatedVisibility) visibilityOr.push(delegatedVisibility);
+      if (deptVisibility) visibilityOr.push(deptVisibility);
+
+      basePipeline.push({ $match: { $or: visibilityOr } }); // <<< CHANGED (moved after lookups & OR-ed)
+    }
+
+    // ---- POST LOOKUP FILTERS (user-requested filters only) ----
     const postLookupMatch = [];
 
     if (search) {
@@ -331,17 +344,15 @@ const getAllTasks = async (req, res) => {
       postLookupMatch.push({ deadline: dl });
     }
 
-    if (department)
-      postLookupMatch.push({ "assigned_to_users.department": department });
+    // keep explicit department filter param if UI sends it (this is a user filter)
+    if (department) postLookupMatch.push({ "assigned_to_users.department": department });
 
     if (createdById) {
       let cOID;
       try {
         cOID = new mongoose.Types.ObjectId(String(createdById));
       } catch {
-        return res
-          .status(400)
-          .json({ message: "Invalid createdById provided." });
+        return res.status(400).json({ message: "Invalid createdById provided." });
       }
       postLookupMatch.push({ createdBy: cOID });
     }
@@ -351,9 +362,7 @@ const getAllTasks = async (req, res) => {
       try {
         aOID = new mongoose.Types.ObjectId(String(assignedToId));
       } catch {
-        return res
-          .status(400)
-          .json({ message: "Invalid assignedToId provided." });
+        return res.status(400).json({ message: "Invalid assignedToId provided." });
       }
       postLookupMatch.push({
         $or: [
@@ -367,60 +376,21 @@ const getAllTasks = async (req, res) => {
 
     if (priorityFilter !== "" && priorityFilter !== undefined) {
       let priorities = [];
-      if (Array.isArray(priorityFilter))
-        priorities = priorityFilter.map(String);
+      if (Array.isArray(priorityFilter)) priorities = priorityFilter.map(String);
       else if (typeof priorityFilter === "string")
-        priorities = priorityFilter
-          .split(/[,\s]+/)
-          .filter(Boolean)
-          .map(String);
+        priorities = priorityFilter.split(/[,\s]+/).filter(Boolean).map(String);
       else priorities = [String(priorityFilter)];
 
       priorities = priorities.filter((p) => ["1", "2", "3"].includes(p));
-      if (priorities.length === 1)
-        postLookupMatch.push({ priority: priorities[0] });
-      else if (priorities.length > 1)
-        postLookupMatch.push({ priority: { $in: priorities } });
+      if (priorities.length === 1) postLookupMatch.push({ priority: priorities[0] });
+      else if (priorities.length > 1) postLookupMatch.push({ priority: { $in: priorities } });
     }
 
-    // Manager / Visitor visibility by department (retained)
-    if (userRole === "manager" || userRole === "visitor") {
-      const nameLc = String(currentUser?.name || "")
-        .trim()
-        .toLowerCase();
-      const camOverrideNames = new Set([
-        "sushant ranjan dubey",
-        "sanjiv kumar",
-      ]);
-      let deptList = [];
+    if (postLookupMatch.length > 0) basePipeline.push({ $match: { $and: postLookupMatch } });
 
-      if (camOverrideNames.has(nameLc)) {
-        deptList = ["CAM", "Projects"];
-      } else if (userRole === "visitor") {
-        deptList = ["Projects", "CAM"];
-      } else if (currentUser?.department) {
-        deptList = [currentUser.department];
-      }
-
-      if (deptList.length > 0) {
-        const deptRegexes = deptList.map((d) => new RegExp(`${escRx(d)}`, "i"));
-        postLookupMatch.push({
-          $or: [
-            { "createdBy_info.department": { $in: deptRegexes } },
-            { "assigned_to_users.department": { $in: deptRegexes } },
-            { "sub_assignees.department": { $in: deptRegexes } },
-          ],
-        });
-      }
-    }
-
-    if (postLookupMatch.length > 0)
-      basePipeline.push({ $match: { $and: postLookupMatch } });
-
-    // ---- Derive fields from the current user's subtask:
+    // ---- Derive fields from the current user's subtask (unchanged) ----
     const dataPipeline = [
       ...basePipeline,
-
       {
         $addFields: {
           __mySubs: {
@@ -454,11 +424,7 @@ const getAllTasks = async (req, res) => {
           __myMinDl: {
             $cond: [
               { $gt: [{ $size: "$__mySubs" }, 0] },
-              {
-                $min: {
-                  $map: { input: "$__mySubs", as: "x", in: "$$x.deadline" },
-                },
-              },
+              { $min: { $map: { input: "$__mySubs", as: "x", in: "$$x.deadline" } } },
               null,
             ],
           },
@@ -482,7 +448,6 @@ const getAllTasks = async (req, res) => {
           },
         },
       },
-
       {
         $addFields: {
           deadline: { $ifNull: ["$__myMinDl", "$deadline"] },
@@ -567,15 +532,12 @@ const getAllTasks = async (req, res) => {
               {
                 _id: "$createdBy_info._id",
                 name: "$createdBy_info.name",
-                attachment_url: {
-                  $ifNull: ["$createdBy_info.attachment_url", ""],
-                },
+                attachment_url: { $ifNull: ["$createdBy_info.attachment_url", ""] },
               },
             ],
           },
         },
       },
-
       {
         $project: {
           _id: 1,
@@ -590,10 +552,8 @@ const getAllTasks = async (req, res) => {
           status_history: 1,
           current_status: 1,
           followers: 1,
-
           assigned_to: 1,
           createdBy: 1,
-
           project_details: {
             $map: {
               input: { $ifNull: ["$project_details", []] },
@@ -601,7 +561,6 @@ const getAllTasks = async (req, res) => {
               in: { _id: "$$p._id", code: "$$p.code", name: "$$p.name" },
             },
           },
-
           sub_tasks: {
             $map: {
               input: "$__mySubs",
@@ -672,7 +631,6 @@ const getAllTasks = async (req, res) => {
               },
             },
           },
-
           comments: {
             $map: {
               input: { $ifNull: ["$comments", []] },
@@ -727,7 +685,6 @@ const getAllTasks = async (req, res) => {
           },
         },
       },
-
       { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: Number(limit) },
@@ -747,16 +704,13 @@ const getAllTasks = async (req, res) => {
       page: Number(page),
       totalPages: Math.ceil(totalCount / Number(limit)),
       tasks,
-      delegatedViewOf: delegatedUserIds, 
+      delegatedViewOf: delegatedUserIds,
     });
   } catch (err) {
     console.error("Error fetching tasks:", err);
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: err.message });
+    res.status(500).json({ message: "Internal Server Error", error: err.message });
   }
 };
-
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
