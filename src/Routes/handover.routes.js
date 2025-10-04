@@ -10,6 +10,8 @@ const {
   getexportToCsv,
   migrateProjectToHandover,
   updateAssignedTo,
+  ManipulateHandover,
+  ManipulateHandoverSubmittedBy,
 } = require("../Controllers/handoversheet.controller.js");
 
 //handdoversheet
@@ -37,4 +39,6 @@ router.put(
   migrateProjectToHandover
 );
 router.put('/updateAssignedto/:id', jwtMW.authentication, updateAssignedTo);
+router.get('/manipulate-handover', ManipulateHandover);
+router.get("/manipulate-handover-submitted", ManipulateHandoverSubmittedBy)
 module.exports = router;
