@@ -1121,12 +1121,16 @@ const updateAssignedTo = async function (req, res) {
   try {
     const { handoverIds, AssignedTo } = req.body;
 
-    if (!handoverIds || !Array.isArray(handoverIds) || handoverIds.length === 0) {
+    if (
+      !handoverIds ||
+      !Array.isArray(handoverIds) ||
+      handoverIds.length === 0
+    ) {
       return res.status(400).json({ message: "Handover Required" });
     }
 
     if (!AssignedTo) {
-      return res.status(400).json({ message: "Assignee is Required" })
+      return res.status(400).json({ message: "Assignee is Required" });
     }
 
     const result = await handoversheetModells.updateMany(
@@ -1140,15 +1144,13 @@ const updateAssignedTo = async function (req, res) {
       matchedCount: result.matchedCount,
     });
   } catch (error) {
-
     console.error("Error updating assignee:", error);
     return res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
     });
-
   }
-}
+};
 
 module.exports = {
   createhandoversheet,
@@ -1159,6 +1161,5 @@ module.exports = {
   getexportToCsv,
   migrateProjectToHandover,
   updateAssignedTo,
-  listUsersNames
+  listUsersNames,
 };
-

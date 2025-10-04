@@ -18,6 +18,7 @@ const {
   reorderProjectActivities,
   getAllProjectActivityForView,
   getResources,
+  updateStatusOfPlan,
 } = require("../Controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
@@ -95,10 +96,11 @@ router.get(
   getAllProjectActivityForView
 );
 
-router.get(
-  "/resources",
+router.get("/resources", jwtMW.authentication, getResources);
+router.put(
+  "/:projectId/updateStatusOfPlan",
   jwtMW.authentication,
-  getResources
+  updateStatusOfPlan
 );
 
 module.exports = router;

@@ -63,6 +63,12 @@ function ymd(date) {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+function parseYMDLocal(s) {
+  if (!s) return null;
+  const [y, m, d] = String(s).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return startOfDayLocal(new Date(y, m - 1, d));
+}
 
 const createProjectActivity = async (req, res) => {
   try {
@@ -1095,27 +1101,34 @@ const getRejectedOrNotAllowedDependencies = async (req, res) => {
   }
 };
 
-// GET /api/project-activities/view?baselineStart=2025-09-28&baselineEnd=2025-10-07
 const getAllProjectActivityForView = async (req, res) => {
   try {
-    const { baselineStart, baselineEnd } = req.query;
+    const { baselineStart, baselineEnd, filter: filterRaw } = req.query;
 
-    // Parse & normalize the optional window
     const hasRange = Boolean(baselineStart && baselineEnd);
     let rangeStart = null,
       rangeEnd = null;
     if (hasRange) {
       rangeStart = new Date(baselineStart);
       rangeEnd = new Date(baselineEnd);
-      if (isNaN(rangeStart) || isNaN(rangeEnd))
+      if (isNaN(rangeStart) || isNaN(rangeEnd)) {
         return res.status(400).json({
           success: false,
           message: "Invalid baselineStart/baselineEnd",
         });
-
+      }
       rangeStart.setHours(0, 0, 0, 0);
       rangeEnd.setHours(23, 59, 59, 999);
     }
+
+    const filterKey = String(filterRaw || "")
+      .toLowerCase()
+      .replace("-", "_");
+    const wantActualLate = filterKey === "actual_late";
+    const wantActualOnTime = filterKey === "actual_ontime";
+    const wantBaselineOnly = filterKey === "baseline";
+    const filterSpecified =
+      wantActualLate || wantActualOnTime || wantBaselineOnly;
 
     const match = hasRange
       ? {
@@ -1135,43 +1148,86 @@ const getAllProjectActivityForView = async (req, res) => {
       .lean();
 
     const toYMD = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
-    const overlaps = (a) =>
+    const overlapsPlanned = (a) =>
       a?.planned_start &&
       a?.planned_finish &&
       new Date(a.planned_start) <= rangeEnd &&
       new Date(a.planned_finish) >= rangeStart;
 
+    const getDates = (a) => ({
+      plannedStart: a.planned_start ? new Date(a.planned_start) : null,
+      plannedFinish: a.planned_finish ? new Date(a.planned_finish) : null,
+      actualStart: a.actual_start ? new Date(a.actual_start) : null,
+      actualFinish: a.actual_finish ? new Date(a.actual_finish) : null,
+    });
+
+    const isActualLate = (a) => {
+      const { plannedFinish, actualFinish } = getDates(a);
+      if (!plannedFinish || !actualFinish) return false;
+      return actualFinish.getTime() > plannedFinish.getTime();
+    };
+
+    const isActualOnTime = (a) => {
+      const { plannedFinish, actualFinish } = getDates(a);
+      if (!plannedFinish || !actualFinish) return false;
+      return actualFinish.getTime() <= plannedFinish.getTime();
+    };
+
     const data = paDocs
       .map((doc) => {
-        const filteredActs = (doc.activities || []).filter((a) =>
-          hasRange ? overlaps(a) : true
+        const actsAfterRange = (doc.activities || []).filter((a) =>
+          hasRange ? overlapsPlanned(a) : true
         );
 
-        const activities = filteredActs.map((a) => {
+        let actsAfterFilter = actsAfterRange;
+        if (wantActualLate) {
+          actsAfterFilter = actsAfterRange.filter(isActualLate);
+        } else if (wantActualOnTime) {
+          actsAfterFilter = actsAfterRange.filter(isActualOnTime);
+        }
+
+        const activities = actsAfterFilter.map((a) => {
           const plannedStart = a.planned_start || null;
           const plannedFinish = a.planned_finish || null;
           const actualStart = a.actual_start || null;
           const actualFinish = a.actual_finish || null;
 
           const statusRaw = a?.current_status?.status || null;
-          const isCompleted =
-            statusRaw === "completed" || Boolean(actualFinish);
+          const completed = Boolean(actualFinish) || statusRaw === "completed";
 
-          return {
+          if (wantBaselineOnly) {
+            return {
+              name: a.activity_id?.name || "",
+              baselineStart: toYMD(plannedStart),
+              baselineEnd: toYMD(plannedFinish),
+              start: null,
+              end: null,
+              status: null,
+            };
+          }
+
+          const shaped = {
             name: a.activity_id?.name || "",
             baselineStart: toYMD(plannedStart),
             baselineEnd: toYMD(plannedFinish),
             start: actualStart ? toYMD(actualStart) : null,
             end: actualFinish ? toYMD(actualFinish) : null,
-            status: isCompleted ? "done" : statusRaw || null,
-            ...(typeof a.percent_complete === "number"
-              ? { progress: Math.max(0, Math.min(1, a.percent_complete / 100)) }
-              : {}),
-            ...(isCompleted ? { completed: true } : {}),
+            status: completed ? "done" : statusRaw || null,
           };
+
+          if (typeof a.percent_complete === "number") {
+            shaped.progress = Math.max(
+              0,
+              Math.min(1, a.percent_complete / 100)
+            );
+          }
+          if (completed) shaped.completed = true;
+
+          return shaped;
         });
 
-        if (hasRange && activities.length === 0) return null;
+        if ((hasRange || filterSpecified) && activities.length === 0)
+          return null;
 
         return {
           project_code: doc.project_id?.code || "",
@@ -1347,6 +1403,35 @@ const getResources = async (req, res) => {
   }
 };
 
+const updateStatusOfPlan = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { status, remarks } = req.body;
+    if (!status) {
+      return res.status(400).json({ message: "Status is required" });
+    }
+    const projectactivitydoc = await projectActivity.findOne({
+      project_id: projectId,
+    });
+    if (!projectactivitydoc) {
+      return res.status(404).json({ message: "Project Activity not found" });
+    }
+    projectactivitydoc.status_history.push({
+      status,
+      remarks,
+      user_id: req.user.userId,
+    });
+    await projectactivitydoc.save();
+    res.status(200).json({
+      message: "Status of plan updated successfully",
+      projectactivitydoc,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
 
 module.exports = {
   createProjectActivity,
@@ -1366,4 +1451,5 @@ module.exports = {
   reorderProjectActivities,
   getAllProjectActivityForView,
   getResources,
+  updateStatusOfPlan,
 };
