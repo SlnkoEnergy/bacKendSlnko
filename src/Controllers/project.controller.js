@@ -889,21 +889,13 @@ const getActivityLineForProject = async (req, res) => {
 
 const getProjectsDropdown = async (req, res) => {
   try {
-    const page = Math.max(parseInt(req.query.page ?? "1", 10), 1);
-    const pageSize = Math.min(parseInt(req.query.pageSize ?? "7", 10), 50);
-
-    const data = await projectModells
-      .find({}, "name code")
-      .sort({ updatedAt: -1, _id: -1 })
-      .skip((page - 1) * pageSize)
-      .limit(pageSize)
-      .lean();
+  
+    const data = await projectModells.find().lean();
 
     return res.status(200).json({
-      message: "fetch Successfully",
+      message: "Fetch Successfully",
       data,
-      pagination: { page, pageSize }
-    });
+    })
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", err: error });
   }
