@@ -967,29 +967,60 @@ const getAllTemplateNameSearch = async (req, res) => {
 const updateProjectActivityFromTemplate = async (req, res) => {
   try {
     const { projectId, templateId } = req.params;
-    const template = await projectActivity.findById(templateId);
+
+    if (!mongoose.isValidObjectId(projectId) || !mongoose.isValidObjectId(templateId)) {
+      return res.status(400).json({ message: "Invalid projectId or templateId" });
+    }
+
+    const template = await projectActivity.findById(templateId).lean();
     if (!template) {
       return res.status(404).json({ message: "Template not found" });
     }
-    const projectActivityDoc = await projectActivity.findOne({
-      project_id: projectId,
-    });
+
+    const projectActivityDoc = await projectActivity.findOne({ project_id: projectId });
     if (!projectActivityDoc) {
       return res.status(404).json({ message: "Project activity not found" });
     }
 
-    projectActivityDoc.activities = template.activities;
+    const projectIds = (projectActivityDoc.activities || []).map(a => a.activity_id).filter(Boolean);
+    const templateIds = (template.activities || []).map(a => a.activity_id).filter(Boolean);
+    const allIds = [...new Set([...projectIds, ...templateIds])];
+
+    const activityDocs = await activityModel.find({ _id: { $in: allIds } }, { _id: 1, type: 1 }).lean();
+    const idToType = new Map(activityDocs.map(a => [String(a._id), a.type]));
+
+    const backendActivitiesInProject = (projectActivityDoc.activities || []).filter(pa => {
+      const t = idToType.get(String(pa.activity_id));
+      return t === "backend";
+    });
+
+    const frontendActivitiesFromTemplate = (template.activities || []).filter(ta => {
+      const t = idToType.get(String(ta.activity_id));
+      return t === "frontend";
+    });
+
+
+    const clonedTemplateFrontend = JSON.parse(JSON.stringify(frontendActivitiesFromTemplate));
+    projectActivityDoc.activities = [...backendActivitiesInProject, ...clonedTemplateFrontend];
+
+    projectActivityDoc.activities.sort((a, b) => {
+      const ao = Number.isFinite(a.order) ? a.order : Number.MAX_SAFE_INTEGER;
+      const bo = Number.isFinite(b.order) ? b.order : Number.MAX_SAFE_INTEGER;
+      return ao - bo;
+    });
+
     await projectActivityDoc.save();
+
     return res.status(200).json({
-      message: "Project activity updated from template successfully",
-      projectActivityDoc,
+      message: "Project activity updated from template successfully (frontend only). Backend unchanged.",
+      projectActivity: projectActivityDoc,
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+    console.error("updateProjectActivityFromTemplate error:", error);
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
+
 
 const updateDependencyStatus = async (req, res) => {
   try {
