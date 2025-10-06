@@ -16,7 +16,6 @@ const { triggerLoanTasksBulk } = require("../utils/triggerLoanTask");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
-    // 1. Get last handover `id`
     const lastHandover = await hanoversheetmodells
       .findOne({ id: { $regex: /^BD\/LEAD\// } })
       .sort({ createdAt: -1 });
@@ -26,11 +25,8 @@ const migrateProjectToHandover = async (req, res) => {
       const parts = lastHandover.id.split("/");
       lastIdNum = parseInt(parts[2]);
     }
-
-    // 2. Get all existing p_ids in handoversheet
     const existingPids = await hanoversheetmodells.distinct("p_id");
 
-    // 3. Get all projects that are not already in handoversheet
     const projects = await projectmodells.find({
       p_id: { $nin: existingPids },
     });
@@ -189,24 +185,24 @@ const createhandoversheet = async function (req, res) {
 
 const gethandoversheetdata = async function (req, res) {
   try {
-    const page = parseInt(req.query.page) || 1;
+    const page  = parseInt(req.query.page)  || 1;
     const limit = parseInt(req.query.limit) || 100;
-    const skip = (page - 1) * limit;
+    const skip  = (page - 1) * limit;
     const search = req.query.search || "";
     const statusFilter = req.query.status;
 
     const userId = req.user.userId;
     const userDoc = await userModells.findById(userId).lean();
-    const userName = userDoc?.name;
-    const matchConditions = { $and: [] };
-
     const isBD = userDoc?.role === "BD";
 
+    const matchConditions = { $and: [] };
     if (isBD) {
+      const uid = new mongoose.Types.ObjectId(userId);
       matchConditions.$and.push({
         $or: [
-          { "other_details.submitted_by_BD": userName },
-          { submitted_by: userName },
+          { "other_details.submitted_by_BD": uid },
+          { submitted_by: uid },
+          { assigned_to: uid }, 
         ],
       });
     }
@@ -214,38 +210,32 @@ const gethandoversheetdata = async function (req, res) {
     if (search) {
       matchConditions.$and.push({
         $or: [
-          { "customer_details.code": { $regex: search, $options: "i" } },
-          { "customer_details.name": { $regex: search, $options: "i" } },
+          { "customer_details.code":     { $regex: search, $options: "i" } },
+          { "customer_details.name":     { $regex: search, $options: "i" } },
           { "customer_details.customer": { $regex: search, $options: "i" } },
-          { "customer_details.state": { $regex: search, $options: "i" } },
-          { "customer_details.p_group": { $regex: search, $options: "i" } },
-          { "leadDetails.id": { $regex: search, $options: "i" } },
-          { "leadDetails.scheme": { $regex: search, $options: "i" } },
+          { "customer_details.state":    { $regex: search, $options: "i" } },
+          { "customer_details.p_group":  { $regex: search, $options: "i" } },
+          { "leadDetails.id":            { $regex: search, $options: "i" } },
+          { "leadDetails.scheme":        { $regex: search, $options: "i" } },
         ],
       });
     }
 
     const statuses =
-      statusFilter
-        ?.split(",")
-        .map((s) => s.trim())
-        .filter(Boolean) || [];
+      statusFilter?.split(",").map((s) => s.trim()).filter(Boolean) || [];
 
     const hasHandoverPending = statuses.includes("handoverpending");
-    const hasScopePending = statuses.includes("scopepending");
-    const hasScopeOpen = statuses.includes("scopeopen"); // ✅ added
+    const hasScopePending    = statuses.includes("scopepending");
+    const hasScopeOpen       = statuses.includes("scopeopen");
 
     const actualStatuses = statuses.filter(
-      (s) =>
-        s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
+      (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
     );
 
     if (actualStatuses.length === 1) {
       matchConditions.$and.push({ status_of_handoversheet: actualStatuses[0] });
     } else if (actualStatuses.length > 1) {
-      matchConditions.$and.push({
-        status_of_handoversheet: { $in: actualStatuses },
-      });
+      matchConditions.$and.push({ status_of_handoversheet: { $in: actualStatuses } });
     }
 
     if (hasHandoverPending) {
@@ -256,18 +246,10 @@ const gethandoversheetdata = async function (req, res) {
       matchConditions.$and.push({ scope_status: "open" });
     }
 
-    if (hasScopeOpen) {
-      matchConditions.$and.push({ scope_status: "open" });
-    }
-
     const finalMatch = matchConditions.$and.length > 0 ? matchConditions : {};
 
     const pipeline = [
-      {
-        $addFields: {
-          id: { $toString: "$id" },
-        },
-      },
+      { $addFields: { id: { $toString: "$id" } } },
       {
         $lookup: {
           from: "bdleads",
@@ -276,26 +258,7 @@ const gethandoversheetdata = async function (req, res) {
           as: "leadDetails",
         },
       },
-      {
-        $unwind: {
-          path: "$leadDetails",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "leadDetails.submitted_by",
-          foreignField: "_id",
-          as: "submittedUser",
-        },
-      },
-      {
-        $unwind: {
-          path: "$submittedUser",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
+      { $unwind: { path: "$leadDetails", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "projectdetails",
@@ -304,12 +267,7 @@ const gethandoversheetdata = async function (req, res) {
           as: "projectInfo",
         },
       },
-      {
-        $unwind: {
-          path: "$projectInfo",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
+      { $unwind: { path: "$projectInfo", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "scopes",
@@ -318,46 +276,64 @@ const gethandoversheetdata = async function (req, res) {
           as: "scopeInfo",
         },
       },
+      { $unwind: { path: "$scopeInfo", preserveNullAndEmptyArrays: true } },
+      { $addFields: { scope_status: "$scopeInfo.current_status.status" } },
       {
-        $unwind: {
-          path: "$scopeInfo",
-          preserveNullAndEmptyArrays: true,
+        $lookup: {
+          from: "users",
+          localField: "submitted_by",
+          foreignField: "_id",
+          as: "submittedByUser",
         },
       },
+      { $unwind: { path: "$submittedByUser", preserveNullAndEmptyArrays: true } },
       {
-        $addFields: {
-          scope_status: "$scopeInfo.current_status.status",
+        $lookup: {
+          from: "users",
+          localField: "other_details.submitted_by_BD",
+          foreignField: "_id",
+          as: "submittedByBDUser",
         },
       },
+      { $unwind: { path: "$submittedByBDUser", preserveNullAndEmptyArrays: true } },
       {
-        $match: finalMatch,
+        $lookup: {
+          from: "users",
+          let: {
+            assignedIds: {
+              $cond: [
+                { $and: [ { $isArray: "$assigned_to" }, { $gt: [ { $size: "$assigned_to" }, 0 ] } ] },
+                "$assigned_to.user_id",
+                [ "$assigned_to" ] 
+              ]
+            }
+          },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", "$$assignedIds"] } } },
+            { $project: { _id: 1, name: 1, email: 1 } }
+          ],
+          as: "assignedUsers"
+        }
       },
+      { $match: finalMatch },
     ];
-
     if (hasScopePending) {
       const matchedDocs = await hanoversheetmodells.aggregate([
         ...pipeline,
-        {
-          $project: {
-            project_id: "$projectInfo._id",
-            _id: 1,
-          },
-        },
+        { $project: { project_id: "$projectInfo._id", _id: 1 } },
       ]);
 
-      const projectIds = matchedDocs
-        .map((doc) => doc.project_id)
-        .filter(Boolean);
+      const projectIds = matchedDocs.map((doc) => doc.project_id).filter(Boolean);
 
       const scopes = await scopeModel
-        .find({
-          project_id: { $in: projectIds },
-          $or: [
-            { status_history: { $exists: false } },
-            { status_history: { $size: 0 } },
-          ],
-        })
-        .select("project_id");
+        .find(
+          {
+            project_id: { $in: projectIds },
+            $or: [{ status_history: { $exists: false } }, { status_history: { $size: 0 } }],
+          },
+          { project_id: 1 }
+        )
+        .lean();
 
       const pendingScopeIds = scopes.map((s) => s.project_id.toString());
 
@@ -389,14 +365,61 @@ const gethandoversheetdata = async function (req, res) {
               project_kwp: "$project_detail.project_kwp",
               total_gst: "$other_details.total_gst",
               service: "$other_details.service",
-              submitted_by: 1,
-              leadDetails: 1,
               status_of_handoversheet: 1,
               is_locked: 1,
               comment: 1,
               p_id: 1,
               project_id: "$projectInfo._id",
               scope_status: 1,
+              leadDetails: 1,
+              submitted_by: {
+                $let: {
+                  vars: { u: "$submittedByUser" },
+                  in: { $ifNull: ["$$u.name", "$$u.email"] }
+                }
+              },
+              "other_details.submitted_by_BD": {
+                $let: {
+                  vars: { u: "$submittedByBDUser" },
+                  in: { $ifNull: ["$$u.name", "$$u.email"] }
+                }
+              },
+              assigned_to: {
+                $cond: [
+                  { $isArray: "$assigned_to" },
+                  {
+                    $map: {
+                      input: "$assigned_to",
+                      as: "a",
+                      in: {
+                        name: {
+                          $let: {
+                            vars: {
+                              matched: {
+                                $first: {
+                                  $filter: {
+                                    input: "$assignedUsers",
+                                    as: "u",
+                                    cond: { $eq: ["$$u._id", "$$a.user_id"] }
+                                  }
+                                }
+                              }
+                            },
+                            in: { $ifNull: ["$$matched.name", "$$matched.email"] }
+                          }
+                        },
+                        status: "$$a.status"
+                      }
+                    }
+                  },
+                  {
+                    $let: {
+                      vars: { u: { $first: "$assignedUsers" } },
+                      in: { $ifNull: ["$$u.name", "$$u.email"] }
+                    }
+                  }
+                ]
+              },
             },
           },
         ],
@@ -404,17 +427,12 @@ const gethandoversheetdata = async function (req, res) {
     });
 
     const result = await hanoversheetmodells.aggregate(pipeline);
-    const total = result[0].metadata[0]?.total || 0;
-    const data = result[0].data;
+    const total = result?.[0]?.metadata?.[0]?.total || 0;
+    const data  = result?.[0]?.data || [];
 
     res.status(200).json({
       message: "Data fetched successfully",
-      meta: {
-        total,
-        page,
-        pageSize: limit,
-        count: data.length,
-      },
+      meta: { total, page, pageSize: limit, count: data.length },
       data,
     });
   } catch (error) {

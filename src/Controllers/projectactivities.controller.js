@@ -588,6 +588,7 @@ const nameSearchActivityByProjectId = async (req, res) => {
           name: "$actInfo.name",
           description: "$actInfo.description",
           type: "$actInfo.type",
+          order: "$activities.order",
           dependency: "$activities.dependency",
           createdAt: { $ifNull: ["$activities.createdAt", "$createdAt"] },
         },
@@ -977,14 +978,21 @@ const updateProjectActivityFromTemplate = async (req, res) => {
         .json({ message: "Invalid projectId or templateId" });
     }
 
-    const template = await projectActivity.findById(templateId).lean();
+    const template = await projectActivity
+      .findById(templateId)
+      .select(
+        "-activities.actual_start -activities.actual_finish -activities.actual_end"
+      )
+      .lean();
+
     if (!template) {
       return res.status(404).json({ message: "Template not found" });
     }
 
-    const projectActivityDoc = await projectActivity.findOne({
-      project_id: projectId,
-    });
+    const projectActivityDoc = await projectActivity
+      .findOne({ project_id: projectId })
+      .select("-activities.actual_start -activities.actual_finish");
+
     if (!projectActivityDoc) {
       return res.status(404).json({ message: "Project activity not found" });
     }
@@ -1016,17 +1024,45 @@ const updateProjectActivityFromTemplate = async (req, res) => {
       }
     );
 
-    const clonedTemplateFrontend = JSON.parse(
-      JSON.stringify(frontendActivitiesFromTemplate)
-    );
+    const sanitizeActivity = (a) => {
+      if (!a) return null;
+      const {
+        activity_id,
+        order,
+        planned_start,
+        planned_finish,
+        duration,
+        percent_complete = 0,
+        predecessors = [],
+        successors = [],
+        resources = [],
+      } = a;
+
+      return {
+        activity_id,
+        order,
+        planned_start,
+        planned_finish,
+        duration,
+        percent_complete,
+        predecessors,
+        successors,
+        resources,
+      };
+    };
+
+    const sanitizedFrontend = frontendActivitiesFromTemplate
+      .map(sanitizeActivity)
+      .filter(Boolean);
+
     projectActivityDoc.activities = [
       ...backendActivitiesInProject,
-      ...clonedTemplateFrontend,
+      ...sanitizedFrontend,
     ];
 
     projectActivityDoc.activities.sort((a, b) => {
-      const ao = Number.isFinite(a.order) ? a.order : Number.MAX_SAFE_INTEGER;
-      const bo = Number.isFinite(b.order) ? b.order : Number.MAX_SAFE_INTEGER;
+      const ao = Number.isFinite(a?.order) ? a.order : Number.MAX_SAFE_INTEGER;
+      const bo = Number.isFinite(b?.order) ? b.order : Number.MAX_SAFE_INTEGER;
       return ao - bo;
     });
 
