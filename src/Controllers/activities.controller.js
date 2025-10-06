@@ -78,6 +78,7 @@ const namesearchOfActivities = async (req, res) => {
       type: 1,
       dependency: 1,
       predecessors: 1,
+      order: 1,
     };
     const sort = { name: 1, _id: 1 };
 

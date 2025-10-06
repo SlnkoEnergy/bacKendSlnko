@@ -588,6 +588,7 @@ const nameSearchActivityByProjectId = async (req, res) => {
           name: "$actInfo.name",
           description: "$actInfo.description",
           type: "$actInfo.type",
+          order: "$activities.order",
           dependency: "$activities.dependency",
           createdAt: { $ifNull: ["$activities.createdAt", "$createdAt"] },
         },
