@@ -186,8 +186,9 @@ const {
 } = require("../Controllers/modifiedexpensesheet.controller.js");
 
 const upload = require("../middlewares/multer.js");
-const { syncAllProjectBalances } = require("../Controllers/Accounting/ProjectBalance.js");
-
+const {
+  syncAllProjectBalances,
+} = require("../Controllers/Accounting/ProjectBalance.js");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -265,12 +266,19 @@ router.get(
 
 router.get("/project-detail", jwtMW.authentication, getProjectDetail);
 
-router.get("/project-activity-chart/:projectId", jwtMW.authentication, getActivityLineForProject);
+router.get(
+  "/project-activity-chart/:projectId",
+  jwtMW.authentication,
+  getActivityLineForProject
+);
 
-router.get("/project-dropdown-detail", jwtMW.authentication, getProjectsDropdown)
+router.get(
+  "/project-dropdown-detail",
+  jwtMW.authentication,
+  getProjectsDropdown
+);
 
-
-router.get("/project-state-detail", jwtMW.authentication, getProjectStates)
+router.get("/project-state-detail", jwtMW.authentication, getProjectStates);
 router.get("/allposts", jwtMW.authentication, getAllPosts);
 
 //addMoney APi
@@ -324,7 +332,7 @@ router.post(
   "/purchase-generate-pdf",
   jwtMW.authentication,
   generatePurchaseOrderPdf
-)
+);
 
 //Add vendor
 router.post("/Add-vendoR-IT", jwtMW.authentication, addVendor);

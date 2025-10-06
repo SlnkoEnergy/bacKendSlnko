@@ -1104,32 +1104,6 @@ const getexportToCsv = async (req, res) => {
   }
 };
 
-const updateAssignedTo = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { assigned_to } = req.body;
-
-    if (!id) {
-      return res.status(400).json({ message: "id is required" });
-    }
-    const updatedHandoversheet = await hanoversheetmodells.findOneAndUpdate(
-      { _id: id },
-      { assigned_to },
-      { new: true }
-    );
-    if (!updatedHandoversheet) {
-      return res.status(404).json({ message: "Handoversheet not found" });
-    }
-    return res.status(200).json({
-      message: "Assigned to updated",
-      handoverSheet: updatedHandoversheet,
-    });
-  }
-  catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 const listUsersNames = async function (req, res) {
   try {
     const users = await userModel.find({}, "_id name").sort({ name: 1 }).lean();
@@ -1143,16 +1117,20 @@ const listUsersNames = async function (req, res) {
   }
 };
 
-const UpdateAssigneTo = async function (req, res) {
+const updateAssignedTo = async function (req, res) {
   try {
     const { handoverIds, AssignedTo } = req.body;
 
-    if (!handoverIds || !Array.isArray(handoverIds) || handoverIds.length === 0) {
+    if (
+      !handoverIds ||
+      !Array.isArray(handoverIds) ||
+      handoverIds.length === 0
+    ) {
       return res.status(400).json({ message: "Handover Required" });
     }
 
     if (!AssignedTo) {
-      return res.status(400).json({ message: "Assignee is Required" })
+      return res.status(400).json({ message: "Assignee is Required" });
     }
 
     const result = await handoversheetModells.updateMany(
@@ -1166,15 +1144,13 @@ const UpdateAssigneTo = async function (req, res) {
       matchedCount: result.matchedCount,
     });
   } catch (error) {
-
     console.error("Error updating assignee:", error);
     return res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
     });
-
   }
-}
+};
 
 const ManipulateHandoverSubmittedBy = async (req, res) => {
   try {
@@ -1378,8 +1354,6 @@ module.exports = {
   migrateProjectToHandover,
   updateAssignedTo,
   listUsersNames,
-  UpdateAssigneTo,
   ManipulateHandover,
   ManipulateHandoverSubmittedBy
 };
-

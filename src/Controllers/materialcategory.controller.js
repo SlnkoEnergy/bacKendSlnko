@@ -147,20 +147,13 @@ const getAllMaterialCategories = async (req, res) => {
 
 const namesearchOfMaterialCategories = async (req, res) => {
   try {
-    const {
-      search = "",
-      page = 1,
-      limit = 7,
-      pr = "false",
-      project_id,
-    } = req.query;
+    const { search = "", page = 1, limit = 7, pr = "false", project_id } = req.query;
 
     const prFlag = String(pr).toLowerCase() === "true";
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
     const skip = (pageNum - 1) * pageSize;
 
-    // ---- helpers ----
     const toIdStrings = (arr) => {
       if (!Array.isArray(arr)) return [];
       const out = [];
@@ -186,30 +179,9 @@ const namesearchOfMaterialCategories = async (req, res) => {
         .filter((s) => mongoose.Types.ObjectId.isValid(s))
         .map((s) => new mongoose.Types.ObjectId(s));
 
-    // 1) Allowed ids from dependency check (normalize!)
-    const depRaw = await isAllowedDependency(project_id, "MaterialCategory");
-    const allowedIdStrings = [...new Set(toIdStrings(depRaw))];
-
-    if (allowedIdStrings.length === 0) {
-      return res.status(200).json({
-        message: "Material categories retrieved successfully",
-        data: [],
-        pagination: {
-          search,
-          page: pageNum,
-          pageSize: 0,
-          total: 0,
-          totalPages: 1,
-          hasMore: false,
-          nextPage: null,
-        },
-        meta: { reason: "no_allowed_ids" },
-      });
-    }
-
-    // 2) If pr=true, intersect with project scope; if intersection is empty, fall back to allowed set
-    let effectiveIdStrings = allowedIdStrings;
     let meta = { filteredByProjectScope: false, scopeType: null };
+
+    let finalFilter = { status: "active" };
 
     if (prFlag && project_id && mongoose.Types.ObjectId.isValid(project_id)) {
       const scopeDoc = await scopeModel
@@ -222,39 +194,33 @@ const namesearchOfMaterialCategories = async (req, res) => {
       const scopeStrings = toIdStrings(
         (scopeDoc?.items || []).filter((it) => it?.scope === "slnko")
       );
+      const scopeObjectIds = toObjectIds(scopeStrings);
 
-      const scopeSet = new Set(scopeStrings);
-      const inter = allowedIdStrings.filter((id) => scopeSet.has(id));
-
-      meta.filteredByProjectScope = true;
-      meta.scopeType = "slnko";
-
-      // If intersection is empty but allowed has items, fall back to allowed set
-      effectiveIdStrings = inter.length > 0 ? inter : allowedIdStrings;
-      if (inter.length === 0) meta.scopeIntersection = "empty_fallback_to_allowed";
+      if (scopeObjectIds.length > 0) {
+        finalFilter._id = { $in: scopeObjectIds };
+        meta.filteredByProjectScope = true;
+        meta.scopeType = "slnko";
+      }
     }
 
-    const allowedObjectIds = toObjectIds(effectiveIdStrings);
-
-    // 3) Build final filter: ONLY allowed ids + optional search on name
-    const finalFilter = {
-      _id: { $in: allowedObjectIds },
-      ...(search
-        ? {
-            name: {
-              $regex: search.trim().replace(/\s+/g, ".*"),
-              $options: "i",
-            },
-          }
-        : {}),
-      // NOTE: removed `status: "active"` to avoid filtering out everything
-    };
+    // ---- Add search filter if provided ----
+    if (search && search.trim().length > 0) {
+      finalFilter.name = {
+        $regex: search.trim().replace(/\s+/g, ".*"),
+        $options: "i",
+      };
+    }
 
     const projection = { _id: 1, name: 1, description: 1 };
     const sort = { name: 1, _id: 1 };
 
     const [items, total] = await Promise.all([
-      materialCategory.find(finalFilter, projection).sort(sort).skip(skip).limit(pageSize).lean(),
+      materialCategory
+        .find(finalFilter, projection)
+        .sort(sort)
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
       materialCategory.countDocuments(finalFilter),
     ]);
 
@@ -262,7 +228,7 @@ const namesearchOfMaterialCategories = async (req, res) => {
     const hasMore = pageNum < totalPages;
 
     return res.status(200).json({
-      message: "Material categories retrieved successfully",
+      message: "Active material categories retrieved successfully",
       data: items,
       pagination: {
         search,
@@ -273,14 +239,11 @@ const namesearchOfMaterialCategories = async (req, res) => {
         hasMore,
         nextPage: hasMore ? pageNum + 1 : null,
       },
-      meta: {
-        ...meta,
-        allowedCount: allowedObjectIds.length,
-      },
+      meta,
     });
   } catch (error) {
     return res.status(500).json({
-      message: "Error searching material categories",
+      message: "Error searching active material categories",
       error: error.message,
     });
   }

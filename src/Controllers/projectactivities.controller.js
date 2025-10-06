@@ -19,6 +19,57 @@ function stripTemplateCode(payload = {}) {
   return rest;
 }
 
+const RESOURCE_TYPES = [
+  "surveyor",
+  "civil engineer",
+  "civil i&c",
+  "electric engineer",
+  "electric i&c",
+  "soil testing team",
+  "tline engineer",
+  "tline subcontractor",
+];
+
+const WINDOW_MAP = {
+  "1w": 7,
+  "2w": 14,
+  "3w": 21,
+  "1m": 30,
+  "3m": 90,
+  "6m": 180,
+};
+
+/* --------- date helpers --------- */
+function startOfDayLocal(d) {
+  const dt = new Date(d);
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+}
+function endOfDayLocal(d) {
+  const dt = new Date(d);
+  dt.setHours(23, 59, 59, 999);
+  return dt;
+}
+function addDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function ymd(date) {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function parseYMDLocal(s) {
+  if (!s) return null;
+  const [y, m, d] = String(s).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return startOfDayLocal(new Date(y, m - 1, d));
+}
+
 const createProjectActivity = async (req, res) => {
   try {
     const data = req.body;
@@ -916,29 +967,60 @@ const getAllTemplateNameSearch = async (req, res) => {
 const updateProjectActivityFromTemplate = async (req, res) => {
   try {
     const { projectId, templateId } = req.params;
-    const template = await projectActivity.findById(templateId);
+
+    if (!mongoose.isValidObjectId(projectId) || !mongoose.isValidObjectId(templateId)) {
+      return res.status(400).json({ message: "Invalid projectId or templateId" });
+    }
+
+    const template = await projectActivity.findById(templateId).lean();
     if (!template) {
       return res.status(404).json({ message: "Template not found" });
     }
-    const projectActivityDoc = await projectActivity.findOne({
-      project_id: projectId,
-    });
+
+    const projectActivityDoc = await projectActivity.findOne({ project_id: projectId });
     if (!projectActivityDoc) {
       return res.status(404).json({ message: "Project activity not found" });
     }
 
-    projectActivityDoc.activities = template.activities;
+    const projectIds = (projectActivityDoc.activities || []).map(a => a.activity_id).filter(Boolean);
+    const templateIds = (template.activities || []).map(a => a.activity_id).filter(Boolean);
+    const allIds = [...new Set([...projectIds, ...templateIds])];
+
+    const activityDocs = await activityModel.find({ _id: { $in: allIds } }, { _id: 1, type: 1 }).lean();
+    const idToType = new Map(activityDocs.map(a => [String(a._id), a.type]));
+
+    const backendActivitiesInProject = (projectActivityDoc.activities || []).filter(pa => {
+      const t = idToType.get(String(pa.activity_id));
+      return t === "backend";
+    });
+
+    const frontendActivitiesFromTemplate = (template.activities || []).filter(ta => {
+      const t = idToType.get(String(ta.activity_id));
+      return t === "frontend";
+    });
+
+
+    const clonedTemplateFrontend = JSON.parse(JSON.stringify(frontendActivitiesFromTemplate));
+    projectActivityDoc.activities = [...backendActivitiesInProject, ...clonedTemplateFrontend];
+
+    projectActivityDoc.activities.sort((a, b) => {
+      const ao = Number.isFinite(a.order) ? a.order : Number.MAX_SAFE_INTEGER;
+      const bo = Number.isFinite(b.order) ? b.order : Number.MAX_SAFE_INTEGER;
+      return ao - bo;
+    });
+
     await projectActivityDoc.save();
+
     return res.status(200).json({
-      message: "Project activity updated from template successfully",
-      projectActivityDoc,
+      message: "Project activity updated from template successfully (frontend only). Backend unchanged.",
+      projectActivity: projectActivityDoc,
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+    console.error("updateProjectActivityFromTemplate error:", error);
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
+
 
 const updateDependencyStatus = async (req, res) => {
   try {
@@ -1050,27 +1132,34 @@ const getRejectedOrNotAllowedDependencies = async (req, res) => {
   }
 };
 
-// GET /api/project-activities/view?baselineStart=2025-09-28&baselineEnd=2025-10-07
 const getAllProjectActivityForView = async (req, res) => {
   try {
-    const { baselineStart, baselineEnd } = req.query;
+    const { baselineStart, baselineEnd, filter: filterRaw } = req.query;
 
-    // Parse & normalize the optional window
     const hasRange = Boolean(baselineStart && baselineEnd);
     let rangeStart = null,
       rangeEnd = null;
     if (hasRange) {
       rangeStart = new Date(baselineStart);
       rangeEnd = new Date(baselineEnd);
-      if (isNaN(rangeStart) || isNaN(rangeEnd))
+      if (isNaN(rangeStart) || isNaN(rangeEnd)) {
         return res.status(400).json({
           success: false,
           message: "Invalid baselineStart/baselineEnd",
         });
-
+      }
       rangeStart.setHours(0, 0, 0, 0);
       rangeEnd.setHours(23, 59, 59, 999);
     }
+
+    const filterKey = String(filterRaw || "")
+      .toLowerCase()
+      .replace("-", "_");
+    const wantActualLate = filterKey === "actual_late";
+    const wantActualOnTime = filterKey === "actual_ontime";
+    const wantBaselineOnly = filterKey === "baseline";
+    const filterSpecified =
+      wantActualLate || wantActualOnTime || wantBaselineOnly;
 
     const match = hasRange
       ? {
@@ -1090,43 +1179,86 @@ const getAllProjectActivityForView = async (req, res) => {
       .lean();
 
     const toYMD = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
-    const overlaps = (a) =>
+    const overlapsPlanned = (a) =>
       a?.planned_start &&
       a?.planned_finish &&
       new Date(a.planned_start) <= rangeEnd &&
       new Date(a.planned_finish) >= rangeStart;
 
+    const getDates = (a) => ({
+      plannedStart: a.planned_start ? new Date(a.planned_start) : null,
+      plannedFinish: a.planned_finish ? new Date(a.planned_finish) : null,
+      actualStart: a.actual_start ? new Date(a.actual_start) : null,
+      actualFinish: a.actual_finish ? new Date(a.actual_finish) : null,
+    });
+
+    const isActualLate = (a) => {
+      const { plannedFinish, actualFinish } = getDates(a);
+      if (!plannedFinish || !actualFinish) return false;
+      return actualFinish.getTime() > plannedFinish.getTime();
+    };
+
+    const isActualOnTime = (a) => {
+      const { plannedFinish, actualFinish } = getDates(a);
+      if (!plannedFinish || !actualFinish) return false;
+      return actualFinish.getTime() <= plannedFinish.getTime();
+    };
+
     const data = paDocs
       .map((doc) => {
-        const filteredActs = (doc.activities || []).filter((a) =>
-          hasRange ? overlaps(a) : true
+        const actsAfterRange = (doc.activities || []).filter((a) =>
+          hasRange ? overlapsPlanned(a) : true
         );
 
-        const activities = filteredActs.map((a) => {
+        let actsAfterFilter = actsAfterRange;
+        if (wantActualLate) {
+          actsAfterFilter = actsAfterRange.filter(isActualLate);
+        } else if (wantActualOnTime) {
+          actsAfterFilter = actsAfterRange.filter(isActualOnTime);
+        }
+
+        const activities = actsAfterFilter.map((a) => {
           const plannedStart = a.planned_start || null;
           const plannedFinish = a.planned_finish || null;
           const actualStart = a.actual_start || null;
           const actualFinish = a.actual_finish || null;
 
           const statusRaw = a?.current_status?.status || null;
-          const isCompleted =
-            statusRaw === "completed" || Boolean(actualFinish);
+          const completed = Boolean(actualFinish) || statusRaw === "completed";
 
-          return {
+          if (wantBaselineOnly) {
+            return {
+              name: a.activity_id?.name || "",
+              baselineStart: toYMD(plannedStart),
+              baselineEnd: toYMD(plannedFinish),
+              start: null,
+              end: null,
+              status: null,
+            };
+          }
+
+          const shaped = {
             name: a.activity_id?.name || "",
             baselineStart: toYMD(plannedStart),
             baselineEnd: toYMD(plannedFinish),
             start: actualStart ? toYMD(actualStart) : null,
             end: actualFinish ? toYMD(actualFinish) : null,
-            status: isCompleted ? "done" : statusRaw || null,
-            ...(typeof a.percent_complete === "number"
-              ? { progress: Math.max(0, Math.min(1, a.percent_complete / 100)) }
-              : {}),
-            ...(isCompleted ? { completed: true } : {}),
+            status: completed ? "done" : statusRaw || null,
           };
+
+          if (typeof a.percent_complete === "number") {
+            shaped.progress = Math.max(
+              0,
+              Math.min(1, a.percent_complete / 100)
+            );
+          }
+          if (completed) shaped.completed = true;
+
+          return shaped;
         });
 
-        if (hasRange && activities.length === 0) return null;
+        if ((hasRange || filterSpecified) && activities.length === 0)
+          return null;
 
         return {
           project_code: doc.project_id?.code || "",
@@ -1147,6 +1279,191 @@ const getAllProjectActivityForView = async (req, res) => {
   }
 };
 
+const getResources = async (req, res) => {
+  try {
+    const { project_id } = req.query;
+    const windowKey = String(req.query.window || req.query.preset || "1w").toLowerCase();
+    const days = WINDOW_MAP[windowKey];
+    if (!days) {
+      return res.status(400).json({ ok:false, message:"Invalid window. Use 1w,2w,3w,1m,3m,6m" });
+    }
+
+    const start = startOfDayLocal(new Date());
+    const end   = endOfDayLocal(addDays(start, days - 1));
+
+    // optional filter by project
+    const match = {};
+    if (project_id) {
+      if (!mongoose.isValidObjectId(project_id)) {
+        return res.status(400).json({ ok:false, message:"Invalid project_id" });
+      }
+      match.project_id = new mongoose.Types.ObjectId(project_id);
+    }
+
+    // Aggregate per day × type within [start..end], summing resources.number
+    const rows = await projectActivity.aggregate([
+      { $match: match },
+      { $unwind: "$activities" },
+      {
+        $project: {
+          planned_start:  "$activities.planned_start",
+          planned_finish: "$activities.planned_finish",
+          resources:      "$activities.resources",
+        },
+      },
+      // keep only activities that overlap the forward window
+      {
+        $match: {
+          planned_start:  { $ne: null },
+          planned_finish: { $ne: null },
+          $expr: {
+            $and: [
+              { $lte: ["$planned_start", end] },
+              { $gte: ["$planned_finish", start] },
+            ],
+          },
+        },
+      },
+      // clamp overlap to [start..end]
+      {
+        $addFields: {
+          overlapStart: { $cond: [{ $gt: ["$planned_start", start] }, "$planned_start", start] },
+          overlapEnd:   { $cond: [{ $lt: ["$planned_finish", end] }, "$planned_finish", end] },
+        },
+      },
+      // number of days in overlap (inclusive)
+      {
+        $addFields: {
+          daySpan: {
+            $add: [1, {
+              $dateDiff: {
+                startDate: { $dateTrunc: { date: "$overlapStart", unit: "day" } },
+                endDate:   { $dateTrunc: { date: "$overlapEnd",   unit: "day" } },
+                unit: "day",
+              },
+            }],
+          },
+        },
+      },
+      { $match: { daySpan: { $gt: 0 } } },
+
+      // explode resources array; only keep valid enum types
+      { $unwind: { path: "$resources", preserveNullAndEmptyArrays: false } },
+      { $match: { "resources.type": { $in: RESOURCE_TYPES } } },
+
+      // ensure resources.number is numeric
+      {
+        $addFields: {
+          resourcesNumber: {
+            $convert: { input: "$resources.number", to: "double", onError: 0, onNull: 0 },
+          },
+        },
+      },
+
+      // expand to each day in the overlap
+      {
+        $addFields: {
+          activeDays: {
+            $map: {
+              input: { $range: [0, "$daySpan"] },
+              as: "offset",
+              in: {
+                $dateTrunc: {
+                  date: {
+                    $dateAdd: {
+                      startDate: { $dateTrunc: { date: "$overlapStart", unit: "day" } },
+                      unit: "day",
+                      amount: "$$offset",
+                    },
+                  },
+                  unit: "day",
+                },
+              },
+            },
+          },
+        },
+      },
+      { $unwind: "$activeDays" },
+
+      // sum per (day,type)
+      {
+        $group: {
+          _id: { day: "$activeDays", type: "$resources.type" },
+          count: { $sum: "$resourcesNumber" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          day: "$_id.day",
+          type: "$_id.type",
+          count: { $ifNull: ["$count", 0] },
+        },
+      },
+      { $sort: { day: 1 } },
+    ]);
+
+    // build dense daily series for full window
+    const dayKeys = Array.from({ length: days }, (_, i) => ymd(addDays(start, i)));
+    const dense = {};
+    for (const d of dayKeys) dense[d] = Object.fromEntries(RESOURCE_TYPES.map(t => [t, 0]));
+
+    for (const r of rows) {
+      const k = ymd(r.day);
+      if (dense[k]) dense[k][r.type] += Number(r.count) || 0;
+    }
+
+    const series = dayKeys.map(k => ({ date: k, ...dense[k] }));
+
+    return res.status(200).json({
+      ok: true,
+      mode: project_id ? "by-project (planned)" : "all-projects (planned)",
+      window: { key: windowKey, days, ticks: 7 },
+      ...(project_id ? { project_id } : {}),
+      start: ymd(start),
+      end: ymd(end),
+      resource_types: RESOURCE_TYPES,
+      series,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to fetch resources by day",
+      error: String(err?.message || err),
+    });
+  }
+};
+
+const updateStatusOfPlan = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { status, remarks } = req.body;
+    if (!status) {
+      return res.status(400).json({ message: "Status is required" });
+    }
+    const projectactivitydoc = await projectActivity.findOne({
+      project_id: projectId,
+    });
+    if (!projectactivitydoc) {
+      return res.status(404).json({ message: "Project Activity not found" });
+    }
+    projectactivitydoc.status_history.push({
+      status,
+      remarks,
+      user_id: req.user.userId,
+    });
+    await projectactivitydoc.save();
+    res.status(200).json({
+      message: "Status of plan updated successfully",
+      projectactivitydoc,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
 module.exports = {
   createProjectActivity,
   getAllProjectActivities,
@@ -1164,4 +1481,6 @@ module.exports = {
   getRejectedOrNotAllowedDependencies,
   reorderProjectActivities,
   getAllProjectActivityForView,
+  getResources,
+  updateStatusOfPlan,
 };
