@@ -1551,6 +1551,42 @@ const updateStatusOfPlan = async (req, res) => {
   }
 };
 
+const updateProjectActivityForAllProjects = async (req, res) => {
+  try {
+    const allProjects = await projectModel.find({}, { _id: 1 }).lean();
+    for (const proj of allProjects) {
+      const existing = await projectActivity.findOne({
+        project_id: proj._id,
+      });
+      if (!existing) {
+        const activityDoc = await activityModel
+          .find({}, { _id: 1, order: 1, dependency: 1, predecessors: 1 })
+          .lean();
+        
+        const newDoc = new projectActivity({
+          project_id: proj._id,
+          activities: activityDoc.map((a) => ({
+            activity_id: a._id,
+            order: a.order || null,
+            dependency: a.dependency || [],
+            predecessors: a.predecessors || [],
+            status_history: [],
+          })),
+          created_by: req.user.userId,
+        });
+        await newDoc.save();
+      }
+    }
+    res
+      .status(200)
+      .json({ message: "Project activities ensured for all projects" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
 module.exports = {
   createProjectActivity,
   getAllProjectActivities,
@@ -1570,4 +1606,5 @@ module.exports = {
   getAllProjectActivityForView,
   getResources,
   updateStatusOfPlan,
+  updateProjectActivityForAllProjects,
 };

@@ -19,6 +19,7 @@ const {
   getAllProjectActivityForView,
   getResources,
   updateStatusOfPlan,
+  updateProjectActivityForAllProjects,
 } = require("../Controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
@@ -101,6 +102,11 @@ router.put(
   "/:projectId/updateStatusOfPlan",
   jwtMW.authentication,
   updateStatusOfPlan
+);
+router.put(
+  "/updateprojectactivityforallprojects",
+  jwtMW.authentication,
+  updateProjectActivityForAllProjects
 );
 
 module.exports = router;

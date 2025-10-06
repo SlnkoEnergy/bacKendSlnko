@@ -1112,6 +1112,46 @@ const getAllPosts = async (req, res) => {
   }
 };
 
+// Node/Mongoose
+const updateProjectStatusForPreviousProjects = async (req, res) => {
+  try {
+    const result = await projectModells.updateMany(
+      {}, // all projects
+      [
+        {
+          $set: {
+            status_history: {
+              $cond: [
+                { $or: [{ $eq: ["$status_history", null] }, { $not: ["$status_history"] }] },
+                [],
+                "$status_history",
+              ],
+            },
+            current_status: {
+              $cond: [
+                { $or: [{ $eq: ["$current_status", null] }, { $not: ["$current_status"] }] },
+                { status: "to be started", updated_at: "$$NOW", user_id: null },
+                "$current_status",
+              ],
+            },
+          },
+        },
+      ]
+    );
+
+    console.log("Matched:", result.matchedCount, "Modified:", result.modifiedCount);
+    return res.status(200).json({
+      ok: true,
+      msg: "Project status history updated successfully",
+      matched: result.matchedCount,
+      modified: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ ok: false, msg: "Error updating project status history", error: error.message });
+  }
+};
+
 
 
 module.exports = {
@@ -1131,4 +1171,5 @@ module.exports = {
   getActivityLineForProject,
   getProjectsDropdown,
   getAllPosts,
+  updateProjectStatusForPreviousProjects
 };
