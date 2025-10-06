@@ -4,7 +4,6 @@ const Counter = require("../models/materialcategorycounter.model");
 const mongoose = require("mongoose");
 const materialcategoryModel = require("../models/materialcategory.model");
 const materialModel = require("../models/material.model");
-const { isAllowedDependency } = require("../utils/isalloweddependency.utils");
 
 const addMaterialCategory = async (req, res) => {
   try {
@@ -248,8 +247,6 @@ const namesearchOfMaterialCategories = async (req, res) => {
     });
   }
 };
-
-
 
 const getAllMaterialCategoriesDropdown = async (req, res) => {
   try {

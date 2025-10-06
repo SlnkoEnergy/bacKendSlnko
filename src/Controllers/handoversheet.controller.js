@@ -16,7 +16,6 @@ const { triggerLoanTasksBulk } = require("../utils/triggerLoanTask");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
-    // 1. Get last handover `id`
     const lastHandover = await hanoversheetmodells
       .findOne({ id: { $regex: /^BD\/LEAD\// } })
       .sort({ createdAt: -1 });
@@ -26,11 +25,8 @@ const migrateProjectToHandover = async (req, res) => {
       const parts = lastHandover.id.split("/");
       lastIdNum = parseInt(parts[2]);
     }
-
-    // 2. Get all existing p_ids in handoversheet
     const existingPids = await hanoversheetmodells.distinct("p_id");
 
-    // 3. Get all projects that are not already in handoversheet
     const projects = await projectmodells.find({
       p_id: { $nin: existingPids },
     });
