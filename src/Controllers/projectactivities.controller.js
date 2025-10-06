@@ -968,8 +968,13 @@ const updateProjectActivityFromTemplate = async (req, res) => {
   try {
     const { projectId, templateId } = req.params;
 
-    if (!mongoose.isValidObjectId(projectId) || !mongoose.isValidObjectId(templateId)) {
-      return res.status(400).json({ message: "Invalid projectId or templateId" });
+    if (
+      !mongoose.isValidObjectId(projectId) ||
+      !mongoose.isValidObjectId(templateId)
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Invalid projectId or templateId" });
     }
 
     const template = await projectActivity.findById(templateId).lean();
@@ -977,31 +982,47 @@ const updateProjectActivityFromTemplate = async (req, res) => {
       return res.status(404).json({ message: "Template not found" });
     }
 
-    const projectActivityDoc = await projectActivity.findOne({ project_id: projectId });
+    const projectActivityDoc = await projectActivity.findOne({
+      project_id: projectId,
+    });
     if (!projectActivityDoc) {
       return res.status(404).json({ message: "Project activity not found" });
     }
 
-    const projectIds = (projectActivityDoc.activities || []).map(a => a.activity_id).filter(Boolean);
-    const templateIds = (template.activities || []).map(a => a.activity_id).filter(Boolean);
+    const projectIds = (projectActivityDoc.activities || [])
+      .map((a) => a.activity_id)
+      .filter(Boolean);
+    const templateIds = (template.activities || [])
+      .map((a) => a.activity_id)
+      .filter(Boolean);
     const allIds = [...new Set([...projectIds, ...templateIds])];
 
-    const activityDocs = await activityModel.find({ _id: { $in: allIds } }, { _id: 1, type: 1 }).lean();
-    const idToType = new Map(activityDocs.map(a => [String(a._id), a.type]));
+    const activityDocs = await activityModel
+      .find({ _id: { $in: allIds } }, { _id: 1, type: 1 })
+      .lean();
+    const idToType = new Map(activityDocs.map((a) => [String(a._id), a.type]));
 
-    const backendActivitiesInProject = (projectActivityDoc.activities || []).filter(pa => {
+    const backendActivitiesInProject = (
+      projectActivityDoc.activities || []
+    ).filter((pa) => {
       const t = idToType.get(String(pa.activity_id));
       return t === "backend";
     });
 
-    const frontendActivitiesFromTemplate = (template.activities || []).filter(ta => {
-      const t = idToType.get(String(ta.activity_id));
-      return t === "frontend";
-    });
+    const frontendActivitiesFromTemplate = (template.activities || []).filter(
+      (ta) => {
+        const t = idToType.get(String(ta.activity_id));
+        return t === "frontend";
+      }
+    );
 
-
-    const clonedTemplateFrontend = JSON.parse(JSON.stringify(frontendActivitiesFromTemplate));
-    projectActivityDoc.activities = [...backendActivitiesInProject, ...clonedTemplateFrontend];
+    const clonedTemplateFrontend = JSON.parse(
+      JSON.stringify(frontendActivitiesFromTemplate)
+    );
+    projectActivityDoc.activities = [
+      ...backendActivitiesInProject,
+      ...clonedTemplateFrontend,
+    ];
 
     projectActivityDoc.activities.sort((a, b) => {
       const ao = Number.isFinite(a.order) ? a.order : Number.MAX_SAFE_INTEGER;
@@ -1012,15 +1033,17 @@ const updateProjectActivityFromTemplate = async (req, res) => {
     await projectActivityDoc.save();
 
     return res.status(200).json({
-      message: "Project activity updated from template successfully (frontend only). Backend unchanged.",
+      message:
+        "Project activity updated from template successfully (frontend only). Backend unchanged.",
       projectActivity: projectActivityDoc,
     });
   } catch (error) {
     console.error("updateProjectActivityFromTemplate error:", error);
-    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
-
 
 const updateDependencyStatus = async (req, res) => {
   try {
@@ -1282,20 +1305,26 @@ const getAllProjectActivityForView = async (req, res) => {
 const getResources = async (req, res) => {
   try {
     const { project_id } = req.query;
-    const windowKey = String(req.query.window || req.query.preset || "1w").toLowerCase();
+    const windowKey = String(
+      req.query.window || req.query.preset || "1w"
+    ).toLowerCase();
     const days = WINDOW_MAP[windowKey];
     if (!days) {
-      return res.status(400).json({ ok:false, message:"Invalid window. Use 1w,2w,3w,1m,3m,6m" });
+      return res
+        .status(400)
+        .json({ ok: false, message: "Invalid window. Use 1w,2w,3w,1m,3m,6m" });
     }
 
     const start = startOfDayLocal(new Date());
-    const end   = endOfDayLocal(addDays(start, days - 1));
+    const end = endOfDayLocal(addDays(start, days - 1));
 
     // optional filter by project
     const match = {};
     if (project_id) {
       if (!mongoose.isValidObjectId(project_id)) {
-        return res.status(400).json({ ok:false, message:"Invalid project_id" });
+        return res
+          .status(400)
+          .json({ ok: false, message: "Invalid project_id" });
       }
       match.project_id = new mongoose.Types.ObjectId(project_id);
     }
@@ -1306,15 +1335,15 @@ const getResources = async (req, res) => {
       { $unwind: "$activities" },
       {
         $project: {
-          planned_start:  "$activities.planned_start",
+          planned_start: "$activities.planned_start",
           planned_finish: "$activities.planned_finish",
-          resources:      "$activities.resources",
+          resources: "$activities.resources",
         },
       },
       // keep only activities that overlap the forward window
       {
         $match: {
-          planned_start:  { $ne: null },
+          planned_start: { $ne: null },
           planned_finish: { $ne: null },
           $expr: {
             $and: [
@@ -1327,21 +1356,34 @@ const getResources = async (req, res) => {
       // clamp overlap to [start..end]
       {
         $addFields: {
-          overlapStart: { $cond: [{ $gt: ["$planned_start", start] }, "$planned_start", start] },
-          overlapEnd:   { $cond: [{ $lt: ["$planned_finish", end] }, "$planned_finish", end] },
+          overlapStart: {
+            $cond: [
+              { $gt: ["$planned_start", start] },
+              "$planned_start",
+              start,
+            ],
+          },
+          overlapEnd: {
+            $cond: [{ $lt: ["$planned_finish", end] }, "$planned_finish", end],
+          },
         },
       },
       // number of days in overlap (inclusive)
       {
         $addFields: {
           daySpan: {
-            $add: [1, {
-              $dateDiff: {
-                startDate: { $dateTrunc: { date: "$overlapStart", unit: "day" } },
-                endDate:   { $dateTrunc: { date: "$overlapEnd",   unit: "day" } },
-                unit: "day",
+            $add: [
+              1,
+              {
+                $dateDiff: {
+                  startDate: {
+                    $dateTrunc: { date: "$overlapStart", unit: "day" },
+                  },
+                  endDate: { $dateTrunc: { date: "$overlapEnd", unit: "day" } },
+                  unit: "day",
+                },
               },
-            }],
+            ],
           },
         },
       },
@@ -1355,7 +1397,12 @@ const getResources = async (req, res) => {
       {
         $addFields: {
           resourcesNumber: {
-            $convert: { input: "$resources.number", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$resources.number",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
         },
       },
@@ -1371,7 +1418,9 @@ const getResources = async (req, res) => {
                 $dateTrunc: {
                   date: {
                     $dateAdd: {
-                      startDate: { $dateTrunc: { date: "$overlapStart", unit: "day" } },
+                      startDate: {
+                        $dateTrunc: { date: "$overlapStart", unit: "day" },
+                      },
                       unit: "day",
                       amount: "$$offset",
                     },
@@ -1403,17 +1452,19 @@ const getResources = async (req, res) => {
       { $sort: { day: 1 } },
     ]);
 
-    // build dense daily series for full window
-    const dayKeys = Array.from({ length: days }, (_, i) => ymd(addDays(start, i)));
+    const dayKeys = Array.from({ length: days }, (_, i) =>
+      ymd(addDays(start, i))
+    );
     const dense = {};
-    for (const d of dayKeys) dense[d] = Object.fromEntries(RESOURCE_TYPES.map(t => [t, 0]));
+    for (const d of dayKeys)
+      dense[d] = Object.fromEntries(RESOURCE_TYPES.map((t) => [t, 0]));
 
     for (const r of rows) {
       const k = ymd(r.day);
       if (dense[k]) dense[k][r.type] += Number(r.count) || 0;
     }
 
-    const series = dayKeys.map(k => ({ date: k, ...dense[k] }));
+    const series = dayKeys.map((k) => ({ date: k, ...dense[k] }));
 
     return res.status(200).json({
       ok: true,
