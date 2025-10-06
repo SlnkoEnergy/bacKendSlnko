@@ -1157,37 +1157,6 @@ const ManipulateHandoverSubmittedBy = async (req, res) => {
 
     const handovers = await handoversheetModells.find();
 
-    // for (let h of handovers) {
-    //   if (mongoose.Types.ObjectId.isValid(h.submitted_by)) continue;
-
-    //   if (typeof h.submitted_by !== "string" || h.submitted_by.trim() === "") continue;
-
-    //   const submittedByName = h.submitted_by?.trim();
-
-    //   if (!submittedByName) continue;
-
-    //   const objectId = mongoose.Types.ObjectId.isValid(submittedByName)
-    //     ? new mongoose.Types.ObjectId(submittedByName)
-    //     : null;
-
-    //   const user = await userModells.findOne({
-    //     $or: [
-    //       { name: { $regex: `^${submittedByName}`, $options: "i" } },
-    //       ...(objectId ? [{ _id: objectId }] : [])
-    //     ]
-    //   }).select("_id");
-
-    //   if (user) {
-    //     await handoversheetModells.updateOne(
-    //       { _id: h._id },
-    //       { $set: { submitted_by: user._id } }
-    //     )
-    //     console.log(`Update handover ${h._id} with user ${user._id}`);
-    //   } else {
-    //     console.log(`No user found for handover ${h._id} with name ${submittedByName}`);
-    //   }
-    // }
-
     // comment out this part 
     for (let h of handovers) {
 
@@ -1215,37 +1184,6 @@ const ManipulateHandoverSubmittedBy = async (req, res) => {
         console.log(`Error ${h._id}`)
       }
     }
-
-    // for (let h of handovers) {
-    //   if (mongoose.Types.ObjectId.isValid(h.other_details.submitted_by_BD)) continue;
-
-    //   if (typeof h.other_details.submitted_by_BD !== "string" || h.other_details.submitted_by_BD.trim() === "") continue;
-
-    //   const submittedByName = h.other_details.submitted_by_BD?.trim();
-
-    //   if (!submittedByName) continue;
-
-    //   const objectId = mongoose.Types.ObjectId.isValid(submittedByName)
-    //     ? new mongoose.Types.ObjectId(submittedByName)
-    //     : null;
-
-    //   const user = await userModells.findOne({
-    //     $or: [
-    //       { name: { $regex: `^${submittedByName}`, $options: "i" } },
-    //       ...(objectId ? [{ _id: objectId }] : [])
-    //     ]
-    //   }).select("_id");
-
-    //   if (user) {
-    //     await handoversheetModells.updateOne(
-    //       { _id: h._id },
-    //       { $set: { "other_details.submitted_by_BD": user._id } }
-    //     )
-    //     console.log(`Update handover Other detail ${h._id} with user ${user._id}`);
-    //   } else {
-    //     console.log(`No user found for handover other detail ${h._id} with name ${submittedByName}`);
-    //   }
-    // }
 
     for (let h of handovers) {
 
