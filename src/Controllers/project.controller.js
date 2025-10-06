@@ -722,87 +722,180 @@ const getProjectStates = async (req, res) => {
 };
 
 const getActivityLineForProject = async (req, res) => {
-
   try {
-    const { projectId } = req.params;
-
+    const raw = req.params.projectId || ""; // may be "id" or "id1,id2"
+    const ids = raw.includes(",")
+      ? raw.split(",").map((s) => s.trim()).filter(Boolean)
+      : raw
+        ? [raw]
+        : [];
 
     const asMs = (d) => (d ? new Date(d).getTime() : null);
 
-    // Prefer the latest “project”-status doc for that project
-    const doc = await projectactivitiesModel.findOne({ project_id: projectId })
-      .lean()
-      .exec();
+    // Attach project_name to every payload
+    const buildResponseForDoc = (doc, activityNameById, fallbackProjectId, projectName) => {
+      const now = Date.now();
 
-    if (!doc) return res.json({ data: [], project_id: projectId });
-
-    // Build a map to resolve activity names
-    const ids = (doc.activities || []).map((a) => a.activity_id).filter(Boolean);
-    const actDocs = await activitiesModel.find({ _id: { $in: ids } }, { name: 1 }).lean();
-    const nameById = Object.fromEntries(actDocs.map((a) => [String(a._id), a.name]));
-
-    // Flatten + sanitize dates → milliseconds (numeric for charts)
-    const rows = (doc.activities || [])
-      .slice()
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      .map((a, idx) => {
-        const planned_start_ms = asMs(a.planned_start);
-        const planned_finish_ms = asMs(a.planned_finish);
-        const actual_start_ms = asMs(a.actual_start);
-        const actual_finish_ms = asMs(a.actual_finish);
-        const ongoing = !!(actual_start_ms && !actual_finish_ms);
-
+      if (!doc) {
         return {
+          project_id: String(fallbackProjectId ?? ""),
+          project_name: projectName || "",
+          data: [],
+          domain: { min: null, max: null, now },
+        };
+      }
+
+      const rows = (doc.activities || [])
+        .slice()
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .map((a, idx) => ({
           idx,
           activity_id: a.activity_id,
-          activity_name: nameById[String(a.activity_id)] || `Activity ${idx + 1}`,
-          planned_start_ms,
-          planned_finish_ms,
-          actual_start_ms,
-          actual_finish_ms,
-          ongoing,
-        };
+          activity_name: activityNameById[String(a.activity_id)] || `Activity ${idx + 1}`,
+          planned_start_ms: asMs(a.planned_start),
+          planned_finish_ms: asMs(a.planned_finish),
+          actual_start_ms: asMs(a.actual_start),
+          actual_finish_ms: asMs(a.actual_finish),
+          ongoing: !!(asMs(a.actual_start) && !asMs(a.actual_finish)),
+        }));
+
+      const allDates = rows
+        .flatMap((r) => [
+          r.planned_start_ms,
+          r.planned_finish_ms,
+          r.actual_start_ms,
+          r.actual_finish_ms,
+        ])
+        .filter(Boolean);
+
+      const minDate = allDates.length ? Math.min(...allDates) : null;
+      const maxDate = allDates.length ? Math.max(...allDates) : null;
+
+      return {
+        project_id: String(doc.project_id ?? fallbackProjectId ?? ""),
+        project_name: projectName || "",
+        data: rows,
+        domain: { min: minDate, max: maxDate, now },
+      };
+    };
+
+    // --- SINGLE ---
+    if (ids.length <= 1) {
+      const projectId = ids[0] ?? "";
+
+      // fetch activity doc + project name in parallel
+      const [doc, projDoc] = await Promise.all([
+        projectactivitiesModel.findOne({ project_id: projectId }).lean().exec(),
+        projectModells.findById(projectId, { name: 1 }).lean().exec(), // <— name only
+      ]);
+
+      if (!doc) {
+        return res.json({
+          rows: [
+            {
+              project_id: projectId,
+              project_name: projDoc?.name || "",
+              data: [],
+              domain: { min: null, max: null, now: Date.now() },
+            },
+          ],
+          domain: { min: null, max: null, now: Date.now() },
+        });
+      }
+
+      const activityIds = (doc.activities || [])
+        .map((a) => a.activity_id)
+        .filter(Boolean)
+        .map(String);
+
+      const actDocs = activityIds.length
+        ? await activitiesModel.find({ _id: { $in: activityIds } }, { name: 1 }).lean()
+        : [];
+
+      const activityNameById = Object.fromEntries(
+        actDocs.map((a) => [String(a._id), a.name])
+      );
+
+      const payload = buildResponseForDoc(
+        doc,
+        activityNameById,
+        projectId,
+        projDoc?.name || ""
+      );
+
+      return res.json({
+        rows: [payload],
+        domain: payload.domain, // or compute a global domain if you prefer
       });
+    }
 
-    // Provide convenient min/max for axis domain
-    const allDates = rows.flatMap((r) => [
-      r.planned_start_ms,
-      r.planned_finish_ms,
-      r.actual_start_ms,
-      r.actual_finish_ms,
-    ]).filter(Boolean);
+    // --- MULTI ---
+    const [docs, projDocs] = await Promise.all([
+      projectactivitiesModel.find({ project_id: { $in: ids } }).lean().exec(),
+      projectModells.find({ _id: { $in: ids } }, { name: 1 }).lean().exec(), // <— names for all ids
+    ]);
 
-    const minDate = allDates.length ? Math.min(...allDates) : null;
-    const maxDate = allDates.length ? Math.max(...allDates) : null;
+    const projectNameById = Object.fromEntries(
+      (projDocs || []).map((p) => [String(p._id), p?.name || ""])
+    );
+
+    const uniqueActivityIds = Array.from(
+      new Set(
+        docs.flatMap((d) =>
+          (d.activities || [])
+            .map((a) => String(a.activity_id))
+            .filter(Boolean)
+        )
+      )
+    );
+
+    const actDocs = uniqueActivityIds.length
+      ? await activitiesModel.find({ _id: { $in: uniqueActivityIds } }, { name: 1 }).lean()
+      : [];
+
+    const activityNameById = Object.fromEntries(
+      actDocs.map((a) => [String(a._id), a.name])
+    );
+
+    const docByProjectId = new Map(docs.map((d) => [String(d.project_id), d]));
+
+    const rows = ids.map((id) =>
+      buildResponseForDoc(
+        docByProjectId.get(String(id)) || null,
+        activityNameById,
+        id,
+        projectNameById[String(id)] || ""
+      )
+    );
+
+    const mins = rows.map((r) => r.domain.min).filter((v) => v != null);
+    const maxs = rows.map((r) => r.domain.max).filter((v) => v != null);
 
     return res.json({
-      project_id: projectId,
-      data: rows,
-      domain: { min: minDate, max: maxDate, now: Date.now() },
+      rows,
+      domain: {
+        min: mins.length ? Math.min(...mins) : null,
+        max: maxs.length ? Math.max(...maxs) : null,
+        now: Date.now(),
+      },
     });
   } catch (err) {
     console.error("getActivityLineForProject error:", err);
     res.status(500).json({ message: "Server error", error: err?.message });
   }
-}
+};
+
+
 
 const getProjectsDropdown = async (req, res) => {
   try {
-    const page = Math.max(parseInt(req.query.page ?? "1", 10), 1);
-    const pageSize = Math.min(parseInt(req.query.pageSize ?? "7", 10), 50);
-
-    const data = await projectModells
-      .find({}, "name code")
-      .sort({ updatedAt: -1, _id: -1 })
-      .skip((page - 1) * pageSize)
-      .limit(pageSize)
-      .lean();
+  
+    const data = await projectModells.find().lean();
 
     return res.status(200).json({
-      message: "fetch Successfully",
+      message: "Fetch Successfully",
       data,
-      pagination: { page, pageSize }
-    });
+    })
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", err: error });
   }
