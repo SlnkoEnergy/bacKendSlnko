@@ -773,19 +773,19 @@ const updatestatus = async function (req, res) {
             activity_id: act._id,
             dependency: Array.isArray(act.dependency)
               ? act.dependency.map((d) => ({
-                  model: d.model,
-                  model_id: d.model_id,
-                  model_id_name: d.model_id_name,
-                  updatedAt: d.updatedAt || new Date(),
-                  updated_by: d.updated_by || req.user.userId,
-                }))
+                model: d.model,
+                model_id: d.model_id,
+                model_id_name: d.model_id_name,
+                updatedAt: d.updatedAt || new Date(),
+                updated_by: d.updated_by || req.user.userId,
+              }))
               : [],
             predecessors: Array.isArray(act.predecessors)
               ? act.predecessors.map((p) => ({
-                  activity_id: p.activity_id,
-                  type: p.type,
-                  lag: p.lag,
-                }))
+                activity_id: p.activity_id,
+                type: p.type,
+                lag: p.lag,
+              }))
               : [],
             planned_start,
             planned_finish,
@@ -1121,12 +1121,16 @@ const updateAssignedTo = async function (req, res) {
   try {
     const { handoverIds, AssignedTo } = req.body;
 
-    if (!handoverIds || !Array.isArray(handoverIds) || handoverIds.length === 0) {
+    if (
+      !handoverIds ||
+      !Array.isArray(handoverIds) ||
+      handoverIds.length === 0
+    ) {
       return res.status(400).json({ message: "Handover Required" });
     }
 
     if (!AssignedTo) {
-      return res.status(400).json({ message: "Assignee is Required" })
+      return res.status(400).json({ message: "Assignee is Required" });
     }
 
     const result = await handoversheetModells.updateMany(
@@ -1140,15 +1144,143 @@ const updateAssignedTo = async function (req, res) {
       matchedCount: result.matchedCount,
     });
   } catch (error) {
-
     console.error("Error updating assignee:", error);
     return res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
     });
+  }
+};
 
+const ManipulateHandoverSubmittedBy = async (req, res) => {
+  try {
+
+    const handovers = await handoversheetModells.find();
+
+    // comment out this part 
+    for (let h of handovers) {
+
+      if (h.submitted_by && mongoose.Types.ObjectId.isValid(h.submitted_by)) {
+        await handoversheetModells.updateOne(
+          { _id: h._id },
+          { $set: { submitted_by: new mongoose.Types.ObjectId(h.submitted_by) } }
+        );
+        console.log(`Migrated submitted_by for ${h._id}`);
+      }
+    }
+
+    // // comment out this part and update model
+    for (let h of handovers) {
+
+      if (h.submitted_by && mongoose.Types.ObjectId.isValid(h.submitted_by)) {
+
+        await handoversheetModells.updateOne(
+          { _id: h._id },
+          { $set: { assigned_to: new mongoose.Types.ObjectId(h.submitted_by) } }
+        );
+        console.log(`ADD assigned To in handover ${h._id} `)
+      }
+      else {
+        console.log(`Error ${h._id}`)
+      }
+    }
+
+    for (let h of handovers) {
+
+      if (h.other_details.submitted_by_BD && mongoose.Types.ObjectId.isValid(h.other_details.submitted_by_BD)) {
+        await handoversheetModells.updateOne(
+          { _id: h._id },
+          { $set: { "other_details.submitted_by_BD": new mongoose.Types.ObjectId(h.other_details.submitted_by_BD) } }
+        );
+        console.log(`Migrated submitted_by for Other detail ${h._id}`);
+      }
+    }
+
+
+    res.status(200).json({ message: "Data Manipulate Successfully" })
+  } catch (error) {
+    res.status(500).json({ message: "ERRor", error: error })
   }
 }
+const ManipulateHandover = async (req, res) => {
+  try {
+    const handovers = await handoversheetModells.find();
+
+
+    // change submitted by  into string object 
+
+    for (let h of handovers) {
+      if (mongoose.Types.ObjectId.isValid(h.submitted_by)) continue;
+
+      if (typeof h.submitted_by !== "string" || h.submitted_by.trim() === "") continue;
+
+      const submittedByName = h.submitted_by?.trim();
+
+      if (!submittedByName) continue;
+
+      const objectId = mongoose.Types.ObjectId.isValid(submittedByName)
+        ? new mongoose.Types.ObjectId(submittedByName)
+        : null;
+
+      const user = await userModells.findOne({
+        $or: [
+          { name: { $regex: `^${submittedByName}`, $options: "i" } },
+          ...(objectId ? [{ _id: objectId }] : [])
+        ]
+      }).select("_id");
+
+      if (user) {
+        await handoversheetModells.updateOne(
+          { _id: h._id },
+          { $set: { submitted_by: user._id } }
+        )
+        console.log(`Update handover ${h._id} with user ${user._id}`);
+      } else {
+        console.log(`No user found for handover ${h._id} with name ${submittedByName}`);
+      }
+    }
+
+    for (let h of handovers) {
+      if (mongoose.Types.ObjectId.isValid(h.other_details.submitted_by_BD)) continue;
+
+      if (typeof h.other_details.submitted_by_BD !== "string" || h.other_details.submitted_by_BD.trim() === "") continue;
+
+      const submittedByName = h.other_details.submitted_by_BD?.trim();
+
+      if (!submittedByName) continue;
+
+      const objectId = mongoose.Types.ObjectId.isValid(submittedByName)
+        ? new mongoose.Types.ObjectId(submittedByName)
+        : null;
+
+      const user = await userModells.findOne({
+        $or: [
+          { name: { $regex: `^${submittedByName}`, $options: "i" } },
+          ...(objectId ? [{ _id: objectId }] : [])
+        ]
+      }).select("_id");
+
+      if (user) {
+        await handoversheetModells.updateOne(
+          { _id: h._id },
+          { $set: { "other_details.submitted_by_BD": user._id } }
+        )
+        console.log(`Update handover Other detail ${h._id} with user ${user._id}`);
+      } else {
+        console.log(`No user found for handover other detail ${h._id} with name ${submittedByName}`);
+      }
+    }
+
+
+    return res.status(200).json({ message: "Updated Successfully" })
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+
+
+
 
 module.exports = {
   createhandoversheet,
@@ -1159,6 +1291,7 @@ module.exports = {
   getexportToCsv,
   migrateProjectToHandover,
   updateAssignedTo,
-  listUsersNames
+  listUsersNames,
+  ManipulateHandover,
+  ManipulateHandoverSubmittedBy
 };
-

@@ -127,6 +127,36 @@ const projectActivitySchema = new mongoose.Schema(
       },
     ],
     status: { type: String, enum: ["template", "project"] },
+    status_history: [
+      {
+        status: {
+          type: String,
+          enum: ["freeze", "unfreeze"],
+        },
+        remarks: {
+          type: String,
+        },
+        user_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
+    current_status: {
+      status: {
+        type: String,
+        enum: ["freeze", "unfreeze"],
+      },
+      remarks: {
+        type: String,
+      },
+      user_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      updatedAt: { type: Date, default: Date.now },
+    },
     created_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -153,6 +183,7 @@ projectActivitySchema.pre("save", function (next) {
       idx++;
     });
   }
+  updateStatus(this, "unfreeze");
   next();
 });
 
