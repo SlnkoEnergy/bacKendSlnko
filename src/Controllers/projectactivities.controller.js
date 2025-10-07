@@ -1593,58 +1593,58 @@ const isFiniteNumber = (v) => Number.isFinite(Number(v));
 
 const syncActivitiesFromProjectActivity = async (req, res) => {
   try {
-    // Optional filter: e.g., only real project docs
+    // Optional: limit to real projects
     // const filter = { status: "project" };
     const filter = {}; // do for all projectActivities
 
-    // Stream documents to keep memory stable
-    const cursor = projectActivity.find(filter, {
-      _id: 1,
-      activities: 1,
-    }).lean().cursor();
+    // 0) Preload ALL base activities once (id, order, dependency)
+    //    If your activities collection is extremely large, consider paging or scoping this.
+    const baseActsAll = await activityModel
+      .find({}, { _id: 1, order: 1, dependency: 1 })
+      .lean();
 
-    const BATCH_SIZE = 5000; // adjust to your dataset
-    let batch = [];
+    const baseById = new Map(baseActsAll.map((a) => [String(a._id), a]));
+    const allBaseIds = new Set(baseById.keys());
+
+    // 1) Stream projectActivities to keep memory stable
+    const cursor = projectActivity
+      .find(filter, { _id: 1, activities: 1 })
+      .lean()
+      .cursor();
+
+    const BATCH_SIZE = 500; // tune for your dataset
     let ops = [];
     let processed = 0;
     let updatedDocs = 0;
 
-    const processDoc = async (paDoc) => {
-      const activitiesArr = Array.isArray(paDoc.activities) ? paDoc.activities : [];
-      if (activitiesArr.length === 0) {
-        return null; // nothing to update
-      }
+    for await (const paDoc of cursor) {
+      processed += 1;
 
-      // Collect ids present in this project doc
-      const ids = activitiesArr
-        .map((a) => a?.activity_id)
-        .filter((id) => id && mongoose.isValidObjectId(id));
+      const activitiesArr = Array.isArray(paDoc.activities)
+        ? paDoc.activities
+        : [];
 
-      if (ids.length === 0) {
-        return null;
-      }
-
-      // Fetch base activities (order + dependency)
-      const baseActs = await activityModel.find(
-        { _id: { $in: ids } },
-        { _id: 1, order: 1, dependency: 1 }
-      ).lean();
-
-      const actById = new Map(baseActs.map((a) => [String(a._id), a]));
-
-      // Build updated activities array (only order & dependency changed)
-      let changed = false;
       const now = new Date();
+      let changed = false;
 
-      const updatedActivities = activitiesArr.map((projAct) => {
+      // Build a set of project activity ids for fast membership
+      const projectIdSet = new Set(
+        activitiesArr
+          .map((a) => a?.activity_id)
+          .filter((id) => id && mongoose.isValidObjectId(id))
+          .map((id) => String(id))
+      );
+
+      // 2) Update existing activities: only order & dependency from base
+      const updatedExisting = activitiesArr.map((projAct) => {
         const idStr = String(projAct.activity_id || "");
-        const base = actById.get(idStr);
+        const base = baseById.get(idStr);
 
-        if (!base) return projAct; // no change if base not found
+        if (!base) return projAct; // base missing -> leave as-is
 
         const out = { ...projAct };
 
-        // 1) order <- activities.order (if finite)
+        // (a) order <- base.order
         if (isFiniteNumber(base.order)) {
           const newOrder = Number(base.order);
           if (out.order !== newOrder) {
@@ -1653,9 +1653,9 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
           }
         }
 
-        // 2) dependency <- activities.dependency (mapped),
-        //    plus allowed/not allowed based on activity completion
+        // (b) dependency <- base.dependency mapped to project schema
         const actDeps = Array.isArray(base.dependency) ? base.dependency : [];
+
         const isCompleted = out?.current_status?.status === "completed";
         const depStatus = isCompleted ? "allowed" : "not allowed";
 
@@ -1681,49 +1681,93 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
           },
         }));
 
-        // Only mark changed if dependency content actually differs in shape/length
-        // (shallow check on length; deep diff is overkill here)
-        if (
-          !Array.isArray(out.dependency) ||
-          out.dependency.length !== newDeps.length
-        ) {
-          out.dependency = newDeps;
-          changed = true;
-        } else {
-          // replace regardless—keeps logic simple and deterministic
-          out.dependency = newDeps;
-          changed = true;
-        }
+        // Replace dependency (only field we’re changing besides order)
+        out.dependency = newDeps;
+        changed = true;
 
         return out;
       });
 
-      if (!changed) return null;
+      // 3) ADD missing activities (exist in base but not in project)
+      //    We add **only** minimal fields + dependency (not allowed), do NOT fill predecessors/etc.
+      const newActivities = [];
+      for (const baseId of allBaseIds) {
+        if (projectIdSet.has(baseId)) continue; // already present
+        const base = baseById.get(baseId);
+        if (!base) continue;
 
-      // Build updateOne op (replace activities array only)
-      return {
+        // Create a minimal project activity entry
+        const baseOrder = isFiniteNumber(base.order) ? Number(base.order) : undefined;
+
+        const deps = Array.isArray(base.dependency) ? base.dependency : [];
+        const depMapped = deps.map((d) => ({
+          model: d?.model ?? undefined,
+          model_id: d?.model_id ?? undefined,
+          model_id_name: d?.model_id_name ?? undefined,
+          updatedAt: now,
+          updated_by: undefined,
+          status_history: [
+            {
+              status: "not allowed",
+              remarks: "Added via sync (new activity in project)",
+              updatedAt: now,
+              user_id: undefined,
+            },
+          ],
+          current_status: {
+            status: "not allowed",
+            remarks: "Added via sync (new activity in project)",
+            updatedAt: now,
+            user_id: undefined,
+          },
+        }));
+
+        newActivities.push({
+          activity_id: new mongoose.Types.ObjectId(baseId),
+          order: baseOrder,
+          planned_start: undefined,
+          planned_finish: undefined,
+          actual_start: undefined,
+          actual_finish: undefined,
+          duration: undefined,
+          percent_complete: 0,
+          predecessors: [],
+          successors: [],
+          resources: [],
+          current_status: {
+            status: "not started",
+            updated_at: now,
+            updated_by: undefined,
+            remarks: "Added via sync",
+          },
+          status_history: [], // leave empty
+          dependency: depMapped,
+        });
+      }
+
+      if (newActivities.length > 0) {
+        changed = true;
+      }
+
+      if (!changed) {
+        // Nothing to update for this doc
+        continue;
+      }
+
+      const finalActivities = [...updatedExisting, ...newActivities];
+
+      ops.push({
         updateOne: {
           filter: { _id: paDoc._id },
-          update: { $set: { activities: updatedActivities } },
+          update: { $set: { activities: finalActivities } },
         },
-      };
-    };
-
-    for await (const doc of cursor) {
-      processed += 1;
-      const op = await processDoc(doc);
-      if (op) {
-        ops.push(op);
-        updatedDocs += 1;
-      }
+      });
+      updatedDocs += 1;
 
       if (ops.length >= BATCH_SIZE) {
-        await ProjectActivities.bulkWrite(ops, { ordered: false });
+        await projectActivity.bulkWrite(ops, { ordered: false });
         ops = [];
       }
-
-      batch.push(doc);
-      if (batch.length >= BATCH_SIZE) batch = [];
     }
 
     // Flush remaining ops
@@ -1733,12 +1777,9 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      message: "Synced order and dependency for all projectActivities",
-      meta: {
-        processedDocs: processed,
-        updatedDocs,
-        batchSize: BATCH_SIZE,
-      },
+      message:
+        "Synced order & dependency for all projectActivities; added missing activities from base model.",
+      meta: { processedDocs: processed, updatedDocs },
     });
   } catch (error) {
     console.error("syncAllProjectActivities error:", error);
@@ -1749,6 +1790,7 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   createProjectActivity,
