@@ -67,21 +67,31 @@ const projectBalance = async (req, res) => {
       {
         $lookup: {
           from: "purchaseorders",
-          localField: "code",
-          foreignField: "p_id",
+          let: { projectId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
+          ],
           as: "pos",
         },
       },
       {
         $lookup: {
           from: "payrequests",
-          let: { poNumbers: "$pos.po_number" },
+          let: {
+            poNumbers: {
+              $map: {
+                input: "$pos",
+                as: "po",
+                in: { $toString: "$$po.po_number" },
+              },
+            },
+          },
           pipeline: [
             {
               $match: {
                 $expr: {
                   $and: [
-                    { $in: ["$po_number", "$$poNumbers"] },
+                    { $in: [{ $toString: "$po_number" }, "$$poNumbers"] },
                     { $eq: ["$approved", "Approved"] },
                     { $ne: ["$utr", null] },
                     { $ne: ["$utr", ""] },
@@ -96,8 +106,22 @@ const projectBalance = async (req, res) => {
       {
         $lookup: {
           from: "biildetails",
-          localField: "pos.po_number",
-          foreignField: "po_number",
+          let: {
+            poNumbers: {
+              $map: {
+                input: "$pos",
+                as: "po",
+                in: { $toString: "$$po.po_number" },
+              },
+            },
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $in: [{ $toString: "$po_number" }, "$$poNumbers"] },
+              },
+            },
+          ],
           as: "bills",
         },
       },
@@ -741,8 +765,10 @@ const exportProjectBalance = async (req, res) => {
       {
         $lookup: {
           from: "purchaseorders",
-          localField: "code",
-          foreignField: "p_id",
+          let: { projectId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
+          ],
           as: "pos",
         },
       },
@@ -1357,8 +1383,10 @@ const syncAllProjectBalances = async (req, res) => {
       {
         $lookup: {
           from: "purchaseorders",
-          localField: "code",
-          foreignField: "p_id",
+          let: { projectId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
+          ],
           as: "pos",
         },
       },
@@ -1841,7 +1869,7 @@ const getProjectBalances = async (req, res) => {
       {
         $project: {
           _id: "$project._id",
-          p_id:"$project.p_id",
+          p_id: "$project.p_id",
           code: "$project.code",
           name: "$project.name",
           customer: "$project.customer",
@@ -1921,13 +1949,11 @@ const getProjectBalances = async (req, res) => {
     });
   } catch (err) {
     console.error("getProjectBalances error:", err);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        message: "Internal Server Error",
-        error: err.message,
-      });
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: err.message,
+    });
   }
 };
 
