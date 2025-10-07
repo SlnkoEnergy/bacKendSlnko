@@ -35,9 +35,9 @@ const createMaterial = async function (req, res) {
 
     await materialCategoryModells.findByIdAndUpdate(
       category,
-      { 
+      {
         $inc: { product_count: 1 },
-        $set: { updatedBy: userId } 
+        $set: { updatedBy: userId }
       },
       { new: true }
     );
@@ -65,43 +65,37 @@ const getAllMaterials = async function (req, res) {
     const skipNum =
       offset !== undefined ? parseInt(offset, 10) : (pageNum - 1) * limitNum;
 
-    let filter = {};
+    const andFilters = [];
 
     let categories = [];
     if (category) {
-      categories = category.split(",").map((id) => id.trim());
-      if (categories.length > 0) {
-        filter.category = { $in: categories };
+      categories = category.split(",").map((id) => id.trim()).filter(Boolean);
+      if (categories.length) {
+        andFilters.push({ category: { $in: categories } });
       }
     }
 
     if (search) {
       const searchRegex = new RegExp(search, "i");
-
-      const matchingCategories = await materialcategoryModel
-        .find({ name: searchRegex })
-        .select("_id");
-
-      filter.$or = [
-        { sku_code: searchRegex },
-        { "data.values.input_values": searchRegex },
-        { category: { $in: matchingCategories.map((cat) => cat._id) } },
-      ];
-
-        
-      if (categories.length > 0) {
-        filter.$or.push({ category: { $in: categories } });
-      }
+      andFilters.push({
+        $or: [
+          { sku_code: searchRegex },
+          { "data.values.input_values": searchRegex },
+        ],
+      });
     }
+
+
+    const query = andFilters.length ? { $and: andFilters } : {};
 
     const [materials, total] = await Promise.all([
       materialModells
-        .find(filter)
+        .find(query)
         .sort({ createdAt: -1 })
         .populate("category", "name description fields")
         .skip(skipNum)
         .limit(limitNum),
-      materialModells.countDocuments(filter),
+      materialModells.countDocuments(query),
     ]);
 
     res.status(200).json({
@@ -129,7 +123,7 @@ const getAllMaterials = async function (req, res) {
 const updateMaterial = async function (req, res) {
   try {
     const { category, data, description } = req.body;
-    const {id} = req.params;
+    const { id } = req.params;
     if (!id) {
       return res.status(400).json({ message: "Material ID is required" });
     }

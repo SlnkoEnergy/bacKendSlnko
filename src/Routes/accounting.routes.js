@@ -18,13 +18,15 @@ const {
 const {
   projectBalance,
   exportProjectBalance,
+  getProjectBalances,
 } = require("../Controllers/Accounting/ProjectBalance");
 const { standbyRecord } = require("../Controllers/Accounting/standbyRecord");
 const jwtMW = require("../middlewares/auth");
 
 router.get("/approved-payment", jwtMW.authentication, paymentApproved);
 router.get("/utr-submission", jwtMW.authentication, utrSubmission);
-router.get("/project-balance", jwtMW.authentication, projectBalance);
+router.get("/project-balance-old", jwtMW.authentication, projectBalance);
+router.get("/project-balance", jwtMW.authentication, getProjectBalances);
 router.post(
   "/export-project-balance",
   jwtMW.authentication,

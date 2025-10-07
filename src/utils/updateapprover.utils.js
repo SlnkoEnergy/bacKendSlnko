@@ -1,0 +1,20 @@
+function updateApprover(approval) {
+  if (approval.approvers && approval.approvers.length > 0) {
+    // Sort approvers by sequence to ensure correct order
+    approval.approvers.sort((a, b) => a.sequence - b.sequence);
+    const nextApprover = approval.approvers.find(
+      (approver) =>
+        approver.status === "pending" || approver.status === "rejected"
+    );
+    if (nextApprover) {
+      approval.current_approver = nextApprover;
+    } else {
+      approval.current_approver =
+        approval.approvers[approval.approvers.length - 1];
+    }
+  } else {
+    approval.current_approver = null;
+  }
+}
+
+module.exports = updateApprover;

@@ -1,0 +1,526 @@
+const { default: mongoose } = require("mongoose");
+const Activity = require("../models/activities.model");
+const ProjectActivity = require("../models/projectactivities.model");
+
+const LINK_TYPES = new Set(["FS", "SS", "FF", "SF"]);
+
+const createActivity = async (req, res) => {
+  try {
+    const data = req.body;
+    const acitvity = new Activity({ ...data, created_by: req.user.userId });
+    await acitvity.save();
+    res
+      .status(201)
+      .json({ message: "Activity created successfully", acitvity });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+const editActivity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = req.body;
+    const activity = await Activity.findByIdAndUpdate(id, data, { new: true });
+    if (!activity) {
+      return res.status(404).json({ message: "Activity not found" });
+    }
+    res
+      .status(200)
+      .json({ message: "Activity updated successfully", activity });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+const deleteActivity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const activity = await Activity.findByIdAndDelete(id);
+    if (!activity) {
+      return res.status(404).json({ message: "Activity not found" });
+    }
+    res.status(200).json({ message: "Activity deleted successfully" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+const namesearchOfActivities = async (req, res) => {
+  try {
+    const { search = "", page = 1, limit = 7 } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const pageSize = Math.max(parseInt(limit, 10) || 10, 1);
+    const skip = (pageNum - 1) * pageSize;
+
+    const filter = {
+      ...(search
+        ? {
+            name: {
+              $regex: search.trim().replace(/\s+/g, ".*"),
+              $options: "i",
+            },
+          }
+        : {}),
+    };
+
+    const projection = {
+      _id: 1,
+      name: 1,
+      description: 1,
+      type: 1,
+      dependency: 1,
+      predecessors: 1,
+      order: 1,
+    };
+    const sort = { name: 1, _id: 1 };
+
+    const [items, total] = await Promise.all([
+      Activity.find(filter, projection)
+        .sort(sort)
+        .skip(skip)
+        .limit(pageSize)
+        .populate({
+          path: "predecessors.activity_id",
+          select: "name",
+        })
+        .populate({ path: "dependency.model_id", select: "name" }),
+      Activity.countDocuments(filter),
+    ]);
+
+    const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+    const hasMore = pageNum < totalPages;
+
+    return res.status(200).json({
+      message: "Activities retrieved successfully",
+      data: items,
+      pagination: {
+        search,
+        page: pageNum,
+        pageSize,
+        total,
+        totalPages,
+        hasMore,
+        nextPage: hasMore ? pageNum + 1 : null,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error searching activities",
+      error: error.message,
+    });
+  }
+};
+
+const updateDependency = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { global, projectId } = req.query;
+    const isGlobal = String(global).toLowerCase() === "true";
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid :id" });
+    }
+
+
+    const hasNameField = Object.prototype.hasOwnProperty.call(req.body, "name");
+    const hasDescField = Object.prototype.hasOwnProperty.call(req.body, "description");
+    const hasTypeField = Object.prototype.hasOwnProperty.call(req.body, "type");
+    const hasOrderField = Object.prototype.hasOwnProperty.call(req.body, "order");
+
+    const ACTIVITY_TYPES = new Set(["frontend", "backend"]);
+    let nextType = undefined;
+    if (hasTypeField) {
+      const t = String(req.body.type || "").toLowerCase();
+      if (!ACTIVITY_TYPES.has(t)) {
+        return res.status(400).json({ message: "Invalid activity type. Use 'frontend' or 'backend'." });
+      }
+      nextType = t;
+    }
+
+    let nextOrder = undefined;
+    if (hasOrderField) {
+      const n = Number(req.body.order);
+      if (!Number.isFinite(n)) {
+        return res.status(400).json({ message: "order must be a finite number." });
+      }
+      nextOrder = n;
+    }
+
+
+    const dependencies = Array.isArray(req.body.dependencies)
+      ? req.body.dependencies
+      : (req.body.model && req.body.model_id)
+      ? [{ model: req.body.model, model_id: req.body.model_id, model_id_name: req.body.model_id_name }]
+      : [];
+
+
+    const LINK_TYPES =
+      typeof globalThis.LINK_TYPES === "object" && globalThis.LINK_TYPES instanceof Set
+        ? globalThis.LINK_TYPES
+        : new Set(["FS", "SS", "FF"]);
+
+   
+    const legacyLinkType =
+      req.body.link_type ?? req.body.predecessor_type ?? req.body.rel_type ?? req.body.dep_type ?? req.body.type;
+
+    const predecessors = Array.isArray(req.body.predecessors)
+      ? req.body.predecessors
+      : req.body.activity_id
+      ? [{ activity_id: req.body.activity_id, type: legacyLinkType, lag: req.body.lag }]
+      : [];
+
+    const hasFormulaUpdate = Object.prototype.hasOwnProperty.call(req.body, "completion_formula");
+    const completion_formula = hasFormulaUpdate ? String(req.body.completion_formula ?? "") : undefined;
+
+    if (!isGlobal && hasFormulaUpdate) {
+      return res.status(400).json({
+        message: "completion_formula can only be updated in global scope (global=true).",
+      });
+    }
+
+  
+    for (const d of dependencies) {
+      if (!d?.model || !d?.model_id) {
+        return res.status(400).json({ message: "Each dependency needs { model, model_id }" });
+      }
+      if (!mongoose.isValidObjectId(d.model_id)) {
+        return res.status(400).json({ message: `Invalid model_id: ${d.model_id}` });
+      }
+    }
+
+    for (const p of predecessors) {
+      if (!p?.activity_id || !mongoose.isValidObjectId(p.activity_id)) {
+        return res.status(400).json({
+          message: `Invalid predecessor activity_id: ${p?.activity_id}`,
+        });
+      }
+      const t = String(p.type || "FS").toUpperCase();
+      p.type = LINK_TYPES.has(t) ? t : "FS";
+      const lagNum = Number(p.lag);
+      p.lag = Number.isFinite(lagNum) ? lagNum : 0;
+    }
+
+    const actor =
+      req.user?.userId && mongoose.isValidObjectId(req.user.userId)
+        ? new mongoose.Types.ObjectId(req.user.userId)
+        : undefined;
+
+    const hasActivityFields = hasNameField || hasDescField || hasTypeField || hasOrderField;
+    if (!dependencies.length && !predecessors.length && !hasFormulaUpdate && !hasActivityFields) {
+      return res.status(400).json({
+        message:
+          "Nothing to update. Provide dependencies, predecessors, completion_formula (global), or activity fields (name/description/type/order).",
+      });
+    }
+
+    if (isGlobal) {
+      const activity = await Activity.findById(id);
+      if (!activity) {
+        return res.status(404).json({ message: "Activity not found" });
+      }
+
+      // Update core fields if present
+      let activityFieldsChanged = false;
+      if (hasNameField && activity.name !== String(req.body.name ?? "")) {
+        activity.name = String(req.body.name ?? "");
+        activityFieldsChanged = true;
+      }
+      if (hasDescField && activity.description !== String(req.body.description ?? "")) {
+        activity.description = String(req.body.description ?? "");
+        activityFieldsChanged = true;
+      }
+      if (hasTypeField && activity.type !== nextType) {
+        activity.type = nextType;
+        activityFieldsChanged = true;
+      }
+      if (hasOrderField && Number(activity.order) !== Number(nextOrder)) {
+        activity.order = nextOrder;
+        activityFieldsChanged = true;
+      }
+
+      // Dependencies (global master)
+      let depsAdded = 0;
+      for (const dep of dependencies) {
+        const exists = activity.dependency?.some(
+          (d) => d.model === dep.model && String(d.model_id) === String(dep.model_id)
+        );
+        if (!exists) {
+          activity.dependency.push({
+            model: dep.model,
+            model_id: dep.model_id,
+            model_id_name: dep.model_id_name,
+            updated_by: actor,
+            updatedAt: new Date(),
+          });
+          depsAdded++;
+        }
+      }
+
+      // Predecessors (global master)
+      let predsAdded = 0;
+      let predsUpdated = 0;
+
+      if (predecessors.length) {
+        if (!Array.isArray(activity.predecessors)) activity.predecessors = [];
+        for (const pred of predecessors) {
+          const idx = activity.predecessors.findIndex(
+            (x) => String(x.activity_id) === String(pred.activity_id)
+          );
+          if (idx === -1) {
+            activity.predecessors.push({
+              activity_id: pred.activity_id,
+              type: pred.type,
+              lag: pred.lag,
+            });
+            predsAdded++;
+          } else {
+            const cur = activity.predecessors[idx];
+            let changed = false;
+            if (cur.type !== pred.type) {
+              cur.type = pred.type;
+              changed = true;
+            }
+            if (Number(cur.lag) !== Number(pred.lag)) {
+              cur.lag = pred.lag;
+              changed = true;
+            }
+            if (changed) predsUpdated++;
+          }
+        }
+      }
+
+      let formulaChanged = false;
+      if (hasFormulaUpdate) {
+        const before = activity.completion_formula ?? "";
+        if (before !== completion_formula) {
+          activity.completion_formula = completion_formula;
+          formulaChanged = true;
+        }
+      }
+
+      await activity.save();
+
+      const parts = [];
+      if (activityFieldsChanged) parts.push("Activity fields updated");
+      if (dependencies.length) {
+        parts.push(
+          depsAdded > 0
+            ? `Dependencies added successfully (${depsAdded})`
+            : "No new dependencies to add (duplicates ignored)"
+        );
+      }
+      if (predecessors.length) {
+        parts.push(`Predecessors processed (added: ${predsAdded}, updated: ${predsUpdated})`);
+      }
+      if (hasFormulaUpdate) {
+        parts.push(formulaChanged ? "Completion formula updated" : "Completion formula unchanged");
+      }
+
+      return res.status(200).json({
+        message: parts.join("; "),
+        activity,
+      });
+    }
+
+    // ================================
+    // ===== PROJECT (EMBEDDED)  =====
+    // ================================
+    if (predecessors.length) {
+      return res.status(400).json({
+        message: "Predecessors can only be updated in global scope.",
+      });
+    }
+    if (hasFormulaUpdate) {
+      return res.status(400).json({
+        message: "completion_formula can only be updated in global scope.",
+      });
+    }
+
+    const project_id = projectId;
+    if (!project_id || !mongoose.isValidObjectId(project_id)) {
+      return res.status(400).json({
+        message: "projectId (valid ObjectId) is required when global=false",
+      });
+    }
+
+    const projAct = await ProjectActivity.findOne({ project_id });
+    if (!projAct) {
+      return res
+        .status(404)
+        .json({ message: "ProjectActivity not found for given project_id" });
+    }
+
+    const idx = (projAct.activities || []).findIndex(
+      (a) => String(a.activity_id) === String(id)
+    );
+    if (idx === -1) {
+      return res.status(404).json({
+        message:
+          "Embedded activity not found in projectActivities.activities for provided :id",
+      });
+    }
+
+    // Update embedded activity core fields if present
+    const emb = projAct.activities[idx];
+    let embFieldsChanged = false;
+    if (hasNameField && emb.name !== String(req.body.name ?? "")) {
+      emb.name = String(req.body.name ?? "");
+      embFieldsChanged = true;
+    }
+    if (hasDescField && emb.description !== String(req.body.description ?? "")) {
+      emb.description = String(req.body.description ?? "");
+      embFieldsChanged = true;
+    }
+    if (hasTypeField && emb.type !== nextType) {
+      emb.type = nextType;
+      embFieldsChanged = true;
+    }
+    if (hasOrderField && Number(emb.order) !== Number(nextOrder)) {
+      emb.order = nextOrder;
+      embFieldsChanged = true;
+    }
+
+    if (!Array.isArray(emb.dependency)) {
+      emb.dependency = [];
+    }
+
+    let added = 0;
+    for (const dep of dependencies) {
+      const exists = emb.dependency.some(
+        (d) => d.model === dep.model && String(d.model_id) === String(dep.model_id)
+      );
+      if (!exists) {
+        emb.dependency.push({
+          model: dep.model,
+          model_id: dep.model_id,
+          model_id_name: dep.model_id_name,
+          updated_by: actor,
+          updatedAt: new Date(),
+        });
+        added++;
+      }
+    }
+
+    await projAct.save();
+    const parts = [];
+    if (embFieldsChanged) parts.push("Activity fields updated");
+    if (dependencies.length) {
+      parts.push(
+        added > 0
+          ? `Dependencies added successfully (${added})`
+          : "No new dependencies to add (duplicates ignored)"
+      );
+    }
+
+    return res.status(200).json({
+      message: parts.length ? parts.join("; ") : "No changes applied",
+      projectActivity: projAct,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+const deleteDependency = async (req, res) => {
+  try {
+    const { id, dependencyId } = req.params;
+    const { global, projectId } = req.query;
+    const isGlobal = String(global).toLowerCase() === "true";
+
+    if (
+      !mongoose.isValidObjectId(id) ||
+      !mongoose.isValidObjectId(dependencyId)
+    ) {
+      return res.status(400).json({ message: "Invalid id or dependencyId" });
+    }
+
+    if (isGlobal) {
+      const activity = await Activity.findById(id);
+      if (!activity) {
+        return res.status(404).json({ message: "Activity not found" });
+      }
+
+      const before = activity.dependency.length;
+      activity.dependency = activity.dependency.filter(
+        (dep) => dep._id.toString() !== dependencyId
+      );
+
+      if (activity.dependency.length === before) {
+        return res
+          .status(404)
+          .json({ message: "Dependency not found in activity" });
+      }
+
+      await activity.save();
+      return res.status(200).json({
+        message: "Dependency removed successfully",
+        activity,
+      });
+    } else {
+      if (!projectId || !mongoose.isValidObjectId(projectId)) {
+        return res.status(400).json({
+          message: "projectId is required and must be valid when global=false",
+        });
+      }
+
+      const projAct = await ProjectActivity.findOne({ project_id: projectId });
+      if (!projAct) {
+        return res.status(404).json({ message: "ProjectActivity not found" });
+      }
+
+      const idx = projAct.activities.findIndex(
+        (a) => String(a.activity_id) === String(id)
+      );
+      if (idx === -1) {
+        return res.status(404).json({
+          message:
+            "Embedded activity not found in projectActivities.activities",
+        });
+      }
+
+      const act = projAct.activities[idx];
+      const before = act.dependency.length;
+
+      act.dependency = act.dependency.filter(
+        (dep) => dep._id.toString() !== dependencyId
+      );
+
+      if (act.dependency.length === before) {
+        return res
+          .status(404)
+          .json({ message: "Dependency not found in project activity" });
+      }
+
+      await projAct.save();
+      return res.status(200).json({
+        message: "Dependency removed successfully",
+        projectActivity: projAct,
+      });
+    }
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = {
+  createActivity,
+  editActivity,
+  deleteActivity,
+  namesearchOfActivities,
+  updateDependency,
+  deleteDependency,
+};

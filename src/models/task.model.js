@@ -89,7 +89,14 @@ const taskSchema = new mongoose.Schema(
       {
         status: {
           type: String,
-          enum: ["completed", "pending", "in progress", "draft", "cancelled"],
+          enum: [
+            "completed",
+            "pending",
+            "in progress",
+            "draft",
+            "cancelled",
+            "system",
+          ],
         },
         remarks: {
           type: String,
@@ -107,7 +114,14 @@ const taskSchema = new mongoose.Schema(
     current_status: {
       status: {
         type: String,
-        enum: ["completed", "pending", "in progress", "draft", "cancelled"],
+        enum: [
+          "completed",
+          "pending",
+          "in progress",
+          "draft",
+          "cancelled",
+          "system",
+        ],
       },
       remarks: {
         type: String,
@@ -146,10 +160,17 @@ const taskSchema = new mongoose.Schema(
         },
       },
     ],
+    sourceKey: { type: String },
+    source: {
+      type: { type: String, default: "projectActivityDependency" },
+      model_id: { type: mongoose.Schema.Types.ObjectId },
+      activityId: { type: mongoose.Schema.Types.ObjectId },
+      dependencyId: { type: mongoose.Schema.Types.ObjectId },
+    },
   },
   { timestamps: true }
 );
-
+taskSchema.index({ sourceKey: 1 }, { unique: true });
 taskSchema.pre("save", function (next) {
   updateStatus(this, "pending");
   updateSubtaskStatus(this);

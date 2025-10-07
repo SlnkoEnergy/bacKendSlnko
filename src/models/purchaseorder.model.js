@@ -22,10 +22,16 @@ const salesDetailSchema = new mongoose.Schema(
   { _id: false }
 );
 
-
 const purchaseOrderSchema = new mongoose.Schema(
   {
     p_id: {
+      type: String,
+    },
+    project_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "projectDetail",
+    },
+    project_name: {
       type: String,
     },
     offer_Id: {

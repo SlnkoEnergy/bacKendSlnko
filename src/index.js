@@ -15,14 +15,18 @@ const historyRoutes = require("./Routes/Pohistory.routes");
 const billRoutes = require("./Routes/bill.routes");
 const inspectionRoutes = require("./Routes/inspection.routes");
 const postsRoutes = require("./Routes/posts.routes");
+const handoverRoutes = require("./Routes/handover.routes");
+const activityRoutes = require("./Routes/activities.routes");
+const projectActivityRoutes = require("./Routes/projectactivities.routes");
+const approvalsRoutes = require("./Routes/approvals.routes");
 const cors = require("cors");
 const { config } = require("dotenv");
 const cookieParser = require("cookie-parser");
 const Sentry = require("@sentry/node");
 const Tracing = require("@sentry/tracing");
 require("../src/utils/cron/inactivelead.cron.utils");
-require("./utils/cron/movetotrash.cron.utils");
-
+require("../src/utils/cron/movetotrash.cron.utils");
+require("../src/utils/cron/project.cron.utils");
 
 Sentry.init({
   dsn: "https://50b42b515673cd9e4c304951d05cdc44@o4509774671511552.ingest.us.sentry.io/4509774818508800",
@@ -77,6 +81,10 @@ const startServer = async () => {
     app.use("/v1/bill", billRoutes);
     app.use("/v1/inspection", inspectionRoutes);
     app.use("/v1/posts", postsRoutes);
+    app.use("/v1/handover", handoverRoutes);
+    app.use("/v1/activities", activityRoutes);
+    app.use("/v1/projectactivity", projectActivityRoutes);
+    app.use("/v1/approvals", approvalsRoutes);
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);

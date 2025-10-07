@@ -51,6 +51,7 @@ const getCustomerPaymentSummary = async (req, res) => {
   try {
     const {
       p_id,
+      _id,
       export: exportToCSV,
       start,
       end,
@@ -64,39 +65,50 @@ const getCustomerPaymentSummary = async (req, res) => {
     const endDate = end ? new Date(end) : null;
     if (endDate) endDate.setHours(23, 59, 59, 999);
 
-    if (!p_id) {
-      return res.status(400).json({ error: "Project ID (p_id) is required." });
+    if (!p_id && !_id) {
+      return res
+        .status(400)
+        .json({ error: "Either Project ID (p_id) or Mongo _id is required." });
     }
 
-    const projectId = isNaN(p_id) ? p_id : Number(p_id);
-
-    const buildDateFilter = (field) => {
-      if (!start && !end) return {};
-      const dateRange = {};
-      if (start) dateRange.$gte = new Date(start);
-      if (end) dateRange.$lte = new Date(end);
-      return { [field]: dateRange };
+    // Resolve the project once. If _id is provided, prefer that.
+    const pickFields = {
+      name: 1,
+      p_group: 1,
+      project_kwp: 1,
+      customer: 1,
+      code: 1,
+      billing_type: 1,
+      billing_address: 1,
+      site_address: 1,
+      p_id: 1,
     };
 
-    // ---------- Project ----------
-    const [project] = await ProjectModel.aggregate([
-      { $match: { p_id: projectId } },
-      {
-        $project: {
-          _id: 0,
-          name: 1,
-          p_group: 1,
-          project_kwp: 1,
-          customer: 1,
-          code: 1,
-          billing_type: 1,
-          billing_address: 1,
-          site_address: 1,
-        },
-      },
-      { $limit: 1 },
-    ]);
+    const isHex24 = (s) => typeof s === "string" && /^[0-9a-fA-F]{24}$/.test(s);
 
+    let projectDoc = null;
+
+    if (_id && isHex24(_id)) {
+      projectDoc = await ProjectModel.findById(_id, pickFields).lean();
+    }
+
+    if (!projectDoc && p_id) {
+      const pidVal = isNaN(p_id) ? p_id : Number(p_id);
+      projectDoc = await ProjectModel.findOne(
+        { p_id: pidVal },
+        pickFields
+      ).lean();
+    }
+
+    if (!projectDoc) {
+      return res.status(404).json({ error: "Project not found." });
+    }
+
+    const projectId = projectDoc.p_id;
+    const projectCode = projectDoc.code;
+    const projectOid = projectDoc._id;
+
+    // ---------- Project (simple: reuse the doc we already loaded) ----------
     const formatAddress = (address) => {
       if (typeof address === "object" && address !== null) {
         const village = (address.village_name || "")
@@ -120,18 +132,28 @@ const getCustomerPaymentSummary = async (req, res) => {
       return "-";
     };
 
-    if (project) {
-      project.billing_address_formatted = formatAddress(
-        project.billing_address
-      );
-      project.site_address_formatted = formatAddress(project.site_address);
-    }
-    if (!project) {
-      return res.status(404).json({ error: "Project not found." });
-    }
+    const project = {
+      name: projectDoc.name,
+      p_group: projectDoc.p_group,
+      project_kwp: projectDoc.project_kwp,
+      customer: projectDoc.customer,
+      code: projectDoc.code,
+      billing_type: projectDoc.billing_type,
+      billing_address: projectDoc.billing_address,
+      site_address: projectDoc.site_address,
+    };
+
+    project.billing_address_formatted = formatAddress(project.billing_address);
+    project.site_address_formatted = formatAddress(project.site_address);
 
     // ---------- Credit ----------
-    const creditMatch = { p_id: projectId, ...buildDateFilter("cr_date") };
+    const creditMatch = {
+      p_id: projectId,
+      ...(start || end ? { cr_date: {} } : {}),
+    };
+    if (start) creditMatch.cr_date.$gte = new Date(start);
+    if (end) creditMatch.cr_date.$lte = new Date(end);
+
     const [creditData] = await CreditModel.aggregate([
       { $match: creditMatch },
       {
@@ -214,10 +236,8 @@ const getCustomerPaymentSummary = async (req, res) => {
 
     // ---------- Adjustment ----------
     const adjustmentMatch = { p_id: projectId };
-    if (searchAdjustment) {
-      const regex = new RegExp(searchAdjustment, "i");
-      adjustmentMatch.remark = regex;
-    }
+    if (searchAdjustment)
+      adjustmentMatch.remark = new RegExp(searchAdjustment, "i");
     if (startDate || endDate) {
       adjustmentMatch.createdAt = {};
       if (startDate) adjustmentMatch.createdAt.$gte = startDate;
@@ -243,7 +263,6 @@ const getCustomerPaymentSummary = async (req, res) => {
                 createdAt: 1,
                 paid_for: 1,
                 description: "$comment",
-
                 adj_amount_numeric: { $abs: asDouble("$adj_amount") },
                 debit_adjustment: {
                   $cond: [
@@ -313,15 +332,25 @@ const getCustomerPaymentSummary = async (req, res) => {
     // ---------- Client History (POs) ----------
     const searchRegex = searchClient ? new RegExp(searchClient, "i") : null;
 
+    // CHANGED: match the same project by _id we already resolved
     const clientHistoryResult = await ProjectModel.aggregate([
-      { $match: { p_id: projectId } },
-      { $project: { code: 1, _id: 0 } },
+      { $match: { _id: projectOid } },
+      { $project: { _id: 1, code: 1 } },
       {
         $lookup: {
           from: "purchaseorders",
-          let: { code: "$code" },
+          let: { projectId: "$_id" },
           pipeline: [
-            { $match: { $expr: { $eq: ["$p_id", "$$code"] }, isSales: false } },
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$project_id", "$$projectId"] },
+                    { $in: ["$isSales", [false, "false", 0, "0", null]] },
+                  ],
+                },
+              },
+            },
             { $sort: { createdAt: -1 } },
             {
               $project: {
@@ -339,14 +368,12 @@ const getCustomerPaymentSummary = async (req, res) => {
           as: "purchase_orders",
         },
       },
-
       {
         $unwind: {
           path: "$purchase_orders",
           preserveNullAndEmptyArrays: false,
         },
       },
-
       { $match: { "purchase_orders._id": { $exists: true } } },
       { $sort: { "purchase_orders.createdAt": -1 } },
       {
@@ -354,7 +381,6 @@ const getCustomerPaymentSummary = async (req, res) => {
           po_numberStr: { $toString: "$purchase_orders.po_number" },
         },
       },
-
       {
         $addFields: {
           poItems: {
@@ -366,7 +392,6 @@ const getCustomerPaymentSummary = async (req, res) => {
           },
         },
       },
-
       {
         $addFields: {
           productNames: {
@@ -427,7 +452,6 @@ const getCustomerPaymentSummary = async (req, res) => {
           },
         },
       },
-
       {
         $lookup: {
           from: "payrequests",
@@ -515,7 +539,6 @@ const getCustomerPaymentSummary = async (req, res) => {
           project_code: "$code",
           po_number: "$purchase_orders.po_number",
           vendor: "$purchase_orders.vendor",
-
           item_name: {
             $let: {
               vars: {
@@ -555,7 +578,6 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             },
           },
-
           po_value: asDouble("$purchase_orders.po_value"),
           advance_paid: {
             $cond: [
@@ -585,11 +607,12 @@ const getCustomerPaymentSummary = async (req, res) => {
           },
           po_basic: asDouble("$purchase_orders.po_basic"),
           gst: asDouble("$purchase_orders.gst"),
+          project_id: "$purchase_orders.project_id",
         },
       },
     ]);
 
-    const clientMeta = clientHistoryResult
+    const clientMeta = (clientHistoryResult || [])
       .filter((r) => r && r._id)
       .reduce(
         (acc, curr) => {
@@ -609,29 +632,27 @@ const getCustomerPaymentSummary = async (req, res) => {
         }
       );
 
+    // ---------- Sales History ----------
     const salesHistoryResult = await ProjectModel.aggregate([
-      { $match: { p_id: projectId } },
-      { $project: { code: 1, _id: 0 } },
+      { $match: { _id: projectOid } },
+      { $project: { _id: 1 } },
       {
         $lookup: {
           from: "purchaseorders",
-          let: { code: "$code" },
+          let: { projectId: "$_id" },
           pipeline: [
             {
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: ["$p_id", "$$code"] },
+                    { $eq: ["$project_id", "$$projectId"] },
                     { $in: ["$isSales", [true, "true", 1, "1"]] },
                   ],
                 },
               },
             },
-
             { $sort: { createdAt: -1 } },
-
             { $addFields: { po_numberStr: { $toString: "$po_number" } } },
-
             {
               $addFields: {
                 last_sales_detail: {
@@ -652,7 +673,6 @@ const getCustomerPaymentSummary = async (req, res) => {
                 },
               },
             },
-
             {
               $lookup: {
                 from: "payrequests",
@@ -690,7 +710,6 @@ const getCustomerPaymentSummary = async (req, res) => {
                 as: "approved_payment",
               },
             },
-
             {
               $lookup: {
                 from: "biildetails",
@@ -711,7 +730,6 @@ const getCustomerPaymentSummary = async (req, res) => {
                 as: "billed_summary",
               },
             },
-
             {
               $project: {
                 _id: 1,
@@ -722,7 +740,6 @@ const getCustomerPaymentSummary = async (req, res) => {
                 po_basic: asDouble("$po_basic"),
                 gst: asDouble("$gst"),
                 createdAt: 1,
-
                 advance_paid: {
                   $cond: [
                     { $gt: [{ $size: "$approved_payment" }, 0] },
@@ -749,13 +766,10 @@ const getCustomerPaymentSummary = async (req, res) => {
                     },
                   ],
                 },
-
                 remarks: "$last_sales_detail.remarks",
                 converted_at: "$last_sales_detail.converted_at",
                 user_id: "$last_sales_detail.user_id",
                 user_name: 1,
-
-                // attachments normalized for FE
                 attachments: {
                   $map: {
                     input: { $ifNull: ["$last_sales_detail.attachments", []] },
@@ -768,7 +782,6 @@ const getCustomerPaymentSummary = async (req, res) => {
                 },
               },
             },
-
             {
               $addFields: {
                 userIdObj: {
@@ -945,8 +958,10 @@ const getCustomerPaymentSummary = async (req, res) => {
       {
         $lookup: {
           from: "purchaseorders",
-          localField: "code",
-          foreignField: "p_id",
+          let: { projectId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
+          ],
           as: "purchase_orders",
         },
       },
@@ -1300,7 +1315,6 @@ const getCustomerPaymentSummary = async (req, res) => {
       {
         $project: {
           _id: 0,
-          // p_id: "$_id",
           billing_type: 1,
           total_received: "$totalCredit",
           total_return: 1,
@@ -1357,7 +1371,6 @@ const getCustomerPaymentSummary = async (req, res) => {
     if (exportToCSV === "csv") {
       const EOL = "\n";
       const BOM = "\uFEFF";
-
       const csvEsc = (v) => {
         if (v === null || v === undefined) return "";
         const s = String(v);
@@ -1367,11 +1380,8 @@ const getCustomerPaymentSummary = async (req, res) => {
         const dt = d ? new Date(d) : null;
         return dt && !isNaN(dt) ? dt.toISOString().slice(0, 10) : "";
       };
-      const INR = (n) => {
-        const num = Math.round(Number(n || 0));
-        return `₹ ${num.toLocaleString("en-IN")}`;
-      };
-
+      const INR = (n) =>
+        `₹ ${Math.round(Number(n || 0)).toLocaleString("en-IN")}`;
       const pushSection = (title, header, rows, parts) => {
         parts.push(title, EOL);
         if (header && header.length)
@@ -1379,7 +1389,6 @@ const getCustomerPaymentSummary = async (req, res) => {
         rows.forEach((r) => parts.push(r.map(csvEsc).join(","), EOL));
         parts.push(EOL);
       };
-
       const parts = [];
 
       pushSection(
@@ -1389,7 +1398,6 @@ const getCustomerPaymentSummary = async (req, res) => {
         parts
       );
 
-      // --- Credit History ---
       if ((creditHistory || []).length) {
         pushSection(
           "Credit History",
@@ -1458,7 +1466,8 @@ const getCustomerPaymentSummary = async (req, res) => {
         );
       }
 
-      if ((clientHistoryResult || []).length) {
+      const clientRows = clientHistoryResult || [];
+      if (clientRows.length) {
         pushSection(
           "Client History",
           [
@@ -1471,7 +1480,7 @@ const getCustomerPaymentSummary = async (req, res) => {
             "Remaining Amount",
             "Total Billed Value",
           ],
-          clientHistoryResult.map((row, i) => [
+          clientRows.map((row, i) => [
             i + 1,
             row.po_number || "-",
             row.vendor || "-",
@@ -1592,6 +1601,7 @@ const getCustomerPaymentSummary = async (req, res) => {
       return res.send(BOM + parts.join(""));
     }
 
+    // --- JSON response ---
     return res.status(200).json(responseData);
   } catch (error) {
     console.error("Error fetching payment summary:", error);
@@ -1799,13 +1809,22 @@ const postCustomerPaymentSummaryPdf = async (req, res) => {
     // ---------- Purchases ----------
     const clientHistoryResult = await ProjectModel.aggregate([
       { $match: { p_id: projectId } },
-      { $project: { code: 1, _id: 0 } },
+      { $project: { _id: 1 } },
       {
         $lookup: {
           from: "purchaseorders",
-          let: { code: "$code" },
+          let: { projectId: "$_id" },
           pipeline: [
-            { $match: { $expr: { $eq: ["$p_id", "$$code"] }, isSales: false } },
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$project_id", "$$projectId"] },
+                    { $in: ["$isSales", [false, "false", 0, "0", null]] },
+                  ],
+                },
+              },
+            },
             { $sort: { createdAt: -1 } },
             {
               $project: {
@@ -1881,6 +1900,7 @@ const postCustomerPaymentSummaryPdf = async (req, res) => {
               $project: {
                 _id: 1,
                 po_number: 1,
+                project_id: 1,
                 vendor: 1,
                 item: 1,
                 po_value: 1,
@@ -1921,13 +1941,22 @@ const postCustomerPaymentSummaryPdf = async (req, res) => {
     // ---------- Sales ----------
     const salesHistoryResult = await ProjectModel.aggregate([
       { $match: { p_id: projectId } },
-      { $project: { code: 1, _id: 0 } },
+      { $project: { _id: 1 } },
       {
         $lookup: {
           from: "purchaseorders",
-          let: { code: "$code" },
+          let: { projectId: "$_id" },
           pipeline: [
-            { $match: { $expr: { $eq: ["$p_id", "$$code"] }, isSales: true } },
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$project_id", "$$projectId"] },
+                    { $in: ["$isSales", [true, "true", 1, "1"]] },
+                  ],
+                },
+              },
+            },
             { $sort: { createdAt: -1 } },
             { $addFields: { po_numberStr: { $toString: "$po_number" } } },
             {
@@ -2154,8 +2183,10 @@ const postCustomerPaymentSummaryPdf = async (req, res) => {
       {
         $lookup: {
           from: "purchaseorders",
-          localField: "code",
-          foreignField: "p_id",
+          let: { projectId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
+          ],
           as: "purchase_orders",
         },
       },
