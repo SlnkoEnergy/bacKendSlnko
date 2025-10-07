@@ -1589,6 +1589,8 @@ const updateProjectActivityForAllProjects = async (req, res) => {
   }
 };
 
+
+
 module.exports = {
   createProjectActivity,
   getAllProjectActivities,
