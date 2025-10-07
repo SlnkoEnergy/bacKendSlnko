@@ -1589,6 +1589,167 @@ const updateProjectActivityForAllProjects = async (req, res) => {
   }
 };
 
+const isFiniteNumber = (v) => Number.isFinite(Number(v));
+
+const syncActivitiesFromProjectActivity = async (req, res) => {
+  try {
+    // Optional filter: e.g., only real project docs
+    // const filter = { status: "project" };
+    const filter = {}; // do for all projectActivities
+
+    // Stream documents to keep memory stable
+    const cursor = projectActivity.find(filter, {
+      _id: 1,
+      activities: 1,
+    }).lean().cursor();
+
+    const BATCH_SIZE = 5000; // adjust to your dataset
+    let batch = [];
+    let ops = [];
+    let processed = 0;
+    let updatedDocs = 0;
+
+    const processDoc = async (paDoc) => {
+      const activitiesArr = Array.isArray(paDoc.activities) ? paDoc.activities : [];
+      if (activitiesArr.length === 0) {
+        return null; // nothing to update
+      }
+
+      // Collect ids present in this project doc
+      const ids = activitiesArr
+        .map((a) => a?.activity_id)
+        .filter((id) => id && mongoose.isValidObjectId(id));
+
+      if (ids.length === 0) {
+        return null;
+      }
+
+      // Fetch base activities (order + dependency)
+      const baseActs = await activityModel.find(
+        { _id: { $in: ids } },
+        { _id: 1, order: 1, dependency: 1 }
+      ).lean();
+
+      const actById = new Map(baseActs.map((a) => [String(a._id), a]));
+
+      // Build updated activities array (only order & dependency changed)
+      let changed = false;
+      const now = new Date();
+
+      const updatedActivities = activitiesArr.map((projAct) => {
+        const idStr = String(projAct.activity_id || "");
+        const base = actById.get(idStr);
+
+        if (!base) return projAct; // no change if base not found
+
+        const out = { ...projAct };
+
+        // 1) order <- activities.order (if finite)
+        if (isFiniteNumber(base.order)) {
+          const newOrder = Number(base.order);
+          if (out.order !== newOrder) {
+            out.order = newOrder;
+            changed = true;
+          }
+        }
+
+        // 2) dependency <- activities.dependency (mapped),
+        //    plus allowed/not allowed based on activity completion
+        const actDeps = Array.isArray(base.dependency) ? base.dependency : [];
+        const isCompleted = out?.current_status?.status === "completed";
+        const depStatus = isCompleted ? "allowed" : "not allowed";
+
+        const newDeps = actDeps.map((d) => ({
+          model: d?.model ?? undefined,
+          model_id: d?.model_id ?? undefined,
+          model_id_name: d?.model_id_name ?? undefined,
+          updatedAt: now,
+          updated_by: out?.current_status?.updated_by ?? undefined,
+          status_history: [
+            {
+              status: depStatus,
+              remarks: "Synced from activities model",
+              updatedAt: now,
+              user_id: out?.current_status?.updated_by ?? undefined,
+            },
+          ],
+          current_status: {
+            status: depStatus,
+            remarks: "Synced from activities model",
+            updatedAt: now,
+            user_id: out?.current_status?.updated_by ?? undefined,
+          },
+        }));
+
+        // Only mark changed if dependency content actually differs in shape/length
+        // (shallow check on length; deep diff is overkill here)
+        if (
+          !Array.isArray(out.dependency) ||
+          out.dependency.length !== newDeps.length
+        ) {
+          out.dependency = newDeps;
+          changed = true;
+        } else {
+          // replace regardless—keeps logic simple and deterministic
+          out.dependency = newDeps;
+          changed = true;
+        }
+
+        return out;
+      });
+
+      if (!changed) return null;
+
+      // Build updateOne op (replace activities array only)
+      return {
+        updateOne: {
+          filter: { _id: paDoc._id },
+          update: { $set: { activities: updatedActivities } },
+        },
+      };
+    };
+
+    for await (const doc of cursor) {
+      processed += 1;
+      const op = await processDoc(doc);
+      if (op) {
+        ops.push(op);
+        updatedDocs += 1;
+      }
+
+      if (ops.length >= BATCH_SIZE) {
+        await ProjectActivities.bulkWrite(ops, { ordered: false });
+        ops = [];
+      }
+
+      batch.push(doc);
+      if (batch.length >= BATCH_SIZE) batch = [];
+    }
+
+    // Flush remaining ops
+    if (ops.length > 0) {
+      await projectActivity.bulkWrite(ops, { ordered: false });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      message: "Synced order and dependency for all projectActivities",
+      meta: {
+        processedDocs: processed,
+        updatedDocs,
+        batchSize: BATCH_SIZE,
+      },
+    });
+  } catch (error) {
+    console.error("syncAllProjectActivities error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createProjectActivity,
   getAllProjectActivities,
@@ -1609,4 +1770,5 @@ module.exports = {
   getResources,
   updateStatusOfPlan,
   updateProjectActivityForAllProjects,
+  syncActivitiesFromProjectActivity
 };
