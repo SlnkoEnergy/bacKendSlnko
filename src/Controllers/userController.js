@@ -450,19 +450,32 @@ const getSingleUser = async function (req, res) {
   }
 };
 
-// ===============================
-// Get All Users By Department (light projection)
-// ===============================
-
 const getAllUserByDepartment = async (req, res) => {
   try {
-    const projection = "_id name attachment_url"; 
-    const { department } = req.query;
+    const projection = "_id name attachment_url";
+    const deptParam = String(req.query.department || "").trim();
 
-    const query = {};
-    if (department) query.department = department;
+    let query = {};
 
-    const data = await userModells.find(query, projection);
+    if (deptParam) {
+      if (/^other$/i.test(deptParam)) {
+        query = {
+          $or: [
+            { department: { $exists: false } },
+            { department: { $eq: "" } },
+            { department: { $nin: [/^engineering$/i, /^scm$/i] } },
+          ],
+        };
+      } else {
+        query = { department: new RegExp(`^${deptParam}$`, "i") };
+      }
+    }
+
+    const data = await userModells
+      .find(query, projection)
+      .sort({ name: 1 })
+      .lean();
+
     res.status(200).json({
       message: "All user fetched successfully",
       data,
@@ -475,14 +488,13 @@ const getAllUserByDepartment = async (req, res) => {
   }
 };
 
+
 const getAllUserByDepartmentWithPagination = async (req, res) => {
   try {
     const { search = "", page = 1, limit = 7, department } = req.query;
 
-    // Projection: keep what you need only
-    const projection = "_id name emp_id attachment_url"; // add more if needed, e.g. " email emp_id department"
+    const projection = "_id name emp_id attachment_url"; 
 
-    // Coerce + clamp pagination inputs
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
     const skip = (pageNum - 1) * pageSize;
@@ -505,7 +517,7 @@ const getAllUserByDepartmentWithPagination = async (req, res) => {
     const [items, total] = await Promise.all([
       userModells
         .find(query, projection)
-        .sort({ name: 1, _id: 1 }) // stable & predictable order
+        .sort({ name: 1, _id: 1 })
         .skip(skip)
         .limit(pageSize)
         .lean(),
@@ -540,9 +552,6 @@ const getAllUserByDepartmentWithPagination = async (req, res) => {
 
 
 
-// ===============================
-// Edit User (admin-side)
-// ===============================
 const editUser = async function (req, res) {
   try {
     const userId = req.params._id || req.params.id;
@@ -701,9 +710,6 @@ const editUser = async function (req, res) {
 };
 
 
-// ===============================
-// Get distinct departments
-// ===============================
 const getAllDepartment = async (req, res) => {
   try {
     const departments = await userModells.distinct("department");
@@ -713,11 +719,9 @@ const getAllDepartment = async (req, res) => {
   }
 };
 
-// BACKFILL: add empty defaults for location, about, attachment_url
+
 const backfillProfileFields = async (req, res) => {
   try {
-    // Uses MongoDB aggregation-pipeline update (MongoDB >= 4.2)
-    // $ifNull keeps existing values; only fills when field is null or missing.
     const result = await userModells.updateMany(
       {},
       [
