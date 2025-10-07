@@ -161,16 +161,6 @@ const {
 } = require("../Controllers/coomBDRateController.js");
 
 const {
-  createhandoversheet,
-  gethandoversheetdata,
-  edithandoversheetdata,
-  updatestatus,
-  getByIdOrLeadId,
-  getexportToCsv,
-  migrateProjectToHandover,
-  listUsersNames,
-} = require("../Controllers/handoversheet.controller.js");
-const {
   addmoduleMaster,
   getmoduleMasterdata,
   editmodulemaster,
