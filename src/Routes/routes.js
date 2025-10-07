@@ -709,55 +709,6 @@ router.get(
   getCommBDRateByOfferId
 );
 
-//handdoversheet
-router.post(
-  "/create-hand-over-sheet",
-  jwtMW.authentication,
-
-  createhandoversheet
-);
-router.post(
-  "/handover-export",
-  jwtMW.authentication,
-
-  getexportToCsv
-);
-router.get(
-  "/get-all-handover-sheet",
-  jwtMW.authentication,
-
-  gethandoversheetdata
-);
-router.put(
-  "/edit-hand-over-sheet/:_id",
-  jwtMW.authentication,
-
-  edithandoversheetdata
-);
-router.put(
-  "/update-status/:_id",
-  jwtMW.authentication,
-
-  updatestatus
-);
-router.get(
-  "/get-handoversheet",
-  jwtMW.authentication,
-  getByIdOrLeadId
-);
-router.get(
-  "/search/:letter",
-  jwtMW.authentication,
-
-  search
-);
-router.put(
-  "/migrateProject",
-  jwtMW.authentication,
-
-  migrateProjectToHandover
-);
-
 //module master
 router.post(
   "/add-module-master",
