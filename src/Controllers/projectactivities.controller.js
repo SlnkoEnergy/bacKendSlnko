@@ -73,6 +73,7 @@ function parseYMDLocal(s) {
 const createProjectActivity = async (req, res) => {
   try {
     const data = req.body;
+    console.log(data.activities);
     const template_code = data.template_code || (await nextTemplateId());
 
     const projectactivityDoc = new projectActivity({
@@ -968,27 +969,21 @@ const getAllTemplateNameSearch = async (req, res) => {
 const updateProjectActivityFromTemplate = async (req, res) => {
   try {
     const { projectId, templateId } = req.params;
-
     if (
       !mongoose.isValidObjectId(projectId) ||
       !mongoose.isValidObjectId(templateId)
     ) {
-      return res
-        .status(400)
-        .json({ message: "Invalid projectId or templateId" });
+      return res.status(400).json({ message: "Invalid projectId or templateId" });
     }
 
     const template = await projectActivity
       .findById(templateId)
-      .select(
-        "-activities.actual_start -activities.actual_finish -activities.actual_end"
-      )
+      .select("-activities.actual_start -activities.actual_finish")
       .lean();
 
     if (!template) {
       return res.status(404).json({ message: "Template not found" });
     }
-
     const projectActivityDoc = await projectActivity
       .findOne({ project_id: projectId })
       .select("-activities.actual_start -activities.actual_finish");
@@ -997,34 +992,33 @@ const updateProjectActivityFromTemplate = async (req, res) => {
       return res.status(404).json({ message: "Project activity not found" });
     }
 
-    const projectIds = (projectActivityDoc.activities || [])
-      .map((a) => a.activity_id)
-      .filter(Boolean);
-    const templateIds = (template.activities || [])
-      .map((a) => a.activity_id)
-      .filter(Boolean);
+    const projectIds = (projectActivityDoc.activities || []).map(a => a.activity_id).filter(Boolean);
+    const templateIds = (template.activities || []).map(a => a.activity_id).filter(Boolean);
     const allIds = [...new Set([...projectIds, ...templateIds])];
 
     const activityDocs = await activityModel
       .find({ _id: { $in: allIds } }, { _id: 1, type: 1 })
       .lean();
-    const idToType = new Map(activityDocs.map((a) => [String(a._id), a.type]));
+    const idToType = new Map(activityDocs.map(a => [String(a._id), a.type]));
 
-    const backendActivitiesInProject = (
-      projectActivityDoc.activities || []
-    ).filter((pa) => {
-      const t = idToType.get(String(pa.activity_id));
-      return t === "backend";
-    });
-
-    const frontendActivitiesFromTemplate = (template.activities || []).filter(
-      (ta) => {
-        const t = idToType.get(String(ta.activity_id));
-        return t === "frontend";
-      }
+    const projectBackend = (projectActivityDoc.activities || []).filter(
+      pa => idToType.get(String(pa.activity_id)) === "backend"
+    );
+    const projectBackendById = new Map(
+      projectBackend.map(a => [String(a.activity_id), a])
     );
 
-    const sanitizeActivity = (a) => {
+    const templateBackend = (template.activities || []).filter(
+      ta => idToType.get(String(ta.activity_id)) === "backend"
+    );
+    const templateBackendById = new Map(
+      templateBackend.map(a => [String(a.activity_id), a])
+    );
+    const templateFrontend = (template.activities || []).filter(
+      ta => idToType.get(String(ta.activity_id)) === "frontend"
+    );
+
+    const sanitizeFromTemplate = (a) => {
       if (!a) return null;
       const {
         activity_id,
@@ -1036,8 +1030,8 @@ const updateProjectActivityFromTemplate = async (req, res) => {
         predecessors = [],
         successors = [],
         resources = [],
+        dependency = [],
       } = a;
-
       return {
         activity_id,
         order,
@@ -1048,29 +1042,35 @@ const updateProjectActivityFromTemplate = async (req, res) => {
         predecessors,
         successors,
         resources,
+        dependency,
       };
     };
+    const mergedFrontend = templateFrontend.map(sanitizeFromTemplate).filter(Boolean);
 
-    const sanitizedFrontend = frontendActivitiesFromTemplate
-      .map(sanitizeActivity)
-      .filter(Boolean);
+    const updatedProjectBackend = projectBackend.map((projItem) => {
+      const id = String(projItem.activity_id);
+      const tmpl = templateBackendById.get(id);
+      if (tmpl && Number.isFinite(tmpl.order)) {
+        return { ...projItem.toObject?.() ?? { ...projItem }, order: tmpl.order };
+      }
+      return projItem;
+    });
 
-    projectActivityDoc.activities = [
-      ...backendActivitiesInProject,
-      ...sanitizedFrontend,
-    ];
+    const combined = [...updatedProjectBackend, ...mergedFrontend];
 
-    projectActivityDoc.activities.sort((a, b) => {
+    combined.sort((a, b) => {
       const ao = Number.isFinite(a?.order) ? a.order : Number.MAX_SAFE_INTEGER;
       const bo = Number.isFinite(b?.order) ? b.order : Number.MAX_SAFE_INTEGER;
       return ao - bo;
     });
 
+    projectActivityDoc.activities = combined;
+
     await projectActivityDoc.save();
 
     return res.status(200).json({
       message:
-        "Project activity updated from template successfully (frontend only). Backend unchanged.",
+        "Updated from template: frontend copied from template; backend kept from project with only `order` updated where template also has that backend. No new backend added.",
       projectActivity: projectActivityDoc,
     });
   } catch (error) {
@@ -1080,6 +1080,8 @@ const updateProjectActivityFromTemplate = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
+
+
 
 const updateDependencyStatus = async (req, res) => {
   try {
