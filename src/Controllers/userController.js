@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const getSystemIdentifier = require("../utils/generateSystemIdentifier");
-const {getEmailTemplate, getEmailTemplateResgister} = require("../utils/emailTemplate");
+const { getEmailTemplate, getEmailTemplateResgister } = require("../utils/emailTemplate");
 const session = require("../models/session.model");
 const getSessionVerfication = require("../utils/sessionVerification");
 const axios = require("axios");
@@ -63,8 +63,8 @@ const userRegister = async function (req, res) {
       department,
       role,
       password: hashedPassword,
-      location,        
-      about,           
+      location,
+      about,
       attachment_url,
     });
 
@@ -74,17 +74,17 @@ const userRegister = async function (req, res) {
       port: parseInt(process.env.EMAIL_PORT),
       secure: process.env.EMAIL_SECURE === "true",
       service: process.env.EMAIL_SERVICE,
-      auth:{
+      auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       }
     });
 
     await transport.sendMail({
-      from:`"SLNKO Energy Pvt. Ltd" <${process.env.EMAIL_USER}>`,
+      from: `"SLNKO Energy Pvt. Ltd" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Your Protrac Account Credentials",
-      html: getEmailTemplateResgister(name,email, password )
+      html: getEmailTemplateResgister(name, email, password)
     });
 
     res.status(200).json({ msg: "User registered successfully" });
@@ -163,7 +163,7 @@ const forgettpass = async function (req, res) {
     console.error(error);
     res
       .status(500)
-      .json({ message: "An error occurred. Please try again." });
+      .json({ message: "An error occurred. Please try again.", error: error.message });
   }
 };
 
@@ -456,7 +456,7 @@ const getSingleUser = async function (req, res) {
 
 const getAllUserByDepartment = async (req, res) => {
   try {
-    const projection = "_id name attachment_url"; // <-- added attachment_url
+    const projection = "_id name attachment_url"; 
     const { department } = req.query;
 
     const query = {};
@@ -474,6 +474,70 @@ const getAllUserByDepartment = async (req, res) => {
     });
   }
 };
+
+const getAllUserByDepartmentWithPagination = async (req, res) => {
+  try {
+    const { search = "", page = 1, limit = 7, department } = req.query;
+
+    // Projection: keep what you need only
+    const projection = "_id name emp_id attachment_url"; // add more if needed, e.g. " email emp_id department"
+
+    // Coerce + clamp pagination inputs
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
+    const skip = (pageNum - 1) * pageSize;
+
+    // Build filters
+    const term = String(search || "").trim();
+
+    const escapeRegex = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rx = term ? new RegExp(escapeRegex(term), "i") : null;
+
+    const query = {};
+    if (department) query.department = department;
+
+    if (rx) {
+      // Search by name, and also try email/emp_id if your schema has them.
+      query.$or = [{ name: rx }, { email: rx }, { emp_id: rx }];
+    }
+
+    // Execute in parallel
+    const [items, total] = await Promise.all([
+      userModells
+        .find(query, projection)
+        .sort({ name: 1, _id: 1 }) // stable & predictable order
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      userModells.countDocuments(query),
+    ]);
+
+    const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+    const hasPrevPage = pageNum > 1;
+    const hasMore = pageNum < totalPages;
+
+    return res.status(200).json({
+      message: "Users fetched successfully",
+      data: items,
+      pagination: {
+        search: term,
+        department: department || undefined,
+        page: pageNum,
+        pageSize,
+        total,
+        totalPages,
+        hasMore,
+        nextPage: hasMore? pageNum + 1 : null,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 
 
 // ===============================
@@ -501,7 +565,7 @@ const editUser = async function (req, res) {
       role,
       location,
       about,
-      attachment_url, 
+      attachment_url,
     } = bodyData;
 
     const update = compact({
@@ -599,13 +663,13 @@ const editUser = async function (req, res) {
 
     // If neither body fields nor a successful upload, bail out
     // right before:
-if (Object.keys(update).length === 0) {
-  // If client tried to send a file but upload failed, say that explicitly
-  if (Array.isArray(req.files) && req.files.length) {
-    return res.status(502).json({ message: "Avatar upload failed" });
-  }
-  return res.status(400).json({ message: "No fields to update." });
-}
+    if (Object.keys(update).length === 0) {
+      // If client tried to send a file but upload failed, say that explicitly
+      if (Array.isArray(req.files) && req.files.length) {
+        return res.status(502).json({ message: "Avatar upload failed" });
+      }
+      return res.status(400).json({ message: "No fields to update." });
+    }
 
 
     const updatedUser = await userModells
@@ -659,17 +723,17 @@ const backfillProfileFields = async (req, res) => {
       [
         {
           $set: {
-            location:        { $ifNull: ["$location", ""] },
-            about:           { $ifNull: ["$about", ""] },
-            attachment_url:  { $ifNull: ["$attachment_url", ""] },
+            location: { $ifNull: ["$location", ""] },
+            about: { $ifNull: ["$about", ""] },
+            attachment_url: { $ifNull: ["$attachment_url", ""] },
           },
         },
       ]
     );
 
     // Normalize counts across mongoose versions
-    const matched   = result.matchedCount   ?? result.n ?? 0;
-    const modified  = result.modifiedCount  ?? result.nModified ?? 0;
+    const matched = result.matchedCount ?? result.n ?? 0;
+    const modified = result.modifiedCount ?? result.nModified ?? 0;
 
     return res.status(200).json({
       message: "Backfill complete",
@@ -698,4 +762,5 @@ module.exports = {
   getAllDepartment,
   finalizeBdLogin,
   backfillProfileFields,
+  getAllUserByDepartmentWithPagination,
 };

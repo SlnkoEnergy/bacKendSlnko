@@ -11,9 +11,392 @@ const subtractMoneyModells = require("../models/debitMoneyModells");
 const materialCategoryModells = require("../models/materialcategory.model");
 const userModells = require("../models/user.model");
 const utrCounter = require("../models/utrCounter");
+const projectBalanceModel = require("../models/projectBalance.model");
 
 const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
 const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
+
+
+const toNum = (expr) => ({
+  $convert: {
+    input: {
+      $cond: [
+        { $eq: [{ $type: expr }, "string"] },
+        {
+          $replaceAll: {
+            input: { $trim: { input: expr } },
+            find: ",",
+            replacement: "",
+          },
+        },
+        expr,
+      ],
+    },
+    to: "double",
+    onError: 0,
+    onNull: 0,
+  },
+});
+
+const aggregationPipeline = [
+  {
+    $lookup: {
+      from: "addmoneys",
+      localField: "p_id",
+      foreignField: "p_id",
+      as: "credits",
+    },
+  },
+  {
+    $lookup: {
+      from: "subtract moneys",
+      localField: "p_id",
+      foreignField: "p_id",
+      as: "debits",
+    },
+  },
+  {
+    $lookup: {
+      from: "adjustmentrequests",
+      localField: "p_id",
+      foreignField: "p_id",
+      as: "adjustments",
+    },
+  },
+  {
+    $lookup: {
+      from: "purchaseorders",
+      localField: "code",
+      foreignField: "p_id",
+      as: "pos",
+    },
+  },
+  {
+    $lookup: {
+      from: "payrequests",
+      let: { poNumbers: "$pos.po_number" },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $in: ["$po_number", "$$poNumbers"] },
+                { $eq: ["$approved", "Approved"] },
+                { $ne: ["$utr", null] },
+                { $ne: ["$utr", ""] },
+              ],
+            },
+          },
+        },
+      ],
+      as: "pays",
+    },
+  },
+  {
+    $lookup: {
+      from: "biildetails",
+      localField: "pos.po_number",
+      foreignField: "po_number",
+      as: "bills",
+    },
+  },
+
+  {
+    $addFields: {
+      totalCredit: {
+        $round: [
+          {
+            $sum: {
+              $map: { input: "$credits", as: "c", in: toNum("$$c.cr_amount") },
+            },
+          },
+          2,
+        ],
+      },
+      totalDebit: {
+        $round: [
+          {
+            $sum: {
+              $map: { input: "$debits", as: "d", in: toNum("$$d.amount_paid") },
+            },
+          },
+          2,
+        ],
+      },
+      availableAmount: {
+        $round: [
+          {
+            $subtract: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$credits",
+                    as: "c",
+                    in: toNum("$$c.cr_amount"),
+                  },
+                },
+              },
+              {
+                $sum: {
+                  $map: {
+                    input: "$debits",
+                    as: "d",
+                    in: toNum("$$d.amount_paid"),
+                  },
+                },
+              },
+            ],
+          },
+          2,
+        ],
+      },
+      totalAdjustment: {
+        $round: [
+          {
+            $subtract: [
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$adjustments",
+                        as: "a",
+                        cond: { $eq: ["$$a.adj_type", "Add"] },
+                      },
+                    },
+                    as: "a",
+                    in: { $abs: toNum("$$a.adj_amount") },
+                  },
+                },
+              },
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$adjustments",
+                        as: "a",
+                        cond: { $eq: ["$$a.adj_type", "Subtract"] },
+                      },
+                    },
+                    as: "a",
+                    in: { $abs: toNum("$$a.adj_amount") },
+                  },
+                },
+              },
+            ],
+          },
+          2,
+        ],
+      },
+    },
+  },
+
+  {
+    $addFields: {
+      paidAmount: {
+        $cond: [
+          { $gt: [{ $size: "$pays" }, 0] },
+          {
+            $sum: {
+              $map: { input: "$pays", as: "p", in: toNum("$$p.amount_paid") },
+            },
+          },
+          {
+            $sum: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: "$debits",
+                    as: "d",
+                    cond: {
+                      $and: [
+                        { $eq: ["$$d.approved", "Approved"] },
+                        { $ne: ["$$d.utr", null] },
+                        { $ne: ["$$d.utr", ""] },
+                      ],
+                    },
+                  },
+                },
+                as: "d",
+                in: toNum("$$d.amount_paid"),
+              },
+            },
+          },
+        ],
+      },
+    },
+  },
+  {
+    $addFields: {
+      total_po_basic: {
+        $round: [
+          {
+            $sum: {
+              $map: {
+                input: "$pos",
+                as: "po",
+                in: {
+                  $convert: {
+                    input: { $trim: { input: "$$po.po_basic" } },
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+              },
+            },
+          },
+          2,
+        ],
+      },
+    },
+  },
+  {
+    $addFields: {
+      gst_as_po_basic: {
+        $round: [
+          {
+            $sum: {
+              $map: {
+                input: "$pos",
+                as: "d",
+                in: {
+                  $convert: {
+                    input: { $trim: { input: "$$d.gst" } },
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+              },
+            },
+          },
+          2,
+        ],
+      },
+    },
+  },
+  {
+    $addFields: {
+      total_po_with_gst: {
+        $round: [{ $add: ["$total_po_basic", "$gst_as_po_basic"] }, 2],
+      },
+    },
+  },
+  {
+    $addFields: {
+      totalAmountPaid: { $round: [{ $ifNull: ["$paidAmount", 0] }, 2] },
+      balancePayable: {
+        $round: [
+          {
+            $subtract: [
+              { $ifNull: ["$total_po_with_gst", 0] },
+              { $ifNull: ["$paidAmount", 0] },
+            ],
+          },
+          2,
+        ],
+      },
+    },
+  },
+
+  {
+    $addFields: {
+      netBalance: {
+        $subtract: [
+          { $ifNull: ["$totalCredit", 0] },
+          {
+            $sum: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: "$debits",
+                    as: "d",
+                    cond: { $eq: ["$$d.paid_for", "Customer Adjustment"] },
+                  },
+                },
+                as: "d",
+                in: toNum("$$d.amount_paid"),
+              },
+            },
+          },
+        ],
+      },
+    },
+  },
+  {
+    $addFields: {
+      balanceSlnko: {
+        $round: [
+          {
+            $subtract: [
+              {
+                $subtract: [
+                  { $ifNull: ["$netBalance", 0] },
+                  { $ifNull: ["$totalAmountPaid", 0] },
+                ],
+              },
+              { $ifNull: ["$totalAdjustment", 0] },
+            ],
+          },
+          2,
+        ],
+      },
+    },
+  },
+
+  {
+    $addFields: {
+      tcs: {
+        $cond: {
+          if: { $gt: ["$netBalance", 5000000] },
+          then: {
+            $round: [
+              { $multiply: [{ $subtract: ["$netBalance", 5000000] }, 0.001] },
+              0,
+            ],
+          },
+          else: 0,
+        },
+      },
+    },
+  },
+  {
+    $addFields: {
+      balanceRequired: {
+        $round: [
+          {
+            $subtract: [
+              { $subtract: ["$balanceSlnko", "$balancePayable"] },
+              "$tcs",
+            ],
+          },
+          2,
+        ],
+      },
+    },
+  },
+
+  {
+    $project: {
+      _id: 1,
+      p_id: 1,
+      code: 1,
+      customer: 1,
+      name: 1,
+      p_group: 1,
+      totalCredit: 1,
+      totalDebit: 1,
+      availableAmount: 1,
+      totalAdjustment: 1,
+      totalAmountPaid: 1,
+      balanceSlnko: 1,
+      balancePayable: 1,
+      balanceRequired: 1,
+    },
+  },
+];
 
 const payRrequest = async (req, res) => {
   try {
@@ -699,8 +1082,6 @@ const accApproved = async function (req, res) {
   }
 };
 
-
-
 const utrUpdate = async function (req, res) {
   const { pay_id, cr_id, utr, utr_submitted_by: bodySubmittedBy } = req.body;
 
@@ -743,7 +1124,6 @@ const utrUpdate = async function (req, res) {
       let payment = await payRequestModells
         .findOne(paymentFilter)
         .session(session);
-
       if (!payment) {
         httpStatus = 404;
         payload = {
@@ -757,7 +1137,6 @@ const utrUpdate = async function (req, res) {
       const oldUtr = (payment.utr || "").trim() || null;
       const utrChanged = oldUtr !== trimmedUtr;
 
-      // Prevent duplicate UTR across records
       const dup = await payRequestModells
         .findOne({ utr: trimmedUtr, _id: { $ne: payment._id } })
         .session(session);
@@ -767,22 +1146,16 @@ const utrUpdate = async function (req, res) {
         return;
       }
 
-      // Update UTR (+ submitted by)
       const setFields = {
         utr: trimmedUtr,
         ...(submittedBy ? { utr_submitted_by: submittedBy } : {}),
       };
-
       await payRequestModells.updateOne(
         { _id: payment._id },
         { $set: setFields },
         { session, runValidators: true }
       );
 
-      payment.utr = trimmedUtr;
-      if (submittedBy) payment.utr_submitted_by = submittedBy;
-
-      // History for CR-path only when changed
       const isCrPath = Boolean(cr_id);
       if (isCrPath && utrChanged) {
         await payRequestModells.updateOne(
@@ -800,7 +1173,6 @@ const utrUpdate = async function (req, res) {
         );
       }
 
-      // Keep subtractMoney in sync (original logic)
       let subtractMoneyDoc = null;
       if (utrChanged && oldUtr) {
         subtractMoneyDoc = await subtractMoneyModells.findOneAndUpdate(
@@ -808,7 +1180,6 @@ const utrUpdate = async function (req, res) {
           { $set: buildSubtractDoc(payment, trimmedUtr) },
           { new: true, session, runValidators: true }
         );
-
         if (!subtractMoneyDoc) {
           subtractMoneyDoc = await subtractMoneyModells.findOneAndUpdate(
             { utr: trimmedUtr },
@@ -824,12 +1195,12 @@ const utrUpdate = async function (req, res) {
         );
       }
 
-
       if (payment.po_number && utrChanged) {
         const amt = Number(payment.amount_paid) || 0;
         if (amt > 0) {
-          const refKey = pay_id ? `pay:${payment.pay_id}` : `cr:${payment.cr_id}`;
-
+          const refKey = pay_id
+            ? `pay:${payment.pay_id}`
+            : `cr:${payment.cr_id}`;
           const poDoc = await purchaseOrderModells
             .findOne({ po_number: payment.po_number }, { advance_paid_refs: 1 })
             .session(session);
@@ -837,7 +1208,6 @@ const utrUpdate = async function (req, res) {
           const alreadyCounted =
             Array.isArray(poDoc?.advance_paid_refs) &&
             poDoc.advance_paid_refs.includes(refKey);
-
           if (!alreadyCounted) {
             await purchaseOrderModells.updateOne(
               { po_number: payment.po_number },
@@ -849,6 +1219,33 @@ const utrUpdate = async function (req, res) {
             );
           }
         }
+      }
+
+      const results = await projectModells
+        .aggregate([
+          { $match: { p_id: Number(payment.p_id) } },
+          ...aggregationPipeline,
+        ])
+        .session(session);
+
+      if (results.length) {
+        const row = results[0];
+        await projectBalanceModel.updateOne(
+          { p_id: row._id },
+          {
+            $set: {
+              p_id: row._id,
+              totalCredited: row.totalCredit,
+              totalDebited: row.totalDebit,
+              amountAvailable: row.availableAmount,
+              totalAdjustment: row.totalAdjustment,
+              balanceSlnko: row.balanceSlnko,
+              balancePayable: row.balancePayable,
+              balanceRequired: row.balanceRequired,
+            },
+          },
+          { upsert: true, session }
+        );
       }
 
       httpStatus = 200;
@@ -864,16 +1261,16 @@ const utrUpdate = async function (req, res) {
         subtractMoney: subtractMoneyDoc,
       };
     });
-  } catch (error) {
-    if (error && error.code === 11000) {
+  } catch (err) {
+    if (err && err.code === 11000) {
       return res
         .status(409)
-        .json({ message: "UTR already exists.", error: error.message });
+        .json({ message: "UTR already exists.", error: err.message });
     }
-    console.error("utrUpdate error:", error);
+    console.error("utrUpdate error:", err);
     return res.status(500).json({
       message: "An error occurred while updating the UTR number.",
-      error: error?.message,
+      error: err?.message,
     });
   } finally {
     session.endSession();
@@ -881,7 +1278,6 @@ const utrUpdate = async function (req, res) {
 
   return res.status(httpStatus).json(payload);
 };
-
 
 const restoreTrashToDraft = async (req, res) => {
   try {
@@ -1136,7 +1532,13 @@ const excelData = async function (req, res) {
                   { $eq: [{ $type: "$$x" }, "string"] },
                   {
                     $convert: {
-                      input: { $replaceAll: { input: "$$x", find: ",", replacement: "" } },
+                      input: {
+                        $replaceAll: {
+                          input: "$$x",
+                          find: ",",
+                          replacement: "",
+                        },
+                      },
                       to: "double",
                       onError: 0,
                       onNull: 0,
@@ -1157,15 +1559,18 @@ const excelData = async function (req, res) {
         },
       },
 
-    
       {
         $addFields: {
           __dbt_date: {
-            $convert: { input: "$dbt_date", to: "date", onError: null, onNull: null },
+            $convert: {
+              input: "$dbt_date",
+              to: "date",
+              onError: null,
+              onNull: null,
+            },
           },
         },
       },
-
 
       {
         $lookup: {
@@ -1194,9 +1599,12 @@ const excelData = async function (req, res) {
             $trim: {
               input: {
                 $concat: [
-                  { $ifNull: ["$po_number", "-"] }, " / ",
-                  { $ifNull: ["$paid_for", "-"] }, " / ",
-                  { $ifNull: ["$vendor", ""] }, " / ",
+                  { $ifNull: ["$po_number", "-"] },
+                  " / ",
+                  { $ifNull: ["$paid_for", "-"] },
+                  " / ",
+                  { $ifNull: ["$vendor", ""] },
+                  " / ",
                   { $ifNull: ["$project.code", "-"] },
                 ],
               },
@@ -1219,7 +1627,6 @@ const excelData = async function (req, res) {
       },
 
       { $sort: { createdAt: -1, _id: -1 } },
-
 
       {
         $facet: {
@@ -1275,7 +1682,9 @@ const excelData = async function (req, res) {
       },
     ];
 
-    const [result] = await exccelDataModells.aggregate(pipeline).allowDiskUse(true);
+    const [result] = await exccelDataModells
+      .aggregate(pipeline)
+      .allowDiskUse(true);
     const total = result?.total || 0;
     const rows = result?.data || [];
 
@@ -1289,7 +1698,10 @@ const excelData = async function (req, res) {
     });
   } catch (err) {
     console.error("[excelData] error:", err);
-    return res.status(500).json({ message: "Failed to load data", error: String(err?.message || err) });
+    return res.status(500).json({
+      message: "Failed to load data",
+      error: String(err?.message || err),
+    });
   }
 };
 
@@ -1303,7 +1715,9 @@ const updateExcelData = async function (req, res) {
     else if (id) idList = [id];
 
     if (!idList.length) {
-      return res.status(400).json({ message: "Provide 'ids' (array) or '_id'/'id' (string)." });
+      return res
+        .status(400)
+        .json({ message: "Provide 'ids' (array) or '_id'/'id' (string)." });
     }
 
     const objectIds = idList
@@ -1317,7 +1731,9 @@ const updateExcelData = async function (req, res) {
       .filter(Boolean);
 
     if (!objectIds.length) {
-      return res.status(400).json({ message: "No valid Mongo ObjectIds in 'ids'." });
+      return res
+        .status(400)
+        .json({ message: "No valid Mongo ObjectIds in 'ids'." });
     }
 
     const result = await exccelDataModells.updateMany(
@@ -1340,7 +1756,6 @@ const updateExcelData = async function (req, res) {
     });
   }
 };
-
 
 const getExcelDataById = async function (req, res) {
   try {

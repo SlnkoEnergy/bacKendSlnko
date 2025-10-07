@@ -4,7 +4,6 @@ const {
   getPurchaseRequestById,
   UpdatePurchaseRequest,
   deletePurchaseRequest,
-  updatePurchaseRequestStatus,
   getAllPurchaseRequest,
   getAllPurchaseRequestByProjectId,
   getPurchaseRequest,
