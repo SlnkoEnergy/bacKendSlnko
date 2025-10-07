@@ -64,6 +64,7 @@ const {
   updateSalesPO,
   bulkMarkDelivered,
   generatePurchaseOrderPdf,
+  linkProjectToPOByPid
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -329,6 +330,7 @@ router.put(
 );
 router.put("/sales-update/:id", jwtMW.authentication, upload, updateSalesPO);
 router.put("/bulk-mark-delivered", jwtMW.authentication, bulkMarkDelivered);
+router.post("/purchase-orders/link-project/bulk", linkProjectToPOByPid);
 
 router.post(
   "/purchase-generate-pdf",
