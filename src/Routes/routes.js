@@ -161,16 +161,6 @@ const {
 } = require("../Controllers/coomBDRateController.js");
 
 const {
-  createhandoversheet,
-  gethandoversheetdata,
-  edithandoversheetdata,
-  updatestatus,
-  getByIdOrLeadId,
-  getexportToCsv,
-  migrateProjectToHandover,
-  listUsersNames,
-} = require("../Controllers/handoversheet.controller.js");
-const {
   addmoduleMaster,
   getmoduleMasterdata,
   editmodulemaster,
@@ -707,57 +697,6 @@ router.get(
   "/get-bd-rate-by-offer_id",
   jwtMW.authentication,
   getCommBDRateByOfferId
-);
-
-//handdoversheet
-router.post(
-  "/create-hand-over-sheet",
-  jwtMW.authentication,
-
-  createhandoversheet
-);
-router.post(
-  "/handover-export",
-  jwtMW.authentication,
-
-  getexportToCsv
-);
-router.get(
-  "/get-all-handover-sheet",
-  jwtMW.authentication,
-
-  gethandoversheetdata
-);
-router.put(
-  "/edit-hand-over-sheet/:_id",
-  jwtMW.authentication,
-
-  edithandoversheetdata
-);
-router.put(
-  "/update-status/:_id",
-  jwtMW.authentication,
-
-  updatestatus
-);
-router.post("/check/:_id", jwtMW.authentication, checkid);
-router.get(
-  "/get-handoversheet",
-  jwtMW.authentication,
-
-  getByIdOrLeadId
-);
-router.get(
-  "/search/:letter",
-  jwtMW.authentication,
-
-  search
-);
-router.put(
-  "/migrateProject",
-  jwtMW.authentication,
-
-  migrateProjectToHandover
 );
 
 //module master

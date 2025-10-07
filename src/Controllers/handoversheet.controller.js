@@ -1311,5 +1311,5 @@ module.exports = {
   updateAssignedTo,
   listUsersNames,
   ManipulateHandover,
-  ManipulateHandoverSubmittedBy
+  ManipulateHandoverSubmittedBy,
 };
