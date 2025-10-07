@@ -18,7 +18,7 @@ const {
 const {
   projectBalance,
   exportProjectBalance,
-  getProjectBalances
+  getProjectBalances,
 } = require("../Controllers/Accounting/ProjectBalance");
 const { standbyRecord } = require("../Controllers/Accounting/standbyRecord");
 const jwtMW = require("../middlewares/auth");
