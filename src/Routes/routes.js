@@ -740,11 +740,9 @@ router.put(
 
   updatestatus
 );
-router.post("/check/:_id", jwtMW.authentication, checkid);
 router.get(
   "/get-handoversheet",
   jwtMW.authentication,
-
   getByIdOrLeadId
 );
 router.get(
