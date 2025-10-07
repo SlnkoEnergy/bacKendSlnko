@@ -21,6 +21,7 @@ const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const inspectionModel = require("../models/inspection.model");
 const billModel = require("../models/bill.model");
 const projectModel = require("../models/project.model");
+const purchaseorderModel = require("../models/purchaseorder.model");
 
 // --- Simple numeric parser ---
 function toSafeNumber(v) {
@@ -74,14 +75,16 @@ const aggregationPipeline = [
       as: "adjustments",
     },
   },
-  {
-    $lookup: {
-      from: "purchaseorders",
-      localField: "code",
-      foreignField: "p_id",
-      as: "pos",
-    },
-  },
+    {
+        $lookup: {
+          from: "purchaseorders",
+          let: { projectId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
+          ],
+          as: "pos",
+        },
+      },
   {
     $lookup: {
       from: "payrequests",
@@ -304,8 +307,8 @@ const aggregationPipeline = [
         $round: [
           {
             $subtract: [
-              { $ifNull: ["$total_po_with_gst", 0] }, // always fallback 0
-              { $ifNull: ["$paidAmount", 0] }, // always fallback 0
+              { $ifNull: ["$total_po_with_gst", 0] },
+              { $ifNull: ["$paidAmount", 0] },
             ],
           },
           2,
@@ -451,6 +454,7 @@ const addPo = async function (req, res) {
     const {
       p_id,
       date,
+      project_id,
       po_number,
       vendor,
       pr_id,
@@ -478,6 +482,14 @@ const addPo = async function (req, res) {
       return res
         .status(400)
         .send({ message: "items array is required and cannot be empty." });
+
+    let projectObjectId;
+    if (project_id) {
+      if (!mongoose.Types.ObjectId.isValid(project_id)) {
+        return res.status(400).send({ message: "Invalid project_id." });
+      }
+      projectObjectId = new mongoose.Types.ObjectId(project_id);
+    }
 
     const exists = await purchaseOrderModells.exists({ po_number });
     if (exists && initial_status !== "approval_pending")
@@ -522,6 +534,7 @@ const addPo = async function (req, res) {
 
     const newPO = new purchaseOrderModells({
       p_id,
+      project_id: projectObjectId,
       po_number,
       date,
       item: itemsSanitized,
@@ -600,6 +613,14 @@ const editPO = async function (req, res) {
     if ("attachments" in payload) {
       delete payload.attachments;
     }
+    if (payload.project_id != null) {
+      const pid = String(payload.project_id).trim();
+      if (!mongoose.Types.ObjectId.isValid(pid)) {
+        return res.status(400).json({ msg: "invalid project_id" });
+      }
+      payload.project_id = new mongoose.Types.ObjectId(pid);
+    }
+
     const uploadedAttachments = [];
 
     if (req.files && req.files.length) {
@@ -716,6 +737,8 @@ const editPO = async function (req, res) {
       updated_on: new Date().toISOString(),
       submitted_By: update.submitted_By,
       delivery_type: update.delivery_type,
+      p_id: update.p_id,
+      project_id: update.project_id,
       attachments: update.attachments || [],
     };
 
@@ -2412,11 +2435,9 @@ const bulkMarkDelivered = async (req, res) => {
       .lean();
 
     if (!foundPOs.length) {
-      return res
-        .status(404)
-        .json({
-          message: "No matching Purchase Orders found for provided ids.",
-        });
+      return res.status(404).json({
+        message: "No matching Purchase Orders found for provided ids.",
+      });
     }
 
     // Build bulk updates: set delivered + same-day dates + status history entry
@@ -2516,6 +2537,83 @@ const bulkMarkDelivered = async (req, res) => {
   }
 };
 
+// Controller
+const linkProjectToPOByPid = async (req, res) => {
+    try {
+    // 1) Collect only those POs that need linking (have p_id string, missing project_id)
+    const poCodes = await purchaseOrderModells.distinct("p_id", {
+      p_id: { $type: "string", $ne: "" },
+      $or: [{ project_id: { $exists: false } }, { project_id: null }],
+    });
+
+    if (!poCodes.length) {
+      return res.status(200).json({
+        ok: true,
+        message: "Nothing to link. No POs missing project_id.",
+        updated: 0,
+      });
+    }
+
+    // 2) Load projects by code
+    const projects = await projectModel.find(
+      { code: { $in: poCodes } },
+      { _id: 1, code: 1 }
+    ).lean();
+
+    const codeToProjectId = new Map(
+      projects.map((p) => [String(p.code).trim(), p._id])
+    );
+
+    // 3) Build bulk updates: set project_id where p_id matches code
+    const ops = [];
+    for (const code of poCodes) {
+      const projectId = codeToProjectId.get(String(code).trim());
+      if (!projectId) continue; // no matching project—skip
+
+      ops.push({
+        updateMany: {
+          // ✅ never modify p_id; only use it for filtering
+          filter: {
+            p_id: code,
+            $or: [{ project_id: { $exists: false } }, { project_id: null }],
+          },
+          update: { $set: { project_id: projectId } }, // ✅ only add project_id
+        },
+      });
+    }
+
+    if (!ops.length) {
+      return res.status(200).json({
+        ok: true,
+        message:
+          "No matching projectDetail.code found for the POs missing project_id.",
+        updated: 0,
+      });
+    }
+
+    const result = await purchaseOrderModells.bulkWrite(ops, { ordered: false });
+
+    console.log(
+      "[linkProjectIdsSimple] scannedCodes=%d, modified=%d",
+      poCodes.length,
+      result.modifiedCount || 0
+    );
+
+    return res.status(200).json({
+      ok: true,
+      message: "Linked project_id where p_id matched projectDetail.code.",
+      updated: result.modifiedCount || 0,
+      scannedCodes: poCodes.length,
+    });
+  } catch (err) {
+    console.error("linkProjectIdsSimple error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, message: "Internal server error", error: err.message });
+  }
+};
+
+
 module.exports = {
   addPo,
   editPO,
@@ -2537,4 +2635,5 @@ module.exports = {
   getPoBasic,
   updateSalesPO,
   bulkMarkDelivered,
+  linkProjectToPOByPid,
 };

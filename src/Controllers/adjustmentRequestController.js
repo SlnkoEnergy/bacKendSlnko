@@ -1,7 +1,6 @@
-const adjustmentRequestModells = require("../models/adjustmentRequestModells");  
+const adjustmentRequestModells = require("../models/adjustmentRequestModells");
 const projectModel = require("../models/project.model");
 const projectBalanceModel = require("../models/projectBalance.model");
-
 
 const toNum = (expr) => ({
   $convert: {
@@ -52,8 +51,10 @@ const aggregationPipeline = [
   {
     $lookup: {
       from: "purchaseorders",
-      localField: "code",
-      foreignField: "p_id",
+      let: { projectId: "$_id" },
+      pipeline: [
+        { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
+      ],
       as: "pos",
     },
   },
@@ -390,7 +391,9 @@ async function recomputeProjectBalanceForPo(pid) {
   const pidNum = Number(pid);
   if (!pidNum) return; // skip if invalid
 
-  const project = await projectModel.findOne({ p_id: pidNum }, { _id: 1 }).lean();
+  const project = await projectModel
+    .findOne({ p_id: pidNum }, { _id: 1 })
+    .lean();
   if (!project) return;
 
   const rows = await projectModel.aggregate([
@@ -406,18 +409,18 @@ async function recomputeProjectBalanceForPo(pid) {
     {
       $set: {
         p_id: project._id,
-        totalCredited:   r.totalCredit     || 0,
-        totalDebited:    r.totalDebit      || 0,
+        totalCredited: r.totalCredit || 0,
+        totalDebited: r.totalDebit || 0,
         amountAvailable: r.availableAmount || 0,
         totalAdjustment: r.totalAdjustment || 0,
-        balanceSlnko:    r.balanceSlnko    || 0,
-        balancePayable:  r.balancePayable  || 0,
+        balanceSlnko: r.balanceSlnko || 0,
+        balancePayable: r.balancePayable || 0,
         balanceRequired: r.balanceRequired || 0,
       },
     },
     { upsert: true }
   );
-};
+}
 //add adjustment request
 const addAdjustmentRequest = async (req, res) => {
   try {
@@ -447,14 +450,17 @@ const addAdjustmentRequest = async (req, res) => {
     }
 
     if (!adj_type || !["Add", "Subtract"].includes(adj_type)) {
-      return res.status(400).json({ message: "adj_type must be Add or Subtract" });
+      return res
+        .status(400)
+        .json({ message: "adj_type must be Add or Subtract" });
     }
 
     if (isNaN(Number(adj_amount))) {
-      return res.status(400).json({ message: "adj_amount must be a valid number" });
+      return res
+        .status(400)
+        .json({ message: "adj_amount must be a valid number" });
     }
 
-    
     const adjustmentRequest = new adjustmentRequestModells({
       p_id,
       pay_id,
@@ -496,32 +502,37 @@ const addAdjustmentRequest = async (req, res) => {
 //get all adjustment request
 
 const getAdjustmentRequest = async (req, res) => {
-    try {
-        const adjustmentRequests = await adjustmentRequestModells.find();
-        res.status(200).json(adjustmentRequests);
-    } catch (error) {
-        res.status(500).json({ message: "Internal server error" });
-    }
+  try {
+    const adjustmentRequests = await adjustmentRequestModells.find();
+    res.status(200).json(adjustmentRequests);
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 //Delete adjustment request
 
 const deleteAdjustmentRequest = async (req, res) => {
-    try {
-        const { _id } = req.params;
-        const adjustmentRequest = await adjustmentRequestModells.findByIdAndDelete(_id);
-        if (!adjustmentRequest) {
-            return res.status(404).json({ message: "Adjustment request not found" });
-        }
-        res.status(200).json({ message: "Adjustment request deleted successfully" ,data:adjustmentRequest});
-    } catch (error) {
-        res.status(500).json({ message: "Internal server error" });
+  try {
+    const { _id } = req.params;
+    const adjustmentRequest =
+      await adjustmentRequestModells.findByIdAndDelete(_id);
+    if (!adjustmentRequest) {
+      return res.status(404).json({ message: "Adjustment request not found" });
     }
+    res
+      .status(200)
+      .json({
+        message: "Adjustment request deleted successfully",
+        data: adjustmentRequest,
+      });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 module.exports = {
-    addAdjustmentRequest,
-    getAdjustmentRequest,
-    deleteAdjustmentRequest
+  addAdjustmentRequest,
+  getAdjustmentRequest,
+  deleteAdjustmentRequest,
 };
-

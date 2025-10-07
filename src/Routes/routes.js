@@ -55,6 +55,7 @@ const {
   getPoBasic,
   updateSalesPO,
   bulkMarkDelivered,
+  linkProjectToPOByPid
 } = require("../Controllers/purchaseorder.controller");
 const {
   addVendor,
@@ -168,7 +169,7 @@ const {
   getByIdOrLeadId,
   getexportToCsv,
   migrateProjectToHandover,
-  listUsersNames
+  listUsersNames,
 } = require("../Controllers/handoversheet.controller.js");
 const {
   addmoduleMaster,
@@ -198,8 +199,9 @@ const {
 } = require("../Controllers/modifiedexpensesheet.controller.js");
 
 const upload = require("../middlewares/multer.js");
-const { syncAllProjectBalances } = require("../Controllers/Accounting/ProjectBalance.js");
-
+const {
+  syncAllProjectBalances,
+} = require("../Controllers/Accounting/ProjectBalance.js");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -367,46 +369,14 @@ router.post(
 
   exportCSV
 );
-router.put(
-  "/remove-to-recovery/:_id",
-  jwtMW.authentication,
-  moverecovery
-);
-router.get(
-  "/get-po-by-po_number",
-  jwtMW.authentication,
-  getPOByPONumber
-);
-router.get(
-  "/get-po-by-id",
-  jwtMW.authentication,
-  getPOById
-);
-router.get(
-  "/get-po-detail",
-  jwtMW.authentication,
-  getallpodetail
-);
-router.delete(
-  "/delete-pO-IT/:_id",
-  jwtMW.authentication,
-  deletePO
-);
-router.get(
-  "/get-po-historY-IT",
-  jwtMW.authentication,
-  getpohistory
-);
-router.get(
-  "/get-po-history",
-  jwtMW.authentication,
-  getPOHistoryById
-);
-router.put(
-  "/updateStatusPO",
-  jwtMW.authentication,
-  updateStatusPO
-);
+router.put("/remove-to-recovery/:_id", jwtMW.authentication, moverecovery);
+router.get("/get-po-by-po_number", jwtMW.authentication, getPOByPONumber);
+router.get("/get-po-by-id", jwtMW.authentication, getPOById);
+router.get("/get-po-detail", jwtMW.authentication, getallpodetail);
+router.delete("/delete-pO-IT/:_id", jwtMW.authentication, deletePO);
+router.get("/get-po-historY-IT", jwtMW.authentication, getpohistory);
+router.get("/get-po-history", jwtMW.authentication, getPOHistoryById);
+router.put("/updateStatusPO", jwtMW.authentication, updateStatusPO);
 
 router.put(
   "/:id/updateEtdOrDelivery",
@@ -420,11 +390,8 @@ router.put(
   upload,
   updateSalesPO
 );
-router.put(
-  "/bulk-mark-delivered",
-  jwtMW.authentication,
-  bulkMarkDelivered
-);
+router.put("/bulk-mark-delivered", jwtMW.authentication, bulkMarkDelivered);
+router.post("/purchase-orders/link-project/bulk", linkProjectToPOByPid);
 
 //Add vendor
 router.post(
@@ -879,7 +846,6 @@ router.put(
 
   migrateProjectToHandover
 );
-
 
 //module master
 router.post(
