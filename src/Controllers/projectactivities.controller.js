@@ -13,6 +13,9 @@ const {
 const { triggerTasksBulk } = require("../utils/triggertask.utils");
 const handoversheetModel = require("../models/handoversheet.model");
 const projectModel = require("../models/project.model");
+const projectactivitiesModel = require("../models/projectactivities.model");
+const { Parser } = require('json2csv')
+const ExcelJS = require("exceljs");
 
 function stripTemplateCode(payload = {}) {
   const { template_code, ...rest } = payload;
@@ -395,15 +398,15 @@ const nameSearchActivityByProjectId = async (req, res) => {
       // Optional search
       ...(searchRegex
         ? [
-            {
-              $match: {
-                $or: [
-                  { "actInfo.name": searchRegex },
-                  { "actInfo.description": searchRegex },
-                ],
-              },
+          {
+            $match: {
+              $or: [
+                { "actInfo.name": searchRegex },
+                { "actInfo.description": searchRegex },
+              ],
             },
-          ]
+          },
+        ]
         : []),
 
       // Look up dependency targets (moduletemplates and materialcategories)
@@ -1224,13 +1227,13 @@ const getAllProjectActivityForView = async (req, res) => {
 
     const match = hasRange
       ? {
-          activities: {
-            $elemMatch: {
-              planned_start: { $lte: rangeEnd },
-              planned_finish: { $gte: rangeStart },
-            },
+        activities: {
+          $elemMatch: {
+            planned_start: { $lte: rangeEnd },
+            planned_finish: { $gte: rangeStart },
           },
-        }
+        },
+      }
       : {};
 
     const paDocs = await projectActivity
@@ -1564,7 +1567,7 @@ const updateProjectActivityForAllProjects = async (req, res) => {
         const activityDoc = await activityModel
           .find({}, { _id: 1, order: 1, dependency: 1, predecessors: 1 })
           .lean();
-        
+
         const newDoc = new projectActivity({
           project_id: proj._id,
           activities: activityDoc.map((a) => ({
@@ -1791,6 +1794,208 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
   }
 };
 
+const getProjectGanttChartCsv = async (req, res) => {
+  try {
+    const { projectId } = req.query;
+    const data = await projectactivitiesModel
+      .findOne({ project_id: projectId })
+      .populate([
+        { path: "activities.activity_id", model: "activities", select: "name" },
+        { path: "activities.predecessors.activity_id", model: "activities", select: "name" },
+        { path: "activities.successors.activity_id", model: "activities", select: "name" },
+      ])
+      .lean();
+
+    if (!data || !Array.isArray(data.activities) || data.activities.length === 0) {
+      return res.status(404).json({ message: "No activities found for this project." });
+    }
+
+    // Order
+    data.activities.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const statusHelper = (plannedStart, plannedFinish, actualStart, actualFinish) => {
+      if (actualFinish) return "Completed";
+      if (actualStart) return "In Progress";
+      if (plannedStart || plannedFinish) return "Not Started";
+      return "N/A";
+    };
+
+    // Normalize to date-only
+    const toDateOnly = (d) => {
+      if (!d) return null;
+      const dt = new Date(d);
+      if (Number.isNaN(dt.getTime())) return null;
+      dt.setHours(0, 0, 0, 0);
+      return dt;
+    };
+
+    const fmtDate = (d) =>
+      d
+        ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+        : "N/A";
+
+    // Compute min start & max finish across planned
+    let minStart = null;
+    let maxFinish = null;
+    for (const act of data.activities) {
+      const ps = toDateOnly(act.planned_start);
+      const pf = toDateOnly(act.planned_finish);
+      if (ps && (!minStart || ps < minStart)) minStart = ps;
+      if (pf && (!maxFinish || pf > maxFinish)) maxFinish = pf;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet("Project Schedule");
+
+    // Base columns (fixed)
+    const baseColumns = [
+      { header: "S No.", key: "sno", width: 8 },
+      { header: "Activity", key: "activity", width: 40 },
+      { header: "Duration", key: "duration", width: 10 },
+      { header: "Baseline Start", key: "bstart", width: 16 },
+      { header: "Baseline End", key: "bend", width: 16 },
+      { header: "Actual Start", key: "astart", width: 16 },
+      { header: "Actual End", key: "aend", width: 16 },
+      { header: "Activity Status", key: "status", width: 16 },
+    ];
+
+    // Build date columns (one per day) if we have a range
+    const dateCols = [];
+    if (minStart && maxFinish) {
+      const cur = new Date(minStart);
+      while (cur <= maxFinish) {
+        dateCols.push({
+          header: cur.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }), // 12-Oct
+          key: `d_${cur.getFullYear()}_${String(cur.getMonth() + 1).padStart(2, "0")}_${String(cur.getDate()).padStart(2, "0")}`,
+          dateObj: new Date(cur),
+        });
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+
+    ws.columns = [
+      ...baseColumns,
+      ...dateCols.map((c) => ({ header: c.header, key: c.key, width: 5 })),
+    ];
+
+    // Optional title row: timeline range
+    if (minStart && maxFinish) {
+      ws.insertRow(1, [
+        `Planned timeline: ${minStart.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })} → ${maxFinish.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })}`,
+      ]);
+      ws.mergeCells(1, 1, 1, ws.columnCount);
+      ws.getRow(1).font = { bold: true, size: 12 };
+      ws.getRow(1).alignment = { horizontal: "center" };
+    }
+
+    // Header row styling
+    const headerRowIdx = minStart && maxFinish ? 2 : 1;
+    ws.getRow(headerRowIdx).font = { bold: true };
+    ws.getRow(headerRowIdx).alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(headerRowIdx).eachCell((cell) => {
+      cell.border = {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
+      };
+    });
+
+    // Freeze header + first two columns
+    ws.views = [{ state: "frozen", xSplit: 2, ySplit: headerRowIdx }];
+
+    // Helpers
+    const setGrid = (cell) => {
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFBFBFBF" } },
+        bottom: { style: "thin", color: { argb: "FFBFBFBF" } },
+        left: { style: "thin", color: { argb: "FFBFBFBF" } },
+        right: { style: "thin", color: { argb: "FFBFBFBF" } },
+      };
+    };
+
+    const fillGreen = (cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF92D050" }, // green
+      };
+    };
+
+    for (let idx = 0; idx < data.activities.length; idx++) {
+      const act = data.activities[idx];
+
+      const rowValues = {
+        sno: idx + 1,
+        activity: (act.activity_id && act.activity_id.name) || "NA",
+        duration: act.duration ?? "N/A",
+        bstart: fmtDate(act.planned_start),
+        bend: fmtDate(act.planned_finish),
+        astart: fmtDate(act.actual_start),
+        aend: fmtDate(act.actual_finish),
+        status: statusHelper(act.planned_start, act.planned_finish, act.actual_start, act.actual_finish),
+      };
+
+      const topRow = ws.addRow(rowValues);
+      const bottomRow = ws.addRow({}); 
+
+      topRow.height = 12;   
+      bottomRow.height = 12;  
+
+      for (let c = 1; c <= baseColumns.length; c++) {
+        ws.mergeCells(topRow.number, c, bottomRow.number, c);
+      }
+
+      for (let c = 1; c <= baseColumns.length; c++) {
+        const cell = ws.getCell(topRow.number, c);
+        cell.alignment = { vertical: "middle" };
+      }
+      ws.getCell(topRow.number, 1).alignment = { horizontal: "center", vertical: "middle" };
+
+      const ps = toDateOnly(act.planned_start);
+      const pf = toDateOnly(act.planned_finish);
+
+      for (let i = 0; i < dateCols.length; i++) {
+        const colIdx = baseColumns.length + 1 + i;
+        const d = dateCols[i].dateObj;
+
+        const topCell = topRow.getCell(colIdx);
+        const bottomCell = bottomRow.getCell(colIdx);
+
+        setGrid(topCell);
+        setGrid(bottomCell);
+
+        if (ps && pf && d >= ps && d <= pf) {
+          fillGreen(topCell);
+        }
+      }
+    }
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="Project-Schedule.xlsx"'
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+}
+
 
 module.exports = {
   createProjectActivity,
@@ -1812,5 +2017,6 @@ module.exports = {
   getResources,
   updateStatusOfPlan,
   updateProjectActivityForAllProjects,
-  syncActivitiesFromProjectActivity
+  syncActivitiesFromProjectActivity,
+  getProjectGanttChartCsv
 };

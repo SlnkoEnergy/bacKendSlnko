@@ -21,6 +21,7 @@ const {
   updateStatusOfPlan,
   updateProjectActivityForAllProjects,
   syncActivitiesFromProjectActivity,
+  getProjectGanttChartCsv,
 } = require("../Controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
@@ -110,5 +111,6 @@ router.put(
   updateProjectActivityForAllProjects
 );
 router.put('/syncactivity', jwtMW.authentication, syncActivitiesFromProjectActivity);
+router.get('/get-project-csv', jwtMW.authentication, getProjectGanttChartCsv);
 
 module.exports = router;
