@@ -1589,6 +1589,209 @@ const updateProjectActivityForAllProjects = async (req, res) => {
   }
 };
 
+const isFiniteNumber = (v) => Number.isFinite(Number(v));
+
+const syncActivitiesFromProjectActivity = async (req, res) => {
+  try {
+    // Optional: limit to real projects
+    // const filter = { status: "project" };
+    const filter = {}; // do for all projectActivities
+
+    // 0) Preload ALL base activities once (id, order, dependency)
+    //    If your activities collection is extremely large, consider paging or scoping this.
+    const baseActsAll = await activityModel
+      .find({}, { _id: 1, order: 1, dependency: 1 })
+      .lean();
+
+    const baseById = new Map(baseActsAll.map((a) => [String(a._id), a]));
+    const allBaseIds = new Set(baseById.keys());
+
+    // 1) Stream projectActivities to keep memory stable
+    const cursor = projectActivity
+      .find(filter, { _id: 1, activities: 1 })
+      .lean()
+      .cursor();
+
+    const BATCH_SIZE = 500; // tune for your dataset
+    let ops = [];
+    let processed = 0;
+    let updatedDocs = 0;
+
+    for await (const paDoc of cursor) {
+      processed += 1;
+
+      const activitiesArr = Array.isArray(paDoc.activities)
+        ? paDoc.activities
+        : [];
+
+      const now = new Date();
+      let changed = false;
+
+      // Build a set of project activity ids for fast membership
+      const projectIdSet = new Set(
+        activitiesArr
+          .map((a) => a?.activity_id)
+          .filter((id) => id && mongoose.isValidObjectId(id))
+          .map((id) => String(id))
+      );
+
+      // 2) Update existing activities: only order & dependency from base
+      const updatedExisting = activitiesArr.map((projAct) => {
+        const idStr = String(projAct.activity_id || "");
+        const base = baseById.get(idStr);
+
+        if (!base) return projAct; // base missing -> leave as-is
+
+        const out = { ...projAct };
+
+        // (a) order <- base.order
+        if (isFiniteNumber(base.order)) {
+          const newOrder = Number(base.order);
+          if (out.order !== newOrder) {
+            out.order = newOrder;
+            changed = true;
+          }
+        }
+
+        // (b) dependency <- base.dependency mapped to project schema
+        const actDeps = Array.isArray(base.dependency) ? base.dependency : [];
+
+        const isCompleted = out?.current_status?.status === "completed";
+        const depStatus = isCompleted ? "allowed" : "not allowed";
+
+        const newDeps = actDeps.map((d) => ({
+          model: d?.model ?? undefined,
+          model_id: d?.model_id ?? undefined,
+          model_id_name: d?.model_id_name ?? undefined,
+          updatedAt: now,
+          updated_by: out?.current_status?.updated_by ?? undefined,
+          status_history: [
+            {
+              status: depStatus,
+              remarks: "Synced from activities model",
+              updatedAt: now,
+              user_id: out?.current_status?.updated_by ?? undefined,
+            },
+          ],
+          current_status: {
+            status: depStatus,
+            remarks: "Synced from activities model",
+            updatedAt: now,
+            user_id: out?.current_status?.updated_by ?? undefined,
+          },
+        }));
+
+        // Replace dependency (only field we’re changing besides order)
+        out.dependency = newDeps;
+        changed = true;
+
+        return out;
+      });
+
+      // 3) ADD missing activities (exist in base but not in project)
+      //    We add **only** minimal fields + dependency (not allowed), do NOT fill predecessors/etc.
+      const newActivities = [];
+      for (const baseId of allBaseIds) {
+        if (projectIdSet.has(baseId)) continue; // already present
+        const base = baseById.get(baseId);
+        if (!base) continue;
+
+        // Create a minimal project activity entry
+        const baseOrder = isFiniteNumber(base.order) ? Number(base.order) : undefined;
+
+        const deps = Array.isArray(base.dependency) ? base.dependency : [];
+        const depMapped = deps.map((d) => ({
+          model: d?.model ?? undefined,
+          model_id: d?.model_id ?? undefined,
+          model_id_name: d?.model_id_name ?? undefined,
+          updatedAt: now,
+          updated_by: undefined,
+          status_history: [
+            {
+              status: "not allowed",
+              remarks: "Added via sync (new activity in project)",
+              updatedAt: now,
+              user_id: undefined,
+            },
+          ],
+          current_status: {
+            status: "not allowed",
+            remarks: "Added via sync (new activity in project)",
+            updatedAt: now,
+            user_id: undefined,
+          },
+        }));
+
+        newActivities.push({
+          activity_id: new mongoose.Types.ObjectId(baseId),
+          order: baseOrder,
+          planned_start: undefined,
+          planned_finish: undefined,
+          actual_start: undefined,
+          actual_finish: undefined,
+          duration: undefined,
+          percent_complete: 0,
+          predecessors: [],
+          successors: [],
+          resources: [],
+          current_status: {
+            status: "not started",
+            updated_at: now,
+            updated_by: undefined,
+            remarks: "Added via sync",
+          },
+          status_history: [], // leave empty
+          dependency: depMapped,
+        });
+      }
+
+      if (newActivities.length > 0) {
+        changed = true;
+      }
+
+      if (!changed) {
+        // Nothing to update for this doc
+        continue;
+      }
+
+      const finalActivities = [...updatedExisting, ...newActivities];
+
+      ops.push({
+        updateOne: {
+          filter: { _id: paDoc._id },
+          update: { $set: { activities: finalActivities } },
+        },
+      });
+      updatedDocs += 1;
+
+      if (ops.length >= BATCH_SIZE) {
+        await projectActivity.bulkWrite(ops, { ordered: false });
+        ops = [];
+      }
+    }
+
+    // Flush remaining ops
+    if (ops.length > 0) {
+      await projectActivity.bulkWrite(ops, { ordered: false });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      message:
+        "Synced order & dependency for all projectActivities; added missing activities from base model.",
+      meta: { processedDocs: processed, updatedDocs },
+    });
+  } catch (error) {
+    console.error("syncAllProjectActivities error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+
 module.exports = {
   createProjectActivity,
   getAllProjectActivities,
@@ -1609,4 +1812,5 @@ module.exports = {
   getResources,
   updateStatusOfPlan,
   updateProjectActivityForAllProjects,
+  syncActivitiesFromProjectActivity
 };
