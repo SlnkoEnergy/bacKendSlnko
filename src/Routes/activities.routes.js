@@ -5,7 +5,8 @@ const {
   deleteActivity,
   namesearchOfActivities,
   updateDependency,
-  deleteDependency
+  deleteDependency,
+  updateProductLink
 } = require("../Controllers/activities.controller");
 const jwtMW = require("../middlewares/auth");
 
@@ -15,5 +16,6 @@ router.delete("/activity/:id", jwtMW.authentication, deleteActivity);
 router.get("/activities", jwtMW.authentication, namesearchOfActivities);
 router.put('/:id/updatedependency', jwtMW.authentication, updateDependency);
 router.delete('/:id/deletedependency/:dependencyId', jwtMW.authentication, deleteDependency);
+router.put('/:id/updateproductlink', jwtMW.authentication, updateProductLink);
 
 module.exports = router;

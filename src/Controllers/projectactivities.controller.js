@@ -1593,12 +1593,8 @@ const isFiniteNumber = (v) => Number.isFinite(Number(v));
 
 const syncActivitiesFromProjectActivity = async (req, res) => {
   try {
-    // Optional: limit to real projects
-    // const filter = { status: "project" };
-    const filter = {}; // do for all projectActivities
+    const filter = {}; 
 
-    // 0) Preload ALL base activities once (id, order, dependency)
-    //    If your activities collection is extremely large, consider paging or scoping this.
     const baseActsAll = await activityModel
       .find({}, { _id: 1, order: 1, dependency: 1 })
       .lean();
@@ -1606,13 +1602,12 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
     const baseById = new Map(baseActsAll.map((a) => [String(a._id), a]));
     const allBaseIds = new Set(baseById.keys());
 
-    // 1) Stream projectActivities to keep memory stable
     const cursor = projectActivity
       .find(filter, { _id: 1, activities: 1 })
       .lean()
       .cursor();
 
-    const BATCH_SIZE = 500; // tune for your dataset
+    const BATCH_SIZE = 500; 
     let ops = [];
     let processed = 0;
     let updatedDocs = 0;
@@ -1790,6 +1785,7 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
     });
   }
 };
+
 
 
 module.exports = {

@@ -5,6 +5,31 @@ const updateStatus = require("../utils/updatestatus.utils");
 const StatusEnum = ["not started", "in progress", "completed"];
 const LinkType = ["FS", "SS", "FF", "SF"];
 
+const QuantityFormulaVarSchema = new mongoose.Schema(
+  {
+    model_name: { type: String, required: true, trim: true },
+    source: {
+      type: String,
+      enum: ["context", "custom"],
+      required: true,
+    },
+    key: { type: String, trim: true },
+    value: { type: mongoose.Schema.Types.Mixed, default: null },
+  },
+  { _id: false }
+);
+
+const RequiredQuantitySchema = new mongoose.Schema(
+  {
+    formula_raw: { type: String, required: false },
+    variables: { type: [QuantityFormulaVarSchema], default: [] },
+    quantity_unit: { type: String, default: "" },
+    evaluated_value: { type: Number, default: null },
+    evaluated_at: { type: Date },
+  },
+  { _id: false }
+);
+
 const projectActivitySchema = new mongoose.Schema(
   {
     project_id: { type: mongoose.Schema.Types.ObjectId, ref: "projectDetail" },
@@ -64,11 +89,9 @@ const projectActivitySchema = new mongoose.Schema(
             product_id: {
               type: mongoose.Schema.Types.ObjectId,
               ref: "Material",
+              required: true,
             },
-            required_quantity: {
-              quantity_formula: { type: String },
-              quantity_unit: { type: String },
-            },
+            required_quantity: { type: RequiredQuantitySchema, required: true },
           },
         ],
         dependency: [

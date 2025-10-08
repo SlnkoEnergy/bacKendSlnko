@@ -2,8 +2,6 @@ const { default: mongoose } = require("mongoose");
 const Activity = require("../models/activities.model");
 const ProjectActivity = require("../models/projectactivities.model");
 
-const LINK_TYPES = new Set(["FS", "SS", "FF", "SF"]);
-
 const createActivity = async (req, res) => {
   try {
     const data = req.body;
@@ -129,18 +127,27 @@ const updateDependency = async (req, res) => {
       return res.status(400).json({ message: "Invalid :id" });
     }
 
-
     const hasNameField = Object.prototype.hasOwnProperty.call(req.body, "name");
-    const hasDescField = Object.prototype.hasOwnProperty.call(req.body, "description");
+    const hasDescField = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "description"
+    );
     const hasTypeField = Object.prototype.hasOwnProperty.call(req.body, "type");
-    const hasOrderField = Object.prototype.hasOwnProperty.call(req.body, "order");
+    const hasOrderField = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "order"
+    );
 
     const ACTIVITY_TYPES = new Set(["frontend", "backend"]);
     let nextType = undefined;
     if (hasTypeField) {
       const t = String(req.body.type || "").toLowerCase();
       if (!ACTIVITY_TYPES.has(t)) {
-        return res.status(400).json({ message: "Invalid activity type. Use 'frontend' or 'backend'." });
+        return res
+          .status(400)
+          .json({
+            message: "Invalid activity type. Use 'frontend' or 'backend'.",
+          });
       }
       nextType = t;
     }
@@ -149,50 +156,75 @@ const updateDependency = async (req, res) => {
     if (hasOrderField) {
       const n = Number(req.body.order);
       if (!Number.isFinite(n)) {
-        return res.status(400).json({ message: "order must be a finite number." });
+        return res
+          .status(400)
+          .json({ message: "order must be a finite number." });
       }
       nextOrder = n;
     }
 
-
     const dependencies = Array.isArray(req.body.dependencies)
       ? req.body.dependencies
-      : (req.body.model && req.body.model_id)
-      ? [{ model: req.body.model, model_id: req.body.model_id, model_id_name: req.body.model_id_name }]
-      : [];
-
+      : req.body.model && req.body.model_id
+        ? [
+            {
+              model: req.body.model,
+              model_id: req.body.model_id,
+              model_id_name: req.body.model_id_name,
+            },
+          ]
+        : [];
 
     const LINK_TYPES =
-      typeof globalThis.LINK_TYPES === "object" && globalThis.LINK_TYPES instanceof Set
+      typeof globalThis.LINK_TYPES === "object" &&
+      globalThis.LINK_TYPES instanceof Set
         ? globalThis.LINK_TYPES
         : new Set(["FS", "SS", "FF"]);
 
-   
     const legacyLinkType =
-      req.body.link_type ?? req.body.predecessor_type ?? req.body.rel_type ?? req.body.dep_type ?? req.body.type;
+      req.body.link_type ??
+      req.body.predecessor_type ??
+      req.body.rel_type ??
+      req.body.dep_type ??
+      req.body.type;
 
     const predecessors = Array.isArray(req.body.predecessors)
       ? req.body.predecessors
       : req.body.activity_id
-      ? [{ activity_id: req.body.activity_id, type: legacyLinkType, lag: req.body.lag }]
-      : [];
+        ? [
+            {
+              activity_id: req.body.activity_id,
+              type: legacyLinkType,
+              lag: req.body.lag,
+            },
+          ]
+        : [];
 
-    const hasFormulaUpdate = Object.prototype.hasOwnProperty.call(req.body, "completion_formula");
-    const completion_formula = hasFormulaUpdate ? String(req.body.completion_formula ?? "") : undefined;
+    const hasFormulaUpdate = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "completion_formula"
+    );
+    const completion_formula = hasFormulaUpdate
+      ? String(req.body.completion_formula ?? "")
+      : undefined;
 
     if (!isGlobal && hasFormulaUpdate) {
       return res.status(400).json({
-        message: "completion_formula can only be updated in global scope (global=true).",
+        message:
+          "completion_formula can only be updated in global scope (global=true).",
       });
     }
 
-  
     for (const d of dependencies) {
       if (!d?.model || !d?.model_id) {
-        return res.status(400).json({ message: "Each dependency needs { model, model_id }" });
+        return res
+          .status(400)
+          .json({ message: "Each dependency needs { model, model_id }" });
       }
       if (!mongoose.isValidObjectId(d.model_id)) {
-        return res.status(400).json({ message: `Invalid model_id: ${d.model_id}` });
+        return res
+          .status(400)
+          .json({ message: `Invalid model_id: ${d.model_id}` });
       }
     }
 
@@ -213,8 +245,14 @@ const updateDependency = async (req, res) => {
         ? new mongoose.Types.ObjectId(req.user.userId)
         : undefined;
 
-    const hasActivityFields = hasNameField || hasDescField || hasTypeField || hasOrderField;
-    if (!dependencies.length && !predecessors.length && !hasFormulaUpdate && !hasActivityFields) {
+    const hasActivityFields =
+      hasNameField || hasDescField || hasTypeField || hasOrderField;
+    if (
+      !dependencies.length &&
+      !predecessors.length &&
+      !hasFormulaUpdate &&
+      !hasActivityFields
+    ) {
       return res.status(400).json({
         message:
           "Nothing to update. Provide dependencies, predecessors, completion_formula (global), or activity fields (name/description/type/order).",
@@ -227,13 +265,15 @@ const updateDependency = async (req, res) => {
         return res.status(404).json({ message: "Activity not found" });
       }
 
-      // Update core fields if present
       let activityFieldsChanged = false;
       if (hasNameField && activity.name !== String(req.body.name ?? "")) {
         activity.name = String(req.body.name ?? "");
         activityFieldsChanged = true;
       }
-      if (hasDescField && activity.description !== String(req.body.description ?? "")) {
+      if (
+        hasDescField &&
+        activity.description !== String(req.body.description ?? "")
+      ) {
         activity.description = String(req.body.description ?? "");
         activityFieldsChanged = true;
       }
@@ -246,11 +286,11 @@ const updateDependency = async (req, res) => {
         activityFieldsChanged = true;
       }
 
-      // Dependencies (global master)
       let depsAdded = 0;
       for (const dep of dependencies) {
         const exists = activity.dependency?.some(
-          (d) => d.model === dep.model && String(d.model_id) === String(dep.model_id)
+          (d) =>
+            d.model === dep.model && String(d.model_id) === String(dep.model_id)
         );
         if (!exists) {
           activity.dependency.push({
@@ -264,7 +304,6 @@ const updateDependency = async (req, res) => {
         }
       }
 
-      // Predecessors (global master)
       let predsAdded = 0;
       let predsUpdated = 0;
 
@@ -318,10 +357,16 @@ const updateDependency = async (req, res) => {
         );
       }
       if (predecessors.length) {
-        parts.push(`Predecessors processed (added: ${predsAdded}, updated: ${predsUpdated})`);
+        parts.push(
+          `Predecessors processed (added: ${predsAdded}, updated: ${predsUpdated})`
+        );
       }
       if (hasFormulaUpdate) {
-        parts.push(formulaChanged ? "Completion formula updated" : "Completion formula unchanged");
+        parts.push(
+          formulaChanged
+            ? "Completion formula updated"
+            : "Completion formula unchanged"
+        );
       }
 
       return res.status(200).json({
@@ -330,9 +375,6 @@ const updateDependency = async (req, res) => {
       });
     }
 
-    // ================================
-    // ===== PROJECT (EMBEDDED)  =====
-    // ================================
     if (predecessors.length) {
       return res.status(400).json({
         message: "Predecessors can only be updated in global scope.",
@@ -368,14 +410,16 @@ const updateDependency = async (req, res) => {
       });
     }
 
-    // Update embedded activity core fields if present
     const emb = projAct.activities[idx];
     let embFieldsChanged = false;
     if (hasNameField && emb.name !== String(req.body.name ?? "")) {
       emb.name = String(req.body.name ?? "");
       embFieldsChanged = true;
     }
-    if (hasDescField && emb.description !== String(req.body.description ?? "")) {
+    if (
+      hasDescField &&
+      emb.description !== String(req.body.description ?? "")
+    ) {
       emb.description = String(req.body.description ?? "");
       embFieldsChanged = true;
     }
@@ -395,7 +439,8 @@ const updateDependency = async (req, res) => {
     let added = 0;
     for (const dep of dependencies) {
       const exists = emb.dependency.some(
-        (d) => d.model === dep.model && String(d.model_id) === String(dep.model_id)
+        (d) =>
+          d.model === dep.model && String(d.model_id) === String(dep.model_id)
       );
       if (!exists) {
         emb.dependency.push({
@@ -516,6 +561,45 @@ const deleteDependency = async (req, res) => {
   }
 };
 
+const updateProductLink = async (req, res) => {
+  try {
+     const { id } = req.params;
+     const {category_id, required_quantity=[]} = req.body;
+     if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid:id" });
+    }
+      if (!category_id || !mongoose.isValidObjectId(category_id)) {
+      return res.status(400).json({ message: "Invalid category_id" });
+    }
+    const activity = await Activity.findById(id);
+    if (!activity) {
+      return res.status(404).json({ message: "Activity not found" });
+    }
+    const exists = activity.products?.some(
+      (p) => String(p.category_id) === String(category_id)
+    );
+    if(exists){
+      activity.products = activity.products.filter(
+        (p) => String(p.category_id) !== String(category_id)
+      );
+    }
+    activity.products.push({
+      category_id,
+      required_quantity
+    });
+    await activity.save();
+    res.status(200).json({
+      message: "Product link added successfully",
+      activity,
+    });   
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   createActivity,
   editActivity,
@@ -523,4 +607,5 @@ module.exports = {
   namesearchOfActivities,
   updateDependency,
   deleteDependency,
+  updateProductLink
 };
