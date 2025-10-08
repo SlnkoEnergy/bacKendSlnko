@@ -69,7 +69,7 @@ const createApproval = async (req, res) => {
       );
     } else if (user.department?.toLowerCase() === "cam") {
       approverUsers = await User.find({
-        name: { $in: ["Sanjiv Kumar", "Sushant Ranjan Dubey"] },
+        name: { $in: ["Naresh Kumar"] },
       }).select("_id name");
     } else {
       approverUsers = await User.find({
@@ -92,7 +92,6 @@ const createApproval = async (req, res) => {
       status: "pending",
     }));
 
-    // Per-user counter for approval code
     const counterDoc = await approvalscounterModel.findOneAndUpdate(
       { user_id: userId },
       { $inc: { count: 1 } },
