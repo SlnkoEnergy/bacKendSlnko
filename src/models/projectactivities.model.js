@@ -59,6 +59,18 @@ const projectActivitySchema = new mongoose.Schema(
             remarks: String,
           },
         ],
+        products: [
+          {
+            product_id: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "Material",
+            },
+            required_quantity: {
+              quantity_formula: { type: String },
+              quantity_unit: { type: String },
+            },
+          },
+        ],
         dependency: [
           {
             model: { type: String },
