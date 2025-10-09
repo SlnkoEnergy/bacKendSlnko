@@ -30,6 +30,22 @@ const projectBalanceSchema = new mongoose.Schema(
     totalAdjustment: {
       type: Number,
     },
+    recentCredits: [
+      {
+        _id: false,
+        cr_date: Date,
+        cr_amount: Number,
+        added_by: String,
+      },
+    ],
+    recentDebits: [
+      {
+        _id: false,
+        dbt_date: Date,
+        amount_paid: Number,
+        paid_for: String,
+      },
+    ],
   },
   { timestamps: true }
 );

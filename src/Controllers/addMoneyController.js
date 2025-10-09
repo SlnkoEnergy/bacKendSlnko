@@ -6,7 +6,8 @@ const { getBill } = require("./bill.controller");
 //Add Money
 const addMoney = async (req, res) => {
   try {
-    const { p_id, submitted_by, cr_amount, cr_mode, cr_date, comment } = req.body;
+    const { p_id, submitted_by, cr_amount, cr_mode, cr_date, comment } =
+      req.body;
 
     const project = await projectModells.findOne({ p_id: Number(p_id) });
     if (!project) return res.status(404).json({ msg: "Project not found" });
@@ -21,12 +22,15 @@ const addMoney = async (req, res) => {
     });
 
     const amount = Number(cr_amount) || 0;
+
     const updatedBalance = await projectBalanceModel.findOneAndUpdate(
       { p_id: project._id },
       [
         {
           $set: {
-            totalCredited: { $add: [{ $ifNull: ["$totalCredited", 0] }, amount] },
+            totalCredited: {
+              $add: [{ $ifNull: ["$totalCredited", 0] }, amount],
+            },
             amountAvailable: {
               $subtract: [
                 { $add: [{ $ifNull: ["$totalCredited", 0] }, amount] },
@@ -39,7 +43,29 @@ const addMoney = async (req, res) => {
       { new: true, upsert: true }
     );
 
-    res.status(201).json({ msg: "Money added", data: admoney, balance: updatedBalance });
+    const creditEntry = {
+      cr_date: updatedAt ? new Date(updatedAt) : new Date(),
+      cr_amount: Number(cr_amount) || 0,
+      added_by: submitted_by || null,
+    };
+
+    await projectBalanceModel.updateOne(
+      { p_id: project._id },
+      {
+        $push: {
+          recentCredits: {
+            $each: [creditEntry],
+            $position: 0,
+            $slice: 3,
+          },
+        },
+      },
+      { upsert: true }
+    );
+
+    res
+      .status(201)
+      .json({ msg: "Money added", data: admoney, balance: updatedBalance });
   } catch (err) {
     console.error("addMoney error:", err);
     res.status(500).json({ msg: "Server error", error: err.message });

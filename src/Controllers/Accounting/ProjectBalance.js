@@ -1,6 +1,8 @@
 const projectModells = require("../../models/project.model");
 const { Parser } = require("json2csv");
 const projectBalanceModel = require("../../models/projectBalance.model");
+const addMoneyModells = require("../../models/addMoneyModells");
+const debitMoneyModells = require("../../models/debitMoneyModells");
 
 const projectBalance = async (req, res) => {
   const toNum = (expr) => ({
@@ -1352,6 +1354,7 @@ const toNum = (expr) => ({
     onNull: 0,
   },
 });
+
 const syncAllProjectBalances = async (req, res) => {
   try {
     const aggregationPipeline = [
@@ -1384,9 +1387,7 @@ const syncAllProjectBalances = async (req, res) => {
         $lookup: {
           from: "purchaseorders",
           let: { projectId: "$_id" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
-          ],
+          pipeline: [{ $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } }],
           as: "pos",
         },
       },
@@ -1427,11 +1428,7 @@ const syncAllProjectBalances = async (req, res) => {
             $round: [
               {
                 $sum: {
-                  $map: {
-                    input: "$credits",
-                    as: "c",
-                    in: toNum("$$c.cr_amount"),
-                  },
+                  $map: { input: "$credits", as: "c", in: toNum("$$c.cr_amount") },
                 },
               },
               2,
@@ -1441,11 +1438,7 @@ const syncAllProjectBalances = async (req, res) => {
             $round: [
               {
                 $sum: {
-                  $map: {
-                    input: "$debits",
-                    as: "d",
-                    in: toNum("$$d.amount_paid"),
-                  },
+                  $map: { input: "$debits", as: "d", in: toNum("$$d.amount_paid") },
                 },
               },
               2,
@@ -1455,24 +1448,8 @@ const syncAllProjectBalances = async (req, res) => {
             $round: [
               {
                 $subtract: [
-                  {
-                    $sum: {
-                      $map: {
-                        input: "$credits",
-                        as: "c",
-                        in: toNum("$$c.cr_amount"),
-                      },
-                    },
-                  },
-                  {
-                    $sum: {
-                      $map: {
-                        input: "$debits",
-                        as: "d",
-                        in: toNum("$$d.amount_paid"),
-                      },
-                    },
-                  },
+                  { $sum: { $map: { input: "$credits", as: "c", in: toNum("$$c.cr_amount") } } },
+                  { $sum: { $map: { input: "$debits", as: "d", in: toNum("$$d.amount_paid") } } },
                 ],
               },
               2,
@@ -1486,11 +1463,7 @@ const syncAllProjectBalances = async (req, res) => {
                     $sum: {
                       $map: {
                         input: {
-                          $filter: {
-                            input: "$adjustments",
-                            as: "a",
-                            cond: { $eq: ["$$a.adj_type", "Add"] },
-                          },
+                          $filter: { input: "$adjustments", as: "a", cond: { $eq: ["$$a.adj_type", "Add"] } },
                         },
                         as: "a",
                         in: { $abs: toNum("$$a.adj_amount") },
@@ -1501,11 +1474,7 @@ const syncAllProjectBalances = async (req, res) => {
                     $sum: {
                       $map: {
                         input: {
-                          $filter: {
-                            input: "$adjustments",
-                            as: "a",
-                            cond: { $eq: ["$$a.adj_type", "Subtract"] },
-                          },
+                          $filter: { input: "$adjustments", as: "a", cond: { $eq: ["$$a.adj_type", "Subtract"] } },
                         },
                         as: "a",
                         in: { $abs: toNum("$$a.adj_amount") },
@@ -1526,15 +1495,7 @@ const syncAllProjectBalances = async (req, res) => {
           paidAmount: {
             $cond: [
               { $gt: [{ $size: "$pays" }, 0] },
-              {
-                $sum: {
-                  $map: {
-                    input: "$pays",
-                    as: "p",
-                    in: toNum("$$p.amount_paid"),
-                  },
-                },
-              },
+              { $sum: { $map: { input: "$pays", as: "p", in: toNum("$$p.amount_paid") } } },
               {
                 $sum: {
                   $map: {
@@ -1614,34 +1575,21 @@ const syncAllProjectBalances = async (req, res) => {
       },
       {
         $addFields: {
-          total_po_with_gst: {
-            $round: [{ $add: ["$total_po_basic", "$gst_as_po_basic"] }, 2],
-          },
+          total_po_with_gst: { $round: [{ $add: ["$total_po_basic", "$gst_as_po_basic"] }, 2] },
         },
       },
-
       {
         $addFields: {
           totalAmountPaid: { $round: [{ $ifNull: ["$paidAmount", 0] }, 2] },
           netAdvance: {
             $round: [
-              {
-                $subtract: [
-                  { $ifNull: ["$paidAmount", 0] },
-                  { $ifNull: ["$totalBillValue", 0] },
-                ],
-              },
+              { $subtract: [{ $ifNull: ["$paidAmount", 0] }, { $ifNull: ["$totalBillValue", 0] }] },
               2,
             ],
           },
           balancePayable: {
             $round: [
-              {
-                $subtract: [
-                  { $ifNull: ["$total_po_with_gst", 0] },
-                  { $ifNull: ["$paidAmount", 0] },
-                ],
-              },
+              { $subtract: [{ $ifNull: ["$total_po_with_gst", 0] }, { $ifNull: ["$paidAmount", 0] }] },
               2,
             ],
           },
@@ -1679,12 +1627,7 @@ const syncAllProjectBalances = async (req, res) => {
             $round: [
               {
                 $subtract: [
-                  {
-                    $subtract: [
-                      { $ifNull: ["$netBalance", 0] },
-                      { $ifNull: ["$totalAmountPaid", 0] },
-                    ],
-                  },
+                  { $subtract: [{ $ifNull: ["$netBalance", 0] }, { $ifNull: ["$totalAmountPaid", 0] }] },
                   { $ifNull: ["$totalAdjustment", 0] },
                 ],
               },
@@ -1700,14 +1643,7 @@ const syncAllProjectBalances = async (req, res) => {
           tcs: {
             $cond: {
               if: { $gt: ["$netBalance", 5000000] },
-              then: {
-                $round: [
-                  {
-                    $multiply: [{ $subtract: ["$netBalance", 5000000] }, 0.001],
-                  },
-                  0,
-                ],
-              },
+              then: { $round: [{ $multiply: [{ $subtract: ["$netBalance", 5000000] }, 0.001] }, 0] },
               else: 0,
             },
           },
@@ -1716,20 +1652,65 @@ const syncAllProjectBalances = async (req, res) => {
       {
         $addFields: {
           balanceRequired: {
-            $round: [
+            $round: [{ $subtract: [{ $subtract: ["$balanceSlnko", "$balancePayable"] }, "$tcs"] }, 2],
+          },
+        },
+      },
+
+      // --- Recent credits/debits (latest 3) ---
+      {
+        $addFields: {
+          _creditsSorted: {
+            $reverseArray: { $sortArray: { input: "$credits", sortBy: { createdAt: 1 } } },
+          },
+          _debitsSorted: {
+            $reverseArray: { $sortArray: { input: "$debits", sortBy: { createdAt: 1 } } },
+          },
+        },
+      },
+      {
+        $addFields: {
+          recentCredits: {
+            $slice: [
               {
-                $subtract: [
-                  { $subtract: ["$balanceSlnko", "$balancePayable"] },
-                  "$tcs",
-                ],
+                $map: {
+                  input: "$_creditsSorted",
+                  as: "c",
+                  in: {
+                    date: "$$c.createdAt",
+                    cr_amount: toNum("$$c.cr_amount"),
+                    remarks: "$$c.comment",
+                    added_by: "$$c.submitted_by",
+                  },
+                },
               },
-              2,
+              3,
+            ],
+          },
+          recentDebits: {
+            $slice: [
+              {
+                $map: {
+                  input: "$_debitsSorted",
+                  as: "d",
+                  in: {
+                    date: "$$d.createdAt",
+                    amount_paid: toNum("$$d.amount_paid"),
+                    remarks: "$$d.remarks",
+                    paid_for: "$$d.paid_for",
+                  },
+                },
+              },
+              3,
             ],
           },
         },
       },
 
-      // --- Projection ---
+      // --- remove temp arrays before inclusion projection (IMPORTANT) ---
+      { $unset: ["_creditsSorted", "_debitsSorted"] },
+
+      // --- Projection (pure inclusion) ---
       {
         $project: {
           _id: 1,
@@ -1746,6 +1727,8 @@ const syncAllProjectBalances = async (req, res) => {
           balanceSlnko: 1,
           balancePayable: 1,
           balanceRequired: 1,
+          recentCredits: 1,
+          recentDebits: 1,
         },
       },
     ];
@@ -1753,12 +1736,9 @@ const syncAllProjectBalances = async (req, res) => {
     const results = await projectModells.aggregate(aggregationPipeline);
 
     if (!results.length) {
-      return res
-        .status(404)
-        .json({ success: false, message: "No projects found" });
+      return res.status(404).json({ success: false, message: "No projects found" });
     }
 
-    // Prepare bulk upserts
     const ops = results.map((row) => ({
       updateOne: {
         filter: { p_id: row._id },
@@ -1772,6 +1752,8 @@ const syncAllProjectBalances = async (req, res) => {
             balanceSlnko: row.balanceSlnko,
             balancePayable: row.balancePayable,
             balanceRequired: row.balanceRequired,
+            recentCredits: row.recentCredits || [],
+            recentDebits: row.recentDebits || [],
           },
         },
         upsert: true,
@@ -1790,6 +1772,7 @@ const syncAllProjectBalances = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
+
 
 const getProjectBalances = async (req, res) => {
   try {
@@ -1882,6 +1865,8 @@ const getProjectBalances = async (req, res) => {
           balanceSlnko: { $ifNull: ["$balanceSlnko", 0] },
           balancePayable: { $ifNull: ["$balancePayable", 0] },
           balanceRequired: { $ifNull: ["$balanceRequired", 0] },
+          recentCredits: { $ifNull: ["$recentCredits", []] },
+          recentDebits: { $ifNull: ["$recentDebits", []] },
           createdAt: 1,
           updatedAt: 1,
         },
@@ -1957,9 +1942,95 @@ const getProjectBalances = async (req, res) => {
   }
 };
 
+const syncRecentCreditsAndDebits = async (req, res) => {
+  try {
+    
+    const projects = await projectModells.find({}, { _id: 1, p_id: 1 }).lean();
+    if (!projects.length) {
+      return res.status(404).json({ success: false, message: "No projects found" });
+    }
+
+    
+    const ops = await Promise.all(
+      projects.map(async ({ _id: projectId, p_id: pid }) => {
+        
+        const pidCandidates = [pid];
+        const asNum = Number(pid);
+        if (!Number.isNaN(asNum)) pidCandidates.push(asNum);
+        const asStr = String(pid);
+        pidCandidates.push(asStr);
+
+       
+        const credits = await addMoneyModells
+          .find({ p_id: { $in: pidCandidates } })
+          .sort({ updatedAt: -1, createdAt: -1 })
+          .limit(3)
+          .select("cr_amount comment submitted_by cr_date createdAt")
+          .lean();
+
+        const recentCredits = credits.map((c) => ({
+          cr_date: c.updatedAt ? new Date(c.updatedAt) : (c.createdAt ? new Date(c.createdAt) : new Date()),
+          cr_amount: Number(c.cr_amount) || 0,
+          added_by: c.submitted_by || null,
+          ...(c.comment ? { remarks: c.comment } : {}),
+        }));
+
+
+        const debits = await debitMoneyModells
+          .find({ p_id: { $in: pidCandidates } })
+          .sort({ updatedAt: -1, createdAt: -1 })
+          .limit(3)
+        
+          .select("amount_paid remarks paid_for dbt_date createdAt")
+          .lean();
+
+        const recentDebits = debits.map((d) => ({
+          dbt_date: d.updatedAt ? new Date(d.updatedAt) : (d.createdAt ? new Date(d.createdAt) : new Date()),
+          amount_paid: Number(d.amount_paid) || 0,
+          paid_for: d.paid_for || null,
+          ...(d.remarks ? { remarks: d.remarks } : {}),
+        }));
+
+        return {
+          updateOne: {
+            filter: { p_id: projectId },
+            update: {
+              $set: {
+                p_id: projectId,
+                recentCredits,
+                recentDebits,
+              },
+            },
+            upsert: true,
+          },
+        };
+      })
+    );
+
+  
+    if (ops.length) {
+      await projectBalanceModel.bulkWrite(ops, { ordered: false });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Recent credits and debits synced successfully for all projects",
+      count: ops.length,
+    });
+  } catch (err) {
+    console.error("syncRecentCreditsAndDebits error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: err.message,
+    });
+  }
+};
+
 module.exports = {
   projectBalance,
   exportProjectBalance,
   syncAllProjectBalances,
   getProjectBalances,
+  syncRecentCreditsAndDebits,
 };
