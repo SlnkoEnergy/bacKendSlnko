@@ -1592,16 +1592,13 @@ const updateProjectActivityForAllProjects = async (req, res) => {
   }
 };
 
-const isFiniteNumber = (v) => Number.isFinite(Number(v));
 
 const syncActivitiesFromProjectActivity = async (req, res) => {
   try {
-    // Optional: limit to real projects
-    // const filter = { status: "project" };
-    const filter = {}; // do for all projectActivities
 
-    // 0) Preload ALL base activities once (id, order, dependency)
-    //    If your activities collection is extremely large, consider paging or scoping this.
+    const filter = {};
+
+
     const baseActsAll = await activityModel
       .find({}, { _id: 1, order: 1, dependency: 1 })
       .lean();
@@ -1609,17 +1606,17 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
     const baseById = new Map(baseActsAll.map((a) => [String(a._id), a]));
     const allBaseIds = new Set(baseById.keys());
 
-    // 1) Stream projectActivities to keep memory stable
     const cursor = projectActivity
       .find(filter, { _id: 1, activities: 1 })
       .lean()
       .cursor();
 
-    const BATCH_SIZE = 500; // tune for your dataset
+    const BATCH_SIZE = 500;
     let ops = [];
     let processed = 0;
     let updatedDocs = 0;
 
+    const isFiniteNumber = (v) => Number.isFinite(Number(v));
     for await (const paDoc of cursor) {
       processed += 1;
 
@@ -1630,7 +1627,7 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
       const now = new Date();
       let changed = false;
 
-      // Build a set of project activity ids for fast membership
+
       const projectIdSet = new Set(
         activitiesArr
           .map((a) => a?.activity_id)
@@ -1638,7 +1635,6 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
           .map((id) => String(id))
       );
 
-      // 2) Update existing activities: only order & dependency from base
       const updatedExisting = activitiesArr.map((projAct) => {
         const idStr = String(projAct.activity_id || "");
         const base = baseById.get(idStr);
@@ -1796,11 +1792,13 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
 
 const getProjectGanttChartCsv = async (req, res) => {
   try {
-    const { projectId } = req.query;
+    let { projectId, type, timeline } = req.query;
+    type = type === "site" ? "frontend" : type;
+
     const data = await projectactivitiesModel
       .findOne({ project_id: projectId })
       .populate([
-        { path: "activities.activity_id", model: "activities", select: "name" },
+        { path: "activities.activity_id", model: "activities", select: "name type" },
         { path: "activities.predecessors.activity_id", model: "activities", select: "name" },
         { path: "activities.successors.activity_id", model: "activities", select: "name" },
       ])
@@ -1812,6 +1810,12 @@ const getProjectGanttChartCsv = async (req, res) => {
 
     // Order
     data.activities.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const mpp = {};
+
+    data.activities.forEach((act) => {
+      const key = act.activity_id?._id?.toString() || act.activity_id?.toString();
+      mpp[key] = act.order || 0;
+    });
 
     const statusHelper = (plannedStart, plannedFinish, actualStart, actualFinish) => {
       if (actualFinish) return "Completed";
@@ -1857,6 +1861,7 @@ const getProjectGanttChartCsv = async (req, res) => {
       { header: "Actual Start", key: "astart", width: 16 },
       { header: "Actual End", key: "aend", width: 16 },
       { header: "Activity Status", key: "status", width: 16 },
+      { header: "Predecessors", key: "pred", width: 16 },
     ];
 
     // Build date columns (one per day) if we have a range
@@ -1930,8 +1935,30 @@ const getProjectGanttChartCsv = async (req, res) => {
       };
     };
 
+    const fillRed = (cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFFF0000" }, // A R G B -> FF opaque, then FF0000 red
+      };
+    };
+
+    const predecessorHelper = (activities, mpp) => {
+      if (!Array.isArray(activities) || activities.length === 0) return "";
+
+      const parts = activities.map((act) => {
+        const order = mpp[act.activity_id?._id?.toString() || act.activity_id?.toString()] || "";
+        return `${order + 1}${act.type || ""}+${act.lag || 0}`;
+      });
+
+      return parts.join(", ");
+    };
+
+
     for (let idx = 0; idx < data.activities.length; idx++) {
       const act = data.activities[idx];
+
+      if (type !== "all" && type !== act.activity_id.type) continue;
 
       const rowValues = {
         sno: idx + 1,
@@ -1942,13 +1969,14 @@ const getProjectGanttChartCsv = async (req, res) => {
         astart: fmtDate(act.actual_start),
         aend: fmtDate(act.actual_finish),
         status: statusHelper(act.planned_start, act.planned_finish, act.actual_start, act.actual_finish),
+        pred: predecessorHelper(act.predecessors, mpp),
       };
 
       const topRow = ws.addRow(rowValues);
-      const bottomRow = ws.addRow({}); 
+      const bottomRow = ws.addRow({});
 
-      topRow.height = 12;   
-      bottomRow.height = 12;  
+      topRow.height = 12;
+      bottomRow.height = 12;
 
       for (let c = 1; c <= baseColumns.length; c++) {
         ws.mergeCells(topRow.number, c, bottomRow.number, c);
@@ -1962,6 +1990,8 @@ const getProjectGanttChartCsv = async (req, res) => {
 
       const ps = toDateOnly(act.planned_start);
       const pf = toDateOnly(act.planned_finish);
+      const as = toDateOnly(act.actual_start);
+      const af = toDateOnly(act.actual_finish)
 
       for (let i = 0; i < dateCols.length; i++) {
         const colIdx = baseColumns.length + 1 + i;
@@ -1976,6 +2006,10 @@ const getProjectGanttChartCsv = async (req, res) => {
         if (ps && pf && d >= ps && d <= pf) {
           fillGreen(topCell);
         }
+        if (timeline === "actual" && af && pf && af > pf && d > pf && d <= af) {
+          fillRed(topCell); // your helper (currently sets red)
+        }
+
       }
     }
 
@@ -1996,6 +2030,51 @@ const getProjectGanttChartCsv = async (req, res) => {
   }
 }
 
+const getProjectSchedulePdf = async (req, res) => {
+
+  try {
+    const { projectId } = req.query;
+
+    const data = await projectactivitiesModel
+      .findOne({ project_id: projectId })
+      .populate([
+        { path: "activities.activity_id", model: "activities", select: "name" },
+        { path: "activities.predecessors.activity_id", model: "activities", select: "name" },
+        { path: "activities.successors.activity_id", model: "activities", select: "name" },
+      ])
+      .lean();
+
+    if (!data || !Array.isArray(data.activities) || data.activities.length === 0) {
+      return res.status(404).json({ message: "No activities found for this project." });
+    }
+
+    data.activities.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const statusHelper = (plannedStart, plannedFinish, actualStart, actualFinish) => {
+      if (actualFinish) return "Completed";
+      if (actualStart) return "In Progress";
+      if (plannedStart || plannedFinish) return "Not Started";
+      return "N/A";
+    };
+
+    // Normalize to date-only
+    const toDateOnly = (d) => {
+      if (!d) return null;
+      const dt = new Date(d);
+      if (Number.isNaN(dt.getTime())) return null;
+      dt.setHours(0, 0, 0, 0);
+      return dt;
+    };
+
+    const fmtDate = (d) =>
+      d
+        ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+        : "N/A";
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server error", error: error.message })
+  }
+
+}
 
 module.exports = {
   createProjectActivity,
