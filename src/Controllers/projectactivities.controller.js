@@ -1810,12 +1810,7 @@ const getProjectGanttChartCsv = async (req, res) => {
 
     // Order
     data.activities.sort((a, b) => (a.order || 0) - (b.order || 0));
-    const mpp = {};
 
-    data.activities.forEach((act) => {
-      const key = act.activity_id?._id?.toString() || act.activity_id?.toString();
-      mpp[key] = act.order || 0;
-    });
 
     const statusHelper = (plannedStart, plannedFinish, actualStart, actualFinish) => {
       if (actualFinish) return "Completed";
@@ -1931,7 +1926,7 @@ const getProjectGanttChartCsv = async (req, res) => {
       cell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FF92D050" }, 
+        fgColor: { argb: "FF92D050" },
       };
     };
 
@@ -1939,36 +1934,63 @@ const getProjectGanttChartCsv = async (req, res) => {
       cell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FFFF0000" }, 
+        fgColor: { argb: "FFFF0000" },
       };
     };
+
+    // --- helpers ---
+    const getKey = (id) => id?._id?.toString?.() ?? id?.toString?.() ?? "";
 
     const predecessorHelper = (activities, mpp) => {
       if (!Array.isArray(activities) || activities.length === 0) return "";
 
-      const parts = activities.map((act) => {
-        const order = mpp[act.activity_id?._id?.toString() || act.activity_id?.toString()] || "";
-        return `${order + 1}${act.type || ""}+${act.lag || 0}`;
-      });
-
-      return parts.join(", ");
+      return activities.map((p) => {
+        const k = getKey(p.activity_id);
+        const order = mpp instanceof Map ? mpp.get(k) : mpp[k];
+        const ordStr = Number.isFinite(order) ? String(order) : "?";
+        const typeStr = p.type || "FS";
+        const lagStr = Number.isFinite(p.lag) && p.lag !== 0 ? `+${p.lag}` : "";
+        return `${ordStr}${typeStr}${lagStr}`;
+      }).join(", ");
     };
 
+    // --- build a stable mapping FIRST (first occurrence wins) ---
+    const visible = data.activities.filter(
+      (a) => type === "all" || a?.activity_id?.type === type
+    );
 
+    const mpp = new Map(); // activityId(string) -> 1-based visible index
+    let seq = 0;
+    for (const a of visible) {
+      const k = getKey(a.activity_id);
+      if (k && !mpp.has(k)) {
+        seq += 1;       // 1-based
+        mpp.set(k, seq);
+      }
+    }
+
+    // --- now render rows WITHOUT mutating mpp ---
+    let count = 0;
     for (let idx = 0; idx < data.activities.length; idx++) {
       const act = data.activities[idx];
+      if (type !== "all" && type !== act.activity_id?.type) continue;
 
-      if (type !== "all" && type !== act.activity_id.type) continue;
+      count += 1;
 
       const rowValues = {
-        sno: idx + 1,
-        activity: (act.activity_id && act.activity_id.name) || "NA",
+        sno: count,
+        activity: act.activity_id?.name || "NA",
         duration: act.duration ?? "N/A",
         bstart: fmtDate(act.planned_start),
         bend: fmtDate(act.planned_finish),
         astart: fmtDate(act.actual_start),
         aend: fmtDate(act.actual_finish),
-        status: statusHelper(act.planned_start, act.planned_finish, act.actual_start, act.actual_finish),
+        status: statusHelper(
+          act.planned_start,
+          act.planned_finish,
+          act.actual_start,
+          act.actual_finish
+        ),
         pred: predecessorHelper(act.predecessors, mpp),
       };
 
@@ -1980,18 +2002,14 @@ const getProjectGanttChartCsv = async (req, res) => {
 
       for (let c = 1; c <= baseColumns.length; c++) {
         ws.mergeCells(topRow.number, c, bottomRow.number, c);
-      }
-
-      for (let c = 1; c <= baseColumns.length; c++) {
-        const cell = ws.getCell(topRow.number, c);
-        cell.alignment = { vertical: "middle" };
+        ws.getCell(topRow.number, c).alignment = { vertical: "middle" };
       }
       ws.getCell(topRow.number, 1).alignment = { horizontal: "center", vertical: "middle" };
 
       const ps = toDateOnly(act.planned_start);
       const pf = toDateOnly(act.planned_finish);
       const as = toDateOnly(act.actual_start);
-      const af = toDateOnly(act.actual_finish)
+      const af = toDateOnly(act.actual_finish);
 
       for (let i = 0; i < dateCols.length; i++) {
         const colIdx = baseColumns.length + 1 + i;
@@ -2003,15 +2021,13 @@ const getProjectGanttChartCsv = async (req, res) => {
         setGrid(topCell);
         setGrid(bottomCell);
 
-        if (ps && pf && d >= ps && d <= pf) {
-          fillGreen(topCell);
-        }
+        if (ps && pf && d >= ps && d <= pf) fillGreen(topCell);
         if (timeline === "actual" && af && pf && af > pf && d > pf && d <= af) {
-          fillRed(topCell); // your helper (currently sets red)
+          fillRed(topCell);
         }
-
       }
     }
+
 
     res.setHeader(
       "Content-Type",
@@ -2070,8 +2086,84 @@ const getProjectSchedulePdf = async (req, res) => {
       d
         ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
         : "N/A";
+
+    const getKey = (id) => id?._id?.toString?.() ?? id?.toString?.() ?? "";
+
+    const predecessorHelper = (activities, mpp) => {
+      if (!Array.isArray(activities) || activities.length === 0) return "";
+
+      return activities.map((p) => {
+        const k = getKey(p.activity_id);
+        const order = mpp instanceof Map ? mpp.get(k) : mpp[k];
+        const ordStr = Number.isFinite(order) ? String(order) : "?";
+        const typeStr = p.type || "FS";
+        const lagStr = Number.isFinite(p.lag) && p.lag !== 0 ? `+${p.lag}` : "";
+        return `${ordStr}${typeStr}${lagStr}`;
+      }).join(", ");
+    };
+
+    // --- build a stable mapping FIRST (first occurrence wins) ---
+    const visible = data.activities.filter(
+      (a) => type === "all" || a?.activity_id?.type === type
+    );
+
+    const mpp = new Map(); // activityId(string) -> 1-based visible index
+    let seq = 0;
+    for (const a of visible) {
+      const k = getKey(a.activity_id);
+      if (k && !mpp.has(k)) {
+        seq += 1;       // 1-based
+        mpp.set(k, seq);
+      }
+    }
+
+    const projectSchedule = data.activities.map((act) => {
+
+      return {
+        sno: count,
+        activity: act.activity_id?.name || "NA",
+        duration: act.duration ?? "N/A",
+        bstart: fmtDate(act.planned_start),
+        bend: fmtDate(act.planned_finish),
+        astart: fmtDate(act.actual_start),
+        aend: fmtDate(act.actual_finish),
+        status: statusHelper(
+          act.planned_start,
+          act.planned_finish,
+          act.actual_start,
+          act.actual_finish
+        ),
+        pred: predecessorHelper(act.predecessors, mpp),
+      };
+    });
+
+    const apiUrl = `${process.env.PDF_PORT}/projects/project-schedule-pdf`;
+
+    const axiosResponse = await axios({
+      method: "post",
+      url: apiUrl,
+      data: {
+        projectSchedule
+      },
+      responseType: "stream",
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+
+    res.set({
+      "Content-Type": axiosResponse.headers["content-type"],
+      "Content-Disposition":
+        axiosResponse.headers["content-disposition"] ||
+        `attachment; filename="Purchase_order.pdf"`,
+    })
+
+    axiosResponse.data.pipe(res);
+
   } catch (error) {
-    return res.status(500).json({ message: "Internal Server error", error: error.message })
+    console.error("PDF generation error:", error);
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 
 }
