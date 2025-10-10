@@ -794,21 +794,43 @@ const updateActivityInProject = async (req, res) => {
               },
             };
           });
-          const tasks = await triggerTasksBulk(tasksPayloads);
+          await triggerTasksBulk(tasksPayloads);
         }
       }
+      if (prevStatus === "completed" && newStatus === "in progress") {
+        activity.actual_finish = null;
+        activity.actual_start = now;
+        activity.dependency.forEach((dep) => {
+          dep.status_history.push({
+            status: "not allowed",
+            remarks: "Auto updated as status changed to in progress",
+            updatedAt: now,
+            user_id: req.user?.userId,
+          });
+        });
+      }
 
-      // Update status history + current_status
       activity.status_history = activity.status_history || [];
       activity.status_history.push({
         status: newStatus,
         updated_at: now,
-        updated_by: data.updated_by,
+        updated_by: req.user.userId,
         remarks: data.remarks || "",
       });
     }
+    if (newStatus === "not started") {
+      activity.actual_finish = null;
+      activity.actual_start = null;
+      activity.dependency.forEach((dep) => {
+        dep.status_history.push({
+          status: "not allowed",
+          remarks: "Auto updated as status changed to not started",
+          updatedAt: new Date(),
+          user_id: req.user?.userId,
+        });
+      });
+    }
 
-    /* -------- Planned fields & duration (legacy behavior) -------- */
     if (activity.planned_start && activity.planned_finish) {
       activity.duration =
         durationFromStartFinish(
@@ -973,7 +995,9 @@ const updateProjectActivityFromTemplate = async (req, res) => {
       !mongoose.isValidObjectId(projectId) ||
       !mongoose.isValidObjectId(templateId)
     ) {
-      return res.status(400).json({ message: "Invalid projectId or templateId" });
+      return res
+        .status(400)
+        .json({ message: "Invalid projectId or templateId" });
     }
 
     const template = await projectActivity
@@ -992,30 +1016,34 @@ const updateProjectActivityFromTemplate = async (req, res) => {
       return res.status(404).json({ message: "Project activity not found" });
     }
 
-    const projectIds = (projectActivityDoc.activities || []).map(a => a.activity_id).filter(Boolean);
-    const templateIds = (template.activities || []).map(a => a.activity_id).filter(Boolean);
+    const projectIds = (projectActivityDoc.activities || [])
+      .map((a) => a.activity_id)
+      .filter(Boolean);
+    const templateIds = (template.activities || [])
+      .map((a) => a.activity_id)
+      .filter(Boolean);
     const allIds = [...new Set([...projectIds, ...templateIds])];
 
     const activityDocs = await activityModel
       .find({ _id: { $in: allIds } }, { _id: 1, type: 1 })
       .lean();
-    const idToType = new Map(activityDocs.map(a => [String(a._id), a.type]));
+    const idToType = new Map(activityDocs.map((a) => [String(a._id), a.type]));
 
     const projectBackend = (projectActivityDoc.activities || []).filter(
-      pa => idToType.get(String(pa.activity_id)) === "backend"
+      (pa) => idToType.get(String(pa.activity_id)) === "backend"
     );
     const projectBackendById = new Map(
-      projectBackend.map(a => [String(a.activity_id), a])
+      projectBackend.map((a) => [String(a.activity_id), a])
     );
 
     const templateBackend = (template.activities || []).filter(
-      ta => idToType.get(String(ta.activity_id)) === "backend"
+      (ta) => idToType.get(String(ta.activity_id)) === "backend"
     );
     const templateBackendById = new Map(
-      templateBackend.map(a => [String(a.activity_id), a])
+      templateBackend.map((a) => [String(a.activity_id), a])
     );
     const templateFrontend = (template.activities || []).filter(
-      ta => idToType.get(String(ta.activity_id)) === "frontend"
+      (ta) => idToType.get(String(ta.activity_id)) === "frontend"
     );
 
     const sanitizeFromTemplate = (a) => {
@@ -1045,13 +1073,18 @@ const updateProjectActivityFromTemplate = async (req, res) => {
         dependency,
       };
     };
-    const mergedFrontend = templateFrontend.map(sanitizeFromTemplate).filter(Boolean);
+    const mergedFrontend = templateFrontend
+      .map(sanitizeFromTemplate)
+      .filter(Boolean);
 
     const updatedProjectBackend = projectBackend.map((projItem) => {
       const id = String(projItem.activity_id);
       const tmpl = templateBackendById.get(id);
       if (tmpl && Number.isFinite(tmpl.order)) {
-        return { ...projItem.toObject?.() ?? { ...projItem }, order: tmpl.order };
+        return {
+          ...(projItem.toObject?.() ?? { ...projItem }),
+          order: tmpl.order,
+        };
       }
       return projItem;
     });
@@ -1080,8 +1113,6 @@ const updateProjectActivityFromTemplate = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
-
-
 
 const updateDependencyStatus = async (req, res) => {
   try {
@@ -1564,7 +1595,7 @@ const updateProjectActivityForAllProjects = async (req, res) => {
         const activityDoc = await activityModel
           .find({}, { _id: 1, order: 1, dependency: 1, predecessors: 1 })
           .lean();
-        
+
         const newDoc = new projectActivity({
           project_id: proj._id,
           activities: activityDoc.map((a) => ({
@@ -1697,7 +1728,9 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
         if (!base) continue;
 
         // Create a minimal project activity entry
-        const baseOrder = isFiniteNumber(base.order) ? Number(base.order) : undefined;
+        const baseOrder = isFiniteNumber(base.order)
+          ? Number(base.order)
+          : undefined;
 
         const deps = Array.isArray(base.dependency) ? base.dependency : [];
         const depMapped = deps.map((d) => ({
@@ -1791,6 +1824,27 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
   }
 };
 
+const updateReorderfromActivity = async(req, res) => {
+  try {
+    const { projectId } = req.params;
+    const activity = await activityModel.find().select('_id order').lean();
+    const projectActivityDoc = await projectActivity.findOne({ project_id: projectId });
+    if (!projectActivityDoc) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const activityMap = new Map(activity.map(a => [String(a._id), a.order]));
+    projectActivityDoc.activities.forEach(act => {
+      const newOrder = activityMap.get(String(act.activity_id));
+      if (Number.isFinite(newOrder) && act.order !== newOrder) {
+        act.order = newOrder;
+      }
+    });
+    await projectActivityDoc.save();
+    return res.status(200).json({ message: "Reorder updated from activity model", projectActivityDoc}); 
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+}
 
 module.exports = {
   createProjectActivity,
@@ -1812,5 +1866,6 @@ module.exports = {
   getResources,
   updateStatusOfPlan,
   updateProjectActivityForAllProjects,
-  syncActivitiesFromProjectActivity
+  syncActivitiesFromProjectActivity,
+  updateReorderfromActivity
 };
