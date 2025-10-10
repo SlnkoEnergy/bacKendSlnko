@@ -4,6 +4,7 @@ const Counter = require("../models/materialcategorycounter.model");
 const mongoose = require("mongoose");
 const materialcategoryModel = require("../models/materialcategory.model");
 const materialModel = require("../models/material.model");
+const { isAllowedDependency } = require("../utils/isalloweddependency.utils");
 
 const addMaterialCategory = async (req, res) => {
   try {
@@ -152,9 +153,12 @@ const namesearchOfMaterialCategories = async (req, res) => {
       limit = 7,
       pr = "false",
       project_id,
+      activity = "false",
     } = req.query;
 
     const prFlag = String(pr).toLowerCase() === "true";
+    const activityFlag = String(activity).toLowerCase() === "true";
+
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.max(parseInt(limit, 10) || 7, 1);
     const skip = (pageNum - 1) * pageSize;
@@ -163,15 +167,16 @@ const namesearchOfMaterialCategories = async (req, res) => {
       status: "active",
       ...(search
         ? {
-          name: {
-            $regex: search.trim().replace(/\s+/g, ".*"),
-            $options: "i",
-          },
-        }
+            name: {
+              $regex: search.trim().replace(/\s+/g, ".*"),
+              $options: "i",
+            },
+          }
         : {}),
     };
 
-    let scopeIds = null;
+    let scopeIds = null;        
+    let allowedIds = null;     
 
     if (prFlag && project_id && mongoose.Types.ObjectId.isValid(project_id)) {
       const scopeDoc = await scopeModel
@@ -203,6 +208,7 @@ const namesearchOfMaterialCategories = async (req, res) => {
           },
           meta: {
             filteredByProjectScope: true,
+            filteredByActivityAllowedDependencies: false,
             scopeType: "slnko",
             reason: !scopeDoc
               ? "no_scope_for_project"
@@ -212,12 +218,85 @@ const namesearchOfMaterialCategories = async (req, res) => {
       }
     }
 
-    const finalFilter =
-      prFlag && project_id
-        ? {
-          ...baseFilter,
-          _id: { $in: scopeIds.map((id) => new mongoose.Types.ObjectId(id)) },
+    if (
+      activityFlag &&
+      project_id &&
+      mongoose.Types.ObjectId.isValid(project_id)
+    ) {
+      const moduleIds = await isAllowedDependency(project_id, "MaterialCategory").catch(
+        () => []
+      );
+
+      const normalizedAllowed = (Array.isArray(moduleIds) ? moduleIds : [])
+        .map((id) => id?.toString?.())
+        .filter(Boolean);
+
+      if (normalizedAllowed.length > 0) {
+        allowedIds = [...new Set(normalizedAllowed)];
+      } else {
+        return res.status(200).json({
+          message: "Material categories retrieved successfully",
+          data: [],
+          pagination: {
+            search,
+            page: pageNum,
+            pageSize,
+            total: 0,
+            totalPages: 1,
+            hasMore: false,
+            nextPage: null,
+          },
+          meta: {
+            filteredByProjectScope: Boolean(prFlag && project_id),
+            filteredByActivityAllowedDependencies: true,
+            scopeType: prFlag ? "slnko" : null,
+            reason: "no_allowed_dependencies_for_activity",
+          },
+        });
+      }
+    }
+
+    let idSet = null;
+
+    if (prFlag && scopeIds) {
+      if (activityFlag && allowedIds) {
+        const allowedSet = new Set(allowedIds);
+        const intersection = scopeIds.filter((id) => allowedSet.has(id));
+        if (intersection.length === 0) {
+          return res.status(200).json({
+            message: "Material categories retrieved successfully",
+            data: [],
+            pagination: {
+              search,
+              page: pageNum,
+              pageSize,
+              total: 0,
+              totalPages: 1,
+              hasMore: false,
+              nextPage: null,
+            },
+            meta: {
+              filteredByProjectScope: true,
+              filteredByActivityAllowedDependencies: true,
+              scopeType: "slnko",
+              reason: "no_overlap_between_scope_and_allowed",
+            },
+          });
         }
+        idSet = intersection;
+      } else {
+        idSet = scopeIds;
+      }
+    } else if (activityFlag && allowedIds) {
+      idSet = allowedIds;
+    }
+
+    const finalFilter =
+      idSet && idSet.length > 0
+        ? {
+            ...baseFilter,
+            _id: { $in: idSet.map((id) => new mongoose.Types.ObjectId(id)) },
+          }
         : baseFilter;
 
     const projection = { _id: 1, name: 1, description: 1 };
@@ -250,6 +329,8 @@ const namesearchOfMaterialCategories = async (req, res) => {
       },
       meta: {
         filteredByProjectScope: Boolean(prFlag && project_id),
+        filteredByActivityAllowedDependencies:
+          Boolean(activityFlag && project_id),
         scopeType: prFlag ? "slnko" : null,
       },
     });
@@ -260,6 +341,7 @@ const namesearchOfMaterialCategories = async (req, res) => {
     });
   }
 };
+
 
 const getAllMaterialCategoriesDropdown = async (req, res) => {
   try {
@@ -534,6 +616,9 @@ const searchNameAllProduct = async (req, res) => {
     });
   }
 };
+
+
+
 module.exports = {
   addMaterialCategory,
   getAllMaterialCategories,
