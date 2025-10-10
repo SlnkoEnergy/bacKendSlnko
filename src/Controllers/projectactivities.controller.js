@@ -2085,18 +2085,17 @@ const getProjectSchedulePdf = async (req, res) => {
   try {
     let { projectId, type, timeline } = req.query;
 
-    type = type === 'site' ? 'frontend' : 'backend';
+    type = type === 'site' ? 'frontend' : 'type';
 
     const data = await projectactivitiesModel
       .findOne({ project_id: projectId })
       .populate([
-        { path: "project_id", model: "projectDetail", select: "code name" },
+        { path: "project_id", model: "projectDetail", select: "code name customer state" },
         { path: "activities.activity_id", model: "activities", select: "name type" },
         { path: "activities.predecessors.activity_id", model: "activities", select: "name" },
         { path: "activities.successors.activity_id", model: "activities", select: "name" },
       ])
       .lean();
-    console.log(data);
 
     if (!data || !Array.isArray(data.activities) || data.activities.length === 0) {
       return res.status(404).json({ message: "No activities found for this project." });
@@ -2111,14 +2110,6 @@ const getProjectSchedulePdf = async (req, res) => {
       return "N/A";
     };
 
-    // Normalize to date-only
-    const toDateOnly = (d) => {
-      if (!d) return null;
-      const dt = new Date(d);
-      if (Number.isNaN(dt.getTime())) return null;
-      dt.setHours(0, 0, 0, 0);
-      return dt;
-    };
 
     const fmtDate = (d) =>
       d
@@ -2175,14 +2166,16 @@ const getProjectSchedulePdf = async (req, res) => {
       };
     });
 
-    const apiUrl = "http://localhost:8010/v1/projects/project-schedule-pdf";
+    const apiUrl = `${process.env.PDF_PORT}/projects/project-schedule-pdf`;
     const axiosResponse = await axios({
       method: "POST",
       url: apiUrl,
       data: {
+        customer: data.project_id.customer,
+        state: data.project_id.state,
         project_code : data.project_id.code,
         project_name : data.project_id.name,
-        projectSchedule
+        data: projectSchedule
       },
       responseType: "stream",
       maxContentLength: Infinity,
