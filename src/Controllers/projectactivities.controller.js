@@ -2200,6 +2200,27 @@ const getProjectSchedulePdf = async (req, res) => {
   }
 
 }
+const updateReorderfromActivity = async(req, res) => {
+  try {
+    const { projectId } = req.params;
+    const activity = await activityModel.find().select('_id order').lean();
+    const projectActivityDoc = await projectActivity.findOne({ project_id: projectId });
+    if (!projectActivityDoc) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const activityMap = new Map(activity.map(a => [String(a._id), a.order]));
+    projectActivityDoc.activities.forEach(act => {
+      const newOrder = activityMap.get(String(act.activity_id));
+      if (Number.isFinite(newOrder) && act.order !== newOrder) {
+        act.order = newOrder;
+      }
+    });
+    await projectActivityDoc.save();
+    return res.status(200).json({ message: "Reorder updated from activity model", projectActivityDoc}); 
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+}
 
 module.exports = {
   createProjectActivity,
