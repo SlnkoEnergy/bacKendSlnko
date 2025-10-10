@@ -2222,6 +2222,6 @@ module.exports = {
   updateStatusOfPlan,
   updateProjectActivityForAllProjects,
   syncActivitiesFromProjectActivity,
-  getProjectGanttChartCsv
+  getProjectGanttChartCsv,
   updateReorderfromActivity
 };
