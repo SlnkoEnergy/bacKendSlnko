@@ -16,7 +16,6 @@ const projectBalanceModel = require("../models/projectBalance.model");
 const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
 const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
 
-
 const toNum = (expr) => ({
   $convert: {
     input: {
@@ -66,8 +65,10 @@ const aggregationPipeline = [
   {
     $lookup: {
       from: "purchaseorders",
-      localField: "code",
-      foreignField: "p_id",
+      let: { projectId: "$_id" },
+      pipeline: [
+        { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
+      ],
       as: "pos",
     },
   },
@@ -1230,22 +1231,44 @@ const utrUpdate = async function (req, res) {
 
       if (results.length) {
         const row = results[0];
-        await projectBalanceModel.updateOne(
-          { p_id: row._id },
-          {
-            $set: {
-              p_id: row._id,
-              totalCredited: row.totalCredit,
-              totalDebited: row.totalDebit,
-              amountAvailable: row.availableAmount,
-              totalAdjustment: row.totalAdjustment,
-              balanceSlnko: row.balanceSlnko,
-              balancePayable: row.balancePayable,
-              balanceRequired: row.balanceRequired,
-            },
+
+        const debitEntry = utrChanged
+          ? {
+              dbt_date: payment.updatedAt ? new Date(payment.updatedAt) : new Date(),
+              amount_paid: Number(payment.amount_paid) || 0,
+              remarks:
+                payment.remarks || payment.comment || payment.note || null,
+              paid_for: payment.paid_for || null,
+            }
+          : null;
+
+        const updateDoc = {
+          $set: {
+            p_id: row._id,
+            totalCredited: row.totalCredit,
+            totalDebited: row.totalDebit,
+            amountAvailable: row.availableAmount,
+            totalAdjustment: row.totalAdjustment,
+            balanceSlnko: row.balanceSlnko,
+            balancePayable: row.balancePayable,
+            balanceRequired: row.balanceRequired,
           },
-          { upsert: true, session }
-        );
+        };
+
+        if (utrChanged && debitEntry) {
+          updateDoc.$push = {
+            recentDebits: {
+              $each: [debitEntry],
+              $position: 0,
+              $slice: 3,
+            },
+          };
+        }
+
+        await projectBalanceModel.updateOne({ p_id: row._id }, updateDoc, {
+          upsert: true,
+          session,
+        });
       }
 
       httpStatus = 200;
