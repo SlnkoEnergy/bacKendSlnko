@@ -16,6 +16,7 @@ const projectModel = require("../models/project.model");
 const projectactivitiesModel = require("../models/projectactivities.model");
 const { Parser } = require('json2csv')
 const ExcelJS = require("exceljs");
+const axios = require('axios')
 
 function stripTemplateCode(payload = {}) {
   const { template_code, ...rest } = payload;
@@ -2082,12 +2083,15 @@ const getProjectGanttChartCsv = async (req, res) => {
 const getProjectSchedulePdf = async (req, res) => {
 
   try {
-    const { projectId } = req.query;
+    let { projectId, type, timeline } = req.query;
+
+    type = type === 'site' ? 'frontend' : 'type';
 
     const data = await projectactivitiesModel
       .findOne({ project_id: projectId })
       .populate([
-        { path: "activities.activity_id", model: "activities", select: "name" },
+        { path: "project_id", model: "projectDetail", select: "code name customer state" },
+        { path: "activities.activity_id", model: "activities", select: "name type" },
         { path: "activities.predecessors.activity_id", model: "activities", select: "name" },
         { path: "activities.successors.activity_id", model: "activities", select: "name" },
       ])
@@ -2106,14 +2110,6 @@ const getProjectSchedulePdf = async (req, res) => {
       return "N/A";
     };
 
-    // Normalize to date-only
-    const toDateOnly = (d) => {
-      if (!d) return null;
-      const dt = new Date(d);
-      if (Number.isNaN(dt.getTime())) return null;
-      dt.setHours(0, 0, 0, 0);
-      return dt;
-    };
 
     const fmtDate = (d) =>
       d
@@ -2150,10 +2146,10 @@ const getProjectSchedulePdf = async (req, res) => {
       }
     }
 
-    const projectSchedule = data.activities.map((act) => {
+    const projectSchedule = visible.map((act, idx) => {
 
       return {
-        sno: count,
+        sno: idx + 1,
         activity: act.activity_id?.name || "NA",
         duration: act.duration ?? "N/A",
         bstart: fmtDate(act.planned_start),
@@ -2171,12 +2167,15 @@ const getProjectSchedulePdf = async (req, res) => {
     });
 
     const apiUrl = `${process.env.PDF_PORT}/projects/project-schedule-pdf`;
-
     const axiosResponse = await axios({
-      method: "post",
+      method: "POST",
       url: apiUrl,
       data: {
-        projectSchedule
+        customer: data.project_id.customer,
+        state: data.project_id.state,
+        project_code : data.project_id.code,
+        project_name : data.project_id.name,
+        data: projectSchedule
       },
       responseType: "stream",
       maxContentLength: Infinity,
@@ -2187,7 +2186,7 @@ const getProjectSchedulePdf = async (req, res) => {
       "Content-Type": axiosResponse.headers["content-type"],
       "Content-Disposition":
         axiosResponse.headers["content-disposition"] ||
-        `attachment; filename="Purchase_order.pdf"`,
+        `attachment; filename="Project_Schedule.pdf"`,
     })
 
     axiosResponse.data.pipe(res);
@@ -2200,7 +2199,9 @@ const getProjectSchedulePdf = async (req, res) => {
   }
 
 }
-const updateReorderfromActivity = async(req, res) => {
+
+
+const updateReorderfromActivity = async (req, res) => {
   try {
     const { projectId } = req.params;
     const activity = await activityModel.find().select('_id order').lean();
@@ -2216,7 +2217,7 @@ const updateReorderfromActivity = async(req, res) => {
       }
     });
     await projectActivityDoc.save();
-    return res.status(200).json({ message: "Reorder updated from activity model", projectActivityDoc}); 
+    return res.status(200).json({ message: "Reorder updated from activity model", projectActivityDoc });
   } catch (error) {
     res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
@@ -2244,5 +2245,6 @@ module.exports = {
   updateProjectActivityForAllProjects,
   syncActivitiesFromProjectActivity,
   getProjectGanttChartCsv,
+  getProjectSchedulePdf,
   updateReorderfromActivity
 };
