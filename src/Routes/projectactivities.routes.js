@@ -20,7 +20,9 @@ const {
   updateStatusOfPlan,
   updateProjectActivityForAllProjects,
   syncActivitiesFromProjectActivity,
+  getProjectGanttChartCsv,
   updateReorderfromActivity,
+  getProjectSchedulePdf,
 } = require("../Controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
@@ -109,11 +111,9 @@ router.put(
   jwtMW.authentication,
   updateProjectActivityForAllProjects
 );
-router.put(
-  "/syncactivity",
-  jwtMW.authentication,
-  syncActivitiesFromProjectActivity
-);
+router.put('/syncactivity', jwtMW.authentication, syncActivitiesFromProjectActivity);
+router.get('/get-project-csv', jwtMW.authentication, getProjectGanttChartCsv);
+router.get('/get-project-pdf', jwtMW.authentication, getProjectSchedulePdf);
 router.put(
   "/reorderfromactivity/:projectId",
   jwtMW.authentication,
