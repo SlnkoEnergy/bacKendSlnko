@@ -1931,7 +1931,7 @@ const getProjectGanttChartCsv = async (req, res) => {
       cell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FF92D050" }, // green
+        fgColor: { argb: "FF92D050" }, 
       };
     };
 
@@ -1939,7 +1939,7 @@ const getProjectGanttChartCsv = async (req, res) => {
       cell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FFFF0000" }, // A R G B -> FF opaque, then FF0000 red
+        fgColor: { argb: "FFFF0000" }, 
       };
     };
 
