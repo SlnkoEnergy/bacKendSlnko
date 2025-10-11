@@ -185,24 +185,73 @@ const createhandoversheet = async function (req, res) {
 
 const gethandoversheetdata = async function (req, res) {
   try {
-    const page  = parseInt(req.query.page)  || 1;
+    const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 100;
-    const skip  = (page - 1) * limit;
-    const search = req.query.search || "";
-    const statusFilter = req.query.status;
+    const skip = (page - 1) * limit;
 
+    const search = req.query.search || "";
+    const statusFilter = req.query.status || "";
+
+    const createdAtFromRaw = req.query.createdAtFrom || "";
+    const createdAtToRaw = req.query.createdAtTo || "";
+
+    const parseDateOnly = (s) => {
+      if (!s || typeof s !== "string") return null;
+      const iso = new Date(s);
+      if (!Number.isNaN(iso.getTime())) {
+        return {
+          y: iso.getUTCFullYear(),
+          m: iso.getUTCMonth() + 1,
+          d: iso.getUTCDate(),
+        };
+      }
+      // support DD-MM-YYYY
+      const dmy = /^(\d{2})-(\d{2})-(\d{4})$/;
+      const ymd = /^(\d{4})-(\d{2})-(\d{2})$/;
+      let y, m, d;
+      if (dmy.test(s)) {
+        const m1 = s.match(dmy);
+        d = parseInt(m1[1], 10);
+        m = parseInt(m1[2], 10);
+        y = parseInt(m1[3], 10);
+      } else if (ymd.test(s)) {
+        const m2 = s.match(ymd);
+        y = parseInt(m2[1], 10);
+        m = parseInt(m2[2], 10);
+        d = parseInt(m2[3], 10);
+      } else {
+        return null;
+      }
+      // Basic validation
+      if (!y || !m || !d) return null;
+      return { y, m, d };
+    };
+    const startOfDayUTC = ({ y, m, d }) =>
+      new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+    const endOfDayUTC = ({ y, m, d }) =>
+      new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+
+    const fromParts = parseDateOnly(createdAtFromRaw);
+    const toParts = parseDateOnly(createdAtToRaw);
+
+    const createdAtMatch = {};
+    if (fromParts) createdAtMatch.$gte = startOfDayUTC(fromParts);
+    if (toParts) createdAtMatch.$lte = endOfDayUTC(toParts);
+
+    // --------------- role / search / status filters ----------------
     const userId = req.user.userId;
     const userDoc = await userModells.findById(userId).lean();
     const isBD = userDoc?.role === "BD";
 
     const matchConditions = { $and: [] };
+
     if (isBD) {
       const uid = new mongoose.Types.ObjectId(userId);
       matchConditions.$and.push({
         $or: [
           { "other_details.submitted_by_BD": uid },
           { submitted_by: uid },
-          { assigned_to: uid }, 
+          { assigned_to: uid },
         ],
       });
     }
@@ -210,32 +259,42 @@ const gethandoversheetdata = async function (req, res) {
     if (search) {
       matchConditions.$and.push({
         $or: [
-          { "customer_details.code":     { $regex: search, $options: "i" } },
-          { "customer_details.name":     { $regex: search, $options: "i" } },
+          { "customer_details.code": { $regex: search, $options: "i" } },
+          { "customer_details.name": { $regex: search, $options: "i" } },
           { "customer_details.customer": { $regex: search, $options: "i" } },
-          { "customer_details.state":    { $regex: search, $options: "i" } },
-          { "customer_details.p_group":  { $regex: search, $options: "i" } },
-          { "leadDetails.id":            { $regex: search, $options: "i" } },
-          { "leadDetails.scheme":        { $regex: search, $options: "i" } },
+          { "customer_details.state": { $regex: search, $options: "i" } },
+          { "customer_details.p_group": { $regex: search, $options: "i" } },
+          { "leadDetails.id": { $regex: search, $options: "i" } },
+          { "leadDetails.scheme": { $regex: search, $options: "i" } },
         ],
       });
     }
 
-    const statuses =
-      statusFilter?.split(",").map((s) => s.trim()).filter(Boolean) || [];
+    // NEW: add createdAt range to match
+    if (createdAtMatch.$gte || createdAtMatch.$lte) {
+      matchConditions.$and.push({ createdAt: createdAtMatch });
+    }
+
+    const statuses = statusFilter
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     const hasHandoverPending = statuses.includes("handoverpending");
-    const hasScopePending    = statuses.includes("scopepending");
-    const hasScopeOpen       = statuses.includes("scopeopen");
+    const hasScopePending = statuses.includes("scopepending");
+    const hasScopeOpen = statuses.includes("scopeopen");
 
     const actualStatuses = statuses.filter(
-      (s) => s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
+      (s) =>
+        s !== "handoverpending" && s !== "scopepending" && s !== "scopeopen"
     );
 
     if (actualStatuses.length === 1) {
       matchConditions.$and.push({ status_of_handoversheet: actualStatuses[0] });
     } else if (actualStatuses.length > 1) {
-      matchConditions.$and.push({ status_of_handoversheet: { $in: actualStatuses } });
+      matchConditions.$and.push({
+        status_of_handoversheet: { $in: actualStatuses },
+      });
     }
 
     if (hasHandoverPending) {
@@ -248,6 +307,7 @@ const gethandoversheetdata = async function (req, res) {
 
     const finalMatch = matchConditions.$and.length > 0 ? matchConditions : {};
 
+    // ------------------------- pipeline -------------------------
     const pipeline = [
       { $addFields: { id: { $toString: "$id" } } },
       {
@@ -286,7 +346,9 @@ const gethandoversheetdata = async function (req, res) {
           as: "submittedByUser",
         },
       },
-      { $unwind: { path: "$submittedByUser", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: { path: "$submittedByUser", preserveNullAndEmptyArrays: true },
+      },
       {
         $lookup: {
           from: "users",
@@ -295,41 +357,57 @@ const gethandoversheetdata = async function (req, res) {
           as: "submittedByBDUser",
         },
       },
-      { $unwind: { path: "$submittedByBDUser", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: {
+          path: "$submittedByBDUser",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
       {
         $lookup: {
           from: "users",
           let: {
             assignedIds: {
               $cond: [
-                { $and: [ { $isArray: "$assigned_to" }, { $gt: [ { $size: "$assigned_to" }, 0 ] } ] },
+                {
+                  $and: [
+                    { $isArray: "$assigned_to" },
+                    { $gt: [{ $size: "$assigned_to" }, 0] },
+                  ],
+                },
                 "$assigned_to.user_id",
-                [ "$assigned_to" ] 
-              ]
-            }
+                ["$assigned_to"],
+              ],
+            },
           },
           pipeline: [
             { $match: { $expr: { $in: ["$_id", "$$assignedIds"] } } },
-            { $project: { _id: 1, name: 1, email: 1 } }
+            { $project: { _id: 1, name: 1, email: 1 } },
           ],
-          as: "assignedUsers"
-        }
+          as: "assignedUsers",
+        },
       },
       { $match: finalMatch },
     ];
+
     if (hasScopePending) {
       const matchedDocs = await hanoversheetmodells.aggregate([
         ...pipeline,
         { $project: { project_id: "$projectInfo._id", _id: 1 } },
       ]);
 
-      const projectIds = matchedDocs.map((doc) => doc.project_id).filter(Boolean);
+      const projectIds = matchedDocs
+        .map((doc) => doc.project_id)
+        .filter(Boolean);
 
       const scopes = await scopeModel
         .find(
           {
             project_id: { $in: projectIds },
-            $or: [{ status_history: { $exists: false } }, { status_history: { $size: 0 } }],
+            $or: [
+              { status_history: { $exists: false } },
+              { status_history: { $size: 0 } },
+            ],
           },
           { project_id: 1 }
         )
@@ -375,14 +453,14 @@ const gethandoversheetdata = async function (req, res) {
               submitted_by: {
                 $let: {
                   vars: { u: "$submittedByUser" },
-                  in: { $ifNull: ["$$u.name", "$$u.email"] }
-                }
+                  in: { $ifNull: ["$$u.name", "$$u.email"] },
+                },
               },
               "other_details.submitted_by_BD": {
                 $let: {
                   vars: { u: "$submittedByBDUser" },
-                  in: { $ifNull: ["$$u.name", "$$u.email"] }
-                }
+                  in: { $ifNull: ["$$u.name", "$$u.email"] },
+                },
               },
               assigned_to: {
                 $cond: [
@@ -400,25 +478,27 @@ const gethandoversheetdata = async function (req, res) {
                                   $filter: {
                                     input: "$assignedUsers",
                                     as: "u",
-                                    cond: { $eq: ["$$u._id", "$$a.user_id"] }
-                                  }
-                                }
-                              }
+                                    cond: { $eq: ["$$u._id", "$$a.user_id"] },
+                                  },
+                                },
+                              },
                             },
-                            in: { $ifNull: ["$$matched.name", "$$matched.email"] }
-                          }
+                            in: {
+                              $ifNull: ["$$matched.name", "$$matched.email"],
+                            },
+                          },
                         },
-                        status: "$$a.status"
-                      }
-                    }
+                        status: "$$a.status",
+                      },
+                    },
                   },
                   {
                     $let: {
                       vars: { u: { $first: "$assignedUsers" } },
-                      in: { $ifNull: ["$$u.name", "$$u.email"] }
-                    }
-                  }
-                ]
+                      in: { $ifNull: ["$$u.name", "$$u.email"] },
+                    },
+                  },
+                ],
               },
             },
           },
@@ -428,7 +508,7 @@ const gethandoversheetdata = async function (req, res) {
 
     const result = await hanoversheetmodells.aggregate(pipeline);
     const total = result?.[0]?.metadata?.[0]?.total || 0;
-    const data  = result?.[0]?.data || [];
+    const data = result?.[0]?.data || [];
 
     res.status(200).json({
       message: "Data fetched successfully",
@@ -791,19 +871,19 @@ const updatestatus = async function (req, res) {
             activity_id: act._id,
             dependency: Array.isArray(act.dependency)
               ? act.dependency.map((d) => ({
-                model: d.model,
-                model_id: d.model_id,
-                model_id_name: d.model_id_name,
-                updatedAt: d.updatedAt || new Date(),
-                updated_by: d.updated_by || req.user.userId,
-              }))
+                  model: d.model,
+                  model_id: d.model_id,
+                  model_id_name: d.model_id_name,
+                  updatedAt: d.updatedAt || new Date(),
+                  updated_by: d.updated_by || req.user.userId,
+                }))
               : [],
             predecessors: Array.isArray(act.predecessors)
               ? act.predecessors.map((p) => ({
-                activity_id: p.activity_id,
-                type: p.type,
-                lag: p.lag,
-              }))
+                  activity_id: p.activity_id,
+                  type: p.type,
+                  lag: p.lag,
+                }))
               : [],
             planned_start,
             planned_finish,
@@ -1172,16 +1252,16 @@ const updateAssignedTo = async function (req, res) {
 
 const ManipulateHandoverSubmittedBy = async (req, res) => {
   try {
-
     const handovers = await handoversheetModells.find();
 
-    // comment out this part 
+    // comment out this part
     for (let h of handovers) {
-
       if (h.submitted_by && mongoose.Types.ObjectId.isValid(h.submitted_by)) {
         await handoversheetModells.updateOne(
           { _id: h._id },
-          { $set: { submitted_by: new mongoose.Types.ObjectId(h.submitted_by) } }
+          {
+            $set: { submitted_by: new mongoose.Types.ObjectId(h.submitted_by) },
+          }
         );
         console.log(`Migrated submitted_by for ${h._id}`);
       }
@@ -1189,48 +1269,52 @@ const ManipulateHandoverSubmittedBy = async (req, res) => {
 
     // // comment out this part and update model
     for (let h of handovers) {
-
       if (h.submitted_by && mongoose.Types.ObjectId.isValid(h.submitted_by)) {
-
         await handoversheetModells.updateOne(
           { _id: h._id },
           { $set: { assigned_to: new mongoose.Types.ObjectId(h.submitted_by) } }
         );
-        console.log(`ADD assigned To in handover ${h._id} `)
-      }
-      else {
-        console.log(`Error ${h._id}`)
+        console.log(`ADD assigned To in handover ${h._id} `);
+      } else {
+        console.log(`Error ${h._id}`);
       }
     }
 
     for (let h of handovers) {
-
-      if (h.other_details.submitted_by_BD && mongoose.Types.ObjectId.isValid(h.other_details.submitted_by_BD)) {
+      if (
+        h.other_details.submitted_by_BD &&
+        mongoose.Types.ObjectId.isValid(h.other_details.submitted_by_BD)
+      ) {
         await handoversheetModells.updateOne(
           { _id: h._id },
-          { $set: { "other_details.submitted_by_BD": new mongoose.Types.ObjectId(h.other_details.submitted_by_BD) } }
+          {
+            $set: {
+              "other_details.submitted_by_BD": new mongoose.Types.ObjectId(
+                h.other_details.submitted_by_BD
+              ),
+            },
+          }
         );
         console.log(`Migrated submitted_by for Other detail ${h._id}`);
       }
     }
 
-
-    res.status(200).json({ message: "Data Manipulate Successfully" })
+    res.status(200).json({ message: "Data Manipulate Successfully" });
   } catch (error) {
-    res.status(500).json({ message: "ERRor", error: error })
+    res.status(500).json({ message: "ERRor", error: error });
   }
-}
+};
 const ManipulateHandover = async (req, res) => {
   try {
     const handovers = await handoversheetModells.find();
 
-
-    // change submitted by  into string object 
+    // change submitted by  into string object
 
     for (let h of handovers) {
       if (mongoose.Types.ObjectId.isValid(h.submitted_by)) continue;
 
-      if (typeof h.submitted_by !== "string" || h.submitted_by.trim() === "") continue;
+      if (typeof h.submitted_by !== "string" || h.submitted_by.trim() === "")
+        continue;
 
       const submittedByName = h.submitted_by?.trim();
 
@@ -1240,28 +1324,37 @@ const ManipulateHandover = async (req, res) => {
         ? new mongoose.Types.ObjectId(submittedByName)
         : null;
 
-      const user = await userModells.findOne({
-        $or: [
-          { name: { $regex: `^${submittedByName}`, $options: "i" } },
-          ...(objectId ? [{ _id: objectId }] : [])
-        ]
-      }).select("_id");
+      const user = await userModells
+        .findOne({
+          $or: [
+            { name: { $regex: `^${submittedByName}`, $options: "i" } },
+            ...(objectId ? [{ _id: objectId }] : []),
+          ],
+        })
+        .select("_id");
 
       if (user) {
         await handoversheetModells.updateOne(
           { _id: h._id },
           { $set: { submitted_by: user._id } }
-        )
+        );
         console.log(`Update handover ${h._id} with user ${user._id}`);
       } else {
-        console.log(`No user found for handover ${h._id} with name ${submittedByName}`);
+        console.log(
+          `No user found for handover ${h._id} with name ${submittedByName}`
+        );
       }
     }
 
     for (let h of handovers) {
-      if (mongoose.Types.ObjectId.isValid(h.other_details.submitted_by_BD)) continue;
+      if (mongoose.Types.ObjectId.isValid(h.other_details.submitted_by_BD))
+        continue;
 
-      if (typeof h.other_details.submitted_by_BD !== "string" || h.other_details.submitted_by_BD.trim() === "") continue;
+      if (
+        typeof h.other_details.submitted_by_BD !== "string" ||
+        h.other_details.submitted_by_BD.trim() === ""
+      )
+        continue;
 
       const submittedByName = h.other_details.submitted_by_BD?.trim();
 
@@ -1271,34 +1364,84 @@ const ManipulateHandover = async (req, res) => {
         ? new mongoose.Types.ObjectId(submittedByName)
         : null;
 
-      const user = await userModells.findOne({
-        $or: [
-          { name: { $regex: `^${submittedByName}`, $options: "i" } },
-          ...(objectId ? [{ _id: objectId }] : [])
-        ]
-      }).select("_id");
+      const user = await userModells
+        .findOne({
+          $or: [
+            { name: { $regex: `^${submittedByName}`, $options: "i" } },
+            ...(objectId ? [{ _id: objectId }] : []),
+          ],
+        })
+        .select("_id");
 
       if (user) {
         await handoversheetModells.updateOne(
           { _id: h._id },
           { $set: { "other_details.submitted_by_BD": user._id } }
-        )
-        console.log(`Update handover Other detail ${h._id} with user ${user._id}`);
+        );
+        console.log(
+          `Update handover Other detail ${h._id} with user ${user._id}`
+        );
       } else {
-        console.log(`No user found for handover other detail ${h._id} with name ${submittedByName}`);
+        console.log(
+          `No user found for handover other detail ${h._id} with name ${submittedByName}`
+        );
       }
     }
 
-
-    return res.status(200).json({ message: "Updated Successfully" })
+    return res.status(200).json({ message: "Updated Successfully" });
   } catch (err) {
     console.error(err);
   }
 };
 
+const manipulatesubmittedbyBD = async (req, res) => {
+  try {
+    const targetId = new mongoose.Types.ObjectId("683af1b28af4928366f0f2a9");
 
+    const filter = {
+      $or: [
+        // field is missing
+        {
+          $expr: {
+            $eq: [{ $type: "$other_details.submitted_by_BD" }, "missing"],
+          },
+        },
+        // field is null
+        {
+          $expr: { $eq: [{ $type: "$other_details.submitted_by_BD" }, "null"] },
+        },
+        // field is the empty string
+        { $expr: { $eq: ["$other_details.submitted_by_BD", ""] } },
+      ],
+    };
 
+    // Aggregation pipeline update (MongoDB 4.2+)
+    const result = await handoversheetModells.collection.updateMany(filter, [
+      {
+        $set: {
+          "other_details.submitted_by_BD": targetId,
+        },
+      },
+    ]);
 
+    // result from native driver
+    const { matchedCount = 0, modifiedCount = 0 } = result || {};
+
+    return res.status(200).json({
+      message:
+        "Replaced empty/missing submitted_by_BD with the provided ObjectId.",
+      matched: matchedCount,
+      modified: modifiedCount,
+      setTo: targetId.toHexString(),
+    });
+  } catch (error) {
+    console.error("manipulatesubmittedbyBD error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   createhandoversheet,
@@ -1312,4 +1455,5 @@ module.exports = {
   listUsersNames,
   ManipulateHandover,
   ManipulateHandoverSubmittedBy,
+  manipulatesubmittedbyBD,
 };

@@ -70,7 +70,7 @@ const createApproval = async (req, res) => {
       );
     } else if (user.department?.toLowerCase() === "cam") {
       approverUsers = await User.find({
-        name: { $in: ["Naresh Kumar"] },
+        name: { $in: ["Sushant Ranjan Dubey"] },
       }).select("_id name");
     } else {
       approverUsers = await User.find({
@@ -133,7 +133,9 @@ const getApprovalFormById = async (req, res) => {
 
     // 1) Core approval (by Approval _id)
     const approval = await Approval.findById(id)
-      .select("_id approval_code model_name model_id activity_id dependency_id created_by createdAt")
+      .select(
+        "_id approval_code model_name model_id activity_id dependency_id created_by createdAt"
+      )
       .lean();
     if (!approval) {
       return res.status(404).json({ message: "Approval not found" });
@@ -147,7 +149,9 @@ const getApprovalFormById = async (req, res) => {
       .lean();
 
     if (!pa) {
-      return res.status(404).json({ message: "Linked project activities not found" });
+      return res
+        .status(404)
+        .json({ message: "Linked project activities not found" });
     }
 
     // 3) projectactivities.project_id → projects (fetch project name & code)
@@ -159,14 +163,18 @@ const getApprovalFormById = async (req, res) => {
     }
 
     // 4) Resolve activity_name
-    const act = (pa.activities || []).find(a => String(a._id) === String(approval.activity_id));
+    const act = (pa.activities || []).find(
+      (a) => String(a._id) === String(approval.activity_id)
+    );
     const activity_name =
       act?.activity_id?.name || act?.name || "Untitled Activity";
 
     // 5) Resolve dependency_name
     let dependency_name = null;
     if (act && Array.isArray(act.dependency)) {
-      const dep = act.dependency.find(d => String(d._id) === String(approval.dependency_id));
+      const dep = act.dependency.find(
+        (d) => String(d._id) === String(approval.dependency_id)
+      );
       if (dep) {
         // Preferred: resolve via referenced model/model_id (e.g., moduleTemplates)
         if (dep.model && dep.model_id) {
@@ -213,11 +221,11 @@ const getApprovalFormById = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
-
-
 
 const getUniqueApprovalModels = async (req, res) => {
   try {
