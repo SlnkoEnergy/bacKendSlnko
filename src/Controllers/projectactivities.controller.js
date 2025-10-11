@@ -283,9 +283,9 @@ const getProjectActivitybyProjectId = async (req, res) => {
     const doc = await projectActivity
       .findOne({ project_id: projectId })
       .populate("activities.activity_id", "name description type")
-      .populate("activities.dependency.updated_by", "name")
-      .populate("activities.status_history.user_id", "name")
-      .populate("activities.current_status.user_id", "name")
+      .populate("activities.dependency.updated_by", "name attachment_url")
+      .populate("activities.status_history.user_id", "name attachment_url")
+      .populate("activities.current_status.user_id", "name attachment_url")
       .populate("created_by", "name")
       .populate(
         "project_id",
@@ -931,9 +931,9 @@ const getActivityInProject = async (req, res) => {
     const doc = await projectActivity
       .findOne({ project_id: projectId })
       .populate("activities.activity_id", "name description type")
-      .populate("activities.current_status.user_id", "name")       // <-- name here
-      .populate("activities.status_history.user_id", "name")       // (optional) also show names in history
-      .populate("activities.dependency.updated_by", "name")        // (optional) if you show this in UI
+      .populate("activities.current_status.user_id", "name attachment_url")       // <-- name here
+      .populate("activities.status_history.user_id", "name attachment_url")       // (optional) also show names in history
+      .populate("activities.dependency.updated_by", "name attachment_url")        // (optional) if you show this in UI
       .lean();
 
     if (!doc) {
