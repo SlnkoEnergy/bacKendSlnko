@@ -191,6 +191,7 @@ const {
 const upload = require("../middlewares/multer.js");
 const {
   syncAllProjectBalances,
+  syncRecentCreditsAndDebits
 } = require("../Controllers/Accounting/ProjectBalance.js");
 
 // Admin router
@@ -810,5 +811,6 @@ router.get(
   getModifiedExpenseById
 );
 router.post("/project-balances/sync-all", syncAllProjectBalances);
+router.post("/sync-recent-transactions", syncRecentCreditsAndDebits);
 
 module.exports = router;
