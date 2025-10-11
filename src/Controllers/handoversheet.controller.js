@@ -1296,9 +1296,50 @@ const ManipulateHandover = async (req, res) => {
   }
 };
 
+const manipulatesubmittedbyBD = async (req, res) => {
+  try {
+    const targetId = new mongoose.Types.ObjectId("683af1b28af4928366f0f2a9");
 
+    const filter = {
+      $or: [
+        // field is missing
+        { $expr: { $eq: [ { $type: "$other_details.submitted_by_BD" }, "missing" ] } },
+        // field is null
+        { $expr: { $eq: [ { $type: "$other_details.submitted_by_BD" }, "null" ] } },
+        // field is the empty string
+        { $expr: { $eq: [ "$other_details.submitted_by_BD", "" ] } },
+      ],
+    };
 
+    // Aggregation pipeline update (MongoDB 4.2+)
+    const result = await handoversheetModells.collection.updateMany(
+      filter,
+      [
+        {
+          $set: {
+            "other_details.submitted_by_BD": targetId,
+          },
+        },
+      ]
+    );
 
+    // result from native driver
+    const { matchedCount = 0, modifiedCount = 0 } = result || {};
+
+    return res.status(200).json({
+      message: "Replaced empty/missing submitted_by_BD with the provided ObjectId.",
+      matched: matchedCount,
+      modified: modifiedCount,
+      setTo: targetId.toHexString(),
+    });
+  } catch (error) {
+    console.error("manipulatesubmittedbyBD error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   createhandoversheet,
@@ -1312,4 +1353,5 @@ module.exports = {
   listUsersNames,
   ManipulateHandover,
   ManipulateHandoverSubmittedBy,
+  manipulatesubmittedbyBD
 };

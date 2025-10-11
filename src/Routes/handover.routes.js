@@ -11,6 +11,7 @@ const {
   updateAssignedTo,
   ManipulateHandover,
   ManipulateHandoverSubmittedBy,
+  manipulatesubmittedbyBD,
 } = require("../Controllers/handoversheet.controller.js");
 
 //handdoversheet
@@ -32,12 +33,14 @@ router.put(
 );
 router.put("/update-status/:_id", jwtMW.authentication, updatestatus);
 router.get("/get-handoversheet", jwtMW.authentication, getByIdOrLeadId);
+router.put("/migrateProject", jwtMW.authentication, migrateProjectToHandover);
+router.put("/updateAssignedto/:id", jwtMW.authentication, updateAssignedTo);
+router.get("/manipulate-handover", ManipulateHandover);
+router.get("/manipulate-handover-submitted", ManipulateHandoverSubmittedBy);
 router.put(
-  "/migrateProject",
+  "/manipulatesubmittedby",
   jwtMW.authentication,
-  migrateProjectToHandover
+  manipulatesubmittedbyBD
 );
-router.put('/updateAssignedto/:id', jwtMW.authentication, updateAssignedTo);
-router.get('/manipulate-handover', ManipulateHandover);
-router.get("/manipulate-handover-submitted", ManipulateHandoverSubmittedBy)
+
 module.exports = router;
