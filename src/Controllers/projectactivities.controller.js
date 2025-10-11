@@ -283,6 +283,9 @@ const getProjectActivitybyProjectId = async (req, res) => {
     const doc = await projectActivity
       .findOne({ project_id: projectId })
       .populate("activities.activity_id", "name description type")
+      .populate("activities.dependency.updated_by", "name attachment_url")
+      .populate("activities.status_history.user_id", "name attachment_url")
+      .populate("activities.current_status.user_id", "name attachment_url")
       .populate("created_by", "name")
       .populate(
         "project_id",
@@ -818,7 +821,7 @@ const updateActivityInProject = async (req, res) => {
       activity.status_history.push({
         status: newStatus,
         updated_at: now,
-        updated_by: req.user.userId,
+        user_id: req.user.userId,
         remarks: data.remarks || "",
       });
     }
@@ -923,25 +926,46 @@ const updateActivityInProject = async (req, res) => {
 const getActivityInProject = async (req, res) => {
   try {
     const { projectId, activityId } = req.params;
-    const projectActivityDoc = await projectActivity.findOne({
-      project_id: projectId,
-    });
-    if (!projectActivityDoc) {
+
+    // 1) Load the doc and populate nested refs on the activities array
+    const doc = await projectActivity
+      .findOne({ project_id: projectId })
+      .populate("activities.activity_id", "name description type")
+      .populate("activities.current_status.user_id", "name attachment_url")       // <-- name here
+      .populate("activities.status_history.user_id", "name attachment_url")       // (optional) also show names in history
+      .populate("activities.dependency.updated_by", "name attachment_url")        // (optional) if you show this in UI
+      .lean();
+
+    if (!doc) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const activity = projectActivityDoc.activities.find(
-      (act) => act.activity_id.toString() === activityId
-    );
+
+    // 2) Pick the single activity
+    const acts = Array.isArray(doc.activities) ? doc.activities : [];
+
+    // activityId you receive is the ObjectId of activities.activity_id
+    const activity = acts.find((act) => {
+      const id =
+        (act.activity_id && act.activity_id._id) || act.activity_id || null;
+      return String(id) === String(activityId);
+    });
+
     if (!activity) {
       return res.status(404).json({ message: "Activity not found" });
     }
-    return res.status(200).json({ message: "Activity fetched", activity });
+
+    // 3) Return populated activity (current_status.user_id will be { _id, name })
+    return res.status(200).json({
+      message: "Activity fetched",
+      activity,
+    });
   } catch (error) {
     return res
       .status(500)
       .json({ message: "Internal Server error", error: error.message });
   }
 };
+
 
 const getAllTemplateNameSearch = async (req, res) => {
   try {
