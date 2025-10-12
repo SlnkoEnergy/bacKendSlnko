@@ -25,6 +25,7 @@ const {
   getProjectsDropdown,
   getAllPosts,
   updateProjectStatusForPreviousProjects,
+  updateSubmittedByOfProject
 } = require("../Controllers/project.controller.js");
 const {
   userRegister,
@@ -190,6 +191,7 @@ const {
 const upload = require("../middlewares/multer.js");
 const {
   syncAllProjectBalances,
+  syncRecentCreditsAndDebits
 } = require("../Controllers/Accounting/ProjectBalance.js");
 
 // Admin router
@@ -282,7 +284,8 @@ router.get(
 
 router.get("/project-state-detail", jwtMW.authentication, getProjectStates);
 router.get("/allposts", jwtMW.authentication, getAllPosts);
-router.put('/updateprojectstatusforpreviousprojects', jwtMW.authentication, updateProjectStatusForPreviousProjects)
+router.put('/updateprojectstatusforpreviousprojects', jwtMW.authentication, updateProjectStatusForPreviousProjects);
+router.put('/updateprojectsubmittedby', jwtMW.authentication, updateSubmittedByOfProject)
 
 //addMoney APi
 router.post(
@@ -808,5 +811,6 @@ router.get(
   getModifiedExpenseById
 );
 router.post("/project-balances/sync-all", syncAllProjectBalances);
+router.post("/sync-recent-transactions", syncRecentCreditsAndDebits);
 
 module.exports = router;

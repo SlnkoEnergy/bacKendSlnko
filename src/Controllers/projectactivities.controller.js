@@ -13,6 +13,10 @@ const {
 const { triggerTasksBulk } = require("../utils/triggertask.utils");
 const handoversheetModel = require("../models/handoversheet.model");
 const projectModel = require("../models/project.model");
+const projectactivitiesModel = require("../models/projectactivities.model");
+const { Parser } = require('json2csv')
+const ExcelJS = require("exceljs");
+const axios = require('axios')
 
 function stripTemplateCode(payload = {}) {
   const { template_code, ...rest } = payload;
@@ -279,6 +283,9 @@ const getProjectActivitybyProjectId = async (req, res) => {
     const doc = await projectActivity
       .findOne({ project_id: projectId })
       .populate("activities.activity_id", "name description type")
+      .populate("activities.dependency.updated_by", "name attachment_url")
+      .populate("activities.status_history.user_id", "name attachment_url")
+      .populate("activities.current_status.user_id", "name attachment_url")
       .populate("created_by", "name")
       .populate(
         "project_id",
@@ -395,15 +402,15 @@ const nameSearchActivityByProjectId = async (req, res) => {
       // Optional search
       ...(searchRegex
         ? [
-            {
-              $match: {
-                $or: [
-                  { "actInfo.name": searchRegex },
-                  { "actInfo.description": searchRegex },
-                ],
-              },
+          {
+            $match: {
+              $or: [
+                { "actInfo.name": searchRegex },
+                { "actInfo.description": searchRegex },
+              ],
             },
-          ]
+          },
+        ]
         : []),
 
       // Look up dependency targets (moduletemplates and materialcategories)
@@ -794,21 +801,43 @@ const updateActivityInProject = async (req, res) => {
               },
             };
           });
-          const tasks = await triggerTasksBulk(tasksPayloads);
+          await triggerTasksBulk(tasksPayloads);
         }
       }
+      if (prevStatus === "completed" && newStatus === "in progress") {
+        activity.actual_finish = null;
+        activity.actual_start = now;
+        activity.dependency.forEach((dep) => {
+          dep.status_history.push({
+            status: "not allowed",
+            remarks: "Auto updated as status changed to in progress",
+            updatedAt: now,
+            user_id: req.user?.userId,
+          });
+        });
+      }
 
-      // Update status history + current_status
       activity.status_history = activity.status_history || [];
       activity.status_history.push({
         status: newStatus,
         updated_at: now,
-        updated_by: data.updated_by,
+        user_id: req.user.userId,
         remarks: data.remarks || "",
       });
     }
+    if (newStatus === "not started") {
+      activity.actual_finish = null;
+      activity.actual_start = null;
+      activity.dependency.forEach((dep) => {
+        dep.status_history.push({
+          status: "not allowed",
+          remarks: "Auto updated as status changed to not started",
+          updatedAt: new Date(),
+          user_id: req.user?.userId,
+        });
+      });
+    }
 
-    /* -------- Planned fields & duration (legacy behavior) -------- */
     if (activity.planned_start && activity.planned_finish) {
       activity.duration =
         durationFromStartFinish(
@@ -897,25 +926,46 @@ const updateActivityInProject = async (req, res) => {
 const getActivityInProject = async (req, res) => {
   try {
     const { projectId, activityId } = req.params;
-    const projectActivityDoc = await projectActivity.findOne({
-      project_id: projectId,
-    });
-    if (!projectActivityDoc) {
+
+    // 1) Load the doc and populate nested refs on the activities array
+    const doc = await projectActivity
+      .findOne({ project_id: projectId })
+      .populate("activities.activity_id", "name description type")
+      .populate("activities.current_status.user_id", "name attachment_url")       // <-- name here
+      .populate("activities.status_history.user_id", "name attachment_url")       // (optional) also show names in history
+      .populate("activities.dependency.updated_by", "name attachment_url")        // (optional) if you show this in UI
+      .lean();
+
+    if (!doc) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const activity = projectActivityDoc.activities.find(
-      (act) => act.activity_id.toString() === activityId
-    );
+
+    // 2) Pick the single activity
+    const acts = Array.isArray(doc.activities) ? doc.activities : [];
+
+    // activityId you receive is the ObjectId of activities.activity_id
+    const activity = acts.find((act) => {
+      const id =
+        (act.activity_id && act.activity_id._id) || act.activity_id || null;
+      return String(id) === String(activityId);
+    });
+
     if (!activity) {
       return res.status(404).json({ message: "Activity not found" });
     }
-    return res.status(200).json({ message: "Activity fetched", activity });
+
+    // 3) Return populated activity (current_status.user_id will be { _id, name })
+    return res.status(200).json({
+      message: "Activity fetched",
+      activity,
+    });
   } catch (error) {
     return res
       .status(500)
       .json({ message: "Internal Server error", error: error.message });
   }
 };
+
 
 const getAllTemplateNameSearch = async (req, res) => {
   try {
@@ -973,7 +1023,9 @@ const updateProjectActivityFromTemplate = async (req, res) => {
       !mongoose.isValidObjectId(projectId) ||
       !mongoose.isValidObjectId(templateId)
     ) {
-      return res.status(400).json({ message: "Invalid projectId or templateId" });
+      return res
+        .status(400)
+        .json({ message: "Invalid projectId or templateId" });
     }
 
     const template = await projectActivity
@@ -992,30 +1044,34 @@ const updateProjectActivityFromTemplate = async (req, res) => {
       return res.status(404).json({ message: "Project activity not found" });
     }
 
-    const projectIds = (projectActivityDoc.activities || []).map(a => a.activity_id).filter(Boolean);
-    const templateIds = (template.activities || []).map(a => a.activity_id).filter(Boolean);
+    const projectIds = (projectActivityDoc.activities || [])
+      .map((a) => a.activity_id)
+      .filter(Boolean);
+    const templateIds = (template.activities || [])
+      .map((a) => a.activity_id)
+      .filter(Boolean);
     const allIds = [...new Set([...projectIds, ...templateIds])];
 
     const activityDocs = await activityModel
       .find({ _id: { $in: allIds } }, { _id: 1, type: 1 })
       .lean();
-    const idToType = new Map(activityDocs.map(a => [String(a._id), a.type]));
+    const idToType = new Map(activityDocs.map((a) => [String(a._id), a.type]));
 
     const projectBackend = (projectActivityDoc.activities || []).filter(
-      pa => idToType.get(String(pa.activity_id)) === "backend"
+      (pa) => idToType.get(String(pa.activity_id)) === "backend"
     );
     const projectBackendById = new Map(
-      projectBackend.map(a => [String(a.activity_id), a])
+      projectBackend.map((a) => [String(a.activity_id), a])
     );
 
     const templateBackend = (template.activities || []).filter(
-      ta => idToType.get(String(ta.activity_id)) === "backend"
+      (ta) => idToType.get(String(ta.activity_id)) === "backend"
     );
     const templateBackendById = new Map(
-      templateBackend.map(a => [String(a.activity_id), a])
+      templateBackend.map((a) => [String(a.activity_id), a])
     );
     const templateFrontend = (template.activities || []).filter(
-      ta => idToType.get(String(ta.activity_id)) === "frontend"
+      (ta) => idToType.get(String(ta.activity_id)) === "frontend"
     );
 
     const sanitizeFromTemplate = (a) => {
@@ -1045,13 +1101,18 @@ const updateProjectActivityFromTemplate = async (req, res) => {
         dependency,
       };
     };
-    const mergedFrontend = templateFrontend.map(sanitizeFromTemplate).filter(Boolean);
+    const mergedFrontend = templateFrontend
+      .map(sanitizeFromTemplate)
+      .filter(Boolean);
 
     const updatedProjectBackend = projectBackend.map((projItem) => {
       const id = String(projItem.activity_id);
       const tmpl = templateBackendById.get(id);
       if (tmpl && Number.isFinite(tmpl.order)) {
-        return { ...projItem.toObject?.() ?? { ...projItem }, order: tmpl.order };
+        return {
+          ...(projItem.toObject?.() ?? { ...projItem }),
+          order: tmpl.order,
+        };
       }
       return projItem;
     });
@@ -1080,8 +1141,6 @@ const updateProjectActivityFromTemplate = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
-
-
 
 const updateDependencyStatus = async (req, res) => {
   try {
@@ -1224,13 +1283,13 @@ const getAllProjectActivityForView = async (req, res) => {
 
     const match = hasRange
       ? {
-          activities: {
-            $elemMatch: {
-              planned_start: { $lte: rangeEnd },
-              planned_finish: { $gte: rangeStart },
-            },
+        activities: {
+          $elemMatch: {
+            planned_start: { $lte: rangeEnd },
+            planned_finish: { $gte: rangeStart },
           },
-        }
+        },
+      }
       : {};
 
     const paDocs = await projectActivity
@@ -1564,7 +1623,7 @@ const updateProjectActivityForAllProjects = async (req, res) => {
         const activityDoc = await activityModel
           .find({}, { _id: 1, order: 1, dependency: 1, predecessors: 1 })
           .lean();
-        
+
         const newDoc = new projectActivity({
           project_id: proj._id,
           activities: activityDoc.map((a) => ({
@@ -1589,16 +1648,13 @@ const updateProjectActivityForAllProjects = async (req, res) => {
   }
 };
 
-const isFiniteNumber = (v) => Number.isFinite(Number(v));
 
 const syncActivitiesFromProjectActivity = async (req, res) => {
   try {
-    // Optional: limit to real projects
-    // const filter = { status: "project" };
-    const filter = {}; // do for all projectActivities
 
-    // 0) Preload ALL base activities once (id, order, dependency)
-    //    If your activities collection is extremely large, consider paging or scoping this.
+    const filter = {};
+
+
     const baseActsAll = await activityModel
       .find({}, { _id: 1, order: 1, dependency: 1 })
       .lean();
@@ -1606,17 +1662,17 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
     const baseById = new Map(baseActsAll.map((a) => [String(a._id), a]));
     const allBaseIds = new Set(baseById.keys());
 
-    // 1) Stream projectActivities to keep memory stable
     const cursor = projectActivity
       .find(filter, { _id: 1, activities: 1 })
       .lean()
       .cursor();
 
-    const BATCH_SIZE = 500; // tune for your dataset
+    const BATCH_SIZE = 500;
     let ops = [];
     let processed = 0;
     let updatedDocs = 0;
 
+    const isFiniteNumber = (v) => Number.isFinite(Number(v));
     for await (const paDoc of cursor) {
       processed += 1;
 
@@ -1627,7 +1683,7 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
       const now = new Date();
       let changed = false;
 
-      // Build a set of project activity ids for fast membership
+
       const projectIdSet = new Set(
         activitiesArr
           .map((a) => a?.activity_id)
@@ -1635,7 +1691,6 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
           .map((id) => String(id))
       );
 
-      // 2) Update existing activities: only order & dependency from base
       const updatedExisting = activitiesArr.map((projAct) => {
         const idStr = String(projAct.activity_id || "");
         const base = baseById.get(idStr);
@@ -1697,7 +1752,9 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
         if (!base) continue;
 
         // Create a minimal project activity entry
-        const baseOrder = isFiniteNumber(base.order) ? Number(base.order) : undefined;
+        const baseOrder = isFiniteNumber(base.order)
+          ? Number(base.order)
+          : undefined;
 
         const deps = Array.isArray(base.dependency) ? base.dependency : [];
         const depMapped = deps.map((d) => ({
@@ -1791,6 +1848,404 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
   }
 };
 
+const getProjectGanttChartCsv = async (req, res) => {
+  try {
+    let { projectId, type, timeline } = req.query;
+    type = type === "site" ? "frontend" : type;
+
+    const data = await projectactivitiesModel
+      .findOne({ project_id: projectId })
+      .populate([
+        { path: "activities.activity_id", model: "activities", select: "name type" },
+        { path: "activities.predecessors.activity_id", model: "activities", select: "name" },
+        { path: "activities.successors.activity_id", model: "activities", select: "name" },
+      ])
+      .lean();
+
+    if (!data || !Array.isArray(data.activities) || data.activities.length === 0) {
+      return res.status(404).json({ message: "No activities found for this project." });
+    }
+
+    // Order
+    data.activities.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+
+    const statusHelper = (plannedStart, plannedFinish, actualStart, actualFinish) => {
+      if (actualFinish) return "Completed";
+      if (actualStart) return "In Progress";
+      if (plannedStart || plannedFinish) return "Not Started";
+      return "N/A";
+    };
+
+    // Normalize to date-only
+    const toDateOnly = (d) => {
+      if (!d) return null;
+      const dt = new Date(d);
+      if (Number.isNaN(dt.getTime())) return null;
+      dt.setHours(0, 0, 0, 0);
+      return dt;
+    };
+
+    const fmtDate = (d) =>
+      d
+        ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+        : "N/A";
+
+    // Compute min start & max finish across planned
+    let minStart = null;
+    let maxFinish = null;
+    for (const act of data.activities) {
+      const ps = toDateOnly(act.planned_start);
+      const pf = toDateOnly(act.planned_finish);
+      if (ps && (!minStart || ps < minStart)) minStart = ps;
+      if (pf && (!maxFinish || pf > maxFinish)) maxFinish = pf;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet("Project Schedule");
+
+    // Base columns (fixed)
+    const baseColumns = [
+      { header: "S No.", key: "sno", width: 8 },
+      { header: "Activity", key: "activity", width: 40 },
+      { header: "Duration", key: "duration", width: 10 },
+      { header: "Baseline Start", key: "bstart", width: 16 },
+      { header: "Baseline End", key: "bend", width: 16 },
+      { header: "Actual Start", key: "astart", width: 16 },
+      { header: "Actual End", key: "aend", width: 16 },
+      { header: "Activity Status", key: "status", width: 16 },
+      { header: "Predecessors", key: "pred", width: 16 },
+    ];
+
+    // Build date columns (one per day) if we have a range
+    const dateCols = [];
+    if (minStart && maxFinish) {
+      const cur = new Date(minStart);
+      while (cur <= maxFinish) {
+        dateCols.push({
+          header: cur.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }), // 12-Oct
+          key: `d_${cur.getFullYear()}_${String(cur.getMonth() + 1).padStart(2, "0")}_${String(cur.getDate()).padStart(2, "0")}`,
+          dateObj: new Date(cur),
+        });
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+
+    ws.columns = [
+      ...baseColumns,
+      ...dateCols.map((c) => ({ header: c.header, key: c.key, width: 5 })),
+    ];
+
+    // Optional title row: timeline range
+    if (minStart && maxFinish) {
+      ws.insertRow(1, [
+        `Planned timeline: ${minStart.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })} → ${maxFinish.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })}`,
+      ]);
+      ws.mergeCells(1, 1, 1, ws.columnCount);
+      ws.getRow(1).font = { bold: true, size: 12 };
+      ws.getRow(1).alignment = { horizontal: "center" };
+    }
+
+    // Header row styling
+    const headerRowIdx = minStart && maxFinish ? 2 : 1;
+    ws.getRow(headerRowIdx).font = { bold: true };
+    ws.getRow(headerRowIdx).alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(headerRowIdx).eachCell((cell) => {
+      cell.border = {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
+      };
+    });
+
+    // Freeze header + first two columns
+    ws.views = [{ state: "frozen", xSplit: 2, ySplit: headerRowIdx }];
+
+    // Helpers
+    const setGrid = (cell) => {
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFBFBFBF" } },
+        bottom: { style: "thin", color: { argb: "FFBFBFBF" } },
+        left: { style: "thin", color: { argb: "FFBFBFBF" } },
+        right: { style: "thin", color: { argb: "FFBFBFBF" } },
+      };
+    };
+
+    const fillGreen = (cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF92D050" },
+      };
+    };
+
+    const fillRed = (cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFFF0000" },
+      };
+    };
+
+    // --- helpers ---
+    const getKey = (id) => id?._id?.toString?.() ?? id?.toString?.() ?? "";
+
+    const predecessorHelper = (activities, mpp) => {
+      if (!Array.isArray(activities) || activities.length === 0) return "";
+
+      return activities.map((p) => {
+        const k = getKey(p.activity_id);
+        const order = mpp instanceof Map ? mpp.get(k) : mpp[k];
+        const ordStr = Number.isFinite(order) ? String(order) : "?";
+        const typeStr = p.type || "FS";
+        const lagStr = Number.isFinite(p.lag) && p.lag !== 0 ? `+${p.lag}` : "";
+        return `${ordStr}${typeStr}${lagStr}`;
+      }).join(", ");
+    };
+
+    // --- build a stable mapping FIRST (first occurrence wins) ---
+    const visible = data.activities.filter(
+      (a) => type === "all" || a?.activity_id?.type === type
+    );
+
+    const mpp = new Map(); // activityId(string) -> 1-based visible index
+    let seq = 0;
+    for (const a of visible) {
+      const k = getKey(a.activity_id);
+      if (k && !mpp.has(k)) {
+        seq += 1;       // 1-based
+        mpp.set(k, seq);
+      }
+    }
+
+    // --- now render rows WITHOUT mutating mpp ---
+    let count = 0;
+    for (let idx = 0; idx < data.activities.length; idx++) {
+      const act = data.activities[idx];
+      if (type !== "all" && type !== act.activity_id?.type) continue;
+
+      count += 1;
+
+      const rowValues = {
+        sno: count,
+        activity: act.activity_id?.name || "NA",
+        duration: act.duration ?? "N/A",
+        bstart: fmtDate(act.planned_start),
+        bend: fmtDate(act.planned_finish),
+        astart: fmtDate(act.actual_start),
+        aend: fmtDate(act.actual_finish),
+        status: statusHelper(
+          act.planned_start,
+          act.planned_finish,
+          act.actual_start,
+          act.actual_finish
+        ),
+        pred: predecessorHelper(act.predecessors, mpp),
+      };
+
+      const topRow = ws.addRow(rowValues);
+      const bottomRow = ws.addRow({});
+
+      topRow.height = 12;
+      bottomRow.height = 12;
+
+      for (let c = 1; c <= baseColumns.length; c++) {
+        ws.mergeCells(topRow.number, c, bottomRow.number, c);
+        ws.getCell(topRow.number, c).alignment = { vertical: "middle" };
+      }
+      ws.getCell(topRow.number, 1).alignment = { horizontal: "center", vertical: "middle" };
+
+      const ps = toDateOnly(act.planned_start);
+      const pf = toDateOnly(act.planned_finish);
+      const as = toDateOnly(act.actual_start);
+      const af = toDateOnly(act.actual_finish);
+
+      for (let i = 0; i < dateCols.length; i++) {
+        const colIdx = baseColumns.length + 1 + i;
+        const d = dateCols[i].dateObj;
+
+        const topCell = topRow.getCell(colIdx);
+        const bottomCell = bottomRow.getCell(colIdx);
+
+        setGrid(topCell);
+        setGrid(bottomCell);
+
+        if (ps && pf && d >= ps && d <= pf) fillGreen(topCell);
+        if (timeline === "actual" && af && pf && af > pf && d > pf && d <= af) {
+          fillRed(topCell);
+        }
+      }
+    }
+
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="Project-Schedule.xlsx"'
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+}
+
+const getProjectSchedulePdf = async (req, res) => {
+
+  try {
+    let { projectId, type, timeline } = req.query;
+
+    type = type === 'site' ? 'frontend' : 'type';
+
+    const data = await projectactivitiesModel
+      .findOne({ project_id: projectId })
+      .populate([
+        { path: "project_id", model: "projectDetail", select: "code name customer state" },
+        { path: "activities.activity_id", model: "activities", select: "name type" },
+        { path: "activities.predecessors.activity_id", model: "activities", select: "name" },
+        { path: "activities.successors.activity_id", model: "activities", select: "name" },
+      ])
+      .lean();
+
+    if (!data || !Array.isArray(data.activities) || data.activities.length === 0) {
+      return res.status(404).json({ message: "No activities found for this project." });
+    }
+
+    data.activities.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const statusHelper = (plannedStart, plannedFinish, actualStart, actualFinish) => {
+      if (actualFinish) return "Completed";
+      if (actualStart) return "In Progress";
+      if (plannedStart || plannedFinish) return "Not Started";
+      return "N/A";
+    };
+
+
+    const fmtDate = (d) =>
+      d
+        ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+        : "N/A";
+
+    const getKey = (id) => id?._id?.toString?.() ?? id?.toString?.() ?? "";
+
+    const predecessorHelper = (activities, mpp) => {
+      if (!Array.isArray(activities) || activities.length === 0) return "";
+
+      return activities.map((p) => {
+        const k = getKey(p.activity_id);
+        const order = mpp instanceof Map ? mpp.get(k) : mpp[k];
+        const ordStr = Number.isFinite(order) ? String(order) : "?";
+        const typeStr = p.type || "FS";
+        const lagStr = Number.isFinite(p.lag) && p.lag !== 0 ? `+${p.lag}` : "";
+        return `${ordStr}${typeStr}${lagStr}`;
+      }).join(", ");
+    };
+
+    // --- build a stable mapping FIRST (first occurrence wins) ---
+    const visible = data.activities.filter(
+      (a) => type === "all" || a?.activity_id?.type === type
+    );
+
+    const mpp = new Map(); // activityId(string) -> 1-based visible index
+    let seq = 0;
+    for (const a of visible) {
+      const k = getKey(a.activity_id);
+      if (k && !mpp.has(k)) {
+        seq += 1;       // 1-based
+        mpp.set(k, seq);
+      }
+    }
+
+    const projectSchedule = visible.map((act, idx) => {
+
+      return {
+        sno: idx + 1,
+        activity: act.activity_id?.name || "NA",
+        duration: act.duration ?? "N/A",
+        bstart: fmtDate(act.planned_start),
+        bend: fmtDate(act.planned_finish),
+        astart: fmtDate(act.actual_start),
+        aend: fmtDate(act.actual_finish),
+        status: statusHelper(
+          act.planned_start,
+          act.planned_finish,
+          act.actual_start,
+          act.actual_finish
+        ),
+        pred: predecessorHelper(act.predecessors, mpp),
+      };
+    });
+
+    const apiUrl = `${process.env.PDF_PORT}/projects/project-schedule-pdf`;
+    const axiosResponse = await axios({
+      method: "POST",
+      url: apiUrl,
+      data: {
+        customer: data.project_id.customer,
+        state: data.project_id.state,
+        project_code : data.project_id.code,
+        project_name : data.project_id.name,
+        data: projectSchedule
+      },
+      responseType: "stream",
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+
+    res.set({
+      "Content-Type": axiosResponse.headers["content-type"],
+      "Content-Disposition":
+        axiosResponse.headers["content-disposition"] ||
+        `attachment; filename="Project_Schedule.pdf"`,
+    })
+
+    axiosResponse.data.pipe(res);
+
+  } catch (error) {
+    console.error("PDF generation error:", error);
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+
+}
+
+
+const updateReorderfromActivity = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const activity = await activityModel.find().select('_id order').lean();
+    const projectActivityDoc = await projectActivity.findOne({ project_id: projectId });
+    if (!projectActivityDoc) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const activityMap = new Map(activity.map(a => [String(a._id), a.order]));
+    projectActivityDoc.activities.forEach(act => {
+      const newOrder = activityMap.get(String(act.activity_id));
+      if (Number.isFinite(newOrder) && act.order !== newOrder) {
+        act.order = newOrder;
+      }
+    });
+    await projectActivityDoc.save();
+    return res.status(200).json({ message: "Reorder updated from activity model", projectActivityDoc });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+}
 
 module.exports = {
   createProjectActivity,
@@ -1812,5 +2267,8 @@ module.exports = {
   getResources,
   updateStatusOfPlan,
   updateProjectActivityForAllProjects,
-  syncActivitiesFromProjectActivity
+  syncActivitiesFromProjectActivity,
+  getProjectGanttChartCsv,
+  getProjectSchedulePdf,
+  updateReorderfromActivity
 };

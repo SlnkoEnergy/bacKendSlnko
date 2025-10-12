@@ -14,13 +14,15 @@ const {
   updateDependencyStatus,
   nameSearchActivityByProjectId,
   getRejectedOrNotAllowedDependencies,
-  getActivitiesByProjectId,
   reorderProjectActivities,
   getAllProjectActivityForView,
   getResources,
   updateStatusOfPlan,
   updateProjectActivityForAllProjects,
   syncActivitiesFromProjectActivity,
+  getProjectGanttChartCsv,
+  updateReorderfromActivity,
+  getProjectSchedulePdf,
 } = require("../Controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
@@ -110,5 +112,12 @@ router.put(
   updateProjectActivityForAllProjects
 );
 router.put('/syncactivity', jwtMW.authentication, syncActivitiesFromProjectActivity);
+router.get('/get-project-csv', jwtMW.authentication, getProjectGanttChartCsv);
+router.get('/get-project-pdf', jwtMW.authentication, getProjectSchedulePdf);
+router.put(
+  "/reorderfromactivity/:projectId",
+  jwtMW.authentication,
+  updateReorderfromActivity
+);
 
 module.exports = router;

@@ -1152,6 +1152,88 @@ const updateProjectStatusForPreviousProjects = async (req, res) => {
   }
 };
 
+const toObjectIdOrNull = (v) => {
+  if (!v) return null;
+  if (mongoose.isValidObjectId(v)) return new mongoose.Types.ObjectId(v);
+  if (v?._id && mongoose.isValidObjectId(v._id)) return new mongoose.Types.ObjectId(v._id);
+  return null;
+};
+
+const updateSubmittedByOfProject = async (req, res) => {
+  try {
+    // 1) Get projects where submitted_by is missing, null, or (bad) string
+    const projects = await projectModells.find(
+      {
+        $or: [
+          { submitted_by: { $exists: false } },
+          { submitted_by: null },
+          { submitted_by: { $type: "string" } }, // covers "" and any stray strings
+        ],
+      },
+      { _id: 1, p_id: 1, submitted_by: 1 }
+    ).lean();
+
+    if (!projects.length) {
+      return res.status(200).json({
+        ok: true,
+        message: "No projects need submitted_by backfill.",
+        meta: { totalProjectsChecked: 0, updated: 0, skipped: 0 },
+      });
+    }
+
+    // 2) Fetch handovers by p_id
+    const pids = projects.map((p) => p.p_id).filter(Boolean);
+    const handovers = await handoversheetModells.find(
+      { p_id: { $in: pids } },
+      { p_id: 1, submitted_by: 1 }
+    ).lean();
+    const handoverByPid = new Map(handovers.map((h) => [String(h.p_id), h]));
+
+    // 3) Build updates
+    const ops = [];
+    let updated = 0;
+    let skipped = 0;
+
+    for (const proj of projects) {
+      // we only want the ones that are exactly empty string ("") per your rule
+      if (proj.submitted_by !== "") { 
+        skipped++;
+        continue;
+      }
+
+      const h = handoverByPid.get(String(proj.p_id));
+      if (!h) { skipped++; continue; }
+
+      const sbId = toObjectIdOrNull(h.submitted_by);
+      if (!sbId) { skipped++; continue; }
+
+      ops.push({
+        updateOne: {
+          filter: { _id: proj._id },            // ❗ do NOT include submitted_by: ""
+          update: { $set: { submitted_by: sbId } },
+        },
+      });
+      updated++;
+    }
+
+    if (ops.length) {
+      await projectModells.bulkWrite(ops, { ordered: false });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      message: "submitted_by synced from handover to project (ObjectId).",
+      meta: { totalProjectsChecked: projects.length, updated, skipped },
+    });
+  } catch (error) {
+    console.error("updateSubmittedByOfProject error:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
 
 
 module.exports = {
@@ -1171,5 +1253,6 @@ module.exports = {
   getActivityLineForProject,
   getProjectsDropdown,
   getAllPosts,
-  updateProjectStatusForPreviousProjects
+  updateProjectStatusForPreviousProjects,
+  updateSubmittedByOfProject
 };
