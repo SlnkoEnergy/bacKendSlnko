@@ -464,11 +464,85 @@ const exportBills = catchAsyncError(async (req, res, next) => {
     },
     { $unwind: "$poData" },
     {
+      $addFields: {
+        created_on: { $ifNull: ["$createdAt", "$created_on"] },
+        _approved_oid: {
+          $let: {
+            vars: { t: { $type: "$approved_by" } },
+            in: {
+              $cond: [
+                { $eq: ["$$t", "objectId"] },
+                "$approved_by",
+                {
+                  $cond: [
+                    {
+                      $and: [
+                        { $eq: ["$$t", "string"] },
+                        {
+                          $regexMatch: {
+                            input: "$approved_by",
+                            regex: /^[a-f0-9]{24}$/i,
+                          },
+                        },
+                      ],
+                    },
+                    { $toObjectId: "$approved_by" },
+                    null,
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        let: { uid: "$_approved_oid" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$_id", "$$uid"] } } },
+          {
+            $project: {
+              _id: 0,
+              name: {
+                $ifNull: [
+                  "$name",
+                  {
+                    $trim: {
+                      input: {
+                        $concat: [
+                          { $ifNull: ["$first_name", ""] },
+                          " ",
+                          { $ifNull: ["$last_name", ""] },
+                        ],
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        as: "approved_user",
+      },
+    },
+    {
+      $addFields: {
+        approved_by_name: {
+          $ifNull: [
+            { $arrayElemAt: ["$approved_user.name", 0] },
+            "$approved_by",
+          ],
+        },
+      },
+    },
+    {
       $project: {
         bill_number: 1,
         bill_date: 1,
         bill_value: 1,
-        approved_by: 1,
+        approved_by: "$approved_by_name",
         created_on: { $ifNull: ["$createdAt", "$created_on"] },
         po_number: 1,
         p_id: "$poData.p_id",
