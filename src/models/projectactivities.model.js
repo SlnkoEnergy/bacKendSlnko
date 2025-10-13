@@ -10,6 +10,7 @@ const projectActivitySchema = new mongoose.Schema(
     project_id: { type: mongoose.Schema.Types.ObjectId, ref: "projectDetail" },
     name: String,
     description: String,
+
     template_code: { type: String, unique: true, index: true },
     activities: [
       {
@@ -48,14 +49,14 @@ const projectActivitySchema = new mongoose.Schema(
         current_status: {
           status: { type: String, enum: StatusEnum, default: "not started" },
           updated_at: { type: Date, default: Date.now },
-          updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+          user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
           remarks: String,
         },
         status_history: [
           {
             status: { type: String, enum: StatusEnum },
             updated_at: { type: Date, default: Date.now },
-            updated_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
             remarks: String,
           },
         ],
