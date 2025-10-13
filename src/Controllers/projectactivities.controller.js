@@ -2085,7 +2085,7 @@ const getProjectSchedulePdf = async (req, res) => {
   try {
     let { projectId, type, timeline } = req.query;
 
-    type = type === 'site' ? 'frontend' : 'type';
+    type = type === 'site' ? 'frontend' : type;
 
     const data = await projectactivitiesModel
       .findOne({ project_id: projectId })
