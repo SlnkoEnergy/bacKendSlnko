@@ -17,7 +17,7 @@ const dprSchema = new mongoose.Schema(
       {
         status: {
           type: String,
-          enum:["completed", "in progress", "pending", "ideal", "draft"]
+          enum: ["completed", "in progress", "pending", "ideal", "draft"],
         },
         remarks: { type: String },
         user_id: {
@@ -29,7 +29,7 @@ const dprSchema = new mongoose.Schema(
     current_status: {
       status: {
         type: String,
-        enum:["completed", "in progress", "pending", "ideal", "draft"]
+        enum: ["completed", "in progress", "pending", "ideal", "draft"],
       },
       remarks: { type: String },
       user_id: {

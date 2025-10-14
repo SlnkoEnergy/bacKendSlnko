@@ -315,7 +315,7 @@ router.get("/get-pO-IT/:_id", jwtMW.authentication, getPO);
 router.get("/get-all-pO-IT", jwtMW.authentication, getallpo);
 router.get("/get-paginated-po", jwtMW.authentication, getPaginatedPo);
 router.get("/get-po-basic", jwtMW.authentication, getPoBasic);
-router.get("/get-export-po", jwtMW.authentication, getExportPo);
+router.post("/get-export-po", jwtMW.authentication, getExportPo);
 router.post("/export-to-csv", jwtMW.authentication, exportCSV);
 router.put("/remove-to-recovery/:_id", jwtMW.authentication, moverecovery);
 router.get("/get-po-by-po_number", jwtMW.authentication, getPOByPONumber);
