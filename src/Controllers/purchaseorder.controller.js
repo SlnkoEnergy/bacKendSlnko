@@ -1662,47 +1662,38 @@ const getPaginatedPo = async (req, res) => {
 
 const getExportPo = async (req, res) => {
   try {
-    const { from, to, export: exportAll } = req.query;
+    const toArray = (v) =>
+      Array.isArray(v) ? v :
+      typeof v === "string" ? v.split(",").map(s => s.trim()).filter(Boolean) : [];
 
-    let matchStage = {};
-    const parseDate = (str) => {
-      const [day, month, year] = str.split("-").map(Number);
-      return new Date(year, month - 1, day);
-    };
+    const rawIds = [...toArray(req.body?.purchaseorders), ...toArray(req.query?.purchaseorders)];
+    const validIds = rawIds
+      .map((id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null))
+      .filter(Boolean);
 
-    if (exportAll !== "all") {
-      if (!from || !to) {
-        return res.status(400).json({ msg: "from and to dates are required" });
-      }
-
-      const fromDate = parseDate(from);
-      const toDate = parseDate(to);
-      toDate.setHours(23, 59, 59, 999);
-
-      matchStage = {
-        date: {
-          $gte: fromDate,
-          $lte: toDate,
-        },
-      };
+    if (!validIds.length) {
+      return res.status(400).json({ msg: "No valid PO ids provided." });
     }
 
-    const rawData = await purchaseOrderModells.find(matchStage).lean();
+    const matchStage = { _id: { $in: validIds } };
 
+    // ---- aggregation: one row per item ----
     const pipeline = [
       { $match: matchStage },
 
       {
         $addFields: {
-          po_number: { $toString: "$po_number" },
-          po_value: { $toDouble: "$po_value" },
+          po_number_str: { $toString: "$po_number" },
+          po_value_num: { $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 } },
+          total_billed_num: { $convert: { input: "$total_billed", to: "double", onError: 0, onNull: 0 } },
         },
       },
 
+      // Sum of approved payments with UTR for this PO
       {
         $lookup: {
           from: "payrequests",
-          let: { poNumber: "$po_number" },
+          let: { poNumber: "$po_number_str" },
           pipeline: [
             {
               $match: {
@@ -1716,162 +1707,148 @@ const getExportPo = async (req, res) => {
                 },
               },
             },
+            {
+              $project: {
+                amount_paid: {
+                  $convert: { input: "$amount_paid", to: "double", onError: 0, onNull: 0 },
+                },
+              },
+            },
           ],
           as: "approvedPayments",
         },
       },
+      { $addFields: { amount_paid_num: { $sum: "$approvedPayments.amount_paid" } } },
 
-      {
-        $lookup: {
-          from: "biildetails",
-          localField: "po_number",
-          foreignField: "po_number",
-          as: "billData",
-        },
-      },
+      // explode items
+      { $unwind: { path: "$item", preserveNullAndEmptyArrays: false } },
 
+      // per-item numeric conversions & computed totals
       {
         $addFields: {
-          amount_paid: {
-            $sum: {
-              $map: {
-                input: "$approvedPayments",
-                as: "pay",
-                in: {
-                  $convert: {
-                    input: "$$pay.amount_paid",
-                    to: "double",
-                    onError: 0,
-                    onNull: 0,
-                  },
-                },
-              },
-            },
+          item_category_name: { $ifNull: ["$item.category_name", "-"] },
+          item_product_name: { $ifNull: ["$item.product_name", "-"] },
+          item_uom: { $ifNull: ["$item.uom", "-"] },
+          item_quantity_num: {
+            $convert: { input: "$item.quantity", to: "double", onError: 0, onNull: 0 },
           },
-          total_billed: {
-            $sum: {
-              $map: {
-                input: "$billData",
-                as: "b",
-                in: {
-                  $convert: {
-                    input: "$$b.bill_value",
-                    to: "double",
-                    onError: 0,
-                    onNull: 0,
-                  },
-                },
-              },
-            },
+          item_unit_price_num: {
+            $convert: { input: "$item.cost", to: "double", onError: 0, onNull: 0 },
+          },
+          item_gst_percent_num: {
+            $convert: { input: "$item.gst_percent", to: "double", onError: 0, onNull: 0 },
           },
         },
       },
-
       {
         $addFields: {
-          partial_billing: {
-            $cond: {
-              if: { $lt: ["$total_billed", "$po_value"] },
-              then: "Bill Pending",
-              else: "Fully Billed",
-            },
-          },
-          billingTypes: {
-            $cond: {
-              if: { $gt: [{ $size: "$billData" }, 0] },
-              then: {
-                $let: {
-                  vars: {
-                    sorted: {
-                      $slice: [
-                        {
-                          $filter: {
-                            input: {
-                              $sortArray: {
-                                input: "$billData",
-                                sortBy: { updatedAt: -1 },
-                              },
-                            },
-                            as: "d",
-                            cond: { $ne: ["$$d.type", null] },
-                          },
-                        },
-                        1,
-                      ],
-                    },
-                  },
-                  in: { $arrayElemAt: ["$$sorted.type", 0] },
-                },
-              },
-              else: "-",
-            },
+          line_basic: { $multiply: ["$item_quantity_num", "$item_unit_price_num"] },
+          line_gst_amount: {
+            $multiply: [
+              { $multiply: ["$item_quantity_num", "$item_unit_price_num"] },
+              { $divide: ["$item_gst_percent_num", 100] },
+            ],
           },
         },
       },
+      { $addFields: { line_total_incl_gst: { $add: ["$line_basic", "$line_gst_amount"] } } },
 
       {
         $project: {
           _id: 0,
-          po_number: 1,
+          // PO-level
           p_id: 1,
+          po_number: "$po_number_str",
           vendor: 1,
-          item: 1,
           date: 1,
-          po_value: 1,
-          amount_paid: 1,
-          total_billed: 1,
-          partial_billing: 1,
-          type: "$billingTypes",
+          po_value_num: 1,
+          amount_paid_num: 1,
+          total_billed_num: 1,
+          category_name: "$item_category_name",
+          product_name: "$item_product_name",
+          uom: "$item_uom",
+          quantity: "$item_quantity_num",
+          unit_price: "$item_unit_price_num",
+          gst_percent: "$item_gst_percent_num",
+          line_basic: 1,
+          line_total_incl_gst: 1,
         },
       },
     ];
 
-    const result = await purchaseOrderModells.aggregate(pipeline);
+    const rowsAgg = await purchaseOrderModells.aggregate(pipeline);
 
-    // Format fields
-    const formatDate = (date) =>
-      date
-        ? new Date(date)
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-            .replace(/ /g, "/")
-        : "";
+    const formatDate = (d) => {
+      if (!d) return "";
+      const dt = new Date(d);
+      if (isNaN(dt)) return "";
+      const dd = String(dt.getDate()).padStart(2, "0");
+      const mon = dt.toLocaleString("en-GB", { month: "short" });
+      const yy = String(dt.getFullYear()).slice(-2);
+      return `${dd}-${mon}-${yy}`;
+    };
 
-    const formatted = result.map((item) => ({
-      ...item,
-      date: formatDate(item.date),
-      po_value: Number(item.po_value)?.toLocaleString("en-IN"),
-      amount_paid: Number(item.amount_paid)?.toLocaleString("en-IN"),
-      total_billed: Number(item.total_billed)?.toLocaleString("en-IN"),
-    }));
+    const TOL = 0.01;
 
+    const rows = rowsAgg.map((r) => {
+      const status =
+        Math.abs((r.total_billed_num || 0) - (r.po_value_num || 0)) <= TOL
+          ? "Fully Billed"
+          : "Waiting Bills";
+
+      return {
+        p_id: r.p_id || "",
+        po_number: r.po_number || "",
+        vendor: r.vendor || "",
+        po_date: formatDate(r.date),
+        category: r.category_name || "-",
+        product: r.product_name || "-",
+        uom: r.uom || "-",
+        quantity: Number(r.quantity || 0),
+        unit_price: Number(r.unit_price || 0),
+        gst_percent: Number(r.gst_percent || 0),
+        line_basic: Number(r.line_basic || 0),
+        line_total_incl_gst: Number(r.line_total_incl_gst || 0),
+        po_value: Number(r.po_value_num || 0),
+        amount_paid: Number(r.amount_paid_num || 0),
+        total_billed: Number(r.total_billed_num || 0),
+        billing_status: status,
+      };
+    });
+
+    // ---- CSV (with BOM for Excel) ----
     const fields = [
-      "p_id",
-      "po_number",
-      "vendor",
-      "item",
-      "date",
-      "po_value",
-      "amount_paid",
-      "total_billed",
-      "partial_billing",
-      "type",
+      { label: "Project ID", value: "p_id" },
+      { label: "PO Number", value: "po_number" },
+      { label: "Vendor", value: "vendor" },
+      { label: "PO Date", value: "po_date" },
+      { label: "Category", value: "category" },
+      { label: "Product", value: "product" },
+      { label: "UOM", value: "uom" },
+      { label: "Qty", value: "quantity" },
+      { label: "Unit Price", value: "unit_price" },
+      { label: "GST %", value: "gst_percent" },
+      { label: "Line Total (Basic)", value: "line_basic" },
+      { label: "Line Total (incl. GST)", value: "line_total_incl_gst" },
+      { label: "PO Value", value: "po_value" },
+      { label: "Amount Paid", value: "amount_paid" },
+      { label: "Total Billed", value: "total_billed" },
+      { label: "Billing Status", value: "billing_status" },
     ];
-    const parser = new Parser({ fields, quote: '"' });
-    const csv = parser.parse(formatted);
 
-    res.header("Content-Type", "text/csv");
-    res.attachment("PO_Export.csv");
-    return res.send(csv);
+    const parser = new Parser({ fields, quote: '"', withBOM: false });
+    const csvBody = parser.parse(rows);
+    const csv = "\uFEFF" + csvBody; // BOM
+
+    const fileName = `PO_Items_Export_${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    return res.status(200).send(csv);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: "Export failed", error: err.message });
+    console.error("getExportPo error:", err);
+    return res.status(500).json({ msg: "Export failed", error: err?.message || String(err) });
   }
 };
-
 const updateSalesPO = async (req, res) => {
   try {
     const { id } = req.params;
