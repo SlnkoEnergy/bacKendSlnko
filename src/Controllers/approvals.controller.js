@@ -70,7 +70,7 @@ const createApproval = async (req, res) => {
       );
     } else if (user.department?.toLowerCase() === "cam") {
       approverUsers = await User.find({
-        name: { $in: ["Naresh Kumar"] },
+        name: { $in: ["Sushant Ranjan Dubey"] },
       }).select("_id name");
     } else {
       approverUsers = await User.find({
