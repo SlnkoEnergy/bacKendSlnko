@@ -74,16 +74,16 @@ const aggregationPipeline = [
       as: "adjustments",
     },
   },
-    {
-        $lookup: {
-          from: "purchaseorders",
-          let: { projectId: "$_id" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
-          ],
-          as: "pos",
-        },
-      },
+  {
+    $lookup: {
+      from: "purchaseorders",
+      let: { projectId: "$_id" },
+      pipeline: [
+        { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
+      ],
+      as: "pos",
+    },
+  },
   {
     $lookup: {
       from: "payrequests",
@@ -473,7 +473,6 @@ const addPo = async function (req, res) {
       sales_Details,
     } = req.body;
 
-
     const userId = req.user.userId;
 
     if (!po_number && initial_status !== "approval_pending")
@@ -708,7 +707,7 @@ const editPO = async function (req, res) {
           user_id: req.user.userId,
         },
       };
-       updateOps.$set.current_status = {
+      updateOps.$set.current_status = {
         status: "approval_pending",
         user_id: req.user.userId,
         remarks: "",
@@ -1006,7 +1005,8 @@ const generatePurchaseOrderPdf = async (req, res) => {
     }
 
     // Fetch the PO (await!)
-    const doc = await purchaseOrderModells.findOne(query)
+    const doc = await purchaseOrderModells
+      .findOne(query)
       .select("item date po_number vendor p_id _id") // include what you need
       .lean()
       .exec();
@@ -1015,8 +1015,10 @@ const generatePurchaseOrderPdf = async (req, res) => {
       subject_type: "purchase_order",
       subject_id: String(doc._id),
       event_type: "note",
-      message: { $regex: /^Payment Terms & Conditions/i } // starts with, case-insensitive
-    }).select("message").lean();
+      message: { $regex: /^Payment Terms & Conditions/i }, // starts with, case-insensitive
+    })
+      .select("message")
+      .lean();
 
     if (!doc) {
       return res.status(404).json({ msg: "Purchase order not found" });
@@ -1034,8 +1036,8 @@ const generatePurchaseOrderPdf = async (req, res) => {
         make: it?.make || "",
         quantity: qty,
         unit_price: unit,
-        taxes: taxPct,                 // percent
-        amount: qty * unit + (qty * unit * taxPct) / 100,            // base amount
+        taxes: taxPct, // percent
+        amount: qty * unit + (qty * unit * taxPct) / 100, // base amount
       };
     });
 
@@ -1062,10 +1064,9 @@ const generatePurchaseOrderPdf = async (req, res) => {
       "Content-Disposition":
         axiosResponse.headers["content-disposition"] ||
         `attachment; filename="Purchase_order.pdf"`,
-    })
+    });
 
     axiosResponse.data.pipe(res);
-
   } catch (error) {
     console.error("PDF generation error:", error);
     return res
@@ -1636,12 +1637,12 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-          .toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })
-          .replace(/ /g, "/")
+            .toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+            .replace(/ /g, "/")
         : "";
 
     const data = result.map((it) => ({ ...it, date: formatDate(it.date) }));
@@ -1663,12 +1664,25 @@ const getPaginatedPo = async (req, res) => {
 const getExportPo = async (req, res) => {
   try {
     const toArray = (v) =>
-      Array.isArray(v) ? v :
-      typeof v === "string" ? v.split(",").map(s => s.trim()).filter(Boolean) : [];
+      Array.isArray(v)
+        ? v
+        : typeof v === "string"
+          ? v
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
 
-    const rawIds = [...toArray(req.body?.purchaseorders), ...toArray(req.query?.purchaseorders)];
+    const rawIds = [
+      ...toArray(req.body?.purchaseorders),
+      ...toArray(req.query?.purchaseorders),
+    ];
     const validIds = rawIds
-      .map((id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null))
+      .map((id) =>
+        mongoose.Types.ObjectId.isValid(id)
+          ? new mongoose.Types.ObjectId(id)
+          : null
+      )
       .filter(Boolean);
 
     if (!validIds.length) {
@@ -1684,8 +1698,22 @@ const getExportPo = async (req, res) => {
       {
         $addFields: {
           po_number_str: { $toString: "$po_number" },
-          po_value_num: { $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 } },
-          total_billed_num: { $convert: { input: "$total_billed", to: "double", onError: 0, onNull: 0 } },
+          po_value_num: {
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
+          total_billed_num: {
+            $convert: {
+              input: "$total_billed",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
         },
       },
 
@@ -1710,7 +1738,12 @@ const getExportPo = async (req, res) => {
             {
               $project: {
                 amount_paid: {
-                  $convert: { input: "$amount_paid", to: "double", onError: 0, onNull: 0 },
+                  $convert: {
+                    input: "$amount_paid",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
                 },
               },
             },
@@ -1718,7 +1751,11 @@ const getExportPo = async (req, res) => {
           as: "approvedPayments",
         },
       },
-      { $addFields: { amount_paid_num: { $sum: "$approvedPayments.amount_paid" } } },
+      {
+        $addFields: {
+          amount_paid_num: { $sum: "$approvedPayments.amount_paid" },
+        },
+      },
 
       // explode items
       { $unwind: { path: "$item", preserveNullAndEmptyArrays: false } },
@@ -1730,19 +1767,36 @@ const getExportPo = async (req, res) => {
           item_product_name: { $ifNull: ["$item.product_name", "-"] },
           item_uom: { $ifNull: ["$item.uom", "-"] },
           item_quantity_num: {
-            $convert: { input: "$item.quantity", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$item.quantity",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           item_unit_price_num: {
-            $convert: { input: "$item.cost", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$item.cost",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           item_gst_percent_num: {
-            $convert: { input: "$item.gst_percent", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$item.gst_percent",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
         },
       },
       {
         $addFields: {
-          line_basic: { $multiply: ["$item_quantity_num", "$item_unit_price_num"] },
+          line_basic: {
+            $multiply: ["$item_quantity_num", "$item_unit_price_num"],
+          },
           line_gst_amount: {
             $multiply: [
               { $multiply: ["$item_quantity_num", "$item_unit_price_num"] },
@@ -1751,7 +1805,11 @@ const getExportPo = async (req, res) => {
           },
         },
       },
-      { $addFields: { line_total_incl_gst: { $add: ["$line_basic", "$line_gst_amount"] } } },
+      {
+        $addFields: {
+          line_total_incl_gst: { $add: ["$line_basic", "$line_gst_amount"] },
+        },
+      },
 
       {
         $project: {
@@ -1816,7 +1874,6 @@ const getExportPo = async (req, res) => {
       };
     });
 
-    // ---- CSV (with BOM for Excel) ----
     const fields = [
       { label: "Project ID", value: "p_id" },
       { label: "PO Number", value: "po_number" },
@@ -1838,7 +1895,7 @@ const getExportPo = async (req, res) => {
 
     const parser = new Parser({ fields, quote: '"', withBOM: false });
     const csvBody = parser.parse(rows);
-    const csv = "\uFEFF" + csvBody; // BOM
+    const csv = "\uFEFF" + csvBody;
 
     const fileName = `PO_Items_Export_${new Date().toISOString().slice(0, 10)}.csv`;
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -1846,7 +1903,9 @@ const getExportPo = async (req, res) => {
     return res.status(200).send(csv);
   } catch (err) {
     console.error("getExportPo error:", err);
-    return res.status(500).json({ msg: "Export failed", error: err?.message || String(err) });
+    return res
+      .status(500)
+      .json({ msg: "Export failed", error: err?.message || String(err) });
   }
 };
 const updateSalesPO = async (req, res) => {
@@ -2622,7 +2681,7 @@ const bulkMarkDelivered = async (req, res) => {
 
 // Controller
 const linkProjectToPOByPid = async (req, res) => {
-    try {
+  try {
     // 1) Collect only those POs that need linking (have p_id string, missing project_id)
     const poCodes = await purchaseOrderModells.distinct("p_id", {
       p_id: { $type: "string", $ne: "" },
@@ -2638,10 +2697,9 @@ const linkProjectToPOByPid = async (req, res) => {
     }
 
     // 2) Load projects by code
-    const projects = await projectModel.find(
-      { code: { $in: poCodes } },
-      { _id: 1, code: 1 }
-    ).lean();
+    const projects = await projectModel
+      .find({ code: { $in: poCodes } }, { _id: 1, code: 1 })
+      .lean();
 
     const codeToProjectId = new Map(
       projects.map((p) => [String(p.code).trim(), p._id])
@@ -2674,7 +2732,9 @@ const linkProjectToPOByPid = async (req, res) => {
       });
     }
 
-    const result = await purchaseOrderModells.bulkWrite(ops, { ordered: false });
+    const result = await purchaseOrderModells.bulkWrite(ops, {
+      ordered: false,
+    });
 
     console.log(
       "[linkProjectIdsSimple] scannedCodes=%d, modified=%d",
@@ -2692,10 +2752,13 @@ const linkProjectToPOByPid = async (req, res) => {
     console.error("linkProjectIdsSimple error:", err);
     return res
       .status(500)
-      .json({ ok: false, message: "Internal server error", error: err.message });
+      .json({
+        ok: false,
+        message: "Internal server error",
+        error: err.message,
+      });
   }
 };
-
 
 module.exports = {
   addPo,
