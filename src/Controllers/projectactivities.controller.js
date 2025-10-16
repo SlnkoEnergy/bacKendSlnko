@@ -14,9 +14,10 @@ const { triggerTasksBulk } = require("../utils/triggertask.utils");
 const handoversheetModel = require("../models/handoversheet.model");
 const projectModel = require("../models/project.model");
 const projectactivitiesModel = require("../models/projectactivities.model");
-const { Parser } = require('json2csv')
+const { Parser } = require("json2csv");
 const ExcelJS = require("exceljs");
-const axios = require('axios')
+const axios = require("axios");
+const userModel = require("../models/user.model");
 
 function stripTemplateCode(payload = {}) {
   const { template_code, ...rest } = payload;
@@ -228,10 +229,13 @@ const deleteProjectActivity = async (req, res) => {
   }
 };
 
+
 const updateProjectActivityStatus = async (req, res) => {
   try {
     const { projectId, activityId } = req.params;
-    const { status, remarks } = req.body;
+    const { status, remarks, assigned_status, assigned_by, assigned_to } =
+      req.body;
+
     const projectactivity = await projectActivity.findOne({
       project_id: projectId,
     });
@@ -240,42 +244,113 @@ const updateProjectActivityStatus = async (req, res) => {
     }
 
     const activity = projectactivity.activities?.find(
-      (act) => act.activity_id.toString() === activityId
+      (act) => act.activity_id && act.activity_id.toString() === activityId
     );
     if (!activity) {
       return res.status(404).json({ message: "Activity not found in project" });
     }
 
-    activity.status_history = activity.status_history || [];
-    activity.status_history.push({
+    const entry = {
       status,
       remarks,
-      updated_by: req.user.userId,
+      user_id: req.user?.userId,
       updated_at: new Date(),
-    });
+      assigned_status,
+      assigned_by,
+      assigned_to: Array.isArray(assigned_to)
+        ? assigned_to
+        : assigned_to
+          ? [assigned_to]
+          : undefined,
+    };
 
-    if (status === "completed") {
+    Object.keys(entry).forEach(
+      (k) => entry[k] === undefined && delete entry[k]
+    );
+    if (Object.keys(entry).length === 0) {
+      return res.status(400).json({ message: "Nothing to update" });
+    }
+
+    activity.status_history = activity.status_history || [];
+    activity.status_history.push(entry);
+
+    // NEW: keep activity snapshot fields in sync when provided
+    if (assigned_status !== undefined) {
+      activity.assigned_status = assigned_status;
+    }
+    if (assigned_by !== undefined) {
+      activity.assigned_by = assigned_by;
+    }
+    if (assigned_to !== undefined) {
+      activity.assigned_to = Array.isArray(assigned_to)
+        ? assigned_to
+        : [assigned_to];
+    }
+    // (optional) If you want to auto-clear assigned_to on "Removed":
+    // if (assigned_status === "Removed") activity.assigned_to = [];
+
+    if (status) {
+      activity.current_status = {
+        status,
+        remarks,
+        user_id: req.user?.userId,
+        updated_at: entry.updated_at,
+      };
+    }
+
+    if (status === "completed" && Array.isArray(activity.dependency)) {
       activity.dependency.forEach((dep) => {
         dep.status_history = dep.status_history || [];
         dep.status_history.push({
           status: "allowed",
           remarks: "Auto-updated to allowed as parent activity is completed",
-          user_id: req.user.userId,
+          user_id: req.user?.userId,
           updatedAt: new Date(),
         });
+        dep.current_status = {
+          status: "allowed",
+          remarks: "Auto-updated to allowed as parent activity is completed",
+          user_id: req.user?.userId,
+          updatedAt: new Date(),
+        };
       });
     }
 
     await projectactivity.save();
-    return res
-      .status(200)
-      .json({ message: "Status updated successfully", projectactivity });
+
+    await projectactivity.populate([
+      { path: "activities.status_history.user_id", select: "name" },
+      { path: "activities.status_history.assigned_by", select: "name" },
+      { path: "activities.status_history.assigned_to", select: "name" },
+      // if you want names on the snapshot too:
+      { path: "activities.assigned_by", select: "name" },
+      { path: "activities.assigned_to", select: "name" },
+    ]);
+
+    const populated = projectactivity.toObject();
+
+    // Add readable names for history; snapshots already populated above
+    for (const act of populated.activities || []) {
+      for (const h of act.status_history || []) {
+        h.user_name = h.user_id?.name ?? null;
+        h.assigned_by_name = h.assigned_by?.name ?? null;
+        h.assigned_to_names = Array.isArray(h.assigned_to)
+          ? h.assigned_to.map((u) => u?.name ?? null)
+          : [];
+      }
+    }
+
+    return res.status(200).json({
+      message: "Status updated successfully",
+      projectactivity: populated,
+    });
   } catch (error) {
     return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
+
 
 const getProjectActivitybyProjectId = async (req, res) => {
   try {
@@ -402,15 +477,15 @@ const nameSearchActivityByProjectId = async (req, res) => {
       // Optional search
       ...(searchRegex
         ? [
-          {
-            $match: {
-              $or: [
-                { "actInfo.name": searchRegex },
-                { "actInfo.description": searchRegex },
-              ],
+            {
+              $match: {
+                $or: [
+                  { "actInfo.name": searchRegex },
+                  { "actInfo.description": searchRegex },
+                ],
+              },
             },
-          },
-        ]
+          ]
         : []),
 
       // Look up dependency targets (moduletemplates and materialcategories)
@@ -691,7 +766,7 @@ const updateActivityInProject = async (req, res) => {
     if (!projectActivityDoc) {
       return res.status(404).json({ message: "Project not found" });
     }
-    // safest + fast
+
     const proj = await projectModel.findById(projectId).select("p_id").lean();
 
     if (!proj || !proj.p_id) {
@@ -708,7 +783,6 @@ const updateActivityInProject = async (req, res) => {
       return res.status(404).json({ message: "Activity not found" });
     }
 
-    /* -------- Normalize and assign incoming fields -------- */
     const allowedLinkTypes = new Set(["FS", "SS", "FF", "SF"]);
     let incomingPreds = Array.isArray(data.predecessors)
       ? data.predecessors
@@ -854,7 +928,6 @@ const updateActivityInProject = async (req, res) => {
       activity.planned_start = addDays(activity.planned_finish, -(d - 1));
     }
 
-    /* -------- Mirror successors from predecessors & validate DAG -------- */
     rebuildSuccessorsFromPredecessors(projectActivityDoc.activities);
 
     const topo = topoSort(projectActivityDoc.activities);
@@ -865,7 +938,6 @@ const updateActivityInProject = async (req, res) => {
       });
     }
 
-    /* -------- Constraints for the changed activity -------- */
     const byId = new Map(
       projectActivityDoc.activities.map((a) => [String(a.activity_id), a])
     );
@@ -907,7 +979,6 @@ const updateActivityInProject = async (req, res) => {
       });
     }
 
-    /* -------- Forward propagation (planned-only or actual-aware) -------- */
     propagateForwardAdjustments(
       activity.activity_id,
       projectActivityDoc.activities,
@@ -931,9 +1002,9 @@ const getActivityInProject = async (req, res) => {
     const doc = await projectActivity
       .findOne({ project_id: projectId })
       .populate("activities.activity_id", "name description type")
-      .populate("activities.current_status.user_id", "name attachment_url")       // <-- name here
-      .populate("activities.status_history.user_id", "name attachment_url")       // (optional) also show names in history
-      .populate("activities.dependency.updated_by", "name attachment_url")        // (optional) if you show this in UI
+      .populate("activities.current_status.user_id", "name attachment_url") // <-- name here
+      .populate("activities.status_history.user_id", "name attachment_url") // (optional) also show names in history
+      .populate("activities.dependency.updated_by", "name attachment_url") // (optional) if you show this in UI
       .lean();
 
     if (!doc) {
@@ -965,7 +1036,6 @@ const getActivityInProject = async (req, res) => {
       .json({ message: "Internal Server error", error: error.message });
   }
 };
-
 
 const getAllTemplateNameSearch = async (req, res) => {
   try {
@@ -1283,13 +1353,13 @@ const getAllProjectActivityForView = async (req, res) => {
 
     const match = hasRange
       ? {
-        activities: {
-          $elemMatch: {
-            planned_start: { $lte: rangeEnd },
-            planned_finish: { $gte: rangeStart },
+          activities: {
+            $elemMatch: {
+              planned_start: { $lte: rangeEnd },
+              planned_finish: { $gte: rangeStart },
+            },
           },
-        },
-      }
+        }
       : {};
 
     const paDocs = await projectActivity
@@ -1648,12 +1718,9 @@ const updateProjectActivityForAllProjects = async (req, res) => {
   }
 };
 
-
 const syncActivitiesFromProjectActivity = async (req, res) => {
   try {
-
     const filter = {};
-
 
     const baseActsAll = await activityModel
       .find({}, { _id: 1, order: 1, dependency: 1 })
@@ -1682,7 +1749,6 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
 
       const now = new Date();
       let changed = false;
-
 
       const projectIdSet = new Set(
         activitiesArr
@@ -1856,21 +1922,43 @@ const getProjectGanttChartCsv = async (req, res) => {
     const data = await projectactivitiesModel
       .findOne({ project_id: projectId })
       .populate([
-        { path: "activities.activity_id", model: "activities", select: "name type" },
-        { path: "activities.predecessors.activity_id", model: "activities", select: "name" },
-        { path: "activities.successors.activity_id", model: "activities", select: "name" },
+        {
+          path: "activities.activity_id",
+          model: "activities",
+          select: "name type",
+        },
+        {
+          path: "activities.predecessors.activity_id",
+          model: "activities",
+          select: "name",
+        },
+        {
+          path: "activities.successors.activity_id",
+          model: "activities",
+          select: "name",
+        },
       ])
       .lean();
 
-    if (!data || !Array.isArray(data.activities) || data.activities.length === 0) {
-      return res.status(404).json({ message: "No activities found for this project." });
+    if (
+      !data ||
+      !Array.isArray(data.activities) ||
+      data.activities.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ message: "No activities found for this project." });
     }
 
     // Order
     data.activities.sort((a, b) => (a.order || 0) - (b.order || 0));
 
-
-    const statusHelper = (plannedStart, plannedFinish, actualStart, actualFinish) => {
+    const statusHelper = (
+      plannedStart,
+      plannedFinish,
+      actualStart,
+      actualFinish
+    ) => {
       if (actualFinish) return "Completed";
       if (actualStart) return "In Progress";
       if (plannedStart || plannedFinish) return "Not Started";
@@ -1888,7 +1976,11 @@ const getProjectGanttChartCsv = async (req, res) => {
 
     const fmtDate = (d) =>
       d
-        ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+        ? new Date(d).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
         : "N/A";
 
     // Compute min start & max finish across planned
@@ -1923,7 +2015,10 @@ const getProjectGanttChartCsv = async (req, res) => {
       const cur = new Date(minStart);
       while (cur <= maxFinish) {
         dateCols.push({
-          header: cur.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }), // 12-Oct
+          header: cur.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+          }), // 12-Oct
           key: `d_${cur.getFullYear()}_${String(cur.getMonth() + 1).padStart(2, "0")}_${String(cur.getDate()).padStart(2, "0")}`,
           dateObj: new Date(cur),
         });
@@ -1957,7 +2052,10 @@ const getProjectGanttChartCsv = async (req, res) => {
     // Header row styling
     const headerRowIdx = minStart && maxFinish ? 2 : 1;
     ws.getRow(headerRowIdx).font = { bold: true };
-    ws.getRow(headerRowIdx).alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(headerRowIdx).alignment = {
+      horizontal: "center",
+      vertical: "middle",
+    };
     ws.getRow(headerRowIdx).eachCell((cell) => {
       cell.border = {
         top: { style: "thin" },
@@ -2002,14 +2100,17 @@ const getProjectGanttChartCsv = async (req, res) => {
     const predecessorHelper = (activities, mpp) => {
       if (!Array.isArray(activities) || activities.length === 0) return "";
 
-      return activities.map((p) => {
-        const k = getKey(p.activity_id);
-        const order = mpp instanceof Map ? mpp.get(k) : mpp[k];
-        const ordStr = Number.isFinite(order) ? String(order) : "?";
-        const typeStr = p.type || "FS";
-        const lagStr = Number.isFinite(p.lag) && p.lag !== 0 ? `+${p.lag}` : "";
-        return `${ordStr}${typeStr}${lagStr}`;
-      }).join(", ");
+      return activities
+        .map((p) => {
+          const k = getKey(p.activity_id);
+          const order = mpp instanceof Map ? mpp.get(k) : mpp[k];
+          const ordStr = Number.isFinite(order) ? String(order) : "?";
+          const typeStr = p.type || "FS";
+          const lagStr =
+            Number.isFinite(p.lag) && p.lag !== 0 ? `+${p.lag}` : "";
+          return `${ordStr}${typeStr}${lagStr}`;
+        })
+        .join(", ");
     };
 
     // --- build a stable mapping FIRST (first occurrence wins) ---
@@ -2022,7 +2123,7 @@ const getProjectGanttChartCsv = async (req, res) => {
     for (const a of visible) {
       const k = getKey(a.activity_id);
       if (k && !mpp.has(k)) {
-        seq += 1;       // 1-based
+        seq += 1; // 1-based
         mpp.set(k, seq);
       }
     }
@@ -2062,7 +2163,10 @@ const getProjectGanttChartCsv = async (req, res) => {
         ws.mergeCells(topRow.number, c, bottomRow.number, c);
         ws.getCell(topRow.number, c).alignment = { vertical: "middle" };
       }
-      ws.getCell(topRow.number, 1).alignment = { horizontal: "center", vertical: "middle" };
+      ws.getCell(topRow.number, 1).alignment = {
+        horizontal: "center",
+        vertical: "middle",
+      };
 
       const ps = toDateOnly(act.planned_start);
       const pf = toDateOnly(act.planned_finish);
@@ -2086,7 +2190,6 @@ const getProjectGanttChartCsv = async (req, res) => {
       }
     }
 
-
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -2100,44 +2203,75 @@ const getProjectGanttChartCsv = async (req, res) => {
     res.end();
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
-}
+};
 
 const getProjectSchedulePdf = async (req, res) => {
-
   try {
     let { projectId, type, timeline } = req.query;
 
-    type = type === 'site' ? 'frontend' : type;
+    type = type === "site" ? "frontend" : type;
 
     const data = await projectactivitiesModel
       .findOne({ project_id: projectId })
       .populate([
-        { path: "project_id", model: "projectDetail", select: "code name customer state" },
-        { path: "activities.activity_id", model: "activities", select: "name type" },
-        { path: "activities.predecessors.activity_id", model: "activities", select: "name" },
-        { path: "activities.successors.activity_id", model: "activities", select: "name" },
+        {
+          path: "project_id",
+          model: "projectDetail",
+          select: "code name customer state",
+        },
+        {
+          path: "activities.activity_id",
+          model: "activities",
+          select: "name type",
+        },
+        {
+          path: "activities.predecessors.activity_id",
+          model: "activities",
+          select: "name",
+        },
+        {
+          path: "activities.successors.activity_id",
+          model: "activities",
+          select: "name",
+        },
       ])
       .lean();
 
-    if (!data || !Array.isArray(data.activities) || data.activities.length === 0) {
-      return res.status(404).json({ message: "No activities found for this project." });
+    if (
+      !data ||
+      !Array.isArray(data.activities) ||
+      data.activities.length === 0
+    ) {
+      return res
+        .status(404)
+        .json({ message: "No activities found for this project." });
     }
 
     data.activities.sort((a, b) => (a.order || 0) - (b.order || 0));
 
-    const statusHelper = (plannedStart, plannedFinish, actualStart, actualFinish) => {
+    const statusHelper = (
+      plannedStart,
+      plannedFinish,
+      actualStart,
+      actualFinish
+    ) => {
       if (actualFinish) return "Completed";
       if (actualStart) return "In Progress";
       if (plannedStart || plannedFinish) return "Not Started";
       return "N/A";
     };
 
-
     const fmtDate = (d) =>
       d
-        ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+        ? new Date(d).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
         : "N/A";
 
     const getKey = (id) => id?._id?.toString?.() ?? id?.toString?.() ?? "";
@@ -2145,14 +2279,17 @@ const getProjectSchedulePdf = async (req, res) => {
     const predecessorHelper = (activities, mpp) => {
       if (!Array.isArray(activities) || activities.length === 0) return "";
 
-      return activities.map((p) => {
-        const k = getKey(p.activity_id);
-        const order = mpp instanceof Map ? mpp.get(k) : mpp[k];
-        const ordStr = Number.isFinite(order) ? String(order) : "?";
-        const typeStr = p.type || "FS";
-        const lagStr = Number.isFinite(p.lag) && p.lag !== 0 ? `+${p.lag}` : "";
-        return `${ordStr}${typeStr}${lagStr}`;
-      }).join(", ");
+      return activities
+        .map((p) => {
+          const k = getKey(p.activity_id);
+          const order = mpp instanceof Map ? mpp.get(k) : mpp[k];
+          const ordStr = Number.isFinite(order) ? String(order) : "?";
+          const typeStr = p.type || "FS";
+          const lagStr =
+            Number.isFinite(p.lag) && p.lag !== 0 ? `+${p.lag}` : "";
+          return `${ordStr}${typeStr}${lagStr}`;
+        })
+        .join(", ");
     };
 
     // --- build a stable mapping FIRST (first occurrence wins) ---
@@ -2165,13 +2302,12 @@ const getProjectSchedulePdf = async (req, res) => {
     for (const a of visible) {
       const k = getKey(a.activity_id);
       if (k && !mpp.has(k)) {
-        seq += 1;       // 1-based
+        seq += 1; // 1-based
         mpp.set(k, seq);
       }
     }
 
     const projectSchedule = visible.map((act, idx) => {
-
       return {
         sno: idx + 1,
         activity: act.activity_id?.name || "NA",
@@ -2197,9 +2333,9 @@ const getProjectSchedulePdf = async (req, res) => {
       data: {
         customer: data.project_id.customer,
         state: data.project_id.state,
-        project_code : data.project_id.code,
-        project_name : data.project_id.name,
-        data: projectSchedule
+        project_code: data.project_id.code,
+        project_name: data.project_id.name,
+        data: projectSchedule,
       },
       responseType: "stream",
       maxContentLength: Infinity,
@@ -2211,41 +2347,106 @@ const getProjectSchedulePdf = async (req, res) => {
       "Content-Disposition":
         axiosResponse.headers["content-disposition"] ||
         `attachment; filename="Project_Schedule.pdf"`,
-    })
+    });
 
     axiosResponse.data.pipe(res);
-
   } catch (error) {
     console.error("PDF generation error:", error);
     return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
-
-}
-
+};
 
 const updateReorderfromActivity = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const activity = await activityModel.find().select('_id order').lean();
-    const projectActivityDoc = await projectActivity.findOne({ project_id: projectId });
+    const activity = await activityModel.find().select("_id order").lean();
+    const projectActivityDoc = await projectActivity.findOne({
+      project_id: projectId,
+    });
     if (!projectActivityDoc) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const activityMap = new Map(activity.map(a => [String(a._id), a.order]));
-    projectActivityDoc.activities.forEach(act => {
+    const activityMap = new Map(activity.map((a) => [String(a._id), a.order]));
+    projectActivityDoc.activities.forEach((act) => {
       const newOrder = activityMap.get(String(act.activity_id));
       if (Number.isFinite(newOrder) && act.order !== newOrder) {
         act.order = newOrder;
       }
     });
     await projectActivityDoc.save();
-    return res.status(200).json({ message: "Reorder updated from activity model", projectActivityDoc });
+    return res.status(200).json({
+      message: "Reorder updated from activity model",
+      projectActivityDoc,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Internal Server Error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
-}
+};
+
+// add dpr_role field to all users with empty string as default
+// const addDprRole = async (req, res) => {
+//   try {
+//     // Add "dpr_role" field with empty string to all user documents
+//     const result = await User.updateMany({}, { $set: { dpr_role: "" } });
+
+//     return res.status(200).json({
+//       message: "dpr_role key added successfully to all users.",
+//       modifiedCount: result.modifiedCount,
+//     });
+//   } catch (error) {
+//     console.error("Error adding dpr_role:", error);
+//     return res.status(500).json({ message: "Server error", error: error.message });
+//   }
+// };
+
+const setAllUsersDprRole = async (req, res) => {
+  try {
+    const result = await userModel.updateMany(
+      { department: "Projects", role: "executive" },
+      { $set: { dpr_role: "Project-Engineer" } }
+    );
+
+    return res.status(200).json({
+      message: "dpr_role updated to 'Project-Engineer' for matching users.",
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error updating dpr_role:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
+  }
+};
+
+const getProjectUsers = async (req, res) => {
+  try {
+    
+    const users = await userModel.find(
+      {
+        dpr_role: "Project-Engineer",
+      },
+      { name: 1, _id: 1 }
+    );
+
+    if (!users.length) {
+      return res.status(404).json({ message: "No matching users found." });
+    }
+
+    return res.status(200).json({
+      message: "Users fetched successfully.",
+      count: users.length,
+      data: users,
+    });
+  } catch (error) {
+    console.error("Error fetching project users:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
 
 module.exports = {
   createProjectActivity,
@@ -2270,5 +2471,7 @@ module.exports = {
   syncActivitiesFromProjectActivity,
   getProjectGanttChartCsv,
   getProjectSchedulePdf,
-  updateReorderfromActivity
+  updateReorderfromActivity,
+  setAllUsersDprRole,
+  getProjectUsers,
 };

@@ -40,14 +40,18 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
-    location:{
+    location: {
       type: String,
     },
-    about:{
+    about: {
       type: String,
     },
-    attachment_url:{
+    attachment_url: {
       type: String,
+    },
+    dpr_role: {
+      type: String,
+      enum: ["Manager", "Project-Engineer", "HOC", "Team-Leader", "Viewer"],
     },
   },
   { timestamps: true }

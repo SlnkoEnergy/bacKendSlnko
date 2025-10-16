@@ -52,12 +52,26 @@ const projectActivitySchema = new mongoose.Schema(
           user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
           remarks: String,
         },
+        assigned_status: {
+          type: String,
+          enum: ["Assigned", "Removed"],
+        },
+        assigned_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        assigned_to: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
         status_history: [
           {
             status: { type: String, enum: StatusEnum },
             updated_at: { type: Date, default: Date.now },
             user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
             remarks: String,
+            assigned_status: {
+              type: String,
+              enum: ["Assigned", "Removed"],
+            },
+            assigned_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            assigned_to: [
+              { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            ],
           },
         ],
         dependency: [
@@ -127,6 +141,7 @@ const projectActivitySchema = new mongoose.Schema(
         ],
       },
     ],
+
     status: { type: String, enum: ["template", "project"] },
     status_history: [
       {
@@ -169,21 +184,33 @@ const projectActivitySchema = new mongoose.Schema(
 
 projectActivitySchema.pre("save", function (next) {
   if (Array.isArray(this.activities)) {
-    this.activities.forEach((activity) => {
+    this.activities.forEach((activity, idx) => {
       updateStatus(activity, "not started");
+
       if (Array.isArray(activity.dependency)) {
         activity.dependency.forEach((dep) => updateStatus(dep, "not allowed"));
       }
-    });
 
-    let idx = 0;
-    this.activities.forEach((a) => {
-      if (a.order === undefined || a.order === null || Number.isNaN(a.order)) {
-        a.order = idx;
+      if (activity.assigned_status) {
+        activity.status_history.push({
+          status: activity.current_status?.status || "not started",
+          assigned_status: activity.assigned_status,
+          assigned_by: activity.assigned_by,
+          assigned_to: activity.assigned_to,
+          updated_at: new Date(),
+        });
       }
-      idx++;
+
+      if (
+        activity.order === undefined ||
+        activity.order === null ||
+        Number.isNaN(activity.order)
+      ) {
+        activity.order = idx;
+      }
     });
   }
+
   updateStatus(this, "unfreeze");
   next();
 });

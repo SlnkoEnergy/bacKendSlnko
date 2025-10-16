@@ -23,6 +23,8 @@ const {
   getProjectGanttChartCsv,
   updateReorderfromActivity,
   getProjectSchedulePdf,
+  setAllUsersDprRole,
+  getProjectUsers,
 } = require("../Controllers/projectactivities.controller");
 const jwtMW = require("../middlewares/auth");
 
@@ -111,13 +113,20 @@ router.put(
   jwtMW.authentication,
   updateProjectActivityForAllProjects
 );
-router.put('/syncactivity', jwtMW.authentication, syncActivitiesFromProjectActivity);
-router.get('/get-project-csv', jwtMW.authentication, getProjectGanttChartCsv);
-router.get('/get-project-pdf', jwtMW.authentication, getProjectSchedulePdf);
+router.put(
+  "/syncactivity",
+  jwtMW.authentication,
+  syncActivitiesFromProjectActivity
+);
+router.get("/get-project-csv", jwtMW.authentication, getProjectGanttChartCsv);
+router.get("/get-project-pdf", jwtMW.authentication, getProjectSchedulePdf);
 router.put(
   "/reorderfromactivity/:projectId",
   jwtMW.authentication,
   updateReorderfromActivity
 );
+router.post("/users/dpr-role", setAllUsersDprRole);
+
+router.get("/project-users", jwtMW.authentication, getProjectUsers);
 
 module.exports = router;
