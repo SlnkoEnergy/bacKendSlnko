@@ -2,53 +2,24 @@ const vendorModells = require("../models/vendor.model");
 
 const addVendor = async function (req, res) {
   try {
-    let {
-      id,
+    const { data } = req.body;
 
-      name,
-
-      Beneficiary_Name,
-
-      Account_No,
-
-      Bank_Name,
-
-      IFSC_Code,
-    } = req.body;
-
-    const vendorexist = await vendorModells.findOne({
-      name: name,
+    const vendorExist = await vendorModells.findOne({
+      name: data.name,
     });
-
-    if (vendorexist) {
+    if (vendorExist) {
       return res.status(400).json({ msg: "Vendor already exists!" });
     }
-    const add_vendor = new vendorModells({
-      id,
-      name,
-
-      Beneficiary_Name,
-
-      Account_No,
-
-      Bank_Name,
-
-      IFSC_Code,
-    });
-
-    // Save the record to the database
-    await add_vendor.save();
-
-    // Send a success response
+    const vendor = new vendorModells(data);
+    await vendor.save();
     return res.status(200).json({
       msg: "Vendor added successfully",
-      data: add_vendor,
+      data: vendor,
     });
   } catch (error) {
     res.status(400).json({
-      msg: "Error addVendor project",
+      msg: "Internal Server Error",
       error: error.message,
-      validationErrors: error.errors, // Show validation errors if any
     });
   }
 };
@@ -59,8 +30,43 @@ const getVendor = async function (req, res) {
   res.status(200).json({ msg: "all vendor", data });
 };
 
-// Update vendor
+const getAllVendors = async (req, res) => {
+  try {
+    const { page, limit, search } = req.query;
+    const pageNumber = parseInt(page) || 1;
+    const limitNumber = parseInt(limit) || 10;
+    const skip = (pageNumber - 1) * limitNumber;
+    const query = search
+      ? {
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { "contact_details.email": { $regex: search, $options: "i" } },
+            { "contact_details.phone": { $regex: search, $options: "i" } },
+          ],
+        }
+      : {};
+    const total = await vendorModells.countDocuments(query);
+    const vendors = await vendorModells
+      .find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNumber);
+    res.status(200).json({
+      msg: "All vendors",
+      data: vendors,
+      pagination: {
+        total,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(total / limitNumber),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ msg: "Server error", error: error.message });
+  }
+};
 
+// Update vendor
 const updateVendor = async function (req, res) {
   let _id = req.params._id;
   let updateData = req.body;
@@ -78,7 +84,9 @@ const updateVendor = async function (req, res) {
       data: update,
     });
   } catch (error) {
-    res.status(400).json({ msg: "Server error", error: error.message });
+    res
+      .status(400)
+      .json({ msg: "Internal Server error", error: error.message });
   }
 };
 
@@ -92,7 +100,9 @@ const deleteVendor = async function (req, res) {
     }
     res.status(200).json({ msg: "Vendor deleted successfully" });
   } catch (error) {
-    res.status(400).json({ msg: "Server error", error: error.message });
+    res
+      .status(400)
+      .json({ msg: " Internal Server error", error: error.message });
   }
 };
 
@@ -164,6 +174,7 @@ const getVendorNameSearch = async (req, res) => {
 module.exports = {
   addVendor,
   getVendor,
+  getAllVendors,
   updateVendor,
   deleteVendor,
   getVendorDropwdown,

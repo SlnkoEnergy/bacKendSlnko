@@ -68,14 +68,6 @@ const {
   linkProjectToPOByPid
 } = require("../Controllers/purchaseorder.controller");
 const {
-  addVendor,
-  getVendor,
-  updateVendor,
-  deleteVendor,
-  getVendorDropwdown,
-  getVendorNameSearch,
-} = require("../Controllers/vendor.controller.js");
-const {
   payRrequest,
   getPaySummary,
   account_matched,
@@ -340,18 +332,6 @@ router.post(
   auth,
   generatePurchaseOrderPdf
 );
-
-//Add vendor
-router.post("/Add-vendoR-IT", auth, addVendor);
-router.get("/get-all-vendoR-IT", auth, getVendor);
-router.put("/update-vendoR-IT/:_id", auth, updateVendor);
-
-//update vendor
-router.delete("/delete-vendoR-IT/:_id", auth, deleteVendor);
-
-//delete vendor
-router.get("/vendor-dropdown", auth, getVendorDropwdown);
-router.get("/vendor-search", auth, getVendorNameSearch);
 
 //pay Request api
 router.get(
