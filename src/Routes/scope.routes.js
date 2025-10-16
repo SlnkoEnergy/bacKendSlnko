@@ -15,11 +15,7 @@ router.post("/scope", auth, createScope);
 router.get("/scope", auth, getScopeById);
 router.get("/scopes", auth, getAllScopes);
 router.put("/scope", auth, updateScope);
-router.put(
-  "/:project_id/updateStatus",
-  auth,
-  updateScopeStatus
-);
+router.put("/:project_id/updateStatus", auth, updateScopeStatus);
 router.delete("/scope", auth, deleteScope);
 router.get("/scope-pdf", auth, getScopePdf);
 router.put("/ensureProjectScope", ensureProjectScope);
