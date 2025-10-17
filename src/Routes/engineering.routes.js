@@ -58,7 +58,7 @@ const {
   deleteMaterial,
 } = require("../Controllers/material.controller");
 const auth = require("../middlewares/auth.middleware.js");
-const upload = require("../middlewares/multer");
+const upload = require("../middlewares/multer.middleware.js");
 
 //Engineering Modules Templates
 router.post("/create-module", auth, createModule);

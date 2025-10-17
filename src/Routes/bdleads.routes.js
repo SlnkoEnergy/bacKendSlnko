@@ -60,7 +60,7 @@ const {
   getexportToCsv,
 } = require("../Controllers/bdtask.controller.js");
 const auth = require("../middlewares/auth.middleware.js");
-const upload = require("../middlewares/multer.js");
+const upload = require("../middlewares/multer.middleware.js");
 
 // Bd lead Dashboard Routes
 router.get("/summary", auth, getLeadSummary);

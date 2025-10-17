@@ -180,7 +180,7 @@ const {
   getModifiedExpenseById,
 } = require("../Controllers/modifiedexpensesheet.controller.js");
 
-const upload = require("../middlewares/multer.js");
+const upload = require("../middlewares/multer.middleware.js");
 const {
   syncAllProjectBalances,
   syncRecentCreditsAndDebits

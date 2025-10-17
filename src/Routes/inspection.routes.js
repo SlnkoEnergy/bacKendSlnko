@@ -8,7 +8,7 @@ const {
   updateStatusInspection,
 } = require("../Controllers/inspection.controller");
 const auth = require("../middlewares/auth.middleware.js");
-const upload = require("../middlewares/multer");
+const upload = require("../middlewares/multer.middleware.js");
 
 
 router.get("/inspection", auth, getAllInspections);

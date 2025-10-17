@@ -9,8 +9,9 @@ const {
   getAllVendors,
 } = require("../Controllers/vendor.controller");
 const auth = require("../middlewares/auth.middleware.js");
+const upload = require("../middlewares/multer.middleware.js");
 
-router.post("/vendor", auth, addVendor);
+router.post("/vendor", auth, upload, addVendor);
 router.get("/vendor", auth, getVendor);
 router.get("/vendors", auth, getAllVendors);
 router.put("/vendor/:_id", auth, updateVendor);

@@ -97,8 +97,8 @@ const addVendor = async function addVendor(req, res) {
     if (!data || typeof data !== "object") {
       return res.status(400).json({ msg: "Invalid payload." });
     }
-
     const rawName = (data.name || "").trim();
+
     if (!rawName) {
       return res.status(400).json({ msg: "Vendor name is required." });
     }

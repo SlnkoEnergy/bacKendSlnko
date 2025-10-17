@@ -17,7 +17,7 @@ const {
   getAgingByResolution,
 } = require("../Controllers/tasks.controllers");
 const auth = require("../middlewares/auth.middleware.js");
-const upload = require("../middlewares/multer");
+const upload = require("../middlewares/multer.middleware.js");
 
 router.post("/task", auth, createTask);
 router.get("/task", auth, getAllTasks);
