@@ -9,7 +9,7 @@ function updateCurrentStatus(
     doc[currentStatusKey] = history[history.length - 1];
   } else {
     doc[currentStatusKey] = {
-      status: "draft",
+      work_status: "draft",
       remarks: "",
       user_id: null,
     };

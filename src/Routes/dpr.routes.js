@@ -15,6 +15,11 @@ const {
   updateStatusDprTask,
   deleteDprTask,
 } = require("../Controllers/dprtask.controller");
+
+const {
+  createDPR,
+  getAllActivities,
+} = require("../Controllers/dpractivities.controller");
 const jwtMW = require("../middlewares/auth");
 
 // DPR Routes
@@ -36,5 +41,8 @@ router.put(
   updateStatusDprTask
 );
 router.delete("/dpr-task/:_id", jwtMW.authentication, deleteDprTask);
+
+router.post("/dpr-activities", jwtMW.authentication, createDPR);
+router.get("/dpr-activities-list", jwtMW.authentication, getAllActivities);
 
 module.exports = router;

@@ -229,12 +229,10 @@ const deleteProjectActivity = async (req, res) => {
   }
 };
 
-
 const updateProjectActivityStatus = async (req, res) => {
   try {
     const { projectId, activityId } = req.params;
-    const { status, remarks, assigned_status, assigned_by, assigned_to } =
-      req.body;
+    const { status, remarks, assigned_status, assigned_to } = req.body;
 
     const projectactivity = await projectActivity.findOne({
       project_id: projectId,
@@ -250,51 +248,108 @@ const updateProjectActivityStatus = async (req, res) => {
       return res.status(404).json({ message: "Activity not found in project" });
     }
 
+    const toObjectId = (v) =>
+      v ? new mongoose.Types.ObjectId(String(v)) : undefined;
+    const toObjectIdArray = (arr) =>
+      Array.isArray(arr)
+        ? arr
+            .map((x) => (x ? new mongoose.Types.ObjectId(String(x)) : null))
+            .filter(Boolean)
+        : [];
+
+    const now = new Date();
+    const actorId = toObjectId(req.user?.userId);
+
+    const prevAssigned = Array.isArray(activity.assigned_to)
+      ? activity.assigned_to.map(String)
+      : [];
+
+    const incomingAssigned =
+      assigned_to === undefined
+        ? undefined
+        : Array.isArray(assigned_to)
+          ? assigned_to
+          : [assigned_to];
+
+    const targetAssigned =
+      incomingAssigned !== undefined
+        ? incomingAssigned
+        : assigned_status === "Removed"
+          ? []
+          : undefined;
+
+    let assigned_added = [];
+    let assigned_removed = [];
+    let computedAssignedStatus;
+
+    if (targetAssigned !== undefined) {
+      const prevSet = new Set(prevAssigned);
+      const nextSet = new Set((targetAssigned || []).map(String));
+
+      for (const id of prevSet) if (!nextSet.has(id)) assigned_removed.push(id);
+      for (const id of nextSet) if (!prevSet.has(id)) assigned_added.push(id);
+
+      if (nextSet.size === 0) computedAssignedStatus = "Removed";
+      else if (assigned_added.length > 0 && assigned_removed.length === 0)
+        computedAssignedStatus = "Assigned";
+      else if (assigned_added.length === 0 && assigned_removed.length === 0)
+        computedAssignedStatus = undefined;
+      else computedAssignedStatus = "Partial";
+    }
+
+    const assignmentChanged =
+      targetAssigned !== undefined &&
+      (assigned_added.length > 0 || assigned_removed.length > 0);
+
     const entry = {
       status,
       remarks,
-      user_id: req.user?.userId,
-      updated_at: new Date(),
-      assigned_status,
-      assigned_by,
-      assigned_to: Array.isArray(assigned_to)
-        ? assigned_to
-        : assigned_to
-          ? [assigned_to]
-          : undefined,
+      user_id: actorId,
+      updated_at: now,
+
+      ...(assignmentChanged ? { assigned_status: computedAssignedStatus } : {}),
+      ...(assignmentChanged ? { assigned_by: actorId } : {}),
+      ...(assignmentChanged
+        ? { assigned_to: toObjectIdArray(targetAssigned) }
+        : {}),
+
+      assigned_added: assigned_added.length
+        ? toObjectIdArray(assigned_added)
+        : undefined,
+      assigned_removed: assigned_removed.length
+        ? toObjectIdArray(assigned_removed)
+        : undefined,
     };
 
     Object.keys(entry).forEach(
       (k) => entry[k] === undefined && delete entry[k]
     );
-    if (Object.keys(entry).length === 0) {
+
+    const statusChanged = status && activity.current_status?.status !== status;
+
+    const hasMeaningfulUpdate =
+      statusChanged || assignmentChanged || !!entry.remarks;
+
+    if (!hasMeaningfulUpdate) {
       return res.status(400).json({ message: "Nothing to update" });
     }
 
     activity.status_history = activity.status_history || [];
     activity.status_history.push(entry);
 
-    // NEW: keep activity snapshot fields in sync when provided
-    if (assigned_status !== undefined) {
-      activity.assigned_status = assigned_status;
+    if (assignmentChanged) {
+      if (computedAssignedStatus !== undefined)
+        activity.assigned_status = computedAssignedStatus;
+      if (actorId) activity.assigned_by = actorId;
+      activity.assigned_to = toObjectIdArray(targetAssigned);
     }
-    if (assigned_by !== undefined) {
-      activity.assigned_by = assigned_by;
-    }
-    if (assigned_to !== undefined) {
-      activity.assigned_to = Array.isArray(assigned_to)
-        ? assigned_to
-        : [assigned_to];
-    }
-    // (optional) If you want to auto-clear assigned_to on "Removed":
-    // if (assigned_status === "Removed") activity.assigned_to = [];
 
     if (status) {
       activity.current_status = {
         status,
         remarks,
-        user_id: req.user?.userId,
-        updated_at: entry.updated_at,
+        user_id: actorId,
+        updated_at: now,
       };
     }
 
@@ -304,14 +359,14 @@ const updateProjectActivityStatus = async (req, res) => {
         dep.status_history.push({
           status: "allowed",
           remarks: "Auto-updated to allowed as parent activity is completed",
-          user_id: req.user?.userId,
-          updatedAt: new Date(),
+          user_id: actorId,
+          updatedAt: now,
         });
         dep.current_status = {
           status: "allowed",
           remarks: "Auto-updated to allowed as parent activity is completed",
-          user_id: req.user?.userId,
-          updatedAt: new Date(),
+          user_id: actorId,
+          updatedAt: now,
         };
       });
     }
@@ -319,23 +374,30 @@ const updateProjectActivityStatus = async (req, res) => {
     await projectactivity.save();
 
     await projectactivity.populate([
+      { path: "assigned_engineers", select: "name" },
       { path: "activities.status_history.user_id", select: "name" },
       { path: "activities.status_history.assigned_by", select: "name" },
       { path: "activities.status_history.assigned_to", select: "name" },
-      // if you want names on the snapshot too:
+      { path: "activities.status_history.assigned_added", select: "name" },
+      { path: "activities.status_history.assigned_removed", select: "name" },
       { path: "activities.assigned_by", select: "name" },
       { path: "activities.assigned_to", select: "name" },
     ]);
 
     const populated = projectactivity.toObject();
 
-    // Add readable names for history; snapshots already populated above
     for (const act of populated.activities || []) {
       for (const h of act.status_history || []) {
         h.user_name = h.user_id?.name ?? null;
         h.assigned_by_name = h.assigned_by?.name ?? null;
         h.assigned_to_names = Array.isArray(h.assigned_to)
           ? h.assigned_to.map((u) => u?.name ?? null)
+          : [];
+        h.assigned_added_names = Array.isArray(h.assigned_added)
+          ? h.assigned_added.map((u) => u?.name ?? null)
+          : [];
+        h.assigned_removed_names = Array.isArray(h.assigned_removed)
+          ? h.assigned_removed.map((u) => u?.name ?? null)
           : [];
       }
     }
@@ -345,12 +407,12 @@ const updateProjectActivityStatus = async (req, res) => {
       projectactivity: populated,
     });
   } catch (error) {
+    console.error("updateProjectActivityStatus Error:", error);
     return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
-
 
 const getProjectActivitybyProjectId = async (req, res) => {
   try {
@@ -2425,7 +2487,6 @@ const setAllUsersDprRole = async (req, res) => {
 
 const getProjectUsers = async (req, res) => {
   try {
-    
     const users = await userModel.find(
       {
         dpr_role: "Project-Engineer",
@@ -2444,7 +2505,9 @@ const getProjectUsers = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching project users:", error);
-    return res.status(500).json({ message: "Server error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
   }
 };
 
