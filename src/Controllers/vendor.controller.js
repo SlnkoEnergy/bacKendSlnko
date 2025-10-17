@@ -1,29 +1,143 @@
 const vendorModells = require("../models/vendor.model");
+const axios = require("axios");
+const FormData = require("form-data");
+const mime = require("mime-types");
+const sharp = require("sharp");
 
-const addVendor = async function (req, res) {
-  try {
-    const { data } = req.body;
+const slugify = (str = "") =>
+  String(str)
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
 
-    const vendorExist = await vendorModells.findOne({
-      name: data.name,
+async function uploadFiles(files, folderPath) {
+  const uploaded = [];
+
+  for (const file of files || []) {
+    const origMime =
+      file.mimetype ||
+      mime.lookup(file.originalname) ||
+      "application/octet-stream";
+    const origExt =
+      mime.extension(origMime) ||
+      (file.originalname.split(".").pop() || "").toLowerCase();
+
+    let outBuffer = file.buffer;
+    let outExt = origExt;
+    let outMime = origMime;
+
+    if (origMime.startsWith("image/")) {
+      let target = ["jpeg", "jpg", "png", "webp"].includes(origExt)
+        ? origExt
+        : "jpeg";
+      if (target === "jpg") target = "jpeg";
+
+      if (target === "jpeg") {
+        outBuffer = await sharp(outBuffer).jpeg({ quality: 40 }).toBuffer();
+        outExt = "jpg";
+        outMime = "image/jpeg";
+      } else if (target === "png") {
+        outBuffer = await sharp(outBuffer)
+          .png({ compressionLevel: 9 })
+          .toBuffer();
+        outExt = "png";
+        outMime = "image/png";
+      } else if (target === "webp") {
+        outBuffer = await sharp(outBuffer).webp({ quality: 40 }).toBuffer();
+        outExt = "webp";
+        outMime = "image/webp";
+      }
+    }
+
+    const base = file.originalname.replace(/\.[^/.]+$/, "");
+    const finalName = `${base}.${outExt}`;
+
+    const form = new FormData();
+    form.append("file", outBuffer, {
+      filename: finalName,
+      contentType: outMime,
     });
+
+    const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(
+      folderPath
+    )}`;
+
+    const resp = await axios.post(uploadUrl, form, {
+      headers: {
+        ...form.getHeaders(),
+      },
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+
+    const data = resp.data;
+    const url =
+      Array.isArray(data) && data.length > 0
+        ? data[0]
+        : data.url || data.fileUrl || (data.data && data.data.url) || null;
+
+    if (url) uploaded.push({ name: finalName, url });
+    else console.warn(`No URL returned for ${finalName}`);
+  }
+
+  return uploaded;
+}
+
+// --- Main handler
+const addVendor = async function addVendor(req, res) {
+  try {
+    let data = req.body?.data ?? req.body;
+    if (typeof data === "string") {
+      try {
+        data = JSON.parse(data);
+      } catch (_e) {}
+    }
+    if (!data || typeof data !== "object") {
+      return res.status(400).json({ msg: "Invalid payload." });
+    }
+
+    const rawName = (data.name || "").trim();
+    if (!rawName) {
+      return res.status(400).json({ msg: "Vendor name is required." });
+    }
+
+    const vendorExist = await vendorModells.findOne({ name: rawName });
     if (vendorExist) {
       return res.status(400).json({ msg: "Vendor already exists!" });
     }
-    const vendor = new vendorModells(data);
+
+    const safeName = slugify(rawName);
+    const folderPath = `vendor/${safeName}`;
+
+    let profileImageUrl = "";
+    if (req.files && req.files.length > 0) {
+      const uploaded = await uploadFiles(req.files, folderPath);
+      profileImageUrl = uploaded?.[0]?.url || "";
+    }
+
+    const vendorDoc = {
+      ...data,
+      name: rawName,
+      profile_image: profileImageUrl || data.profile_image || "",
+    };
+
+    const vendor = new vendorModells(vendorDoc);
     await vendor.save();
+
     return res.status(200).json({
       msg: "Vendor added successfully",
       data: vendor,
     });
   } catch (error) {
+    console.error("addVendor error:", error);
     res.status(400).json({
       msg: "Internal Server Error",
       error: error.message,
     });
   }
 };
-
 // Get all vendors
 const getVendor = async function (req, res) {
   let data = await vendorModells.find();
