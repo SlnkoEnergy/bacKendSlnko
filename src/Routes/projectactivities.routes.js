@@ -24,99 +24,99 @@ const {
   updateReorderfromActivity,
   getProjectSchedulePdf,
 } = require("../Controllers/projectactivities.controller");
-const jwtMW = require("../middlewares/auth");
+const auth = require("../middlewares/auth.middleware.js");
 
-router.post("/projectactivity", jwtMW.authentication, createProjectActivity);
-router.put("/projectactivity/:id", jwtMW.authentication, editProjectActivity);
+router.post("/projectactivity", auth, createProjectActivity);
+router.put("/projectactivity/:id", auth, editProjectActivity);
 router.delete(
   "/projectactivity/:id",
-  jwtMW.authentication,
+  auth,
   deleteProjectActivity
 );
 router.put(
   "/:projectId/projectactivity/:activityId/projectstatus",
-  jwtMW.authentication,
+  auth,
   updateProjectActivityStatus
 );
 
 router.get(
   "/projectactivity",
-  jwtMW.authentication,
+  auth,
   getProjectActivitybyProjectId
 );
 router.put(
   "/pushactivity/:projectId",
-  jwtMW.authentication,
+  auth,
   pushActivityToProject
 );
 router.put(
   "/:projectId/activity/:activityId",
-  jwtMW.authentication,
+  auth,
   updateActivityInProject
 );
 router.get(
   "/:projectId/activity/:activityId",
-  jwtMW.authentication,
+  auth,
   getActivityInProject
 );
 router.get(
   "/namesearchtemplate",
-  jwtMW.authentication,
+  auth,
   getAllTemplateNameSearch
 );
 router.get(
   "/allprojectactivity",
-  jwtMW.authentication,
+  auth,
   getAllProjectActivities
 );
 router.put(
   "/:projectId/projectactivity/:templateId/fromtemplate",
-  jwtMW.authentication,
+  auth,
   updateProjectActivityFromTemplate
 );
 router.put(
   "/:projectId/projectactivity/:activityId/activity/:dependencyId/dependencystatus",
-  jwtMW.authentication,
+  auth,
   updateDependencyStatus
 );
 router.get(
   "/namesearchactivitybyprojectid",
-  jwtMW.authentication,
+  auth,
   nameSearchActivityByProjectId
 );
 router.get(
   "/:projectId/dependencies/:activityId",
-  jwtMW.authentication,
+  auth,
   getRejectedOrNotAllowedDependencies
 );
 router.patch(
   "/reorder/:projectId",
-  jwtMW.authentication,
+  auth,
   reorderProjectActivities
 );
 router.get(
   "/allprojectactivityforview",
-  jwtMW.authentication,
+  auth,
   getAllProjectActivityForView
 );
 
-router.get("/resources", jwtMW.authentication, getResources);
+router.get("/resources", auth, getResources);
 router.put(
   "/:projectId/updateStatusOfPlan",
-  jwtMW.authentication,
+  auth,
   updateStatusOfPlan
 );
 router.put(
   "/updateprojectactivityforallprojects",
-  jwtMW.authentication,
+  auth,
   updateProjectActivityForAllProjects
 );
-router.put('/syncactivity', jwtMW.authentication, syncActivitiesFromProjectActivity);
-router.get('/get-project-csv', jwtMW.authentication, getProjectGanttChartCsv);
-router.get('/get-project-pdf', jwtMW.authentication, getProjectSchedulePdf);
+router.put('/syncactivity', auth, syncActivitiesFromProjectActivity);
+router.get('/get-project-csv', auth, getProjectGanttChartCsv);
+router.get('/get-project-pdf', auth, getProjectSchedulePdf);
 router.put(
   "/reorderfromactivity/:projectId",
-  jwtMW.authentication,
+  auth,
   updateReorderfromActivity
 );
 

@@ -6,12 +6,12 @@ const {
   deletePoHistory,
   getPoHistory,
 } = require("../Controllers/Pohistory.controller");
-const jwtMW = require("../middlewares/auth");
+const auth = require("../middlewares/auth.middleware.js");
 
-router.get("/Pohistory", jwtMW.authentication, listPoHistory);
-router.get("/PoHistory/:id", jwtMW.authentication, getPoHistory);
-router.post("/PoHistory", jwtMW.authentication, createPoHistory);
-router.put("/PoHistory/:id", jwtMW.authentication, updatePoHistory);
-router.delete("/PoHistory/:id", jwtMW.authentication, deletePoHistory);
+router.get("/Pohistory", auth, listPoHistory);
+router.get("/PoHistory/:id", auth, getPoHistory);
+router.post("/PoHistory", auth, createPoHistory);
+router.put("/PoHistory/:id", auth, updatePoHistory);
+router.delete("/PoHistory/:id", auth, deletePoHistory);
 
 module.exports = router;

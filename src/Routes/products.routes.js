@@ -12,17 +12,17 @@ const {
   getMaterialCategoryById,
   updateMaterialCategory
 } = require("../Controllers/materialcategory.controller");
-const jwtMW = require("../middlewares/auth");
+const auth = require("../middlewares/auth.middleware.js");
 
-router.post("/category", jwtMW.authentication, addMaterialCategory);
-router.get("/category", jwtMW.authentication, namesearchOfMaterialCategories);
-router.get("/categories", jwtMW.authentication, getAllMaterialCategories);
-router.get('/category-id', jwtMW.authentication, getMaterialCategoryById);
-router.put('/category/:_id', jwtMW.authentication, updateMaterialCategory);
+router.post("/category", auth, addMaterialCategory);
+router.get("/category", auth, namesearchOfMaterialCategories);
+router.get("/categories", auth, getAllMaterialCategories);
+router.get('/category-id', auth, getMaterialCategoryById);
+router.put('/category/:_id', auth, updateMaterialCategory);
 
-router.post("/product", jwtMW.authentication, createMaterial);
-router.get("/product", jwtMW.authentication, getAllMaterials);
-router.get("/product/:id", jwtMW.authentication, getMaterialById);
-router.put("/product/:id", jwtMW.authentication, updateMaterial);
+router.post("/product", auth, createMaterial);
+router.get("/product", auth, getAllMaterials);
+router.get("/product/:id", auth, getMaterialById);
+router.put("/product/:id", auth, updateMaterial);
 
 module.exports = router;
