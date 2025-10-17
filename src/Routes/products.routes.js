@@ -10,16 +10,17 @@ const {
   namesearchOfMaterialCategories,
   getAllMaterialCategories,
   getMaterialCategoryById,
-  updateMaterialCategory
+  updateMaterialCategory,
+  getAllCategoriesDropdown
 } = require("../Controllers/materialcategory.controller");
 const auth = require("../middlewares/auth.middleware.js");
 
 router.post("/category", auth, addMaterialCategory);
 router.get("/category", auth, namesearchOfMaterialCategories);
 router.get("/categories", auth, getAllMaterialCategories);
+router.get("/categories-dropdown", auth, getAllCategoriesDropdown);
 router.get('/category-id', auth, getMaterialCategoryById);
 router.put('/category/:_id', auth, updateMaterialCategory);
-
 router.post("/product", auth, createMaterial);
 router.get("/product", auth, getAllMaterials);
 router.get("/product/:id", auth, getMaterialById);
