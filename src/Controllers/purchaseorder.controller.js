@@ -19,9 +19,7 @@ const mime = require("mime-types");
 const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const inspectionModel = require("../models/inspection.model");
-const billModel = require("../models/bill.model");
 const projectModel = require("../models/project.model");
-const purchaseorderModel = require("../models/purchaseorder.model");
 
 function toSafeNumber(v) {
   const n = Number(v);
@@ -48,7 +46,6 @@ const toNum = (expr) => ({
   },
 });
 
-// --- Pipeline stays same ---
 const aggregationPipeline = [
   {
     $lookup: {
@@ -575,10 +572,10 @@ const addPo = async function (req, res) {
       newPO,
     });
   } catch (error) {
-    console.error("addPo error:", error);
-    res
-      .status(500)
-      .send({ message: "An error occurred while processing your request." });
+    res.status(500).send({
+      message: "An error occurred while processing your request.",
+      error: error.message,
+    });
   }
 };
 
@@ -852,13 +849,31 @@ const getPOByPONumber = async (req, res) => {
     const poDoc = await purchaseOrderModells
       .findOne(query)
       .populate("submitted_By", "_id name")
+      .populate("vendor", "_id name")
       .lean();
 
     if (!poDoc) {
       return res.status(404).json({ msg: "Purchase Order not found" });
     }
 
-    // Handle both `item` and `items`
+    let vendor_id = "";
+    let vendor_name = "";
+
+    if (poDoc.vendor && typeof poDoc.vendor === "object" && poDoc.vendor._id) {
+      vendor_id = String(poDoc.vendor._id);
+      vendor_name = poDoc.vendor.name || "";
+    } else if (poDoc.vendor && mongoose.isValidObjectId(poDoc.vendor)) {
+      const v = await vendorModells
+        .findById(poDoc.vendor)
+        .select("_id name")
+        .lean();
+      vendor_id = v?._id ? String(v._id) : String(poDoc.vendor);
+      vendor_name = v?.name || "";
+    } else if (typeof poDoc.vendor === "string") {
+      vendor_name = poDoc.vendor;
+      if (poDoc.vendor_id) vendor_id = String(poDoc.vendor_id);
+    }
+
     const itemsArr = Array.isArray(poDoc?.items)
       ? poDoc.items
       : Array.isArray(poDoc?.item)
@@ -882,7 +897,6 @@ const getPOByPONumber = async (req, res) => {
         }
       }
 
-      // Fetch missing category names
       const catDocs = catIdSet.size
         ? await materialCategoryModells
             .find({ _id: { $in: Array.from(catIdSet) } })
@@ -911,52 +925,14 @@ const getPOByPONumber = async (req, res) => {
       if (Array.isArray(poDoc.item)) poDoc.item = mappedItems;
     }
 
-    const catIdSet = new Set();
-    for (const it of itemsArr) {
-      const cat = it?.category;
-      if (!cat) continue;
-
-      if (
-        typeof cat === "object" &&
-        cat?._id &&
-        mongoose.isValidObjectId(cat._id)
-      ) {
-        catIdSet.add(String(cat._id));
-      } else if (mongoose.isValidObjectId(cat)) {
-        catIdSet.add(String(cat));
-      }
-    }
-
-    // Fetch missing category names
-    const catDocs = catIdSet.size
-      ? await materialCategoryModells
-          .find({ _id: { $in: Array.from(catIdSet) } })
-          .select({ name: 1 })
-          .lean()
-      : [];
-
-    const catMap = new Map(
-      catDocs.map((c) => [String(c._id), { _id: c._id, name: c.name }])
-    );
-
-    const mappedItems = itemsArr.map((it) => {
-      const cat = it?.category;
-      if (cat && typeof cat === "object" && cat._id) {
-        const key = String(cat._id);
-        return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
-      }
-      if (cat && mongoose.isValidObjectId(cat)) {
-        const key = String(cat);
-        return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
-      }
-      return it;
-    });
     const inspectionCount = await inspectionModel.countDocuments({
       po_number: poDoc.po_number,
     });
 
     const updatedPO = {
       ...poDoc,
+      vendor_id,
+      vendor: vendor_name,
       inspectionCount,
     };
 
@@ -980,10 +956,8 @@ const generatePurchaseOrderPdf = async (req, res) => {
       return res.status(400).json({ msg: "po number or id is required" });
     }
 
-    // Build query
     let query = {};
     if (po_number && _id) {
-      // If you want BOTH to match, use $and instead of $or
       query = {
         $or: [
           { po_number },
@@ -1004,10 +978,9 @@ const generatePurchaseOrderPdf = async (req, res) => {
       };
     }
 
-    // Fetch the PO (await!)
     const doc = await purchaseOrderModells
       .findOne(query)
-      .select("item date po_number vendor p_id _id") // include what you need
+      .select("item date po_number vendor p_id _id")
       .lean()
       .exec();
 
@@ -1015,7 +988,7 @@ const generatePurchaseOrderPdf = async (req, res) => {
       subject_type: "purchase_order",
       subject_id: String(doc._id),
       event_type: "note",
-      message: { $regex: /^Payment Terms & Conditions/i }, // starts with, case-insensitive
+      message: { $regex: /^Payment Terms & Conditions/i },
     })
       .select("message")
       .lean();
@@ -1024,7 +997,6 @@ const generatePurchaseOrderPdf = async (req, res) => {
       return res.status(404).json({ msg: "Purchase order not found" });
     }
 
-    // Map DB items -> generator's expected shape
     const Purchase = (doc.item || []).map((it) => {
       const qty = Number(it?.quantity) || 0;
       const unit = Number(it?.cost) || 0;
@@ -1036,8 +1008,8 @@ const generatePurchaseOrderPdf = async (req, res) => {
         make: it?.make || "",
         quantity: qty,
         unit_price: unit,
-        taxes: taxPct, // percent
-        amount: qty * unit + (qty * unit * taxPct) / 100, // base amount
+        taxes: taxPct,
+        amount: qty * unit + (qty * unit * taxPct) / 100,
       };
     });
 
@@ -1132,7 +1104,6 @@ const getallpodetail = async function (req, res) {
   try {
     const { po_number } = req.query;
 
-    // If no po_number, return list of POs
     if (!po_number) {
       const poList = await purchaseOrderModells
         .find({}, { po_number: 1, _id: 0 })
@@ -1143,13 +1114,11 @@ const getallpodetail = async function (req, res) {
       });
     }
 
-    // Load PO
     const selectedPo = await purchaseOrderModells.findOne({ po_number }).lean();
     if (!selectedPo) {
       return res.status(404).json({ message: "PO not found" });
     }
 
-    // Total po_value (handles string/number)
     const poAggregate = await purchaseOrderModells.aggregate([
       { $match: { po_number } },
       {
@@ -1161,8 +1130,6 @@ const getallpodetail = async function (req, res) {
     ]);
     const po_value = poAggregate.length ? poAggregate[0].total_po_value : 0;
 
-    // ---- Resolve item names from MaterialCategory ----
-    // Collect category ObjectIds from item[]
     const categoryIds = [];
     if (Array.isArray(selectedPo.item)) {
       for (const it of selectedPo.item) {
@@ -1180,7 +1147,6 @@ const getallpodetail = async function (req, res) {
       }
     }
 
-    // Find category names for collected ids
     let categoryNameById = new Map();
     if (categoryIds.length) {
       const cats = await materialCategoryModells
@@ -1191,7 +1157,6 @@ const getallpodetail = async function (req, res) {
       }
     }
 
-    // Build item string: prefer category.name, else product_name, else ""
     const itemNames = [];
     if (Array.isArray(selectedPo.item)) {
       for (const it of selectedPo.item) {
@@ -1211,14 +1176,13 @@ const getallpodetail = async function (req, res) {
         if (name) itemNames.push(name);
       }
     }
-    // Remove duplicates while preserving order
+
     const seen = new Set();
     const deduped = itemNames.filter((n) =>
       seen.has(n) ? false : (seen.add(n), true)
     );
     const itemName = deduped.join(", ");
 
-    // ---- Vendor details (unchanged) ----
     let vendorDetails = {};
     if (selectedPo.vendor) {
       const matchedVendor = await vendorModells
@@ -1234,7 +1198,6 @@ const getallpodetail = async function (req, res) {
       }
     }
 
-    // ---- Approved payments sum ----
     const approvedPayments = await payRequestModells.aggregate([
       { $match: { po_number, approved: "Approved" } },
       {
@@ -1250,13 +1213,12 @@ const getallpodetail = async function (req, res) {
 
     const po_balance = po_value - totalAdvancePaid;
 
-    // ---- Final response (same keys) ----
     return res.status(200).json({
       p_id: selectedPo.p_id,
       po_number: selectedPo.po_number,
       po_value,
       vendor: selectedPo.vendor,
-      item: itemName, // resolved MaterialCategory names (fallback to product_name)
+      item: itemName,
       total_advance_paid: totalAdvancePaid,
       po_balance,
       ...vendorDetails,
@@ -1291,6 +1253,15 @@ const getPaginatedPo = async (req, res) => {
     const status = (req.query.status || "").trim();
     const filter = (req.query.filter || "").trim();
 
+    const vendorIdParam = (req.query.vendor_id || "").trim();
+    let vendorObjectId = null;
+    if (vendorIdParam) {
+      if (!mongoose.isValidObjectId(vendorIdParam)) {
+        return res.status(400).json({ msg: "Invalid vendor_id" });
+      }
+      vendorObjectId = new mongoose.Types.ObjectId(vendorIdParam);
+    }
+
     const parseCustomDate = (dateStr) => {
       if (!dateStr) return null;
       const d = new Date(dateStr);
@@ -1318,7 +1289,7 @@ const getPaginatedPo = async (req, res) => {
         $or: [
           { p_id: { $regex: searchRegex } },
           { po_number: { $regex: searchRegex } },
-          { vendor: { $regex: searchRegex } },
+          { vendor: { $regex: searchRegex } }, 
         ],
       });
     }
@@ -1342,7 +1313,6 @@ const getPaginatedPo = async (req, res) => {
     const baseEq = {
       ...(req.query.project_id && { p_id: req.query.project_id }),
 
-      // created date range uses dateObj (computed below)
       ...(createdFrom || createdTo
         ? {
             dateObj: {
@@ -1402,7 +1372,7 @@ const getPaginatedPo = async (req, res) => {
           baseEq["current_status.status"] = "delivered";
           break;
         case "Short Quantity":
-          matchStage["current_status.status"] = "short_quantity";
+          baseEq["current_status.status"] = "short_quantity";
           break;
         case "Partially Delivered":
           baseEq["current_status.status"] = "partially_delivered";
@@ -1416,13 +1386,11 @@ const getPaginatedPo = async (req, res) => {
       ? { $and: andClauses, ...baseEq }
       : baseEq;
 
-    // Reusable first stage: safe compute dateObj from possibly empty/invalid strings
     const safeDateObjStage = {
       $addFields: {
         dateObj: {
           $switch: {
             branches: [
-              // Parse only when it's a non-empty string
               {
                 case: {
                   $and: [
@@ -1433,13 +1401,12 @@ const getPaginatedPo = async (req, res) => {
                 then: {
                   $dateFromString: {
                     dateString: "$date",
-                    format: "%Y-%m-%d", // change if your stored format differs
+                    format: "%Y-%m-%d",
                     onError: null,
                     onNull: null,
                   },
                 },
               },
-              // Already a BSON Date
               { case: { $eq: [{ $type: "$date" }, "date"] }, then: "$date" },
             ],
             default: null,
@@ -1448,32 +1415,64 @@ const getPaginatedPo = async (req, res) => {
       },
     };
 
+    const vendorResolveStages = [
+      {
+        $addFields: {
+          vendor_obj_id: {
+            $cond: [
+              { $eq: [{ $type: "$vendor" }, "objectId"] },
+              "$vendor",
+              null,
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "vendors",
+          localField: "vendor_obj_id",
+          foreignField: "_id",
+          as: "vendorDoc",
+        },
+      },
+      {
+        $addFields: {
+          vendor_name: {
+            $cond: [
+              { $gt: [{ $size: "$vendorDoc" }, 0] },
+              { $arrayElemAt: ["$vendorDoc.name", 0] },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$vendor" }, "string"] },
+                  "$vendor",
+                  "",
+                ],
+              },
+            ],
+          },
+        },
+      },
+      { $project: { vendorDoc: 0 } },
+    ];
+
+    const vendorIdMatchStage = vendorObjectId
+      ? [{ $match: { vendor_obj_id: vendorObjectId } }]
+      : [];
+
     const pipeline = [
       safeDateObjStage,
-
       { $match: preMatch },
 
       {
         $addFields: {
           total_billed_num: {
-            $convert: {
-              input: "$total_billed",
-              to: "double",
-              onError: 0,
-              onNull: 0,
-            },
+            $convert: { input: "$total_billed", to: "double", onError: 0, onNull: 0 },
           },
           po_value_num: {
-            $convert: {
-              input: "$po_value",
-              to: "double",
-              onError: 0,
-              onNull: 0,
-            },
+            $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
           },
         },
       },
-
       {
         $addFields: {
           partial_billing: {
@@ -1485,7 +1484,6 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-
       ...(status ? [{ $match: { partial_billing: status } }] : []),
 
       {
@@ -1513,24 +1511,19 @@ const getPaginatedPo = async (req, res) => {
           ]
         : []),
 
+      ...vendorResolveStages,
+      ...vendorIdMatchStage,  
+
+      ...(search ? [{ $match: { vendor_name: { $regex: new RegExp(search, "i") } } }] : []),
+
       {
         $addFields: {
           po_number: { $toString: "$po_number" },
           po_value: {
-            $convert: {
-              input: "$po_value",
-              to: "double",
-              onError: 0,
-              onNull: 0,
-            },
+            $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
           },
           total_advance_paid: {
-            $convert: {
-              input: "$total_advance_paid",
-              to: "double",
-              onError: 0,
-              onNull: 0,
-            },
+            $convert: { input: "$total_advance_paid", to: "double", onError: 0, onNull: 0 },
           },
         },
       },
@@ -1544,7 +1537,8 @@ const getPaginatedPo = async (req, res) => {
           _id: 1,
           po_number: 1,
           p_id: 1,
-          vendor: 1,
+          vendor: "$vendor_name",
+          vendor_id: "$vendor_obj_id", 
           date: 1,
           po_value: 1,
           po_basic: 1,
@@ -1568,23 +1562,14 @@ const getPaginatedPo = async (req, res) => {
     const countPipeline = [
       safeDateObjStage,
       { $match: preMatch },
+
       {
         $addFields: {
           total_billed_num: {
-            $convert: {
-              input: "$total_billed",
-              to: "double",
-              onError: 0,
-              onNull: 0,
-            },
+            $convert: { input: "$total_billed", to: "double", onError: 0, onNull: 0 },
           },
           po_value_num: {
-            $convert: {
-              input: "$po_value",
-              to: "double",
-              onError: 0,
-              onNull: 0,
-            },
+            $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
           },
         },
       },
@@ -1599,6 +1584,7 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
+
       {
         $lookup: {
           from: "materialcategories",
@@ -1623,7 +1609,14 @@ const getPaginatedPo = async (req, res) => {
             },
           ]
         : []),
+
+      ...vendorResolveStages,
+      ...vendorIdMatchStage, 
+
+      ...(search ? [{ $match: { vendor_name: { $regex: new RegExp(search, "i") } } }] : []),
+
       ...(status ? [{ $match: { partial_billing: status } }] : []),
+
       { $count: "total" },
     ];
 
@@ -1660,6 +1653,7 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
+
 
 const getExportPo = async (req, res) => {
   try {
@@ -2535,7 +2529,7 @@ const getPoBasic = async (req, res) => {
     });
   }
 };
-// 👉 ADD THIS FUNCTION anywhere in the controller (e.g., below updateStatusPO)
+
 
 const bulkMarkDelivered = async (req, res) => {
   try {
@@ -2652,7 +2646,6 @@ const bulkMarkDelivered = async (req, res) => {
       await purchaseRequest.findByIdAndUpdate(pr._id, { items: updatedItems });
     };
 
-    // Update all affected PRs (in parallel but not too crazy)
     await Promise.all(prIds.map((id) => recomputePRItems(id)));
 
     return res.status(200).json({
@@ -2682,7 +2675,6 @@ const bulkMarkDelivered = async (req, res) => {
 // Controller
 const linkProjectToPOByPid = async (req, res) => {
   try {
-    // 1) Collect only those POs that need linking (have p_id string, missing project_id)
     const poCodes = await purchaseOrderModells.distinct("p_id", {
       p_id: { $type: "string", $ne: "" },
       $or: [{ project_id: { $exists: false } }, { project_id: null }],
@@ -2696,7 +2688,6 @@ const linkProjectToPOByPid = async (req, res) => {
       });
     }
 
-    // 2) Load projects by code
     const projects = await projectModel
       .find({ code: { $in: poCodes } }, { _id: 1, code: 1 })
       .lean();
@@ -2705,20 +2696,18 @@ const linkProjectToPOByPid = async (req, res) => {
       projects.map((p) => [String(p.code).trim(), p._id])
     );
 
-    // 3) Build bulk updates: set project_id where p_id matches code
     const ops = [];
     for (const code of poCodes) {
       const projectId = codeToProjectId.get(String(code).trim());
-      if (!projectId) continue; // no matching project—skip
+      if (!projectId) continue;
 
       ops.push({
         updateMany: {
-          // ✅ never modify p_id; only use it for filtering
           filter: {
             p_id: code,
             $or: [{ project_id: { $exists: false } }, { project_id: null }],
           },
-          update: { $set: { project_id: projectId } }, // ✅ only add project_id
+          update: { $set: { project_id: projectId } },
         },
       });
     }
@@ -2750,13 +2739,11 @@ const linkProjectToPOByPid = async (req, res) => {
     });
   } catch (err) {
     console.error("linkProjectIdsSimple error:", err);
-    return res
-      .status(500)
-      .json({
-        ok: false,
-        message: "Internal server error",
-        error: err.message,
-      });
+    return res.status(500).json({
+      ok: false,
+      message: "Internal server error",
+      error: err.message,
+    });
   }
 };
 

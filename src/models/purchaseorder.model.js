@@ -93,7 +93,8 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: Number,
     },
     vendor: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Vendor",
     },
     partial_billing: {
       type: String,

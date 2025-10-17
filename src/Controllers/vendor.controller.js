@@ -3,6 +3,7 @@ const axios = require("axios");
 const FormData = require("form-data");
 const mime = require("mime-types");
 const sharp = require("sharp");
+const purchaseorderModel = require("../models/purchaseorder.model");
 
 const slugify = (str = "") =>
   String(str)
@@ -180,12 +181,27 @@ const getAllVendors = async (req, res) => {
   }
 };
 
+const getVendorById = async function (req, res) {
+  try {
+    const id = req.params.id;
+    const vendor = await vendorModells.findById(id);
+    if (!vendor) {
+      return res.status(404).json({ msg: "Vendor not found" });
+    }
+    res.status(200).json({ msg: "Vendor fetched successfully", data: vendor });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ msg: "Internal Server error", error: error.message });
+  }
+};
+
 // Update vendor
 const updateVendor = async function (req, res) {
-  let _id = req.params._id;
+  let id = req.params.id;
   let updateData = req.body;
   try {
-    let update = await vendorModells.findByIdAndUpdate(_id, updateData, {
+    let update = await vendorModells.findByIdAndUpdate(id, updateData, {
       new: true,
     });
 
@@ -206,9 +222,9 @@ const updateVendor = async function (req, res) {
 
 // Delete Vendor
 const deleteVendor = async function (req, res) {
-  let _id = req.params._id;
+  let id = req.params.id;
   try {
-    let deleted = await vendorModells.findByIdAndDelete(_id);
+    let deleted = await vendorModells.findByIdAndDelete(id);
     if (!deleted) {
       return res.status(404).json({ msg: "Vendor not found" });
     }
@@ -285,12 +301,66 @@ const getVendorNameSearch = async (req, res) => {
   }
 };
 
+const norm = (s) =>
+  String(s || "")
+    .trim()
+    .replace(/\s+/g, " ")       // collapse spaces
+    .toLowerCase();
+
+const changeVendorNametoObjectIdInPO = async (req, res) => {
+  try {
+    const vendors = await vendorModells.find({}, { name: 1 }).lean();
+    const nameToId = new Map();
+    for (const v of vendors) nameToId.set(norm(v.name), v._id);
+
+    const ops = [];
+    for (const [nameNorm, _id] of nameToId.entries()) {
+      ops.push({
+        updateMany: {
+          filter: {
+            $expr: {
+              $and: [
+                { $eq: [{ $type: "$vendor" }, "string"] },
+                { $eq: [{ $toLower: { $trim: { input: "$vendor" } } }, nameNorm] },
+              ],
+            },
+          },
+          update: { $set: { vendor: _id } },
+        },
+      });
+    }
+
+    if (ops.length) {
+      const result = await purchaseorderModel.bulkWrite(ops, { ordered: false });
+      console.log("Bulk update result:", result);
+    }
+
+    const stillStrings = await purchaseorderModel.aggregate([
+      { $match: { $expr: { $eq: [{ $type: "$vendor" }, "string"] } } },
+      { $group: { _id: "$vendor", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 50 },
+    ]);
+
+    return res.status(200).json({
+      msg: "Vendor names updated to ObjectId in Purchase Orders",
+      remaining_string_vendors_top50: stillStrings,
+    });
+  } catch (error) {
+    console.error("Migration error:", error);
+    return res.status(500).json({ msg: "Server error", error: error.message });
+  }
+};
+
+
 module.exports = {
   addVendor,
   getVendor,
   getAllVendors,
+  getVendorById,
   updateVendor,
   deleteVendor,
   getVendorDropwdown,
   getVendorNameSearch,
+  changeVendorNametoObjectIdInPO
 };
