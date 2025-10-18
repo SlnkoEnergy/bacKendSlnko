@@ -27,6 +27,7 @@ const {
   updateProjectStatusForPreviousProjects,
   updateSubmittedByOfProject
 } = require("../Controllers/project.controller.js");
+
 const {
   userRegister,
   login,
@@ -250,7 +251,6 @@ router.post("/backfill", auth, backfillProfileFields);
 router.post("/add-new-projecT-IT", auth, createProject);
 router.put("/update-projecT-IT/:_id", auth, updateProject);
 router.get("/get-all-projecT-IT", auth, getallproject);
-router.get("/projects", auth, getAllProjects);
 router.put(
   "/:projectId/updateProjectStatus",
   auth,
@@ -295,6 +295,7 @@ router.post(
   addMoney
 );
 router.get("/all-bilL-IT", auth, allbill);
+router.get("/project-by-pid", auth, getAllProjects);
 router.post(
   "/get-bilL-IT",
   auth,
