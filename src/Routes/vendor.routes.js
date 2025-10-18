@@ -21,6 +21,6 @@ router.put("/vendor/:id", auth, updateVendor);
 router.delete("/vendor/:id", auth, deleteVendor);
 router.get("/vendor-dropdown", auth, getVendorDropwdown);
 router.get("/vendor-search", auth, getVendorNameSearch);
-router.put('/vendor-update-names-in-po', auth, changeVendorNametoObjectIdInPO);
+router.put("/vendor-update-names-in-po", auth, changeVendorNametoObjectIdInPO);
 
 module.exports = router;
