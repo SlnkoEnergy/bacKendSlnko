@@ -1,7 +1,6 @@
 const addMoneyModells = require("../models/addMoneyModells");
 const projectModells = require("../models/project.model");
 const projectBalanceModel = require("../models/projectBalance.model");
-const { getBill } = require("./bill.controller");
 
 //Add Money
 const addMoney = async (req, res) => {
@@ -44,7 +43,7 @@ const addMoney = async (req, res) => {
     );
 
     const creditEntry = {
-      cr_date: updatedAt ? new Date(updatedAt) : new Date(),
+      cr_date: new Date(),
       cr_amount: Number(cr_amount) || 0,
       added_by: submitted_by || null,
     };
