@@ -1,7 +1,7 @@
 // src/utils/novuNotification.utils.js   ← ensure this exact file name & casing
 const { Novu } = require('@novu/node');
 
-function getNovuNotification(workflow, senders = [], payload = {}) {
+function getnovuNotification(workflow, senders = [], payload = {}) {
   const novu = new Novu(process.env.NOVU_SECRET_KEY, {
     backendUrl: process.env.NOVU_API_URL,
   });
@@ -16,4 +16,4 @@ function getNovuNotification(workflow, senders = [], payload = {}) {
   return Promise.allSettled(jobs);
 }
 
-module.exports = { getNovuNotification }; 
+module.exports = { getnovuNotification }; 
