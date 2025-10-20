@@ -408,7 +408,6 @@ const updateInspection = catchAsyncError(async (req, res, next) => {
   res.json(updated);
 });
 
-// DELETE
 const deleteInspection = catchAsyncError(async (req, res, next) => {
   const deleted = await Inspection.findByIdAndDelete(req.params.id);
   if (!deleted) return next(new ErrorHandler("Not Found", 404));
