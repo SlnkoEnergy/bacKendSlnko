@@ -1,36 +1,19 @@
+// src/utils/novuNotification.utils.js   ← ensure this exact file name & casing
 const { Novu } = require('@novu/node');
 
-const getnovuNotification = async (workflow, senders, payload) => {
-  const novu = new Novu(process.env.NOVU_SECRET_KEY);
-  const notify = senders.map((sender, index) => {
-    return (async () => {
-      if (!sender || !workflow) {
-        console.warn("Skipping due to missing sender or workflow.");
-        return;
-      }
-      
-      try {
-        const subscriberId = sender.toString().trim();
-        await novu.subscribers.identify(subscriberId, {
-          firstName: sender,
-        });
-        await novu.trigger(workflow, {
-          to: {
-            subscriberId
-          },
-          payload: payload,
-          
-        });
-
-      } catch (err) {
-        console.error(`❌ Failed for ${sender}:`, err.message);
-      }
-    })();
+function getnovuNotification(workflow, senders = [], payload = {}) {
+  const novu = new Novu(process.env.NOVU_SECRET_KEY, {
+    backendUrl: process.env.NOVU_API_URL,
   });
 
-  await Promise.all(notify);
-};
+  const jobs = (senders || []).map((raw) => (async () => {
+    const subscriberId = String(raw || '').trim();
+    if (!subscriberId) return;
+    await novu.subscribers.identify(subscriberId, { firstName: subscriberId });
+    await novu.trigger(workflow, { to: { subscriberId }, payload });
+  })());
 
-module.exports = {
-  getnovuNotification,
-};
+  return Promise.allSettled(jobs);
+}
+
+module.exports = { getnovuNotification }; 
