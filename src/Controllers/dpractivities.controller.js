@@ -3,25 +3,74 @@ const Activities = require("../models/activities.model");
 
 const createDPR = async (req, res) => {
   try {
-    const data = req.body;
+    const { projectId, activity, assignments } = req.body;
+    const created_by = req.user?._id;
 
-    if (!data.project_id) {
-      return res.status(400).json({ message: "project_id are required" });
+    if (!projectId || !assignments?.length) {
+      return res.status(400).json({
+        success: false,
+        message: "projectId and assignments are required",
+      });
     }
 
-    const newDpr = new DprActivities(data);
+    const newDpr = new DprActivities({
+      project_id: new mongoose.Types.ObjectId(projectId),
+      created_by,
+      phase_1_engineers: [],
+      phase_2_engineers: [],
+      current_status: [],
+      status_history: [],
+    });
+
+    for (const assign of assignments) {
+      const { phase, phaseActivities = [], engineers = [] } = assign;
+      if (!phase || !phaseActivities.length || !engineers.length) continue;
+
+      for (const actId of phaseActivities) {
+        for (const engId of engineers) {
+          const workEntry = {
+            activity_id: new mongoose.Types.ObjectId(actId),
+            assigned_engineer: new mongoose.Types.ObjectId(engId),
+            work_status: "draft",
+            work_completion: 0,
+            assigned_status: "Assigned",
+            remarks: "",
+          };
+
+          // Push inside correct phase array
+          if (phase === "phase1") newDpr.phase_1_engineers.push(workEntry);
+          if (phase === "phase2") newDpr.phase_2_engineers.push(workEntry);
+
+          // For tracking
+          const statusObj = {
+            updated_at: new Date(),
+            phase: phase === "phase1" ? "phase_1" : "phase_2",
+            activity_id: workEntry.activity_id,
+            assigned_engineer: workEntry.assigned_engineer,
+            assigned_status: "Assigned",
+            work_status: "draft",
+            work_completion: 0,
+            remarks: "",
+          };
+
+          newDpr.current_status.push(statusObj);
+          newDpr.status_history.push(statusObj);
+        }
+      }
+    }
+
     const savedDpr = await newDpr.save();
 
     res.status(201).json({
       success: true,
-      message: "DPR activity saved successfully",
+      message: "DPR activities assigned successfully",
       data: savedDpr,
     });
   } catch (error) {
-    console.error("Error saving DPR activity:", error);
+    console.error("Error creating DPR:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to save DPR activity",
+      message: "Failed to create DPR",
       error: error.message,
     });
   }

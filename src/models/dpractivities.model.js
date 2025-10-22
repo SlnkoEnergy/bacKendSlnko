@@ -79,7 +79,6 @@ const DprActivitiesSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-DprActivitiesSchema.index({ project_id: 1 }, { unique: true });
 
 DprActivitiesSchema.pre("save", async function (next) {
   updateDprStatus(this, "status_history", "current_status");
