@@ -12,6 +12,7 @@ const materialCategoryModells = require("../models/materialcategory.model");
 const userModells = require("../models/user.model");
 const utrCounter = require("../models/utrCounter");
 const projectBalanceModel = require("../models/projectBalance.model");
+const { sendUsingTemplate } = require("../utils/sendemail.utils");
 
 const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
 const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
@@ -1082,7 +1083,6 @@ const accApproved = async function (req, res) {
     return res.status(500).json({ message: "Server error" });
   }
 };
-
 const utrUpdate = async function (req, res) {
   const { pay_id, cr_id, utr, utr_submitted_by: bodySubmittedBy } = req.body;
 
@@ -1104,6 +1104,8 @@ const utrUpdate = async function (req, res) {
   const session = await mongoose.startSession();
   let httpStatus = 200;
   let payload = null;
+
+  let emailPayload = null;
 
   const buildSubtractDoc = (p, useUtr) => ({
     p_id: p.p_id,
@@ -1236,8 +1238,7 @@ const utrUpdate = async function (req, res) {
           ? {
               dbt_date: payment.updatedAt ? new Date(payment.updatedAt) : new Date(),
               amount_paid: Number(payment.amount_paid) || 0,
-              remarks:
-                payment.remarks || payment.comment || payment.note || null,
+              remarks: payment.remarks || payment.comment || payment.note || null,
               paid_for: payment.paid_for || null,
             }
           : null;
@@ -1271,6 +1272,28 @@ const utrUpdate = async function (req, res) {
         });
       }
 
+      // --------- Stage email payload (send after commit) ----------
+      if (utrChanged) {
+        const projDoc = await projectModells
+          .findOne({ p_id: Number(payment.p_id) }, { code: 1, name: 1 })
+          .lean()
+          .session(session);
+
+        const paymentDate = payment.dbt_date || payment.updatedAt || new Date();
+
+        emailPayload = {
+          vendor_name: payment.vendor || "",
+          project: { name: projDoc?.code || "" }, 
+          payment: {
+            date: paymentDate,
+            amount: Number(payment.amount_paid) || 0,
+          },
+          utr: trimmedUtr,
+          user_id:req.user.userId
+        };
+      }
+      // -----------------------------------------------------------
+
       httpStatus = 200;
       payload = {
         message: isCrPath
@@ -1297,6 +1320,13 @@ const utrUpdate = async function (req, res) {
     });
   } finally {
     session.endSession();
+  }
+
+  if (emailPayload) {
+    setImmediate(() => {
+      sendUsingTemplate("vendor-payment-confirmation", emailPayload, { strict: false })
+        .catch((e) => console.error("[utrUpdate] email send error:", e?.message || e));
+    });
   }
 
   return res.status(httpStatus).json(payload);
