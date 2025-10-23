@@ -24,38 +24,53 @@ const createEmail = async (req, res) => {
 
 const getEmails = async (req, res) => {
   try {
-    const { page, limit, search, status } = req.query;
+    const { page, limit, search, status, tags } = req.query;
+
+    const norm = (v) => (v === undefined || v === null ? "" : String(v).trim());
+    const isPresent = (v) => {
+      const s = norm(v).toLowerCase();
+      return s !== "" && s !== "null" && s !== "undefined";
+    };
+
     const query = {};
-    if (search) {
-      query["$or"] = [
-        { "compiled.to": { $regex: search, $options: "i" } },
-        { "compiled.subject": { $regex: search, $options: "i" } },
-        { provider_message_id: { $regex: search, $options: "i" } },
+
+    if (isPresent(search)) {
+      const q = norm(search);
+      query.$or = [
+        { "compiled.to": { $regex: q, $options: "i" } },
+        { "compiled.subject": { $regex: q, $options: "i" } },
+        { provider_message_id: { $regex: q, $options: "i" } },
       ];
     }
-    if (status) {
-      query["current_status.status"] = status;
+
+    if (isPresent(status)) {
+      query["current_status.status"] = norm(status).toLowerCase();
     }
+
+    if (isPresent(tags)) {
+      query["compiled.tags"] = norm(tags);
+    }
+
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
+
     const total = await emailsModel.countDocuments(query);
     const totalPages = Math.max(Math.ceil(total / limitNum), 1);
+
     const emails = await emailsModel
       .find(query)
+      .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
-      .sort({ createdAt: -1 });
+      .lean();
+
     res.status(200).json({
       message: "Emails fetched successfully",
       data: emails,
-      pagination: {
-        page: pageNum,
-        totalPages,
-        limit: limitNum,
-        total,
-      },
+      pagination: { page: pageNum, totalPages, limit: limitNum, total },
     });
   } catch (error) {
+    console.error("getEmails error:", error);
     res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
@@ -83,11 +98,12 @@ const getEmailById = async (req, res) => {
 const updateEmailStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, remarks } = req.body;
+    let { status, remarks } = req.body;
     const email = await emailsModel.findById(id);
     if (!email) {
       return res.status(404).json({ message: "Email not found" });
     }
+
     // Update status history
     email.status_history.push({
       status,
@@ -106,9 +122,31 @@ const updateEmailStatus = async (req, res) => {
   }
 };
 
+const getUniqueTags = async (req, res) => {
+  try {
+    const raw = await emailsModel.distinct("compiled.tags", {
+      "compiled.tags.0": { $exists: true },
+    });
+
+    const tags = (raw || [])
+      .filter((t) => typeof t === "string")
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+
+    res.status(200).json({ success: true, tags });
+  } catch (error) {
+    console.error("getUniqueTags error:", error);
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
 module.exports = {
   createEmail,
   getEmails,
   getEmailById,
   updateEmailStatus,
+  getUniqueTags,
 };

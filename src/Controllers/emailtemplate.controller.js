@@ -105,7 +105,7 @@ const getEmailTemplates = async (req, res) => {
     const total = await emailtemplateModel.countDocuments(query);
     res.status(200).json({
       message: "Email Templates fetched successfully",
-      templates,
+      data: templates,
       total,
       page: parseInt(page),
       limit: parseInt(limit),

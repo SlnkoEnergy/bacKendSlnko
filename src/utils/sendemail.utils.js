@@ -152,6 +152,7 @@ function compileEmail(templateDoc, payload, { strict = false } = {}) {
     bodyFormat: templateDoc.bodyFormat || "html",
     attachments,
     payload,
+    tags: payload.tags || [],
     createdby:
       payload?.user_id && mongoose.Types.ObjectId.isValid(payload.user_id)
         ? new mongoose.Types.ObjectId(payload.user_id)
@@ -171,6 +172,7 @@ async function createEmailLog(
     error,
     sent_at: status === "sent" ? new Date() : null,
     createdby: doc.createdby || null,
+    tags: doc.tags || [],
   });
   return log.save();
 }

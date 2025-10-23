@@ -4,6 +4,7 @@ const {
   getEmailById,
   createEmail,
   updateEmailStatus,
+  getUniqueTags,
 } = require("../Controllers/email.controller");
 const {
   getEmailTemplates,
@@ -25,8 +26,9 @@ router.delete("/template/:id", auth, deleteEmailTemplate);
 
 // Email Routes
 router.get("/", auth, getEmails);
-router.get("/:id", auth, getEmailById);
 router.post("/", auth, createEmail);
 router.put("/:id/status", auth, updateEmailStatus);
+router.get('/tags', auth, getUniqueTags);
+router.get("/:id", auth, getEmailById);
 
 module.exports = router;

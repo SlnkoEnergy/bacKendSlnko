@@ -20,7 +20,6 @@ const emailTemplateSchema = new mongoose.Schema(
     cc: [{ type: String }],
     bcc: [{ type: String }],
     from: [{ type: String, required: true }],
-    replyTo: [{ type: String }],
     subject: { type: String, required: true },
     body: { type: String, required: true },
     bodyFormat: { type: String, enum: ["html", "text"], default: "html" },
@@ -37,7 +36,7 @@ const emailTemplateSchema = new mongoose.Schema(
     tags: [{ type: String }],
     status_history: [
       {
-        status: { type: String, enum: ["inactive", "active"] },
+        status: { type: String, enum: ["inactive", "active", "trash"] },
         user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         remarks: { type: String },
         created_at: { type: Date, default: Date.now },
@@ -46,7 +45,7 @@ const emailTemplateSchema = new mongoose.Schema(
     current_status: {
       status: {
         type: String,
-        enum: ["inactive", "active"],
+        enum: ["inactive", "active", "trash"],
         default: "inactive",
       },
       user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

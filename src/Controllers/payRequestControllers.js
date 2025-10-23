@@ -1236,9 +1236,12 @@ const utrUpdate = async function (req, res) {
 
         const debitEntry = utrChanged
           ? {
-              dbt_date: payment.updatedAt ? new Date(payment.updatedAt) : new Date(),
+              dbt_date: payment.updatedAt
+                ? new Date(payment.updatedAt)
+                : new Date(),
               amount_paid: Number(payment.amount_paid) || 0,
-              remarks: payment.remarks || payment.comment || payment.note || null,
+              remarks:
+                payment.remarks || payment.comment || payment.note || null,
               paid_for: payment.paid_for || null,
             }
           : null;
@@ -1280,17 +1283,18 @@ const utrUpdate = async function (req, res) {
           .session(session);
 
         const paymentDate = payment.dbt_date || payment.updatedAt || new Date();
-        
+
         emailPayload = {
           vendor_name: payment.vendor || "",
-          project: { name: projDoc?.code || "" }, 
+          project: { name: projDoc?.code || "" },
           payment: {
             date: paymentDate,
             amount: Number(payment.amount_paid) || 0,
           },
           name_to_send: [payment.vendor] || "",
           utr: trimmedUtr,
-          user_id:req.user.userId
+          user_id: req.user.userId,
+          tags: ["vendor"],
         };
       }
       // -----------------------------------------------------------
@@ -1325,8 +1329,11 @@ const utrUpdate = async function (req, res) {
 
   if (emailPayload) {
     setImmediate(() => {
-      sendUsingTemplate("vendor-payment-confirmation", emailPayload, null, { strict: false })
-        .catch((e) => console.error("[utrUpdate] email send error:", e?.message || e));
+      sendUsingTemplate("vendor-payment-confirmation", emailPayload, null, {
+        strict: false,
+      }).catch((e) =>
+        console.error("[utrUpdate] email send error:", e?.message || e)
+      );
     });
   }
 
