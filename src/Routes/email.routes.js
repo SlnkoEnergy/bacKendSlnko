@@ -3,6 +3,7 @@ const {
   getEmails,
   getEmailById,
   createEmail,
+  updateEmailStatus,
 } = require("../Controllers/email.controller");
 const {
   getEmailTemplates,
@@ -26,5 +27,6 @@ router.delete("/template/:id", auth, deleteEmailTemplate);
 router.get("/", auth, getEmails);
 router.get("/:id", auth, getEmailById);
 router.post("/", auth, createEmail);
+router.put("/:id/status", auth, updateEmailStatus);
 
 module.exports = router;

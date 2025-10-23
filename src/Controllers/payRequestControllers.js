@@ -1280,7 +1280,7 @@ const utrUpdate = async function (req, res) {
           .session(session);
 
         const paymentDate = payment.dbt_date || payment.updatedAt || new Date();
-
+        
         emailPayload = {
           vendor_name: payment.vendor || "",
           project: { name: projDoc?.code || "" }, 
@@ -1288,6 +1288,7 @@ const utrUpdate = async function (req, res) {
             date: paymentDate,
             amount: Number(payment.amount_paid) || 0,
           },
+          name_to_send: [payment.vendor] || "",
           utr: trimmedUtr,
           user_id:req.user.userId
         };
@@ -1324,7 +1325,7 @@ const utrUpdate = async function (req, res) {
 
   if (emailPayload) {
     setImmediate(() => {
-      sendUsingTemplate("vendor-payment-confirmation", emailPayload, { strict: false })
+      sendUsingTemplate("vendor-payment-confirmation", emailPayload, null, { strict: false })
         .catch((e) => console.error("[utrUpdate] email send error:", e?.message || e));
     });
   }

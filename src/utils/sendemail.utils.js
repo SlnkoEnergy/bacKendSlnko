@@ -1,17 +1,16 @@
 // utils/emailCompiler.js
 const EmailTemplate = require("../models/emailtemplate.model");
 const EmailMessage = require("../models/emails.model");
+const { default: mongoose } = require("mongoose");
 
 function getValueByPath(payload, path) {
   if (!path) return undefined;
   if (!payload || typeof payload !== "object") return undefined;
 
-  // If payload provided as flat key
   if (Object.prototype.hasOwnProperty.call(payload, path)) {
     return payload[path];
   }
 
-  // If nested object form
   const parts = String(path).split(".");
   let cur = payload;
   for (const p of parts) {
@@ -38,7 +37,6 @@ function extractPlaceholders(str = "") {
 function renderString(str, payload, { strict = false } = {}) {
   if (typeof str !== "string") return str;
 
-  // Replace {{path}} first
   str = str.replace(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g, (_, p1) => {
     const val = getValueByPath(payload, p1);
     if (val === undefined || val === null) {
@@ -48,7 +46,6 @@ function renderString(str, payload, { strict = false } = {}) {
     return String(val);
   });
 
-  // Replace {path}
   str = str.replace(/\{([a-zA-Z0-9_.]+)\}/g, (_, p1) => {
     const val = getValueByPath(payload, p1);
     if (val === undefined || val === null) {
@@ -112,7 +109,6 @@ function assertRequiredPlaceholders(placeholders, payload) {
 
 function compileEmail(templateDoc, payload, { strict = false } = {}) {
   if (!templateDoc) throw new Error("Template is required");
-
   if (templateDoc?.current_status?.status === "inactive") {
     throw new Error(`Template "${templateDoc.identifier}" is inactive`);
   }
@@ -121,7 +117,7 @@ function compileEmail(templateDoc, payload, { strict = false } = {}) {
   if (strict) {
     assertRequiredPlaceholders(required, payload);
   }
-  
+
   const subject = renderString(templateDoc.subject, payload, { strict });
   const body = renderString(templateDoc.body, payload, { strict });
 
@@ -142,21 +138,24 @@ function compileEmail(templateDoc, payload, { strict = false } = {}) {
     fileUrl: renderString(a.fileUrl || "", payload, { strict }),
     fileType: renderString(a.fileType || "", payload, { strict }),
   }));
-
   return {
     template_id: templateDoc._id,
     identifier: templateDoc.identifier,
-    to,
+    to: to,
     cc,
     bcc,
-    from,
+    name_to_send: payload?.name_to_send || [],
+    from: Array.isArray(from) && from.length > 0 ? from[0] : undefined,
     replyTo,
     subject,
     body,
     bodyFormat: templateDoc.bodyFormat || "html",
     attachments,
     payload,
-    createdby: payload?.user_id || null,
+    createdby:
+      payload?.user_id && mongoose.Types.ObjectId.isValid(payload.user_id)
+        ? new mongoose.Types.ObjectId(payload.user_id)
+        : undefined,
   };
 }
 
@@ -165,11 +164,13 @@ async function createEmailLog(
   { status = "queued", provider_response = null, error = null } = {}
 ) {
   const log = new EmailMessage({
-    ...doc,
+    compiled: doc,
     status,
+    email_template_id: doc._id || null,
     provider_response,
     error,
     sent_at: status === "sent" ? new Date() : null,
+    createdby: doc.createdby || null,
   });
   return log.save();
 }
@@ -189,33 +190,33 @@ async function sendUsingTemplate(
 
   const queuedLog = await createEmailLog(compiled, { status: "queued" });
 
-//   try {
-//     const providerResp = await emailService.send({
-//       to: compiled.to,
-//       cc: compiled.cc,
-//       bcc: compiled.bcc,
-//       from: compiled.from?.[0],
-//       replyTo: compiled.replyTo?.[0],
-//       subject: compiled.subject,
-//       html: compiled.bodyFormat === "html" ? compiled.body : undefined,
-//       text: compiled.bodyFormat === "text" ? compiled.body : undefined,
-//       attachments: compiled.attachments?.map((a) => ({
-//         filename: a.filename,
-//         href: a.fileUrl,
-//         contentType: a.fileType,
-//       })),
-//     });
-//     queuedLog.status = "sent";
-//     queuedLog.provider_response = providerResp;
-//     queuedLog.sent_at = new Date();
-//     await queuedLog.save();
-//     return { ok: true, logId: queuedLog._id, providerResp };
-//   } catch (err) {
-//     queuedLog.status = "failed";
-//     queuedLog.error = err?.message || String(err);
-//     await queuedLog.save();
-//     throw err;
-//   }
+  //   try {
+  //     const providerResp = await emailService.send({
+  //       to: compiled.to,
+  //       cc: compiled.cc,
+  //       bcc: compiled.bcc,
+  //       from: compiled.from?.[0],
+  //       replyTo: compiled.replyTo?.[0],
+  //       subject: compiled.subject,
+  //       html: compiled.bodyFormat === "html" ? compiled.body : undefined,
+  //       text: compiled.bodyFormat === "text" ? compiled.body : undefined,
+  //       attachments: compiled.attachments?.map((a) => ({
+  //         filename: a.filename,
+  //         href: a.fileUrl,
+  //         contentType: a.fileType,
+  //       })),
+  //     });
+  //     queuedLog.status = "sent";
+  //     queuedLog.provider_response = providerResp;
+  //     queuedLog.sent_at = new Date();
+  //     await queuedLog.save();
+  //     return { ok: true, logId: queuedLog._id, providerResp };
+  //   } catch (err) {
+  //     queuedLog.status = "failed";
+  //     queuedLog.error = err?.message || String(err);
+  //     await queuedLog.save();
+  //     throw err;
+  //   }
 }
 
 module.exports = {

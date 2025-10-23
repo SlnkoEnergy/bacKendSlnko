@@ -15,6 +15,7 @@ const emailTemplateSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true },
     identifier: { type: String, required: true, unique: true },
+    name_to_send: [{ type: String }],
     to: { type: String, required: true },
     cc: [{ type: String }],
     bcc: [{ type: String }],

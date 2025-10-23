@@ -9,10 +9,11 @@ const emailSchema = new mongoose.Schema(
     },
     variables_used: { type: mongoose.Schema.Types.Mixed },
     compiled: {
-      to: { type: String },
+      name_to_send: [{ type: String }],
+      to: [{ type: String }],
       cc: [{ type: String }],
       bcc: [{ type: String }],
-      from: [{ type: String }],
+      from: { type: String },
       replyTo: [{ type: String }],
       subject: { type: String },
       body: { type: String },
@@ -24,6 +25,7 @@ const emailSchema = new mongoose.Schema(
           fileType: String,
         },
       ],
+      tags: [{ type: String }],
     },
     provider: { type: String, default: "novu" },
     provider_message_id: { type: String },
@@ -32,7 +34,10 @@ const emailSchema = new mongoose.Schema(
     error: { type: String },
     status_history: [
       {
-        status: { type: String, enum: ["queued", "failed", "sent", "draft"] },
+        status: {
+          type: String,
+          enum: ["queued", "failed", "sent", "draft", "trash"],
+        },
         user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         remarks: { type: String },
         created_at: { type: Date, default: Date.now },
@@ -41,7 +46,7 @@ const emailSchema = new mongoose.Schema(
     current_status: {
       status: {
         type: String,
-        enum: ["queued", "failed", "sent", "draft"],
+        enum: ["queued", "failed", "sent", "draft", "trash"],
         default: "queued",
       },
       user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
