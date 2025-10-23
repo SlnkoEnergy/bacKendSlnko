@@ -71,7 +71,6 @@ const getCustomerPaymentSummary = async (req, res) => {
         .json({ error: "Either Project ID (p_id) or Mongo _id is required." });
     }
 
-    // Resolve the project once. If _id is provided, prefer that.
     const pickFields = {
       name: 1,
       p_group: 1,
@@ -605,6 +604,24 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             ],
           },
+          po_remaining_amount: {
+            $round: [
+              {
+                $subtract: [
+                  { $toDouble: "$purchase_orders.po_value" },
+                  {
+                    $cond: [
+                      { $gt: [{ $size: "$billed_summary" }, 0] },
+                      { $arrayElemAt: ["$billed_summary.totalBilled", 0] },
+                      0,
+                    ],
+                  },
+                ],
+              },
+              0,
+            ],
+          },
+
           po_basic: asDouble("$purchase_orders.po_basic"),
           gst: asDouble("$purchase_orders.gst"),
           project_id: "$purchase_orders.project_id",
@@ -618,6 +635,9 @@ const getCustomerPaymentSummary = async (req, res) => {
         (acc, curr) => {
           acc.total_advance_paid += Number(curr.advance_paid || 0);
           acc.total_remaining_amount += Number(curr.remaining_amount || 0);
+          acc.total_po_remaining_amount += Number(
+            curr.po_remaining_amount || 0
+          );
           acc.total_billed_value += Number(curr.total_billed_value || 0);
           acc.total_po_value += Number(curr.po_value || 0);
           acc.total_po_basic += Number(curr.po_basic || 0);
@@ -626,6 +646,7 @@ const getCustomerPaymentSummary = async (req, res) => {
         {
           total_advance_paid: 0,
           total_remaining_amount: 0,
+          total_po_remaining_amount: 0,
           total_billed_value: 0,
           total_po_value: 0,
           total_po_basic: 0,
@@ -766,6 +787,25 @@ const getCustomerPaymentSummary = async (req, res) => {
                     },
                   ],
                 },
+                po_remaining_amount: {
+                  $round: [
+                    {
+                      $subtract: [
+                        asDouble("$po_value"),
+                        {
+                          $cond: [
+                            { $gt: [{ $size: "$billed_summary" }, 0] },
+                            {
+                              $arrayElemAt: ["$billed_summary.totalBilled", 0],
+                            },
+                            0,
+                          ],
+                        },
+                      ],
+                    },
+                    0,
+                  ],
+                },
                 remarks: "$last_sales_detail.remarks",
                 converted_at: "$last_sales_detail.converted_at",
                 user_id: "$last_sales_detail.user_id",
@@ -839,6 +879,7 @@ const getCustomerPaymentSummary = async (req, res) => {
         const po = Number(row.po_value || 0);
         const adv = Number(row.advance_paid || 0);
         const rem = Number(row.remaining_amount || po - adv);
+        const po_rem = Number(row.po_remaining_amount || 0);
         const basic = Number(row.po_basic || 0);
         const gst = Number(row.gst || 0);
         const billed = Number(row.total_billed_value || 0);
@@ -846,6 +887,7 @@ const getCustomerPaymentSummary = async (req, res) => {
         acc.total_sale += po;
         acc.total_advance_paid += adv;
         acc.total_remaining_amount += rem;
+        acc.total_po_remaining_amount += po_rem;
         acc.total_billed_value += billed;
         acc.total_po_basic += basic;
         acc.total_gst += gst;
@@ -860,6 +902,7 @@ const getCustomerPaymentSummary = async (req, res) => {
         total_sale: 0,
         total_advance_paid: 0,
         total_remaining_amount: 0,
+        total_po_remaining_amount: 0,
         total_billed_value: 0,
         total_po_basic: 0,
         total_gst: 0,
@@ -1181,6 +1224,22 @@ const getCustomerPaymentSummary = async (req, res) => {
       },
       {
         $addFields: {
+          total_po_remaining_amount: {
+            $round: [
+              {
+                $subtract: [
+                  { $add: ["$total_po_basic", "$gst_as_po_basic"] },
+                  "$total_billed_value",
+                ],
+              },
+              0,
+            ],
+          },
+        },
+      },
+
+      {
+        $addFields: {
           extraGST: {
             $round: [
               {
@@ -1336,6 +1395,7 @@ const getCustomerPaymentSummary = async (req, res) => {
           gst_difference: 1,
           balance_required: 1,
           total_sales: 1,
+          total_po_remaining_amount: 1,
         },
       },
     ]);
@@ -1478,6 +1538,7 @@ const getCustomerPaymentSummary = async (req, res) => {
             "PO Value",
             "Advance Paid",
             "Remaining Amount",
+            "PO Remaining (Unbilled)",
             "Total Billed Value",
           ],
           clientRows.map((row, i) => [
@@ -1488,6 +1549,7 @@ const getCustomerPaymentSummary = async (req, res) => {
             Math.round(row.po_value ?? 0),
             Math.round(row.advance_paid ?? 0),
             Math.round(row.remaining_amount ?? 0),
+            Math.round(row.po_remaining_amount ?? 0),
             Math.round(row.total_billed_value ?? 0),
           ]),
           parts
@@ -1573,6 +1635,11 @@ const getCustomerPaymentSummary = async (req, res) => {
         ["7", "GST Value as per PO", INR(bs.gst_as_po_basic)],
         ["8", "Total PO with GST", INR(bs.total_po_with_gst)],
         ["8A", "Total Sales with GST", INR(bs.total_sales)],
+        [
+          "8B",
+          "Total PO Remaining (Unbilled)",
+          INR(bs.total_po_remaining_amount),
+        ],
         ["9", gstLabel, INR(bs.gst_with_type_percentage)],
         ["10", "Total Billed Value", INR(bs.total_billed_value)],
         ["11", "Net Advance Paid ([4]-[10])", INR(bs.net_advanced_paid)],
@@ -1923,6 +1990,12 @@ const postCustomerPaymentSummaryPdf = async (req, res) => {
             {
               $addFields: {
                 remaining_amount: { $subtract: ["$po_value", "$advance_paid"] },
+                po_remaining_amount: {
+                  $round: [
+                    { $subtract: ["$po_value", "$total_billed_value"] },
+                    0,
+                  ],
+                },
               },
             },
           ],
@@ -2497,6 +2570,13 @@ const postCustomerPaymentSummaryPdf = async (req, res) => {
         },
       },
       {
+        $addFields: {
+          total_po_remaining_amount: {
+            $subtract: ["$total_po_with_gst", "$total_billed_value"],
+          },
+        },
+      },
+      {
         $project: {
           _id: 0,
           p_id: "$_id",
@@ -2514,6 +2594,7 @@ const postCustomerPaymentSummaryPdf = async (req, res) => {
           total_adjustment: 1,
           net_advanced_paid: 1,
           gst_as_po_basic: 1,
+          total_po_remaining_amount: 1,
           total_po_with_gst: 1,
           gst_with_type_percentage: 1,
           balance_required: 1,
@@ -2547,6 +2628,7 @@ const postCustomerPaymentSummaryPdf = async (req, res) => {
       po_value: inr(r.po_value),
       Advance_paid: inr(r.advance_paid),
       remain_amount: inr(r.remaining_amount),
+      po_remaining_amount: inr(r.po_remaining_amount),
       total_billed_value: inr(r.total_billed_value),
     }));
 

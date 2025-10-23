@@ -48,7 +48,6 @@ const toNum = (expr) => ({
   },
 });
 
-// --- Pipeline stays same ---
 const aggregationPipeline = [
   {
     $lookup: {
@@ -74,16 +73,16 @@ const aggregationPipeline = [
       as: "adjustments",
     },
   },
-    {
-        $lookup: {
-          from: "purchaseorders",
-          let: { projectId: "$_id" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
-          ],
-          as: "pos",
-        },
-      },
+  {
+    $lookup: {
+      from: "purchaseorders",
+      let: { projectId: "$_id" },
+      pipeline: [
+        { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
+      ],
+      as: "pos",
+    },
+  },
   {
     $lookup: {
       from: "payrequests",
@@ -473,7 +472,6 @@ const addPo = async function (req, res) {
       sales_Details,
     } = req.body;
 
-
     const userId = req.user.userId;
 
     if (!po_number && initial_status !== "approval_pending")
@@ -708,7 +706,7 @@ const editPO = async function (req, res) {
           user_id: req.user.userId,
         },
       };
-       updateOps.$set.current_status = {
+      updateOps.$set.current_status = {
         status: "approval_pending",
         user_id: req.user.userId,
         remarks: "",
@@ -1006,7 +1004,8 @@ const generatePurchaseOrderPdf = async (req, res) => {
     }
 
     // Fetch the PO (await!)
-    const doc = await purchaseOrderModells.findOne(query)
+    const doc = await purchaseOrderModells
+      .findOne(query)
       .select("item date po_number vendor p_id _id") // include what you need
       .lean()
       .exec();
@@ -1015,8 +1014,10 @@ const generatePurchaseOrderPdf = async (req, res) => {
       subject_type: "purchase_order",
       subject_id: String(doc._id),
       event_type: "note",
-      message: { $regex: /^Payment Terms & Conditions/i } // starts with, case-insensitive
-    }).select("message").lean();
+      message: { $regex: /^Payment Terms & Conditions/i }, // starts with, case-insensitive
+    })
+      .select("message")
+      .lean();
 
     if (!doc) {
       return res.status(404).json({ msg: "Purchase order not found" });
@@ -1034,8 +1035,8 @@ const generatePurchaseOrderPdf = async (req, res) => {
         make: it?.make || "",
         quantity: qty,
         unit_price: unit,
-        taxes: taxPct,                 // percent
-        amount: qty * unit + (qty * unit * taxPct) / 100,            // base amount
+        taxes: taxPct, // percent
+        amount: qty * unit + (qty * unit * taxPct) / 100, // base amount
       };
     });
 
@@ -1062,10 +1063,9 @@ const generatePurchaseOrderPdf = async (req, res) => {
       "Content-Disposition":
         axiosResponse.headers["content-disposition"] ||
         `attachment; filename="Purchase_order.pdf"`,
-    })
+    });
 
     axiosResponse.data.pipe(res);
-
   } catch (error) {
     console.error("PDF generation error:", error);
     return res
@@ -1636,12 +1636,12 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-          .toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })
-          .replace(/ /g, "/")
+            .toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+            .replace(/ /g, "/")
         : "";
 
     const data = result.map((it) => ({ ...it, date: formatDate(it.date) }));
@@ -1663,12 +1663,25 @@ const getPaginatedPo = async (req, res) => {
 const getExportPo = async (req, res) => {
   try {
     const toArray = (v) =>
-      Array.isArray(v) ? v :
-      typeof v === "string" ? v.split(",").map(s => s.trim()).filter(Boolean) : [];
+      Array.isArray(v)
+        ? v
+        : typeof v === "string"
+          ? v
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
 
-    const rawIds = [...toArray(req.body?.purchaseorders), ...toArray(req.query?.purchaseorders)];
+    const rawIds = [
+      ...toArray(req.body?.purchaseorders),
+      ...toArray(req.query?.purchaseorders),
+    ];
     const validIds = rawIds
-      .map((id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null))
+      .map((id) =>
+        mongoose.Types.ObjectId.isValid(id)
+          ? new mongoose.Types.ObjectId(id)
+          : null
+      )
       .filter(Boolean);
 
     if (!validIds.length) {
@@ -1684,8 +1697,22 @@ const getExportPo = async (req, res) => {
       {
         $addFields: {
           po_number_str: { $toString: "$po_number" },
-          po_value_num: { $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 } },
-          total_billed_num: { $convert: { input: "$total_billed", to: "double", onError: 0, onNull: 0 } },
+          po_value_num: {
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
+          total_billed_num: {
+            $convert: {
+              input: "$total_billed",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
         },
       },
 
@@ -1710,7 +1737,12 @@ const getExportPo = async (req, res) => {
             {
               $project: {
                 amount_paid: {
-                  $convert: { input: "$amount_paid", to: "double", onError: 0, onNull: 0 },
+                  $convert: {
+                    input: "$amount_paid",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
                 },
               },
             },
@@ -1718,7 +1750,11 @@ const getExportPo = async (req, res) => {
           as: "approvedPayments",
         },
       },
-      { $addFields: { amount_paid_num: { $sum: "$approvedPayments.amount_paid" } } },
+      {
+        $addFields: {
+          amount_paid_num: { $sum: "$approvedPayments.amount_paid" },
+        },
+      },
 
       // explode items
       { $unwind: { path: "$item", preserveNullAndEmptyArrays: false } },
@@ -1730,19 +1766,36 @@ const getExportPo = async (req, res) => {
           item_product_name: { $ifNull: ["$item.product_name", "-"] },
           item_uom: { $ifNull: ["$item.uom", "-"] },
           item_quantity_num: {
-            $convert: { input: "$item.quantity", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$item.quantity",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           item_unit_price_num: {
-            $convert: { input: "$item.cost", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$item.cost",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           item_gst_percent_num: {
-            $convert: { input: "$item.gst_percent", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$item.gst_percent",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
         },
       },
       {
         $addFields: {
-          line_basic: { $multiply: ["$item_quantity_num", "$item_unit_price_num"] },
+          line_basic: {
+            $multiply: ["$item_quantity_num", "$item_unit_price_num"],
+          },
           line_gst_amount: {
             $multiply: [
               { $multiply: ["$item_quantity_num", "$item_unit_price_num"] },
@@ -1751,7 +1804,11 @@ const getExportPo = async (req, res) => {
           },
         },
       },
-      { $addFields: { line_total_incl_gst: { $add: ["$line_basic", "$line_gst_amount"] } } },
+      {
+        $addFields: {
+          line_total_incl_gst: { $add: ["$line_basic", "$line_gst_amount"] },
+        },
+      },
 
       {
         $project: {
@@ -1846,25 +1903,76 @@ const getExportPo = async (req, res) => {
     return res.status(200).send(csv);
   } catch (err) {
     console.error("getExportPo error:", err);
-    return res.status(500).json({ msg: "Export failed", error: err?.message || String(err) });
+    return res
+      .status(500)
+      .json({ msg: "Export failed", error: err?.message || String(err) });
   }
 };
+
 const updateSalesPO = async (req, res) => {
   try {
     const { id } = req.params;
-    const { remarks } = req.body || {};
+    const { remarks, basic_sales, gst_on_sales, po_number } = req.body || {};
 
-    if (!id) return res.status(400).json({ message: "_id is required" });
+    if (!id && !po_number) {
+      return res
+        .status(400)
+        .json({ message: "Provide _id (param) or po_number (body)." });
+    }
     if (!remarks || String(remarks).trim() === "") {
       return res
         .status(400)
         .json({ message: "Remarks are required to update Sales PO" });
     }
 
-    const po = await purchaseOrderModells.findById(id);
+    const basic = Number(basic_sales);
+    const gst = Number(gst_on_sales);
+    if (!Number.isFinite(basic))
+      return res.status(400).json({ message: "basic_sales must be a number" });
+    if (!Number.isFinite(gst))
+      return res.status(400).json({ message: "gst_on_sales must be a number" });
+
+    const po = id
+      ? await purchaseOrderModells.findById(id)
+      : await purchaseOrderModells.findOne({
+          po_number: String(po_number).trim(),
+        });
+
     if (!po) return res.status(404).json({ message: "PO not found" });
-    // if (!po.isSales)
-    //   return res.status(400).json({ message: "This PO is not a Sales PO" });
+
+    const poValue = Number(po.po_value) || 0;
+    const totalBilled = Number(po.total_billed) || 0;
+
+    const cap = Math.max(0, poValue - totalBilled);
+    const alreadySales = Number(po.total_sales_value) || 0;
+    const remainingForSales = Math.max(0, cap - alreadySales);
+
+    const entryTotal = basic + gst;
+
+    if (remainingForSales <= 0) {
+      return res.status(400).json({
+        message:
+          "No remaining sales can be recorded for this PO. PO value is already covered by bills and/or existing sales.",
+        details: {
+          po_value: poValue,
+          total_billed: totalBilled,
+          total_sales_value: alreadySales,
+          remaining_allowed_sales: 0,
+        },
+      });
+    }
+
+    if (entryTotal > remainingForSales) {
+      return res.status(400).json({
+        message:
+          "Sales conversion exceeds the allowable limit for this PO. Please reduce the amount.",
+        details: {
+          attempted_sales_total: entryTotal,
+          remaining_allowed_sales: remainingForSales,
+          rule: "(po_value - total_billed) - total_sales_value",
+        },
+      });
+    }
 
     const safePo = (s) =>
       String(s || "")
@@ -1912,13 +2020,13 @@ const updateSalesPO = async (req, res) => {
         }
       }
 
-      const form = new FormData();
-      form.append("file", buffer, {
-        filename: attachment_name,
-        contentType: mimeType,
-      });
-
       try {
+        const form = new FormData();
+        form.append("file", buffer, {
+          filename: attachment_name,
+          contentType: mimeType,
+        });
+
         const resp = await axios.post(uploadUrl, form, {
           headers: form.getHeaders(),
           maxContentLength: Infinity,
@@ -1934,11 +2042,9 @@ const updateSalesPO = async (req, res) => {
           data?.data?.url ||
           null;
 
-        if (url) {
+        if (url)
           uploadedAttachments.push({ attachment_url: url, attachment_name });
-        } else {
-          console.warn(`No URL returned for ${attachment_name}`);
-        }
+        else console.warn(`No URL returned for ${attachment_name}`);
       } catch (e) {
         console.error(
           "Upload failed:",
@@ -1951,23 +2057,33 @@ const updateSalesPO = async (req, res) => {
 
     const userId = req.user?.userId || req.user?._id || null;
     if (!Array.isArray(po.sales_Details)) po.sales_Details = [];
+
     po.sales_Details.push({
       remarks: String(remarks).trim(),
       attachments: uploadedAttachments,
       converted_at: new Date(),
+      basic_sales: basic,
+      gst_on_sales: gst,
       user_id: userId,
     });
-
     po.isSales = true;
+    po.total_sales_value = alreadySales + entryTotal;
 
     po.markModified("sales_Details");
 
     await po.save();
 
     return res.status(200).json({
-      message: uploadedAttachments.length
-        ? "Sales PO updated with attachments (isSales=true)"
-        : "Sales PO updated (remarks only, isSales=true)",
+      message:
+        uploadedAttachments.length > 0
+          ? "Sales PO updated with attachments (isSales=true)"
+          : "Sales PO updated (remarks only, isSales=true)",
+      cap_context: {
+        po_value: poValue,
+        total_billed: totalBilled,
+        total_sales_value: po.total_sales_value,
+        remaining_allowed_sales: Math.max(0, cap - po.total_sales_value),
+      },
       data: po,
     });
   } catch (error) {
@@ -1977,6 +2093,7 @@ const updateSalesPO = async (req, res) => {
       .json({ message: "Error updating Sales PO", error: error.message });
   }
 };
+
 //Move-Recovery
 const moverecovery = async function (req, res) {
   const { _id } = req.params._id;
@@ -2622,7 +2739,7 @@ const bulkMarkDelivered = async (req, res) => {
 
 // Controller
 const linkProjectToPOByPid = async (req, res) => {
-    try {
+  try {
     // 1) Collect only those POs that need linking (have p_id string, missing project_id)
     const poCodes = await purchaseOrderModells.distinct("p_id", {
       p_id: { $type: "string", $ne: "" },
@@ -2638,10 +2755,9 @@ const linkProjectToPOByPid = async (req, res) => {
     }
 
     // 2) Load projects by code
-    const projects = await projectModel.find(
-      { code: { $in: poCodes } },
-      { _id: 1, code: 1 }
-    ).lean();
+    const projects = await projectModel
+      .find({ code: { $in: poCodes } }, { _id: 1, code: 1 })
+      .lean();
 
     const codeToProjectId = new Map(
       projects.map((p) => [String(p.code).trim(), p._id])
@@ -2674,7 +2790,9 @@ const linkProjectToPOByPid = async (req, res) => {
       });
     }
 
-    const result = await purchaseOrderModells.bulkWrite(ops, { ordered: false });
+    const result = await purchaseOrderModells.bulkWrite(ops, {
+      ordered: false,
+    });
 
     console.log(
       "[linkProjectIdsSimple] scannedCodes=%d, modified=%d",
@@ -2690,12 +2808,13 @@ const linkProjectToPOByPid = async (req, res) => {
     });
   } catch (err) {
     console.error("linkProjectIdsSimple error:", err);
-    return res
-      .status(500)
-      .json({ ok: false, message: "Internal server error", error: err.message });
+    return res.status(500).json({
+      ok: false,
+      message: "Internal server error",
+      error: err.message,
+    });
   }
 };
-
 
 module.exports = {
   addPo,
