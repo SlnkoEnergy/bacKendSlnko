@@ -68,12 +68,10 @@ const getAllExpense = async (req, res) => {
       },
     ];
 
-    // Apply access control
     if (
       currentUser.department === "superadmin" ||
       currentUser.department === "admin"
     ) {
-      // No additional filtering
     } else if (
       currentUser.department === "HR" &&
       currentUser.emp_id !== "SE-208"
