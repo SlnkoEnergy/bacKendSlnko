@@ -33,7 +33,7 @@ const emailTemplateSchema = new mongoose.Schema(
         fileType: String,
       },
     ],
-    tags: [{ type: String }],
+    tags: [{ type: String, required: true }],
     status_history: [
       {
         status: { type: String, enum: ["inactive", "active", "trash"] },

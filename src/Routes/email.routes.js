@@ -13,10 +13,12 @@ const {
   updateEmailTemplate,
   updateEmailTemplateStatus,
   deleteEmailTemplate,
+  getTemplateUniqueTags,
 } = require("../Controllers/emailtemplate.controller");
 const auth = require("../middlewares/auth.middleware");
 
 //Templates Routes
+router.get("/template/tags", auth, getTemplateUniqueTags);
 router.get("/template", auth, getEmailTemplates);
 router.get("/template/:id", auth, getEmailTemplateById);
 router.post("/template", auth, createEmailTemplate);
@@ -28,7 +30,7 @@ router.delete("/template/:id", auth, deleteEmailTemplate);
 router.get("/", auth, getEmails);
 router.post("/", auth, createEmail);
 router.put("/:id/status", auth, updateEmailStatus);
-router.get('/tags', auth, getUniqueTags);
+router.get("/tags", auth, getUniqueTags);
 router.get("/:id", auth, getEmailById);
 
 module.exports = router;
