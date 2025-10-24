@@ -1414,28 +1414,27 @@ const getCustomerPaymentSummary = async (req, res) => {
         },
       },
       {
-  $addFields: {
-    exact_remaining_pay_to_vendors: {
-      $cond: {
-        if: { $gt: ["$total_billed_value", "$total_advance_paid"] },
-        then: {
-          $round: [
-            {
-              $subtract: [
-                { $ifNull: ["$total_po_with_gst", 0] },
-                { $ifNull: ["$total_billed_value", 0] }
-              ]
+        $addFields: {
+          exact_remaining_pay_to_vendors: {
+            $cond: {
+              if: { $gt: ["$total_billed_value", "$total_advance_paid"] },
+              then: {
+                $round: [
+                  {
+                    $subtract: [
+                      { $ifNull: ["$total_po_with_gst", 0] },
+                      { $ifNull: ["$total_billed_value", 0] },
+                    ],
+                  },
+                  2,
+                ],
+              },
+              else: { $ifNull: ["$total_advance_paid", 0] },
             },
-            2
-          ]
+          },
         },
-        else: { $ifNull: ["$total_advance_paid", 0] }
-      }
-    }
-  }
-},
+      },
 
-      
       {
         $project: {
           _id: 0,
@@ -1624,7 +1623,7 @@ const getCustomerPaymentSummary = async (req, res) => {
             "PO Value",
             "Advance Paid",
             "Remaining Amount",
-            "PO Remaining (Unbilled)",
+            "Unbilled PO",
             "Total Billed Value",
           ],
           clientRows.map((row, i) => [
@@ -1690,7 +1689,7 @@ const getCustomerPaymentSummary = async (req, res) => {
               row.po_number || "-",
               row.vendor || "-",
               itemLabel,
-              Math.round(row.po_value ?? 0),
+              Math.round(row.total_sales_value ?? 0),
               formatISO(row.converted_at),
               row.remarks || "",
               attNames,
@@ -1713,31 +1712,22 @@ const getCustomerPaymentSummary = async (req, res) => {
       const bsRows = [
         ["1", "Total Received", INR(bs.total_received)],
         ["2", "Total Return", INR(bs.total_return)],
-        ["3", "Net Balance ([1]-[2])", INR(bs.netBalance)],
-        ["4", "Total Advance Paid to Vendors", INR(bs.total_advance_paid)],
-        ["4A", "Total Adjustment (Debit-Credit)", INR(bs.total_adjustment)],
-        ["4B", "Total Advances Remaining", INR(bs.remaining_amount)],
-        ["5", "Balance With Slnko ([3]-[4]-[4A])", INR(bs.balance_with_slnko)],
-        ["6", "Total PO Basic Value", INR(bs.total_po_basic)],
-        ["7", "GST Value as per PO", INR(bs.gst_as_po_basic)],
-        ["8", "Total PO with GST", INR(bs.total_po_with_gst)],
-        ["8A", "Total Sales with GST", INR(bs.total_sales_value)],
+        ["3", "Net Balance [(1)-(2)]", INR(bs.netBalance)],
+        ["4", "Total Advances Paid to Vendors", INR(bs.total_advance_paid)],
         [
-          "8B",
-          "Total Unbilled Sales ([10]-[8A])",
+          "4A",
+          "Advances left after bills received",
+          INR(bs.advance_left_after_billed),
+        ],
+        ["5", "Adjustment (Debit-Credit)", INR(bs.total_adjustment)],
+        ["6", "Balance With Slnko [(3)-(4)-(5)]", INR(bs.balance_with_slnko)],
+        ["", "Billing Details", ""],
+        ["7", "Invoice issued to customer", INR(bs.total_sales_value)],
+        [
+          "8",
+          "Bills received, yet to be invoiced to customer",
           INR(bs.total_unbilled_sales),
         ],
-        ["9", gstLabel, INR(bs.gst_with_type_percentage)],
-        ["10", "Total Billed Value", INR(bs.total_billed_value)],
-        ["11", "Net Advance Paid ([4]-[10])", INR(bs.net_advanced_paid)],
-        [
-          "12",
-          "Balance Payable to Vendors ([8]-[10]-[11])",
-          INR(bs.balance_payable_to_vendors),
-        ],
-        ["13", "TCS as Applicable", INR(bs.tcs_as_applicable)],
-        ["14", "Extra GST Recoverable from Client ([8]-[6])", INR(bs.extraGST)],
-        ["15", "Balance Required ([5]-[12]-[13])", INR(bs.balance_required)],
       ];
 
       pushSection(
