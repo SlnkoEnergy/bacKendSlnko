@@ -9,7 +9,7 @@ const group = require("../models/bdgroup.model");
 const task = require("../models/bdtask.model");
 const groupModells = require("../models/bdgroup.model");
 const { Novu } = require("@novu/node");
-const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const { sendNotification } = require("../utils/sendnotification.utils");
 const handoversheetModells = require("../models/handoversheet.model");
 const userModel = require("../models/user.model");
 
@@ -672,7 +672,7 @@ const updateAssignedTo = async (req, res) => {
         };
 
         setImmediate(() => {
-          getnovuNotification(workflow, senders, data).catch((err) =>
+          sendNotification(workflow, senders, data).catch((err) =>
             console.error("Notification error:", err)
           );
         });

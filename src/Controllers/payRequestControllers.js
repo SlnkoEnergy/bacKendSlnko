@@ -13,6 +13,7 @@ const userModells = require("../models/user.model");
 const utrCounter = require("../models/utrCounter");
 const projectBalanceModel = require("../models/projectBalance.model");
 const { sendUsingTemplate } = require("../utils/sendemail.utils");
+const { sendNotification } = require("../utils/sendnotification.utils");
 
 const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
 const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
@@ -1326,16 +1327,20 @@ const utrUpdate = async function (req, res) {
   } finally {
     session.endSession();
   }
-
+  
   if (emailPayload) {
-    setImmediate(() => {
-      sendUsingTemplate("vendor-payment-confirmation", emailPayload, null, {
-        strict: false,
-      }).catch((e) =>
-        console.error("[utrUpdate] email send error:", e?.message || e)
-      );
-    });
-  }
+  setImmediate(() => {
+    sendUsingTemplate(
+      "vendor-payment-confirmation",
+      emailPayload,
+      { sendNotification }, 
+      { strict: false }
+    ).catch((e) =>
+      console.error("[utrUpdate] email send error:", e?.message || e)
+    );
+  });
+}
+
 
   return res.status(httpStatus).json(payload);
 };

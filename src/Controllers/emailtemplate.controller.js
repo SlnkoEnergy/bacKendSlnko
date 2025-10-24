@@ -212,7 +212,7 @@ const updateEmailTemplateStatus = async (req, res) => {
     await template.save();
     res.status(200).json({
       message: "Email Template status updated successfully",
-      data:template,
+      data: template,
     });
   } catch (error) {
     res
@@ -240,13 +240,19 @@ const deleteEmailTemplate = async (req, res) => {
 
 const getEmailTemplates = async (req, res) => {
   try {
-    const { page, limit, search } = req.query;
+    const { page, limit, search, status, tag } = req.query;
     const query = {};
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
         { identifier: { $regex: search, $options: "i" } },
       ];
+    }
+    if (status) {
+      query["current_status.status"] = status;
+    }
+    if (tag) {
+      query.tags = tag;
     }
     const templates = await emailtemplateModel
       .find(query)
@@ -293,7 +299,7 @@ const getTemplateUniqueTags = async (req, res) => {
 
     res.status(200).json({
       message: "Unique tags fetched successfully",
-      data: raw.filter(Boolean), 
+      data: raw.filter(Boolean),
     });
   } catch (error) {
     res.status(500).json({
@@ -310,5 +316,5 @@ module.exports = {
   deleteEmailTemplate,
   getEmailTemplates,
   getEmailTemplateById,
-  getTemplateUniqueTags
+  getTemplateUniqueTags,
 };

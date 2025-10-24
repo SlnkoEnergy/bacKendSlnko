@@ -183,6 +183,11 @@ async function sendUsingTemplate(
   emailService,
   { strict = false } = {}
 ) {
+  if (!identifier) throw new Error("identifier is required");
+  if (!emailService?.sendNotification) {
+    throw new Error("emailService.sendNotification is required");
+  }
+
   const template = await EmailTemplate.findOne({ identifier });
   if (!template) {
     throw new Error(`Email template not found for identifier: ${identifier}`);
@@ -190,36 +195,62 @@ async function sendUsingTemplate(
 
   const compiled = compileEmail(template, payload, { strict });
 
-  const queuedLog = await createEmailLog(compiled, { status: "queued" });
+  // --- helpers
+  const arr = (v) => (Array.isArray(v) ? v.filter(Boolean) : v ? [v] : []);
+  const toList = arr(compiled.to);
+  if (toList.length === 0) {
+    throw new Error("No recipients resolved from template (compiled.to is empty).");
+  }
 
-  //   try {
-  //     const providerResp = await emailService.send({
-  //       to: compiled.to,
-  //       cc: compiled.cc,
-  //       bcc: compiled.bcc,
-  //       from: compiled.from?.[0],
-  //       replyTo: compiled.replyTo?.[0],
-  //       subject: compiled.subject,
-  //       html: compiled.bodyFormat === "html" ? compiled.body : undefined,
-  //       text: compiled.bodyFormat === "text" ? compiled.body : undefined,
-  //       attachments: compiled.attachments?.map((a) => ({
-  //         filename: a.filename,
-  //         href: a.fileUrl,
-  //         contentType: a.fileType,
-  //       })),
-  //     });
-  //     queuedLog.status = "sent";
-  //     queuedLog.provider_response = providerResp;
-  //     queuedLog.sent_at = new Date();
-  //     await queuedLog.save();
-  //     return { ok: true, logId: queuedLog._id, providerResp };
-  //   } catch (err) {
-  //     queuedLog.status = "failed";
-  //     queuedLog.error = err?.message || String(err);
-  //     await queuedLog.save();
-  //     throw err;
-  //   }
+  const novuPayload = {
+    subject: compiled.subject,
+    body:
+      compiled.bodyFormat === "html"
+        ? compiled.body || ""
+        : (compiled.body || ""),
+    bodyFormat: compiled.bodyFormat, 
+    cc: arr(compiled.cc),
+    bcc: arr(compiled.bcc),
+    to: toList,
+  };
+
+  try {
+    await emailService.sendNotification("vendor-onboarding-email", [compiled.createdby], novuPayload);
+
+    const sentLog = await createEmailLog(
+      {
+        identifier,
+        ...compiled,
+        status: "sent",
+        provider_response: { provider: "novu", result: "queued" },
+        sent_at: new Date(),
+      },
+      { status: "sent" }
+    );
+
+    return { ok: true, logId: sentLog._id };
+  } catch (err) {
+    try {
+      await createEmailLog(
+        {
+          identifier,
+          ...compiled,
+          status: "failed",
+          error: err?.message || String(err),
+          failed_at: new Date(),
+        },
+        { status: "failed" }
+      );
+    } catch (logErr) {
+      console.error("Email send failed and logging also failed:", {
+        sendError: err?.message || String(err),
+        logError: logErr?.message || String(logErr),
+      });
+    }
+    throw err;
+  }
 }
+
 
 module.exports = {
   getValueByPath,

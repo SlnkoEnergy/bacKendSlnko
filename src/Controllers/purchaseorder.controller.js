@@ -17,7 +17,7 @@ const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
 const userModells = require("../models/user.model");
-const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const { sendNotification } = require("../utils/sendnotification.utils");
 const inspectionModel = require("../models/inspection.model");
 const projectModel = require("../models/project.model");
 
@@ -2327,7 +2327,7 @@ const updateStatusPO = async (req, res) => {
         };
 
         setImmediate(() => {
-          getnovuNotification(workflow, senders, data).catch((err) =>
+          sendNotification(workflow, senders, data).catch((err) =>
             console.error("Notification error:", err)
           );
         });

@@ -25,7 +25,7 @@ const {
   getProjectsDropdown,
   getAllPosts,
   updateProjectStatusForPreviousProjects,
-  updateSubmittedByOfProject
+  updateSubmittedByOfProject,
 } = require("../Controllers/project.controller.js");
 const {
   userRegister,
@@ -65,7 +65,7 @@ const {
   updateSalesPO,
   bulkMarkDelivered,
   generatePurchaseOrderPdf,
-  linkProjectToPOByPid
+  linkProjectToPOByPid,
 } = require("../Controllers/purchaseorder.controller");
 const {
   payRrequest,
@@ -183,7 +183,7 @@ const {
 const upload = require("../middlewares/multer.middleware.js");
 const {
   syncAllProjectBalances,
-  syncRecentCreditsAndDebits
+  syncRecentCreditsAndDebits,
 } = require("../Controllers/Accounting/ProjectBalance.js");
 
 // Admin router
@@ -243,22 +243,14 @@ router.post("/add-new-projecT-IT", auth, createProject);
 router.put("/update-projecT-IT/:_id", auth, updateProject);
 router.get("/get-all-projecT-IT", auth, getallproject);
 router.get("/projects", auth, getAllProjects);
-router.put(
-  "/:projectId/updateProjectStatus",
-  auth,
-  updateProjectStatus
-);
+router.put("/:projectId/updateProjectStatus", auth, updateProjectStatus);
 router.delete("/delete-by-iD-IT/:_id", auth, deleteProjectById);
 router.get("/get-project-iD-IT/:_id", auth, getProjectById);
 router.get("/project", auth, getProjectbyPId);
 router.get("/project-dropdown", auth, getProjectDropwdown);
 router.get("/project-search", auth, getProjectNameSearch);
 
-router.get(
-  "/project-status-filter",
-  auth,
-  getProjectStatusFilter
-);
+router.get("/project-status-filter", auth, getProjectStatusFilter);
 
 router.get("/project-detail", auth, getProjectDetail);
 
@@ -268,16 +260,16 @@ router.get(
   getActivityLineForProject
 );
 
-router.get(
-  "/project-dropdown-detail",
-  auth,
-  getProjectsDropdown
-);
+router.get("/project-dropdown-detail", auth, getProjectsDropdown);
 
 router.get("/project-state-detail", auth, getProjectStates);
 router.get("/allposts", auth, getAllPosts);
-router.put('/updateprojectstatusforpreviousprojects', auth, updateProjectStatusForPreviousProjects);
-router.put('/updateprojectsubmittedby', auth, updateSubmittedByOfProject)
+router.put(
+  "/updateprojectstatusforpreviousprojects",
+  auth,
+  updateProjectStatusForPreviousProjects
+);
+router.put("/updateprojectsubmittedby", auth, updateSubmittedByOfProject);
 
 //addMoney APi
 router.post(
@@ -318,20 +310,12 @@ router.get("/get-po-historY-IT", auth, getpohistory);
 router.get("/get-po-history", auth, getPOHistoryById);
 router.put("/updateStatusPO", auth, updateStatusPO);
 
-router.put(
-  "/:id/updateEtdOrDelivery",
-  auth,
-  updateEditandDeliveryDate
-);
+router.put("/:id/updateEtdOrDelivery", auth, updateEditandDeliveryDate);
 router.put("/sales-update/:id", auth, upload, updateSalesPO);
 router.put("/bulk-mark-delivered", auth, bulkMarkDelivered);
 router.post("/purchase-orders/link-project/bulk", linkProjectToPOByPid);
 
-router.post(
-  "/purchase-generate-pdf",
-  auth,
-  generatePurchaseOrderPdf
-);
+router.post("/purchase-generate-pdf", auth, generatePurchaseOrderPdf);
 
 //pay Request api
 router.get(
@@ -676,11 +660,7 @@ router.delete(
   deleteCommBDRate
 );
 router.get("/get-bd-rate-history", auth, getCommBdRateHistory);
-router.get(
-  "/get-bd-rate-by-offer_id",
-  auth,
-  getCommBDRateByOfferId
-);
+router.get("/get-bd-rate-by-offer_id", auth, getCommBDRateByOfferId);
 
 //module master
 router.post(
@@ -785,11 +765,7 @@ router.get(
 
   getAllModifiedExpense
 );
-router.get(
-  "/get-modified-expense-by-id",
-  auth,
-  getModifiedExpenseById
-);
+router.get("/get-modified-expense-by-id", auth, getModifiedExpenseById);
 router.post("/project-balances/sync-all", syncAllProjectBalances);
 router.post("/sync-recent-transactions", syncRecentCreditsAndDebits);
 
