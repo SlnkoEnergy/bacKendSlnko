@@ -2,6 +2,7 @@
 const EmailTemplate = require("../models/emailtemplate.model");
 const EmailMessage = require("../models/emails.model");
 const { default: mongoose } = require("mongoose");
+const sanitizeHtml = require('sanitize-html');
 
 function getValueByPath(payload, path) {
   if (!path) return undefined;
@@ -177,79 +178,90 @@ async function createEmailLog(
   return log.save();
 }
 
-async function sendUsingTemplate(
-  identifier,
-  payload,
-  emailService,
-  { strict = false } = {}
-) {
+
+
+async function sendUsingTemplate(identifier, payload, emailService, { strict = false } = {}) {
   if (!identifier) throw new Error("identifier is required");
-  if (!emailService?.sendNotification) {
+  if (!emailService?.sendNotification)
     throw new Error("emailService.sendNotification is required");
-  }
 
   const template = await EmailTemplate.findOne({ identifier });
-  if (!template) {
+  if (!template)
     throw new Error(`Email template not found for identifier: ${identifier}`);
-  }
 
   const compiled = compileEmail(template, payload, { strict });
 
-  // --- helpers
+  // Normalize to arrays
   const arr = (v) => (Array.isArray(v) ? v.filter(Boolean) : v ? [v] : []);
   const toList = arr(compiled.to);
-  if (toList.length === 0) {
+  if (toList.length === 0)
     throw new Error("No recipients resolved from template (compiled.to is empty).");
-  }
 
-  const novuPayload = {
-    subject: compiled.subject,
-    body:
-      compiled.bodyFormat === "html"
-        ? compiled.body || ""
-        : (compiled.body || ""),
-    bodyFormat: compiled.bodyFormat, 
+  const recipients = {
+    to: toList,
     cc: arr(compiled.cc),
     bcc: arr(compiled.bcc),
-    to: toList,
   };
 
-  try {
-    await emailService.sendNotification("vendor-onboarding-email", [compiled.createdby], novuPayload);
+  const sender = {
+    from: compiled.from || process.env.DEFAULT_FROM,
+    replyTo: arr(compiled.replyTo)[0],
+  };
 
-    const sentLog = await createEmailLog(
-      {
-        identifier,
-        ...compiled,
-        status: "sent",
-        provider_response: { provider: "novu", result: "queued" },
-        sent_at: new Date(),
-      },
-      { status: "sent" }
-    );
+  const subscriberId = String(
+    payload.user_id || compiled.createdby || payload.createdby
+  );
+  if (!subscriberId)
+    throw new Error("subscriberId (payload.user_id or compiled.createdby) is required");
 
-    return { ok: true, logId: sentLog._id };
-  } catch (err) {
-    try {
-      await createEmailLog(
-        {
-          identifier,
-          ...compiled,
-          status: "failed",
-          error: err?.message || String(err),
-          failed_at: new Date(),
-        },
-        { status: "failed" }
-      );
-    } catch (logErr) {
-      console.error("Email send failed and logging also failed:", {
-        sendError: err?.message || String(err),
-        logError: logErr?.message || String(logErr),
-      });
-    }
-    throw err;
-  }
+  const subscriberEmail = payload.email || undefined;
+
+  // --- Sanitize HTML safely (keep basic tags)
+  const rawBody = compiled.body || "";
+  const safeBody = sanitizeHtml(rawBody, {
+    allowedTags: ["p", "br", "strong", "b", "i", "em", "u"],
+    allowedAttributes: {},
+    transformTags: {
+      b: "strong",
+    },
+  });
+
+  const content = {
+    subject: compiled.subject,
+    html: safeBody, // proper HTML body
+    text: sanitizeHtml(rawBody, { allowedTags: [] }), // fallback plain text
+  };
+
+  // 🔥 Send HTML explicitly
+  await emailService.sendNotification({
+    workflowId: "vendor-onboarding-email",
+    subscriberId,
+    subscriberEmail,
+    subject: content.subject,
+    body: content.html,           // send HTML
+    bodyFormat: "html",           // tell Novu/Plunk this is HTML
+    to: recipients.to,
+    cc: recipients.cc,
+    bcc: recipients.bcc,
+    from: sender.from,
+    replyTo: sender.replyTo,
+  });
+
+  const sentLog = await createEmailLog(
+    {
+      identifier,
+      ...compiled,
+      status: "sent",
+      provider_response: { provider: "novu", result: "queued" },
+      sent_at: new Date(),
+    },
+    { status: "sent" }
+  );
+
+  return { ok: true, logId: sentLog._id };
 }
+
+
 
 
 module.exports = {

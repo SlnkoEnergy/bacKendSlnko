@@ -1,7 +1,6 @@
 const { default: mongoose } = require("mongoose");
 const updateCurrentStatus = require("../utils/payRequestUpdate/updateCurrentStatus");
 
-
 const StatusHistorySchema = new mongoose.Schema(
   {
     stage: {
@@ -56,7 +55,7 @@ const UTRHistorySchema = new mongoose.Schema(
 const payRequestschema = new mongoose.Schema(
   {
     p_id: { type: Number },
-    cr_id:{type: String},
+    cr_id: { type: String },
     pay_id: { type: String },
     cr_id: { type: String },
     pay_type: { type: String },
@@ -125,7 +124,6 @@ const payRequestschema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
 
 payRequestschema.pre("save", function (next) {
   updateCurrentStatus(this);

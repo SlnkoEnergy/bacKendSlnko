@@ -89,6 +89,7 @@ const {
   getExcelDataById,
   getpy,
   getTrashPayment,
+  getPayRequestByVendor,
 } = require("../Controllers/payRequestControllers.js");
 const {
   addAdjustmentRequest,
@@ -434,6 +435,7 @@ router.get(
   getExcelDataById
 );
 router.get("/get-pay-smry", auth, getpy);
+router.get('/payrequestvendor', auth, getPayRequestByVendor);
 
 //adjustment request
 router.post(

@@ -1327,20 +1327,19 @@ const utrUpdate = async function (req, res) {
   } finally {
     session.endSession();
   }
-  
-  if (emailPayload) {
-  setImmediate(() => {
-    sendUsingTemplate(
-      "vendor-payment-confirmation",
-      emailPayload,
-      { sendNotification }, 
-      { strict: false }
-    ).catch((e) =>
-      console.error("[utrUpdate] email send error:", e?.message || e)
-    );
-  });
-}
 
+  if (emailPayload) {
+    setImmediate(() => {
+      sendUsingTemplate(
+        "vendor-payment-confirmation",
+        emailPayload,
+        { sendNotification },
+        { strict: false }
+      ).catch((e) =>
+        console.error("[utrUpdate] email send error:", e?.message || e)
+      );
+    });
+  }
 
   return res.status(httpStatus).json(payload);
 };
@@ -2282,6 +2281,86 @@ const getpy = async function (req, res) {
   res.status(200).json({ msg: "All pay request", data: data });
 };
 
+const getPayRequestByVendor = async (req, res) => {
+  try {
+    const { vendor, page = "1", limit = "10", search = "" } = req.query;
+
+    if (!vendor || typeof vendor !== "string" || !vendor.trim()) {
+      return res
+        .status(400)
+        .json({ message: "Vendor name is required in query." });
+    }
+    const trimmedVendor = vendor.trim();
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const rawLimit = Math.max(parseInt(limit, 10) || 10, 1);
+    const limitNum = Math.min(rawLimit, 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    const filter = {
+      vendor: { $regex: new RegExp(`^${trimmedVendor}$`, "i") },
+      approved: "Approved",
+    };
+
+    if (typeof search === "string" && search.trim()) {
+      const q = search.trim();
+
+      const asNumber = Number(q);
+      const isNumeric = Number.isFinite(asNumber);
+
+      filter.$or = [
+        { po_number: { $regex: q, $options: "i" } },
+        { remarks: { $regex: q, $options: "i" } },
+        { pay_type: { $regex: q, $options: "i" } },
+        { utr: { $regex: q, $options: "i" } },
+        { pay_id: { $regex: q, $options: "i" } },
+        ...(isNumeric
+          ? [
+              { amount_paid: asNumber },
+              { gst_amount: asNumber },
+              { basic_amount: asNumber },
+            ]
+          : []),
+      ];
+    }
+
+    const [total, data] = await Promise.all([
+      payRequestModells.countDocuments(filter),
+      payRequestModells
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+    ]);
+
+    if (total === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No approved payment requests found for vendor: ${trimmedVendor}`,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      vendor: trimmedVendor,
+      count: data.length,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+      data,
+    });
+  } catch (error) {
+    console.error("Error fetching approved pay requests by vendor:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   payRrequest,
   getPaySummary,
@@ -2306,4 +2385,5 @@ module.exports = {
   hold_approve_pending,
   getExcelDataById,
   getpy,
+  getPayRequestByVendor,
 };

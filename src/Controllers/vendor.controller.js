@@ -4,6 +4,8 @@ const FormData = require("form-data");
 const mime = require("mime-types");
 const sharp = require("sharp");
 const purchaseorderModel = require("../models/purchaseorder.model");
+const purchaserequestModel = require("../models/purchaserequest.model");
+const payRequestModells = require("../models/payRequestModells");
 
 const slugify = (str = "") =>
   String(str)
@@ -181,20 +183,96 @@ const getAllVendors = async (req, res) => {
   }
 };
 
+const escapeRegExp = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const getVendorById = async function (req, res) {
   try {
     const id = req.params.id;
-    const vendor = await vendorModells.findById(id);
+    const vendor = await vendorModells.findById(id).lean();
+
     if (!vendor) {
       return res.status(404).json({ msg: "Vendor not found" });
     }
-    res.status(200).json({ msg: "Vendor fetched successfully", data: vendor });
+
+    const vendorName = (vendor.name || "").trim();
+    if (!vendorName) {
+      return res.status(200).json({
+        msg: "Vendor fetched successfully (no name to aggregate by)",
+        data: vendor,
+        totals: { count: 0, totalPOValue: 0, totalAmountPaid: 0 },
+      });
+    }
+
+    const [totals = { count: 0, totalPOValue: 0, totalAmountPaid: 0 }] =
+      await payRequestModells.aggregate([
+        // match vendor by name (case-insensitive exact)
+        {
+          $match: {
+            vendor: { $regex: new RegExp(`^${escapeRegExp(vendorName)}$`, "i") },
+          },
+        },
+        // sanitize & parse numbers safely
+        {
+          $addFields: {
+            po_value_sanitized: {
+              $replaceAll: {
+                input: { $toString: { $ifNull: ["$po_value", "0"] } },
+                find: ",",
+                replacement: "",
+              },
+            },
+            amount_paid_sanitized: {
+              $replaceAll: {
+                input: { $toString: { $ifNull: ["$amount_paid", "0"] } },
+                find: ",",
+                replacement: "",
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            po_value_num: {
+              $convert: {
+                input: "$po_value_sanitized",
+                to: "double",
+                onError: 0, // <-- prevents the "Failed to parse number" error
+                onNull: 0,
+              },
+            },
+            amount_paid_num: {
+              $convert: {
+                input: "$amount_paid_sanitized",
+                to: "double",
+                onError: 0,
+                onNull: 0,
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            totalPOValue: { $sum: "$po_value_num" },
+            totalAmountPaid: { $sum: "$amount_paid_num" },
+          },
+        },
+        { $project: { _id: 0, count: 1, totalPOValue: 1, totalAmountPaid: 1 } },
+      ]);
+
+    return res.status(200).json({
+      msg: "Vendor fetched successfully",
+      data: vendor,
+      totals,
+    });
   } catch (error) {
-    res
+    return res
       .status(500)
       .json({ msg: "Internal Server error", error: error.message });
   }
 };
+
 
 // Update vendor
 const updateVendor = async function (req, res) {
@@ -304,7 +382,7 @@ const getVendorNameSearch = async (req, res) => {
 const norm = (s) =>
   String(s || "")
     .trim()
-    .replace(/\s+/g, " ")       // collapse spaces
+    .replace(/\s+/g, " ") // collapse spaces
     .toLowerCase();
 
 const changeVendorNametoObjectIdInPO = async (req, res) => {
@@ -321,7 +399,12 @@ const changeVendorNametoObjectIdInPO = async (req, res) => {
             $expr: {
               $and: [
                 { $eq: [{ $type: "$vendor" }, "string"] },
-                { $eq: [{ $toLower: { $trim: { input: "$vendor" } } }, nameNorm] },
+                {
+                  $eq: [
+                    { $toLower: { $trim: { input: "$vendor" } } },
+                    nameNorm,
+                  ],
+                },
               ],
             },
           },
@@ -331,7 +414,9 @@ const changeVendorNametoObjectIdInPO = async (req, res) => {
     }
 
     if (ops.length) {
-      const result = await purchaseorderModel.bulkWrite(ops, { ordered: false });
+      const result = await purchaseorderModel.bulkWrite(ops, {
+        ordered: false,
+      });
       console.log("Bulk update result:", result);
     }
 
@@ -352,7 +437,6 @@ const changeVendorNametoObjectIdInPO = async (req, res) => {
   }
 };
 
-
 module.exports = {
   addVendor,
   getVendor,
@@ -362,5 +446,5 @@ module.exports = {
   deleteVendor,
   getVendorDropwdown,
   getVendorNameSearch,
-  changeVendorNametoObjectIdInPO
+  changeVendorNametoObjectIdInPO,
 };
