@@ -1943,36 +1943,26 @@ const updateSalesPO = async (req, res) => {
     const poValue = Number(po.po_value) || 0;
     const totalBilled = Number(po.total_billed) || 0;
 
+    if (!Number.isFinite(totalBilled)) {
+      return res.status(400).json({
+        message:
+          "Invalid total_billed on PO (not a number). Please correct the data.",
+        details: { po_value: poValue, total_billed: po.total_billed },
+      });
+    }
+    if (totalBilled < 0) {
+      return res.status(400).json({
+        message:
+          "Invalid PO state: total_billed cannot be less than 0. Please correct the PO before recording sales.",
+        details: { po_value: poValue, total_billed: totalBilled },
+        rule: "total_billed >= 0",
+      });
+    }
+
     const cap = Math.max(0, poValue - totalBilled);
     const alreadySales = Number(po.total_sales_value) || 0;
-    const remainingForSales = Math.max(0, cap - alreadySales);
 
     const entryTotal = basic + gst;
-
-    if (remainingForSales <= 0) {
-      return res.status(400).json({
-        message:
-          "No remaining sales can be recorded for this PO. PO value is already covered by bills and/or existing sales.",
-        details: {
-          po_value: poValue,
-          total_billed: totalBilled,
-          total_sales_value: alreadySales,
-          remaining_allowed_sales: 0,
-        },
-      });
-    }
-
-    if (entryTotal > remainingForSales) {
-      return res.status(400).json({
-        message:
-          "Sales conversion exceeds the allowable limit for this PO. Please reduce the amount.",
-        details: {
-          attempted_sales_total: entryTotal,
-          remaining_allowed_sales: remainingForSales,
-          rule: "(po_value - total_billed) - total_sales_value",
-        },
-      });
-    }
 
     const safePo = (s) =>
       String(s || "")
