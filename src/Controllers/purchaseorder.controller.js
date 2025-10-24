@@ -1667,9 +1667,13 @@ const getExportPo = async (req, res) => {
       Array.isArray(v)
         ? v
         : typeof v === "string"
-        ? v.split(",").map((s) => s.trim()).filter(Boolean)
-        : [];
+          ? v
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
 
+    // 1) Selected IDs (if any)
     const rawIds = [
       ...toArray(req.body?.purchaseorders),
       ...toArray(req.query?.purchaseorders),
@@ -1682,6 +1686,7 @@ const getExportPo = async (req, res) => {
       )
       .filter(Boolean);
 
+    // 2) Otherwise use filters (for “All” export)
     const filters = req.body?.filters || req.query?.filters || {};
     let matchStage = {};
 
@@ -1755,7 +1760,7 @@ const getExportPo = async (req, res) => {
         and.push({ delivery_date: range });
       }
 
-      // UI "Filter" mapping
+      // UI “Filter” mapping
       if (filter) {
         const baseEq = {};
         switch (filter) {
@@ -1799,7 +1804,7 @@ const getExportPo = async (req, res) => {
         if (Object.keys(baseEq).length) and.push(baseEq);
       }
 
-      // Bill Status (Fully/Bill Pending)
+      // Bill Status (Fully / Pending)
       if (status === "Fully Billed") {
         and.push({
           $expr: {
@@ -1826,20 +1831,28 @@ const getExportPo = async (req, res) => {
     const pipeline = [
       Object.keys(matchStage).length ? { $match: matchStage } : null,
 
-      // Numeric conversions and helpers
       {
         $addFields: {
           po_number_str: { $toString: "$po_number" },
           po_value_num: {
-            $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           total_billed_num: {
-            $convert: { input: "$total_billed", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$total_billed",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
         },
       },
 
-      // Bill status once
       {
         $addFields: {
           partial_billing: {
@@ -1852,7 +1865,7 @@ const getExportPo = async (req, res) => {
         },
       },
 
-      // Approved payments sum
+      // Sum approved payments (UTR present)
       {
         $lookup: {
           from: "payrequests",
@@ -1873,7 +1886,12 @@ const getExportPo = async (req, res) => {
             {
               $project: {
                 amount_paid: {
-                  $convert: { input: "$amount_paid", to: "double", onError: 0, onNull: 0 },
+                  $convert: {
+                    input: "$amount_paid",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
                 },
               },
             },
@@ -1881,31 +1899,50 @@ const getExportPo = async (req, res) => {
           as: "approvedPayments",
         },
       },
-      { $addFields: { amount_paid_num: { $sum: "$approvedPayments.amount_paid" } } },
+      {
+        $addFields: {
+          amount_paid_num: { $sum: "$approvedPayments.amount_paid" },
+        },
+      },
 
-      // One row per item
       { $unwind: { path: "$item", preserveNullAndEmptyArrays: false } },
 
-      // Per-item numeric conversions + line totals
       {
         $addFields: {
           item_category_name: { $ifNull: ["$item.category_name", "-"] },
           item_product_name: { $ifNull: ["$item.product_name", "-"] },
           item_uom: { $ifNull: ["$item.uom", "-"] },
           item_quantity_num: {
-            $convert: { input: "$item.quantity", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$item.quantity",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           item_unit_price_num: {
-            $convert: { input: "$item.cost", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$item.cost",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           item_gst_percent_num: {
-            $convert: { input: "$item.gst_percent", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$item.gst_percent",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
         },
       },
       {
         $addFields: {
-          line_basic: { $multiply: ["$item_quantity_num", "$item_unit_price_num"] },
+          line_basic: {
+            $multiply: ["$item_quantity_num", "$item_unit_price_num"],
+          },
           line_gst_amount: {
             $multiply: [
               { $multiply: ["$item_quantity_num", "$item_unit_price_num"] },
@@ -1914,16 +1951,79 @@ const getExportPo = async (req, res) => {
           },
         },
       },
-      { $addFields: { line_total_incl_gst: { $add: ["$line_basic", "$line_gst_amount"] } } },
+      {
+        $addFields: {
+          line_total_incl_gst: { $add: ["$line_basic", "$line_gst_amount"] },
+        },
+      },
 
-      // Keep dates + status for CSV
+      // -------- NEW: Delay calculation --------
+      {
+        $addFields: {
+          delay_days: {
+            $cond: [
+              { $eq: ["$etd", null] },
+              0,
+              {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: ["$dispatch_date", null] },
+                      { $gt: ["$dispatch_date", "$etd"] },
+                    ],
+                  },
+                  {
+                    $dateDiff: {
+                      startDate: "$etd",
+                      endDate: "$dispatch_date",
+                      unit: "day",
+                    },
+                  },
+                  {
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: ["$dispatch_date", null] },
+                          { $gt: ["$$NOW", "$etd"] },
+                        ],
+                      },
+                      {
+                        $dateDiff: {
+                          startDate: "$etd",
+                          endDate: "$$NOW",
+                          unit: "day",
+                        },
+                      },
+                      0,
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          delay_label: {
+            $cond: [
+              { $gt: ["$delay_days", 0] },
+              {
+                $concat: ["Delayed by ", { $toString: "$delay_days" }, " days"],
+              },
+              "No delay",
+            ],
+          },
+        },
+      },
+      // -------- END FIX --------
+
       {
         $project: {
           _id: 0,
           p_id: 1,
           po_number: "$po_number_str",
           vendor: 1,
-          // NOTE: your schema has `date` as string for PO date; keep as-is, also format later
           date: 1,
           etd: 1,
           delivery_date: 1,
@@ -1931,11 +2031,17 @@ const getExportPo = async (req, res) => {
           material_ready_date: 1,
           current_status_status: "$current_status.status",
 
+          // numbers & computed fields
           po_value_num: 1,
           amount_paid_num: 1,
           total_billed_num: 1,
           partial_billing: 1,
 
+          // delay fields
+          delay_days: 1,
+          delay_label: 1,
+
+          // per-item
           category_name: "$item_category_name",
           product_name: "$item_product_name",
           uom: "$item_uom",
@@ -1953,47 +2059,50 @@ const getExportPo = async (req, res) => {
     const formatDate = (d) => {
       if (!d) return "";
       const dt = new Date(d);
-      if (isNaN(dt)) return String(d); // if it's your raw string date, return as-is
+      if (isNaN(dt)) return String(d); // keep raw if not a valid Date
       const dd = String(dt.getDate()).padStart(2, "0");
       const mon = dt.toLocaleString("en-GB", { month: "short" });
-      const yy = String(dt.getFullYear()).slice(0); // full year for clarity
+      const yy = String(dt.getFullYear());
       return `${dd}-${mon}-${yy}`;
     };
 
-    // derive the “Filter” label to match your UI
+    // Map current_status -> your UI filter label
     const deriveFilterLabel = (r) => {
       const s = String(r.current_status_status || "").toLowerCase();
 
       if (s === "approval_pending") return "Approval Pending";
       if (s === "approval_done") return "Approval Done";
-
-      // ETD Pending/Done are special cases tied to po_created
       if (s === "po_created" && !r.etd) return "ETD Pending";
       if (s === "po_created" && r.etd) return "ETD Done";
-
-      if (s === "material_ready" && r.material_ready_date) return "Material Ready";
-      if (s === "ready_to_dispatch" && r.dispatch_date) return "Ready to Dispatch";
+      if (s === "material_ready" && r.material_ready_date)
+        return "Material Ready";
+      if (s === "ready_to_dispatch" && r.dispatch_date)
+        return "Ready to Dispatch";
       if (s === "out_for_delivery") return "Out for Delivery";
       if (s === "delivered") return "Delivered";
       if (s === "short_quantity") return "Short Quantity";
       if (s === "partially_delivered") return "Partially Delivered";
 
-      return ""; // unknown / not mapped
+      return "";
     };
 
+    // Final CSV rows
     const rows = rowsAgg.map((r) => ({
       p_id: r.p_id || "",
       po_number: r.po_number || "",
       vendor: r.vendor || "",
 
-      po_date: formatDate(r.date), // your string field “date” (PO date)
+      po_date: formatDate(r.date), // PO date is your string field
       etd_date: formatDate(r.etd),
       mr_date: formatDate(r.material_ready_date),
       rtd_date: formatDate(r.dispatch_date),
       delivery_date: formatDate(r.delivery_date),
 
-      // one more: the UI “Filter” label
       filter: deriveFilterLabel(r),
+
+      // delay
+      delay_days: Number(r.delay_days || 0),
+      delay_label: r.delay_label || "No delay",
 
       category: r.category_name || "-",
       product: r.product_name || "-",
@@ -2010,6 +2119,7 @@ const getExportPo = async (req, res) => {
       billing_status: r.partial_billing || "",
     }));
 
+    // CSV headers (added Delay columns + date columns + Filter)
     const fields = [
       { label: "Project ID", value: "p_id" },
       { label: "PO Number", value: "po_number" },
@@ -2021,7 +2131,10 @@ const getExportPo = async (req, res) => {
       { label: "RTD Date", value: "rtd_date" },
       { label: "Delivery Date", value: "delivery_date" },
 
-      { label: "Filter", value: "filter" }, // <- new column matching your UI filter labels
+      { label: "Filter", value: "filter" },
+
+      { label: "Delay (days)", value: "delay_days" },
+      { label: "Delay Label", value: "delay_label" },
 
       { label: "Category", value: "category" },
       { label: "Product", value: "product" },
@@ -2052,7 +2165,6 @@ const getExportPo = async (req, res) => {
       .json({ msg: "Export failed", error: err?.message || String(err) });
   }
 };
-
 
 const updateSalesPO = async (req, res) => {
   try {
