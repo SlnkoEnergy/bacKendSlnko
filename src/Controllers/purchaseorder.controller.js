@@ -1253,6 +1253,7 @@ const getPaginatedPo = async (req, res) => {
     const status = (req.query.status || "").trim();
     const filter = (req.query.filter || "").trim();
 
+    // vendor_id (optional)
     const vendorIdParam = (req.query.vendor_id || "").trim();
     let vendorObjectId = null;
     if (vendorIdParam) {
@@ -1281,18 +1282,8 @@ const getPaginatedPo = async (req, res) => {
         : "";
     const itemSearchRegex = itemSearch ? new RegExp(itemSearch, "i") : null;
 
+    // Build AND clauses for specific id filters (NOT the global "search")
     const andClauses = [];
-
-    if (search) {
-      const searchRegex = new RegExp(search, "i");
-      andClauses.push({
-        $or: [
-          { p_id: { $regex: searchRegex } },
-          { po_number: { $regex: searchRegex } },
-          { vendor: { $regex: searchRegex } }, 
-        ],
-      });
-    }
 
     if (req.query.item_id) {
       const idStr = String(req.query.item_id);
@@ -1310,6 +1301,7 @@ const getPaginatedPo = async (req, res) => {
       andClauses.push({ "pr.pr_id": maybeId });
     }
 
+    // Base equality/range filters (dates use computed dateObj)
     const baseEq = {
       ...(req.query.project_id && { p_id: req.query.project_id }),
 
@@ -1386,7 +1378,8 @@ const getPaginatedPo = async (req, res) => {
       ? { $and: andClauses, ...baseEq }
       : baseEq;
 
-    const safeDateObjStage = {
+    // First stage: safely compute dateObj and also create a consistent string for PO number
+    const safeDateObjAndPoStrStage = {
       $addFields: {
         dateObj: {
           $switch: {
@@ -1412,9 +1405,11 @@ const getPaginatedPo = async (req, res) => {
             default: null,
           },
         },
+        po_number_str: { $toString: "$po_number" }, // for stable regex search
       },
     };
 
+    // Vendor resolution stages (support vendor stored as ObjectId or string)
     const vendorResolveStages = [
       {
         $addFields: {
@@ -1455,21 +1450,49 @@ const getPaginatedPo = async (req, res) => {
       { $project: { vendorDoc: 0 } },
     ];
 
+    // Optional vendor_id filter (after vendor_obj_id is added)
     const vendorIdMatchStage = vendorObjectId
       ? [{ $match: { vendor_obj_id: vendorObjectId } }]
       : [];
 
+    // Single, unified search across p_id, po_number_str, vendor_name
+    const makeSearchStage = (s) => {
+      if (!s) return [];
+      const re = new RegExp(s, "i");
+      return [
+        {
+          $match: {
+            $or: [
+              { p_id: { $regex: re } },
+              { po_number_str: { $regex: re } },
+              { vendor_name: { $regex: re } },
+            ],
+          },
+        },
+      ];
+    };
+
     const pipeline = [
-      safeDateObjStage,
+      safeDateObjAndPoStrStage,
       { $match: preMatch },
 
       {
         $addFields: {
           total_billed_num: {
-            $convert: { input: "$total_billed", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$total_billed",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           po_value_num: {
-            $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
         },
       },
@@ -1512,18 +1535,28 @@ const getPaginatedPo = async (req, res) => {
         : []),
 
       ...vendorResolveStages,
-      ...vendorIdMatchStage,  
+      ...vendorIdMatchStage,
 
-      ...(search ? [{ $match: { vendor_name: { $regex: new RegExp(search, "i") } } }] : []),
+      ...makeSearchStage(search), // unified search here (AFTER vendor_name exists)
 
       {
         $addFields: {
-          po_number: { $toString: "$po_number" },
+          // keep numeric conversions for projection
           po_value: {
-            $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           total_advance_paid: {
-            $convert: { input: "$total_advance_paid", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$total_advance_paid",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
         },
       },
@@ -1538,7 +1571,7 @@ const getPaginatedPo = async (req, res) => {
           po_number: 1,
           p_id: 1,
           vendor: "$vendor_name",
-          vendor_id: "$vendor_obj_id", 
+          vendor_id: "$vendor_obj_id",
           date: 1,
           po_value: 1,
           po_basic: 1,
@@ -1560,16 +1593,26 @@ const getPaginatedPo = async (req, res) => {
     ];
 
     const countPipeline = [
-      safeDateObjStage,
+      safeDateObjAndPoStrStage,
       { $match: preMatch },
 
       {
         $addFields: {
           total_billed_num: {
-            $convert: { input: "$total_billed", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$total_billed",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
           po_value_num: {
-            $convert: { input: "$po_value", to: "double", onError: 0, onNull: 0 },
+            $convert: {
+              input: "$po_value",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
           },
         },
       },
@@ -1584,6 +1627,7 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
+      ...(status ? [{ $match: { partial_billing: status } }] : []),
 
       {
         $lookup: {
@@ -1611,11 +1655,9 @@ const getPaginatedPo = async (req, res) => {
         : []),
 
       ...vendorResolveStages,
-      ...vendorIdMatchStage, 
+      ...vendorIdMatchStage,
 
-      ...(search ? [{ $match: { vendor_name: { $regex: new RegExp(search, "i") } } }] : []),
-
-      ...(status ? [{ $match: { partial_billing: status } }] : []),
+      ...makeSearchStage(search),
 
       { $count: "total" },
     ];
@@ -1653,7 +1695,6 @@ const getPaginatedPo = async (req, res) => {
     });
   }
 };
-
 
 const getExportPo = async (req, res) => {
   try {
@@ -1906,7 +1947,8 @@ const getExportPo = async (req, res) => {
 const updateSalesPO = async (req, res) => {
   try {
     const { id } = req.params;
-    const { remarks, basic_sales, gst_on_sales,sales_invoice, po_number } = req.body || {};
+    const { remarks, basic_sales, gst_on_sales, sales_invoice, po_number } =
+      req.body || {};
 
     if (!id && !po_number) {
       return res
@@ -1926,7 +1968,7 @@ const updateSalesPO = async (req, res) => {
       return res.status(400).json({ message: "basic_sales must be a number" });
     if (!Number.isFinite(gst))
       return res.status(400).json({ message: "gst_on_sales must be a number" });
-     if (!invoice)
+    if (!invoice)
       return res.status(400).json({ message: "Sales Invoice is mandatory" });
 
     const po = id
@@ -2581,7 +2623,6 @@ const getPoBasic = async (req, res) => {
     });
   }
 };
-
 
 const bulkMarkDelivered = async (req, res) => {
   try {
