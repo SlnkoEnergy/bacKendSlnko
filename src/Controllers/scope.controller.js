@@ -47,7 +47,7 @@ const getScopeById = async (req, res) => {
         .json({ message: "Project code is missing on this project" });
     }
 
-    // 2) Scope
+    // 2) Scope (as-is)
     const scope = await scopeModel
       .findOne({ project_id })
       .populate("current_status.user_id", "_id name")
@@ -56,36 +56,7 @@ const getScopeById = async (req, res) => {
 
     if (!scope) return res.status(404).json({ message: "Scope not found" });
 
-    // Prepare plain items
-    const safeItems = (scope.items || []).map((raw) =>
-      typeof raw?.toObject === "function" ? raw.toObject() : raw
-    );
-
-    // 3) Fetch categories for all item_ids and build status map
-    const itemIds = safeItems
-      .map((it) => it?.item_id)
-      .filter((id) => mongoose.isValidObjectId(id));
-    const categories = await MaterialCategory
-      .find({ _id: { $in: itemIds } })
-      .select("_id status")
-      .lean();
-
-    const catStatusMap = new Map(
-      categories.map((c) => [String(c._id), c.status || "inactive"])
-    );
-
-    // Split items into active vs inactive (by category status)
-    const itemsWithCatStatus = safeItems.map((it) => {
-      const key = it?.item_id ? String(it.item_id) : null;
-      const category_status = key ? (catStatusMap.get(key) || "inactive") : "inactive";
-      return { ...it, category_status };
-    });
-
-    const activeItems = itemsWithCatStatus.filter((it) => it.category_status === "active");
-    const inactiveItems = itemsWithCatStatus.filter((it) => it.category_status !== "active");
-
-    const pdf_allowed = inactiveItems.length === 0;
-  
+    // 3) All POs for this project (by project code in p_id)
     const pos = await purchaseorderModel
       .find({ p_id: projectCode })
       .select("_id po_number date etd delivery_date current_status item createdAt")
@@ -93,6 +64,7 @@ const getScopeById = async (req, res) => {
 
     // Helpers
     const getPoCreatedAt = (po) => {
+      // Prefer createdAt; fallback to ObjectId time
       if (po?.createdAt) return new Date(po.createdAt).getTime();
       try {
         return new mongoose.Types.ObjectId(po._id).getTimestamp().getTime();
@@ -101,13 +73,15 @@ const getScopeById = async (req, res) => {
       }
     };
 
-    // Build: categoryId -> [po, po, ...]
+    // 4) Build: categoryId -> [po, po, ...]
     const categoryToPoList = new Map();
+
     for (const po of pos) {
       const items = Array.isArray(po.item) ? po.item : [];
       for (const poIt of items) {
         const catId = poIt?.category ? String(poIt.category) : null;
         if (!catId) continue;
+
         if (!categoryToPoList.has(catId)) categoryToPoList.set(catId, []);
         categoryToPoList.get(catId).push(po);
       }
@@ -116,10 +90,15 @@ const getScopeById = async (req, res) => {
     // Sort each list by newest first
     for (const [catId, list] of categoryToPoList.entries()) {
       list.sort((a, b) => getPoCreatedAt(b) - getPoCreatedAt(a));
+      categoryToPoList.set(catId, list);
     }
 
-    // 5) Enrich only ACTIVE items with multiple POs
-    const enrichedActiveItems = activeItems.map((it) => {
+    // 5) Enrich items with multiple POs
+    const safeItems = (scope.items || []).map((raw) =>
+      typeof raw?.toObject === "function" ? raw.toObject() : raw
+    );
+
+    const enrichedItems = safeItems.map((it) => {
       const itemIdStr = it?.item_id ? String(it.item_id) : null;
 
       if (!itemIdStr) {
@@ -127,18 +106,19 @@ const getScopeById = async (req, res) => {
           ...it,
           po_exists: false,
           has_po_created: false,
-          pos: [],
+          pos: [], // no POs
         };
       }
 
       const list = categoryToPoList.get(itemIdStr) || [];
 
+      // Simplify POs for payload
       const simplified = list.map((p) => ({
         po_number: p?.po_number ?? null,
         status: p?.current_status?.status ?? null,
-        po_date: p?.date ?? null,
-        etd: p?.etd ?? null,
-        delivered_date: p?.delivery_date ?? null,
+        po_date: p?.date ?? null,              // (string in your schema)
+        etd: p?.etd ?? null,                   // (Date)
+        delivered_date: p?.delivery_date ?? null, // (Date)
       }));
 
       const has_po_created = list.some(
@@ -149,7 +129,7 @@ const getScopeById = async (req, res) => {
         ...it,
         po_exists: simplified.length > 0,
         has_po_created,
-        pos: simplified,
+        pos: simplified, // <<< multiple PO objects here
       };
     });
 
@@ -158,12 +138,7 @@ const getScopeById = async (req, res) => {
       message: "Scope and material details retrieved successfully",
       data: {
         ...scope.toObject(),
-        // Only ACTIVE items are passed forward for next operations (e.g., PDF)
-        items: enrichedActiveItems,
-        // Inactive items are returned separately for visibility
-        inactive_items: inactiveItems,
-        // Gate for downstream PDF
-        pdf_allowed,
+        items: enrichedItems,
       },
     });
   } catch (error) {
@@ -173,7 +148,6 @@ const getScopeById = async (req, res) => {
     });
   }
 };
-
 
 const getAllScopes = async (req, res) => {
   try {
@@ -355,7 +329,8 @@ const getScopePdf = async (req, res) => {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    const projectPid = project?.p_id || project?.pid || null; 
+    // Handover (CAM Person) by project p_id
+    const projectPid = project?.p_id || project?.pid || null;
     const handover = projectPid
       ? await handoverModel
           .findOne({ p_id: projectPid })
@@ -367,7 +342,7 @@ const getScopePdf = async (req, res) => {
     const projectStatus =
       project?.current_status?.status || project?.status || null;
 
-    // load scope(s)
+    // Load scope(s)
     const scopeData = await scopeModel
       .find({ project_id })
       .populate("current_status.user_id", "_id name")
@@ -376,12 +351,59 @@ const getScopePdf = async (req, res) => {
       .lean();
 
     if (!scopeData || !scopeData.length) {
-      return res
-        .status(404)
-        .json({ message: "No scope data found for this project" });
+      return res.status(404).json({ message: "No scope data found for this project" });
     }
 
-    // collect POs by project code
+    const allItemIds = [];
+    for (const s of scopeData) {
+      const items = Array.isArray(s.items) ? s.items : [];
+      for (const it of items) {
+        if (it?.item_id && mongoose.isValidObjectId(it.item_id)) {
+          allItemIds.push(String(it.item_id));
+        }
+      }
+    }
+
+    const categories = await MaterialCategory
+      .find({ _id: { $in: allItemIds } })
+      .select("_id status")
+      .lean();
+
+    const catStatusMap = new Map(categories.map(c => [String(c._id), c.status || "inactive"]));
+
+    const inactiveByScope = [];
+    scopeData.forEach((s, idx) => {
+      const items = Array.isArray(s.items) ? s.items : [];
+      const inactiveItems = items
+        .filter(it => {
+          const key = it?.item_id ? String(it.item_id) : null;
+          const st = key ? catStatusMap.get(key) : "inactive";
+          return st !== "active";
+        })
+        .map(it => ({
+          item_id: it?.item_id || null,
+          name: it?.name || null,
+          type: it?.type || null,
+          scope: it?.scope || null,
+          category_status: it?.item_id ? (catStatusMap.get(String(it.item_id)) || "inactive") : "inactive",
+        }));
+
+      if (inactiveItems.length > 0) {
+        inactiveByScope.push({
+          scope_index: idx,
+          scope_id: s?._id || null,
+          inactive_items: inactiveItems,
+        });
+      }
+    });
+
+    if (inactiveByScope.length > 0) {
+      return res.status(400).json({
+        message: "Cannot generate PDF: One or more categories are inactive.",
+        details: inactiveByScope,
+      });
+    }
+
     const projectCode = String(project?.code || "").trim();
     const pos = projectCode
       ? await purchaseorderModel
@@ -402,6 +424,7 @@ const getScopePdf = async (req, res) => {
       }
     }
 
+    // Process scopes → items/rows (all categories are active at this point)
     const processed = scopeData.map((scope) => {
       const plainItems = Array.isArray(scope.items) ? scope.items : [];
 
@@ -420,15 +443,7 @@ const getScopePdf = async (req, res) => {
         const sorted = sortAndDedupePos(poList);
         const effective = sorted.length
           ? sorted
-          : [
-              {
-                po_number: "Pending",
-                status: "",
-                po_date: null,
-                etd: null,
-                delivered_date: null,
-              },
-            ];
+          : [{ po_number: "Pending", status: "", po_date: null, etd: null, delivered_date: null }];
 
         const first_po = effective[0];
         const other_pos = effective.slice(1);
@@ -446,7 +461,7 @@ const getScopePdf = async (req, res) => {
         };
       });
 
-      // Flatten rows for the PDF service (parent row + child rows)
+      // Flatten rows for the PDF service
       const rows = [];
       for (const it of items) {
         rows.push({
@@ -484,7 +499,7 @@ const getScopePdf = async (req, res) => {
         items,
         rows,
         handover: {
-          cam_member_name: camMemberName, 
+          cam_member_name: camMemberName,
           p_id: handover?.p_id || null,
           _id: handover?._id || null,
         },
