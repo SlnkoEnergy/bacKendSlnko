@@ -6,6 +6,8 @@ const { default: mongoose } = require("mongoose");
 const materialcategoryModel = require("../models/materialcategory.model");
 const purchaseorderModel = require("../models/purchaseorder.model");
 const handoverModel = require("../models/handoversheet.model");
+const MaterialCategory = require("../models/materialcategory.model");
+
 
 const createScope = async (req, res) => {
   try {
@@ -47,7 +49,7 @@ const getScopeById = async (req, res) => {
         .json({ message: "Project code is missing on this project" });
     }
 
-    // 2) Scope (as-is)
+    // 2) Scope
     const scope = await scopeModel
       .findOne({ project_id })
       .populate("current_status.user_id", "_id name")
@@ -56,7 +58,36 @@ const getScopeById = async (req, res) => {
 
     if (!scope) return res.status(404).json({ message: "Scope not found" });
 
-    // 3) All POs for this project (by project code in p_id)
+    // Prepare plain items
+    const safeItems = (scope.items || []).map((raw) =>
+      typeof raw?.toObject === "function" ? raw.toObject() : raw
+    );
+
+    // 3) Fetch categories for all item_ids and build status map
+    const itemIds = safeItems
+      .map((it) => it?.item_id)
+      .filter((id) => mongoose.isValidObjectId(id));
+    const categories = await MaterialCategory
+      .find({ _id: { $in: itemIds } })
+      .select("_id status")
+      .lean();
+
+    const catStatusMap = new Map(
+      categories.map((c) => [String(c._id), c.status || "inactive"])
+    );
+
+    // Split items into active vs inactive (by category status)
+    const itemsWithCatStatus = safeItems.map((it) => {
+      const key = it?.item_id ? String(it.item_id) : null;
+      const category_status = key ? (catStatusMap.get(key) || "inactive") : "inactive";
+      return { ...it, category_status };
+    });
+
+    const activeItems = itemsWithCatStatus.filter((it) => it.category_status === "active");
+    const inactiveItems = itemsWithCatStatus.filter((it) => it.category_status !== "active");
+
+    const pdf_allowed = inactiveItems.length === 0;
+  
     const pos = await purchaseorderModel
       .find({ p_id: projectCode })
       .select("_id po_number date etd delivery_date current_status item createdAt")
@@ -64,7 +95,6 @@ const getScopeById = async (req, res) => {
 
     // Helpers
     const getPoCreatedAt = (po) => {
-      // Prefer createdAt; fallback to ObjectId time
       if (po?.createdAt) return new Date(po.createdAt).getTime();
       try {
         return new mongoose.Types.ObjectId(po._id).getTimestamp().getTime();
@@ -73,15 +103,13 @@ const getScopeById = async (req, res) => {
       }
     };
 
-    // 4) Build: categoryId -> [po, po, ...]
+    // Build: categoryId -> [po, po, ...]
     const categoryToPoList = new Map();
-
     for (const po of pos) {
       const items = Array.isArray(po.item) ? po.item : [];
       for (const poIt of items) {
         const catId = poIt?.category ? String(poIt.category) : null;
         if (!catId) continue;
-
         if (!categoryToPoList.has(catId)) categoryToPoList.set(catId, []);
         categoryToPoList.get(catId).push(po);
       }
@@ -90,15 +118,10 @@ const getScopeById = async (req, res) => {
     // Sort each list by newest first
     for (const [catId, list] of categoryToPoList.entries()) {
       list.sort((a, b) => getPoCreatedAt(b) - getPoCreatedAt(a));
-      categoryToPoList.set(catId, list);
     }
 
-    // 5) Enrich items with multiple POs
-    const safeItems = (scope.items || []).map((raw) =>
-      typeof raw?.toObject === "function" ? raw.toObject() : raw
-    );
-
-    const enrichedItems = safeItems.map((it) => {
+    // 5) Enrich only ACTIVE items with multiple POs
+    const enrichedActiveItems = activeItems.map((it) => {
       const itemIdStr = it?.item_id ? String(it.item_id) : null;
 
       if (!itemIdStr) {
@@ -106,19 +129,18 @@ const getScopeById = async (req, res) => {
           ...it,
           po_exists: false,
           has_po_created: false,
-          pos: [], // no POs
+          pos: [],
         };
       }
 
       const list = categoryToPoList.get(itemIdStr) || [];
 
-      // Simplify POs for payload
       const simplified = list.map((p) => ({
         po_number: p?.po_number ?? null,
         status: p?.current_status?.status ?? null,
-        po_date: p?.date ?? null,              // (string in your schema)
-        etd: p?.etd ?? null,                   // (Date)
-        delivered_date: p?.delivery_date ?? null, // (Date)
+        po_date: p?.date ?? null,
+        etd: p?.etd ?? null,
+        delivered_date: p?.delivery_date ?? null,
       }));
 
       const has_po_created = list.some(
@@ -129,7 +151,7 @@ const getScopeById = async (req, res) => {
         ...it,
         po_exists: simplified.length > 0,
         has_po_created,
-        pos: simplified, // <<< multiple PO objects here
+        pos: simplified,
       };
     });
 
@@ -138,7 +160,12 @@ const getScopeById = async (req, res) => {
       message: "Scope and material details retrieved successfully",
       data: {
         ...scope.toObject(),
-        items: enrichedItems,
+        // Only ACTIVE items are passed forward for next operations (e.g., PDF)
+        items: enrichedActiveItems,
+        // Inactive items are returned separately for visibility
+        inactive_items: inactiveItems,
+        // Gate for downstream PDF
+        pdf_allowed,
       },
     });
   } catch (error) {
@@ -148,6 +175,7 @@ const getScopeById = async (req, res) => {
     });
   }
 };
+
 
 const getAllScopes = async (req, res) => {
   try {
