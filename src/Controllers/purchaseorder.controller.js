@@ -1906,7 +1906,7 @@ const getExportPo = async (req, res) => {
 const updateSalesPO = async (req, res) => {
   try {
     const { id } = req.params;
-    const { remarks, basic_sales, gst_on_sales, po_number } = req.body || {};
+    const { remarks, basic_sales, gst_on_sales,sales_invoice, po_number } = req.body || {};
 
     if (!id && !po_number) {
       return res
@@ -1921,10 +1921,13 @@ const updateSalesPO = async (req, res) => {
 
     const basic = Number(basic_sales);
     const gst = Number(gst_on_sales);
+    const invoice = sales_invoice;
     if (!Number.isFinite(basic))
       return res.status(400).json({ message: "basic_sales must be a number" });
     if (!Number.isFinite(gst))
       return res.status(400).json({ message: "gst_on_sales must be a number" });
+     if (!invoice)
+      return res.status(400).json({ message: "Sales Invoice is mandatory" });
 
     const po = id
       ? await purchaseOrderModells.findById(id)
@@ -2048,6 +2051,7 @@ const updateSalesPO = async (req, res) => {
       converted_at: new Date(),
       basic_sales: basic,
       gst_on_sales: gst,
+      sales_invoice: invoice,
       user_id: userId,
     });
     po.isSales = true;

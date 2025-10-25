@@ -778,6 +778,7 @@ const getCustomerPaymentSummary = async (req, res) => {
                 user_name: 1,
                 basic_sales: "$last_sales_detail.basic_sales",
                 gst_on_sales: "$last_sales_detail.gst_on_sales",
+                sales_invoice: "$last_sales_detail.sales_invoice",
                 attachments: {
                   $map: {
                     input: { $ifNull: ["$last_sales_detail.attachments", []] },

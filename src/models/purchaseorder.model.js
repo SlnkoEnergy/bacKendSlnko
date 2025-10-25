@@ -1,5 +1,5 @@
 const { default: mongoose } = require("mongoose");
-const { updateStatus } = require("../utils/updatestatus.utils");
+const updateStatus = require("../utils/updatestatus.utils");
 
 const salesDetailSchema = new mongoose.Schema(
   {
@@ -17,6 +17,7 @@ const salesDetailSchema = new mongoose.Schema(
     converted_at: { type: Date, default: Date.now },
     basic_sales: { type: Number, required: true },
     gst_on_sales: { type: Number, required: true },
+    sales_invoice:{type: String},
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { _id: false }
