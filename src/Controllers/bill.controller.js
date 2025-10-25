@@ -242,7 +242,9 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
   const pageSize = Number.parseInt(req.query.pageSize, 10) || 10;
   const skip = (page - 1) * pageSize;
 
-  const status = (req.query.status || "").trim();
+  let status = (req.query.status || "").trim().toLowerCase();
+
+  status = status === "bill pending" ? "waiting bills" : status;
 
   let po_number = req.query.po_number;
   if (po_number === null || po_number === undefined || po_number === "null") {
@@ -266,8 +268,55 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
     filters.push({ $and: andOfOrs });
   }
 
+  const parseDMY = (s) => {
+    if (!s) return null;
+    // supports "19-10-2024" -> Date("2024-10-19T00:00:00Z" local offset ok too)
+    const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(String(s).trim());
+    if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T00:00:00.000Z`);
+    const d = new Date(s); // fallback for ISO etc.
+    return isNaN(d) ? null : d;
+  };
+
+  const fromRaw = req.query.dateFrom;
+  const toRaw = req.query.dateEnd;
+
+  const from = parseDMY(fromRaw);
+  const to0 = parseDMY(toRaw);
+  // exclusive end so full day is included
+  const toExclusive = to0 ? new Date(to0.getFullYear(), to0.getMonth(), to0.getDate() + 1) : null;
+
+  const rangeCond = {};
+  if (from) rangeCond.$gte = from;
+  if (toExclusive) rangeCond.$lt = toExclusive;
+
+
   const pipeline = [
     // minimal PO join
+    {
+      $addFields: {
+        __bill_date: {
+          $let: {
+            vars: { b: "$bill_date" }, in:
+            {
+              $cond: [
+                { $eq: [{ $type: "$$b" }, "date"] }, "$$b",
+                {
+                  $cond: [
+                    { $eq: [{ $type: "$$b" }, "string"] },
+                    { $dateFromString: { dateString: "$$b", onError: null, onNull: null } },
+                    null
+                  ]
+                }
+              ]
+            }
+          }
+        },
+      }
+    },
+
+    // Apply the range: include if bill_date OR created_on is within range
+    ...(Object.keys(rangeCond).length ? [{ $match: { __bill_date: rangeCond } }] : []),
+
     {
       $lookup: {
         from: "purchaseorders",
