@@ -6,7 +6,7 @@ const sharp = require("sharp");
 const mime = require("mime-types");
 const sanitizeHtml = require("sanitize-html");
 const { default: mongoose } = require("mongoose");
-const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const { sendNotification } = require("../utils/sendnotification.utils");
 const userModel = require("../models/user.model");
 
 const createPost = async (req, res) => {
@@ -336,7 +336,7 @@ const updatePost = async (req, res) => {
           .filter((id) => id !== removeID);
 
         setImmediate(() => {
-          getnovuNotification(workflow, senders, data).catch((err) =>
+          sendNotification(workflow, senders, data).catch((err) =>
             console.error("Notification error:", err)
           );
         });

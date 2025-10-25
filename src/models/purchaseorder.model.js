@@ -1,7 +1,5 @@
 const { default: mongoose } = require("mongoose");
-const {
-  updatePurchaseRequestStatus,
-} = require("../utils/updatePurchaseRequestStatus");
+const { updateStatus } = require("../utils/updatestatus.utils");
 
 const salesDetailSchema = new mongoose.Schema(
   {
@@ -99,7 +97,8 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: Number,
     },
     vendor: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Vendor",
     },
     partial_billing: {
       type: String,
@@ -221,7 +220,7 @@ const purchaseOrderSchema = new mongoose.Schema(
 );
 
 purchaseOrderSchema.pre("save", function (next) {
-  updatePurchaseRequestStatus(this, "status_history", "current_status");
+  updateStatus(this, "approval_pending");
   next();
 });
 

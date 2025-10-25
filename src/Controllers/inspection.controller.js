@@ -11,7 +11,7 @@ const mime = require("mime-types");
 const { nextInspectionCode } = require("../utils/inspection.utils");
 const purchaseOrderModel = require("../models/purchaseorder.model");
 const userModells = require("../models/user.model");
-const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const { sendNotification } = require("../utils/sendnotification.utils");
 
 const createInspection = catchAsyncError(async (req, res) => {
   const userId = req.user?.userId;
@@ -66,7 +66,7 @@ const createInspection = catchAsyncError(async (req, res) => {
       message: ` Inspection is created for ${b.po_number} `,
     };
 
-    await getnovuNotification(workflow, senders, data);
+    await sendNotification(workflow, senders, data);
   } catch (error) {
     console.log(error);
   }
@@ -345,7 +345,7 @@ const updateStatusInspection = catchAsyncError(async (req, res, next) => {
         message: `Status change again the ${inspection.po_number}`,
       };
 
-      await getnovuNotification(workflow, senders, data);
+      await sendNotification(workflow, senders, data);
     } catch (error) {
       console.log(error);
     }

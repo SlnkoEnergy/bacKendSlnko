@@ -16,7 +16,7 @@ const {
 } = require("../Controllers/logisticshistory.controller");
 
 const auth = require("../middlewares/auth.middleware.js");
-const upload = require("../middlewares/multer");
+const upload = require("../middlewares/multer.middleware.js");
 // Logistic Routes
 router.get("/logistic", auth, getAllLogistics);
 
