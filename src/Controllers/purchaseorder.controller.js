@@ -48,7 +48,6 @@ const toNum = (expr) => ({
   },
 });
 
-// --- Pipeline stays same ---
 const aggregationPipeline = [
   {
     $lookup: {
@@ -1908,22 +1907,61 @@ const getExportPo = async (req, res) => {
       .json({ msg: "Export failed", error: err?.message || String(err) });
   }
 };
+
 const updateSalesPO = async (req, res) => {
   try {
     const { id } = req.params;
-    const { remarks } = req.body || {};
+    const { remarks, basic_sales, gst_on_sales, po_number } = req.body || {};
 
-    if (!id) return res.status(400).json({ message: "_id is required" });
+    if (!id && !po_number) {
+      return res
+        .status(400)
+        .json({ message: "Provide _id (param) or po_number (body)." });
+    }
     if (!remarks || String(remarks).trim() === "") {
       return res
         .status(400)
         .json({ message: "Remarks are required to update Sales PO" });
     }
 
-    const po = await purchaseOrderModells.findById(id);
+    const basic = Number(basic_sales);
+    const gst = Number(gst_on_sales);
+    if (!Number.isFinite(basic))
+      return res.status(400).json({ message: "basic_sales must be a number" });
+    if (!Number.isFinite(gst))
+      return res.status(400).json({ message: "gst_on_sales must be a number" });
+
+    const po = id
+      ? await purchaseOrderModells.findById(id)
+      : await purchaseOrderModells.findOne({
+          po_number: String(po_number).trim(),
+        });
+
     if (!po) return res.status(404).json({ message: "PO not found" });
-    // if (!po.isSales)
-    //   return res.status(400).json({ message: "This PO is not a Sales PO" });
+
+    const poValue = Number(po.po_value) || 0;
+    const totalBilled = Number(po.total_billed) || 0;
+
+    if (!Number.isFinite(totalBilled)) {
+      return res.status(400).json({
+        message:
+          "Invalid total_billed on PO (not a number). Please correct the data.",
+        details: { po_value: poValue, total_billed: po.total_billed },
+      });
+    }
+    if (totalBilled < 0) {
+      return res.status(400).json({
+        message:
+          "Invalid PO state: total_billed cannot be less than 0. Please correct the PO before recording sales.",
+        details: { po_value: poValue, total_billed: totalBilled },
+        rule: "total_billed >= 0",
+      });
+    }
+
+    const cap = Math.max(0, poValue - totalBilled);
+    const alreadySales = Number(po.total_sales_value) || 0;
+
+    const entryTotal = basic + gst;
 
     const safePo = (s) =>
       String(s || "")
@@ -1971,13 +2009,13 @@ const updateSalesPO = async (req, res) => {
         }
       }
 
-      const form = new FormData();
-      form.append("file", buffer, {
-        filename: attachment_name,
-        contentType: mimeType,
-      });
-
       try {
+        const form = new FormData();
+        form.append("file", buffer, {
+          filename: attachment_name,
+          contentType: mimeType,
+        });
+
         const resp = await axios.post(uploadUrl, form, {
           headers: form.getHeaders(),
           maxContentLength: Infinity,
@@ -1993,11 +2031,9 @@ const updateSalesPO = async (req, res) => {
           data?.data?.url ||
           null;
 
-        if (url) {
+        if (url)
           uploadedAttachments.push({ attachment_url: url, attachment_name });
-        } else {
-          console.warn(`No URL returned for ${attachment_name}`);
-        }
+        else console.warn(`No URL returned for ${attachment_name}`);
       } catch (e) {
         console.error(
           "Upload failed:",
@@ -2010,23 +2046,33 @@ const updateSalesPO = async (req, res) => {
 
     const userId = req.user?.userId || req.user?._id || null;
     if (!Array.isArray(po.sales_Details)) po.sales_Details = [];
+
     po.sales_Details.push({
       remarks: String(remarks).trim(),
       attachments: uploadedAttachments,
       converted_at: new Date(),
+      basic_sales: basic,
+      gst_on_sales: gst,
       user_id: userId,
     });
-
     po.isSales = true;
+    po.total_sales_value = alreadySales + entryTotal;
 
     po.markModified("sales_Details");
 
     await po.save();
 
     return res.status(200).json({
-      message: uploadedAttachments.length
-        ? "Sales PO updated with attachments (isSales=true)"
-        : "Sales PO updated (remarks only, isSales=true)",
+      message:
+        uploadedAttachments.length > 0
+          ? "Sales PO updated with attachments (isSales=true)"
+          : "Sales PO updated (remarks only, isSales=true)",
+      cap_context: {
+        po_value: poValue,
+        total_billed: totalBilled,
+        total_sales_value: po.total_sales_value,
+        remaining_allowed_sales: Math.max(0, cap - po.total_sales_value),
+      },
       data: po,
     });
   } catch (error) {
@@ -2036,6 +2082,7 @@ const updateSalesPO = async (req, res) => {
       .json({ message: "Error updating Sales PO", error: error.message });
   }
 };
+
 //Move-Recovery
 const moverecovery = async function (req, res) {
   const { _id } = req.params._id;
@@ -2750,13 +2797,11 @@ const linkProjectToPOByPid = async (req, res) => {
     });
   } catch (err) {
     console.error("linkProjectIdsSimple error:", err);
-    return res
-      .status(500)
-      .json({
-        ok: false,
-        message: "Internal server error",
-        error: err.message,
-      });
+    return res.status(500).json({
+      ok: false,
+      message: "Internal server error",
+      error: err.message,
+    });
   }
 };
 

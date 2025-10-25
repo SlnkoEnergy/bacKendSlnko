@@ -17,6 +17,8 @@ const salesDetailSchema = new mongoose.Schema(
       },
     ],
     converted_at: { type: Date, default: Date.now },
+    basic_sales: { type: Number, required: true },
+    gst_on_sales: { type: Number, required: true },
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { _id: false }
@@ -44,6 +46,10 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
     },
     total_bills: {
+      type: Number,
+      default: 0,
+    },
+    total_sales_value: {
       type: Number,
       default: 0,
     },
