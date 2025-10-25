@@ -6,8 +6,6 @@ const { default: mongoose } = require("mongoose");
 const materialcategoryModel = require("../models/materialcategory.model");
 const purchaseorderModel = require("../models/purchaseorder.model");
 const handoverModel = require("../models/handoversheet.model");
-const MaterialCategory = require("../models/materialcategory.model");
-
 
 const createScope = async (req, res) => {
   try {
