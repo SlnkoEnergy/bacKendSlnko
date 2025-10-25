@@ -27,6 +27,7 @@ const {
   updateProjectStatusForPreviousProjects,
   updateSubmittedByOfProject,
 } = require("../Controllers/project.controller.js");
+
 const {
   userRegister,
   login,
@@ -280,6 +281,7 @@ router.post(
   addMoney
 );
 router.get("/all-bilL-IT", auth, allbill);
+router.get("/project-by-pid", auth, getAllProjects);
 router.post(
   "/get-bilL-IT",
   auth,
