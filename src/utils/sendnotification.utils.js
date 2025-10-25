@@ -1,18 +1,15 @@
-// src/utils/sendnotification.utils.js
 const { Novu } = require("@novu/api");
 require("dotenv").config();
 
 let _novu = null;
 
-/** Initialize and cache Novu instance */
 function getNovu() {
   const secretKey = process.env.NOVU_SECRET_KEY;
   if (!secretKey) throw new Error("NOVU_SECRET_KEY is missing.");
 
-  // Self-hosted Novu API must include /api
   const serverURL =
-    process.env.NOVU_BACKEND_URL || "https://notification.slnkoprotrac.com/api";
-
+    process.env.NOVU_BACKEND_URL || "https://notification.slnkoprotrac.com";
+  console.log(`🔔 Using Novu backend: ${serverURL || "default Novu backend"}`);
   if (!_novu) {
     _novu = new Novu({ secretKey, serverURL });
     console.log(`✅ Novu initialized with backend: ${serverURL}`);
@@ -25,9 +22,9 @@ async function sendNotification({
   subscriberId,
   subject,
   body,
-  to = [], // array of strings; ALL will be sent as To
-  cc = [], // optional; merged into To
-  bcc = [], // optional; merged into To
+  to = [],
+  cc = [],
+  bcc = [],
   from = "it@slnkoenergy.com",
   replyTo,
   integrationIdentifier = "plunk",

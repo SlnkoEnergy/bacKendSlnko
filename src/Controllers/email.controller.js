@@ -24,7 +24,7 @@ const createEmail = async (req, res) => {
 
 const getEmails = async (req, res) => {
   try {
-    const { page, limit, search, status, tags } = req.query;
+    const { page, limit, search, status } = req.query;
 
     const norm = (v) => (v === undefined || v === null ? "" : String(v).trim());
     const isPresent = (v) => {
@@ -44,11 +44,12 @@ const getEmails = async (req, res) => {
     }
 
     if (isPresent(status)) {
-      query["current_status.status"] = norm(status).toLowerCase();
-    }
-
-    if (isPresent(tags)) {
-      query["compiled.tags"] = norm(tags);
+      const statusNorm = norm(status);
+      query.$or = query.$or || [];
+      query.$or.push(
+        { "current_status.status": statusNorm.toLowerCase() },
+        { "compiled.tags": statusNorm }
+      );
     }
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);

@@ -4,8 +4,9 @@ const FormData = require("form-data");
 const mime = require("mime-types");
 const sharp = require("sharp");
 const purchaseorderModel = require("../models/purchaseorder.model");
-const purchaserequestModel = require("../models/purchaserequest.model");
 const payRequestModells = require("../models/payRequestModells");
+const { sendNotification } = require("../utils/sendnotification.utils");
+const { sendUsingTemplate } = require("../utils/sendemail.utils");
 
 const slugify = (str = "") =>
   String(str)
@@ -126,8 +127,32 @@ const addVendor = async function addVendor(req, res) {
       profile_image: profileImageUrl || data.profile_image || "",
     };
 
+    const emailPayload = {
+      vendor_name: rawName,
+      vendor_email: data.contact_details?.email || "",
+      contact_phone: data.contact_details?.phone || "",
+      account_number: data.Account_Number || "",
+      bank_name: data.Bank_Name || "",
+      ifsc_code: data.IFSC_Code || "",
+      beneficiary_name: data.Beneficiary_Name || "",
+      user_id: req.user?.userId || "",
+      name_to_send: [rawName],
+      tags: ["vendor"],
+    };
+
     const vendor = new vendorModells(vendorDoc);
     await vendor.save();
+
+    setImmediate(() => {
+      sendUsingTemplate(
+        "vendor-onboarding-email",
+        emailPayload,
+        { sendNotification },
+        { strict: false }
+      ).catch((e) =>
+        console.error("[utrUpdate] email send error:", e?.message || e)
+      );
+    });
 
     return res.status(200).json({
       msg: "Vendor added successfully",
@@ -208,7 +233,9 @@ const getVendorById = async function (req, res) {
         // match vendor by name (case-insensitive exact)
         {
           $match: {
-            vendor: { $regex: new RegExp(`^${escapeRegExp(vendorName)}$`, "i") },
+            vendor: {
+              $regex: new RegExp(`^${escapeRegExp(vendorName)}$`, "i"),
+            },
           },
         },
         // sanitize & parse numbers safely
@@ -236,7 +263,7 @@ const getVendorById = async function (req, res) {
               $convert: {
                 input: "$po_value_sanitized",
                 to: "double",
-                onError: 0, // <-- prevents the "Failed to parse number" error
+                onError: 0,
                 onNull: 0,
               },
             },
@@ -273,7 +300,6 @@ const getVendorById = async function (req, res) {
   }
 };
 
-
 // Update vendor
 const updateVendor = async function (req, res) {
   let id = req.params.id;
@@ -282,9 +308,41 @@ const updateVendor = async function (req, res) {
     let update = await vendorModells.findByIdAndUpdate(id, updateData, {
       new: true,
     });
-
+    const vendor = await vendorModells.findById(id).lean();
     if (!update) {
       return res.status(404).json({ msg: "Vendor not found" });
+    }
+
+    const sendEmail =
+      updateData?.Account_No ||
+      updateData?.IFSC_Code ||
+      updateData?.Bank_Name ||
+      updateData?.Beneficiary_Name;
+
+    const emailPayload = {
+      vendor_name: vendor.name || "",
+      vendor_email: vendor.contact_details?.email || "",
+      account_number: updateData?.Account_No || "",
+      bank_name: updateData?.Bank_Name || "",
+      ifsc_code: updateData?.IFSC_Code || "",
+      beneficiary_name: updateData?.Beneficiary_Name || "",
+      contact_phone: vendor.contact_details?.phone || "",
+      user_id: req.user?.userId || "",
+      name_to_send: [vendor.name || ""],
+      tags: ["vendor"],
+    };
+
+    if (sendEmail && emailPayload) {
+      setImmediate(() => {
+        sendUsingTemplate(
+          "vendor-update-email",
+          emailPayload,
+          { sendNotification },
+          { strict: false }
+        ).catch((e) =>
+          console.error("[vendorUpdate] email send error:", e?.message || e)
+        );
+      });
     }
 
     res.status(200).json({

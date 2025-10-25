@@ -2,7 +2,7 @@
 const EmailTemplate = require("../models/emailtemplate.model");
 const EmailMessage = require("../models/emails.model");
 const { default: mongoose } = require("mongoose");
-const sanitizeHtml = require('sanitize-html');
+const sanitizeHtml = require("sanitize-html");
 
 function getValueByPath(payload, path) {
   if (!path) return undefined;
@@ -122,11 +122,7 @@ function compileEmail(templateDoc, payload, { strict = false } = {}) {
   const subject = renderString(templateDoc.subject, payload, { strict });
   const body = renderString(templateDoc.body, payload, { strict });
 
-  const to = renderStringArray(
-    [templateDoc.to].flat().filter(Boolean),
-    payload,
-    { strict }
-  );
+  const to = renderString(templateDoc.to, payload, { strict });
   const cc = renderStringArray(templateDoc.cc || [], payload, { strict });
   const bcc = renderStringArray(templateDoc.bcc || [], payload, { strict });
   const from = renderStringArray(templateDoc.from || [], payload, { strict });
@@ -178,9 +174,12 @@ async function createEmailLog(
   return log.save();
 }
 
-
-
-async function sendUsingTemplate(identifier, payload, emailService, { strict = false } = {}) {
+async function sendUsingTemplate(
+  identifier,
+  payload,
+  emailService,
+  { strict = false } = {}
+) {
   if (!identifier) throw new Error("identifier is required");
   if (!emailService?.sendNotification)
     throw new Error("emailService.sendNotification is required");
@@ -194,8 +193,11 @@ async function sendUsingTemplate(identifier, payload, emailService, { strict = f
   // Normalize to arrays
   const arr = (v) => (Array.isArray(v) ? v.filter(Boolean) : v ? [v] : []);
   const toList = arr(compiled.to);
+
   if (toList.length === 0)
-    throw new Error("No recipients resolved from template (compiled.to is empty).");
+    throw new Error(
+      "No recipients resolved from template (compiled.to is empty)."
+    );
 
   const recipients = {
     to: toList,
@@ -212,7 +214,9 @@ async function sendUsingTemplate(identifier, payload, emailService, { strict = f
     payload.user_id || compiled.createdby || payload.createdby
   );
   if (!subscriberId)
-    throw new Error("subscriberId (payload.user_id or compiled.createdby) is required");
+    throw new Error(
+      "subscriberId (payload.user_id or compiled.createdby) is required"
+    );
 
   const subscriberEmail = payload.email || undefined;
 
@@ -228,18 +232,17 @@ async function sendUsingTemplate(identifier, payload, emailService, { strict = f
 
   const content = {
     subject: compiled.subject,
-    html: safeBody, // proper HTML body
-    text: sanitizeHtml(rawBody, { allowedTags: [] }), // fallback plain text
+    html: safeBody,
+    text: sanitizeHtml(rawBody, { allowedTags: [] }),
   };
 
-  // 🔥 Send HTML explicitly
   await emailService.sendNotification({
     workflowId: "vendor-onboarding-email",
     subscriberId,
     subscriberEmail,
     subject: content.subject,
-    body: content.html,           // send HTML
-    bodyFormat: "html",           // tell Novu/Plunk this is HTML
+    body: content.html,
+    bodyFormat: "html",
     to: recipients.to,
     cc: recipients.cc,
     bcc: recipients.bcc,
@@ -260,9 +263,6 @@ async function sendUsingTemplate(identifier, payload, emailService, { strict = f
 
   return { ok: true, logId: sentLog._id };
 }
-
-
-
 
 module.exports = {
   getValueByPath,

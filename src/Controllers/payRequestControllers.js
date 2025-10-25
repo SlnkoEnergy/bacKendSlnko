@@ -1107,6 +1107,7 @@ const utrUpdate = async function (req, res) {
   let payload = null;
 
   let emailPayload = null;
+  let isPaymentAgainstPO = false;
 
   const buildSubtractDoc = (p, useUtr) => ({
     p_id: p.p_id,
@@ -1125,9 +1126,10 @@ const utrUpdate = async function (req, res) {
         ? { pay_id, acc_match: "matched" }
         : { cr_id, "approval_status.stage": "Final" };
 
-      let payment = await payRequestModells
+      const payment = await payRequestModells
         .findOne(paymentFilter)
         .session(session);
+
       if (!payment) {
         httpStatus = 404;
         payload = {
@@ -1135,8 +1137,14 @@ const utrUpdate = async function (req, res) {
             ? "No matching record found for pay_id or account not matched."
             : "No matching record found with this CR ID at stage 'Final'.",
         };
-        return;
+        return; // exit transaction callback
       }
+
+      isPaymentAgainstPO = payment.pay_type === "Payment Against PO";
+
+      const vendor = await vendorModells
+        .findOne({ name: payment.vendor })
+        .lean();
 
       const oldUtr = (payment.utr || "").trim() || null;
       const utrChanged = oldUtr !== trimmedUtr;
@@ -1144,6 +1152,7 @@ const utrUpdate = async function (req, res) {
       const dup = await payRequestModells
         .findOne({ utr: trimmedUtr, _id: { $ne: payment._id } })
         .session(session);
+
       if (dup) {
         httpStatus = 409;
         payload = { message: "UTR already exists on another record." };
@@ -1154,6 +1163,7 @@ const utrUpdate = async function (req, res) {
         utr: trimmedUtr,
         ...(submittedBy ? { utr_submitted_by: submittedBy } : {}),
       };
+
       await payRequestModells.updateOne(
         { _id: payment._id },
         { $set: setFields },
@@ -1212,6 +1222,7 @@ const utrUpdate = async function (req, res) {
           const alreadyCounted =
             Array.isArray(poDoc?.advance_paid_refs) &&
             poDoc.advance_paid_refs.includes(refKey);
+
           if (!alreadyCounted) {
             await purchaseOrderModells.updateOne(
               { po_number: payment.po_number },
@@ -1262,11 +1273,7 @@ const utrUpdate = async function (req, res) {
 
         if (utrChanged && debitEntry) {
           updateDoc.$push = {
-            recentDebits: {
-              $each: [debitEntry],
-              $position: 0,
-              $slice: 3,
-            },
+            recentDebits: { $each: [debitEntry], $position: 0, $slice: 3 },
           };
         }
 
@@ -1276,7 +1283,7 @@ const utrUpdate = async function (req, res) {
         });
       }
 
-      // --------- Stage email payload (send after commit) ----------
+      // Stage email payload to use AFTER commit
       if (utrChanged) {
         const projDoc = await projectModells
           .findOne({ p_id: Number(payment.p_id) }, { code: 1, name: 1 })
@@ -1294,23 +1301,23 @@ const utrUpdate = async function (req, res) {
           },
           name_to_send: [payment.vendor] || "",
           utr: trimmedUtr,
-          user_id: req.user.userId,
+          user_id: req.user?.userId,
           tags: ["vendor"],
+          po_number: payment.po_number || "",
+          vendor_email: vendor?.contact_details?.email || "",
         };
       }
-      // -----------------------------------------------------------
 
       httpStatus = 200;
       payload = {
-        message: isCrPath
-          ? utrChanged
+        message: Boolean(cr_id)
+          ? oldUtr !== trimmedUtr
             ? "Credit UTR Updated"
             : "UTR unchanged via cr_id; details synced."
-          : utrChanged
+          : oldUtr !== trimmedUtr
             ? "Payment UTR Submitted"
             : "UTR unchanged via pay_id; details synced.",
-        data: payment,
-        subtractMoney: subtractMoneyDoc,
+        // return some minimal info; avoid returning the whole payment doc if not needed
       };
     });
   } catch (err) {
@@ -1319,7 +1326,6 @@ const utrUpdate = async function (req, res) {
         .status(409)
         .json({ message: "UTR already exists.", error: err.message });
     }
-    console.error("utrUpdate error:", err);
     return res.status(500).json({
       message: "An error occurred while updating the UTR number.",
       error: err?.message,
@@ -1328,16 +1334,19 @@ const utrUpdate = async function (req, res) {
     session.endSession();
   }
 
-  if (emailPayload) {
+  // *** use the hoisted flag instead of `payment.type`
+  if (emailPayload && isPaymentAgainstPO) {
     setImmediate(() => {
-      sendUsingTemplate(
-        "vendor-payment-confirmation",
-        emailPayload,
-        { sendNotification },
-        { strict: false }
-      ).catch((e) =>
-        console.error("[utrUpdate] email send error:", e?.message || e)
-      );
+      try {
+        sendUsingTemplate(
+          "vendor-payment-email",
+          emailPayload,
+          { sendNotification },
+          { strict: false }
+        );
+      } catch (e) {
+        console.error("[utrUpdate] email send error:", e?.message || e);
+      }
     });
   }
 
