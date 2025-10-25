@@ -397,13 +397,6 @@ const getScopePdf = async (req, res) => {
       }
     });
 
-    if (inactiveByScope.length > 0) {
-      return res.status(400).json({
-        message: "Cannot generate PDF: One or more categories are inactive.",
-        details: inactiveByScope,
-      });
-    }
-
     const projectCode = String(project?.code || "").trim();
     const pos = projectCode
       ? await purchaseorderModel
