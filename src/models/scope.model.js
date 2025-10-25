@@ -36,10 +36,10 @@ const scopeSchema = new mongoose.Schema(
         order: {
           type: Number,
         },
-        pr_status:{
+        pr_status: {
           type: Boolean,
-          default: false
-        }
+          default: false,
+        },
       },
     ],
     status_history: [
