@@ -88,7 +88,7 @@ const startServer = async () => {
     app.use("/v1/projectactivity", projectActivityRoutes);
     app.use("/v1/approvals", approvalsRoutes);
     app.use("/v1/vendor", vendorRoutes);
-    app.use('/v1/email', emailRoutes);
+    app.use("/v1/email", emailRoutes);
 
     app.listen(PORT, () => {
       console.log(`Slnko app is running on port ${PORT}`);
