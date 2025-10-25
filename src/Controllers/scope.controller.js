@@ -329,7 +329,8 @@ const getScopePdf = async (req, res) => {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    const projectPid = project?.p_id || project?.pid || null; 
+    // Handover (CAM Person) by project p_id
+    const projectPid = project?.p_id || project?.pid || null;
     const handover = projectPid
       ? await handoverModel
           .findOne({ p_id: projectPid })
@@ -341,7 +342,7 @@ const getScopePdf = async (req, res) => {
     const projectStatus =
       project?.current_status?.status || project?.status || null;
 
-    // load scope(s)
+    // Load scope(s)
     const scopeData = await scopeModel
       .find({ project_id })
       .populate("current_status.user_id", "_id name")
@@ -350,12 +351,52 @@ const getScopePdf = async (req, res) => {
       .lean();
 
     if (!scopeData || !scopeData.length) {
-      return res
-        .status(404)
-        .json({ message: "No scope data found for this project" });
+      return res.status(404).json({ message: "No scope data found for this project" });
     }
 
-    // collect POs by project code
+    const allItemIds = [];
+    for (const s of scopeData) {
+      const items = Array.isArray(s.items) ? s.items : [];
+      for (const it of items) {
+        if (it?.item_id && mongoose.isValidObjectId(it.item_id)) {
+          allItemIds.push(String(it.item_id));
+        }
+      }
+    }
+
+    const categories = await MaterialCategory
+      .find({ _id: { $in: allItemIds } })
+      .select("_id status")
+      .lean();
+
+    const catStatusMap = new Map(categories.map(c => [String(c._id), c.status || "inactive"]));
+
+    const inactiveByScope = [];
+    scopeData.forEach((s, idx) => {
+      const items = Array.isArray(s.items) ? s.items : [];
+      const inactiveItems = items
+        .filter(it => {
+          const key = it?.item_id ? String(it.item_id) : null;
+          const st = key ? catStatusMap.get(key) : "inactive";
+          return st !== "active";
+        })
+        .map(it => ({
+          item_id: it?.item_id || null,
+          name: it?.name || null,
+          type: it?.type || null,
+          scope: it?.scope || null,
+          category_status: it?.item_id ? (catStatusMap.get(String(it.item_id)) || "inactive") : "inactive",
+        }));
+
+      if (inactiveItems.length > 0) {
+        inactiveByScope.push({
+          scope_index: idx,
+          scope_id: s?._id || null,
+          inactive_items: inactiveItems,
+        });
+      }
+    });
+
     const projectCode = String(project?.code || "").trim();
     const pos = projectCode
       ? await purchaseorderModel
@@ -376,6 +417,7 @@ const getScopePdf = async (req, res) => {
       }
     }
 
+    // Process scopes → items/rows (all categories are active at this point)
     const processed = scopeData.map((scope) => {
       const plainItems = Array.isArray(scope.items) ? scope.items : [];
 
@@ -394,15 +436,7 @@ const getScopePdf = async (req, res) => {
         const sorted = sortAndDedupePos(poList);
         const effective = sorted.length
           ? sorted
-          : [
-              {
-                po_number: "Pending",
-                status: "",
-                po_date: null,
-                etd: null,
-                delivered_date: null,
-              },
-            ];
+          : [{ po_number: "Pending", status: "", po_date: null, etd: null, delivered_date: null }];
 
         const first_po = effective[0];
         const other_pos = effective.slice(1);
@@ -420,7 +454,7 @@ const getScopePdf = async (req, res) => {
         };
       });
 
-      // Flatten rows for the PDF service (parent row + child rows)
+      // Flatten rows for the PDF service
       const rows = [];
       for (const it of items) {
         rows.push({
@@ -458,7 +492,7 @@ const getScopePdf = async (req, res) => {
         items,
         rows,
         handover: {
-          cam_member_name: camMemberName, 
+          cam_member_name: camMemberName,
           p_id: handover?.p_id || null,
           _id: handover?._id || null,
         },
