@@ -1,6 +1,6 @@
 const { Novu } = require("@novu/api");
 require("dotenv").config();
-
+// Singleton Novu instance
 let _novu = null;
 
 function getNovu() {
