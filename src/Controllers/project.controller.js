@@ -4,6 +4,7 @@ const projectactivitiesModel = require("../models/projectactivities.model");
 const { default: mongoose } = require("mongoose");
 const activitiesModel = require("../models/activities.model");
 const postsModel = require("../models/posts.model");
+const userModells = require("../models/user.model")
 
 const createProject = async function (req, res) {
   try {
@@ -1194,22 +1195,40 @@ const updateSubmittedByOfProject = async (req, res) => {
     let updated = 0;
     let skipped = 0;
 
+    // Define a default ObjectId to be used when `submitted_by` is missing
+    const defaultSubmittedById = new mongoose.Types.ObjectId("6839a4086356310d4e15f6fd");
+
     for (const proj of projects) {
-      // we only want the ones that are exactly empty string ("") per your rule
-      if (proj.submitted_by !== "") { 
+      // If the `submitted_by` field is missing or empty string, handle it
+      if (proj.submitted_by !== "" && proj.submitted_by != null) { 
         skipped++;
         continue;
       }
 
       const h = handoverByPid.get(String(proj.p_id));
-      if (!h) { skipped++; continue; }
 
-      const sbId = toObjectIdOrNull(h.submitted_by);
+      // If there's no handover, set the submitted_by to default
+      if (!h) {
+        ops.push({
+          updateOne: {
+            filter: { _id: proj._id }, // Update project with default submitted_by
+            update: { $set: { submitted_by: defaultSubmittedById } },
+          },
+        });
+        updated++;
+        continue; // Skip further checks for this project as it was handled
+      }
+
+      // If handover exists, get submitted_by from it or set to default
+      const sbId = h.submitted_by ? toObjectIdOrNull(h.submitted_by) : defaultSubmittedById;
+
+      // If there's no valid submitted_by from handover or a default ID, skip this project
       if (!sbId) { skipped++; continue; }
 
+      // If the project already has submitted_by (but wrong value), update it
       ops.push({
         updateOne: {
-          filter: { _id: proj._id },            // ❗ do NOT include submitted_by: ""
+          filter: { _id: proj._id, submitted_by: { $ne: sbId } }, // Only update if different
           update: { $set: { submitted_by: sbId } },
         },
       });
@@ -1222,7 +1241,7 @@ const updateSubmittedByOfProject = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      message: "submitted_by synced from handover to project (ObjectId).",
+      message: "submitted_by synced from handover to project (ObjectId) or set to default.",
       meta: { totalProjectsChecked: projects.length, updated, skipped },
     });
   } catch (error) {
@@ -1232,6 +1251,39 @@ const updateSubmittedByOfProject = async (req, res) => {
       message: "Internal Server Error",
       error: error.message,
     });
+  }
+};
+
+const updateSkippedProject = async (req, res) => {
+  try {
+    // Step 1: Find the ObjectId for "Guddu Rani Dubey"
+    const user = await userModells.findOne({ name: "Guddu Rani Dubey" });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const newSubmittedById = user._id; // Get the ObjectId for the user
+
+    // Step 2: Find the projects where `submitted_by` is the string "Guddu Rani Dubey"
+    const projects = await projectModells.find({ submitted_by: "Guddu Rani Dubey" });
+    console.log(projects);
+    if (projects.length > 0) {
+      // Step 3: Loop through all projects and update the `submitted_by` field with ObjectId
+      for (let project of projects) {
+        project.submitted_by = new mongoose.Types.ObjectId(newSubmittedById);  // Set the new ObjectId
+
+        // Save the updated project
+        await project.save();
+      }
+
+      return res.status(200).json({ message: "Projects updated successfully" });
+    } else {
+      return res.status(404).json({ message: "No projects found with the specified submitted_by name" });
+    }
+  } catch (error) {
+    console.error("Error updating projects:", error);
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
 
@@ -1254,5 +1306,6 @@ module.exports = {
   getProjectsDropdown,
   getAllPosts,
   updateProjectStatusForPreviousProjects,
-  updateSubmittedByOfProject
+  updateSubmittedByOfProject,
+  updateSkippedProject
 };
