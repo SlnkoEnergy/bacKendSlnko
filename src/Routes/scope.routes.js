@@ -8,6 +8,7 @@ const {
   getScopePdf,
   ensureProjectScope,
   updateCommitmentDate,
+  exportScopes,
 } = require("../Controllers/scope.controller");
 const router = require("express").Router();
 const jwtMW = require("../middlewares/auth");
@@ -30,5 +31,6 @@ router.put(
   jwtMW.authentication,
   updateCommitmentDate
 );
+router.post('/export-scopes', jwtMW.authentication, exportScopes);
 
 module.exports = router;

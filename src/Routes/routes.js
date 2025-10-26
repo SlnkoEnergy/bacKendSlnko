@@ -25,7 +25,8 @@ const {
   getProjectsDropdown,
   getAllPosts,
   updateProjectStatusForPreviousProjects,
-  updateSubmittedByOfProject
+  updateSubmittedByOfProject,
+  updateSkippedProject
 } = require("../Controllers/project.controller.js");
 const {
   userRegister,
@@ -285,7 +286,8 @@ router.get(
 router.get("/project-state-detail", jwtMW.authentication, getProjectStates);
 router.get("/allposts", jwtMW.authentication, getAllPosts);
 router.put('/updateprojectstatusforpreviousprojects', jwtMW.authentication, updateProjectStatusForPreviousProjects);
-router.put('/updateprojectsubmittedby', jwtMW.authentication, updateSubmittedByOfProject)
+router.put('/updateprojectsubmittedby', jwtMW.authentication, updateSubmittedByOfProject);
+router.put("/updateSkippedProject", updateSkippedProject);
 
 //addMoney APi
 router.post(
