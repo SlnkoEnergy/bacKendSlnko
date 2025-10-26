@@ -21,7 +21,8 @@ const {
   getProjectBalances,
 } = require("../Controllers/Accounting/ProjectBalance");
 const { standbyRecord } = require("../Controllers/Accounting/standbyRecord");
-const auth = require("../middlewares/auth.middleware.js");
+const { syncAllCustomerSummaries } = require("../Controllers/customerSummary.controller");
+const jwtMW = require("../middlewares/auth");
 
 router.get("/approved-payment", auth, paymentApproved);
 router.get("/utr-submission", auth, utrSubmission);
@@ -48,5 +49,7 @@ router.post(
 )
 router.get("/payment-history", auth, paymentHistory);
 router.get("/debithistorycsv", auth, exportDebitHistoryCsv);
+
+router.post("/customer-summary/sync-all", syncAllCustomerSummaries);
 
 module.exports = router;
