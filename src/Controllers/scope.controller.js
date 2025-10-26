@@ -52,7 +52,9 @@ const getScopeById = async (req, res) => {
       .findOne({ project_id })
       .populate("current_status.user_id", "_id name")
       .populate("status_history.user_id", "_id name")
-      .populate("createdBy", "_id name");
+      .populate("createdBy", "_id name")
+      .populate("items.commitment_date_history.user_id", "_id name attachment_url")
+      .populate("items.current_commitment_date.user_id", "_id name attachment_url")
 
     if (!scope) return res.status(404).json({ message: "Scope not found" });
 
@@ -116,9 +118,9 @@ const getScopeById = async (req, res) => {
       const simplified = list.map((p) => ({
         po_number: p?.po_number ?? null,
         status: p?.current_status?.status ?? null,
-        po_date: p?.date ?? null,              // (string in your schema)
-        etd: p?.etd ?? null,                   // (Date)
-        delivered_date: p?.delivery_date ?? null, // (Date)
+        po_date: p?.date ?? null,            
+        etd: p?.etd ?? null,                   
+        delivered_date: p?.delivery_date ?? null, 
       }));
 
       const has_po_created = list.some(
@@ -129,11 +131,10 @@ const getScopeById = async (req, res) => {
         ...it,
         po_exists: simplified.length > 0,
         has_po_created,
-        pos: simplified, // <<< multiple PO objects here
+        pos: simplified,
       };
     });
 
-    // 6) Response
     return res.status(200).json({
       message: "Scope and material details retrieved successfully",
       data: {
@@ -592,7 +593,83 @@ const ensureProjectScope = async (req, res) => {
   }
 };
 
+const updateCommitmentDate = async (req, res) => {
+  try {
+    const { id, item_id } = req.params;
+    const { date, remarks } = req.body;
 
+    // Validate inputs
+    if (!date || !remarks) {
+      return res.status(400).json({ message: "Date and Remarks are required" });
+    }
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid scope id" });
+    }
+    if (!mongoose.isValidObjectId(item_id)) {
+      return res.status(400).json({ message: "Invalid item_id" });
+    }
+
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ message: "Invalid date value" });
+    }
+
+    // Load the document so pre('save') middleware will fire
+    const scope = await scopeModel.findById(id);
+    if (!scope) {
+      return res.status(404).json({ message: "Scope not found" });
+    }
+
+    // Find the targeted item by comparing string vs ObjectId
+    const idx = scope.items.findIndex(
+      (it) => it?.item_id?.toString() === item_id
+    );
+    if (idx === -1) {
+      return res.status(404).json({ message: "Item not found in scope" });
+    }
+
+    const now = new Date();
+    const userId = req?.user?._id || req?.user?.userId || req?.user?.id || null;
+
+    // Push to history
+    scope.items[idx].commitment_date_history = scope.items[idx]
+      .commitment_date_history || [];
+    scope.items[idx].commitment_date_history.push({
+      date: parsedDate,
+      remarks,
+      user_id: userId,
+      updatedAt: now,
+    });
+
+    // Update current commitment date
+    scope.items[idx].current_commitment_date = {
+      date: parsedDate,
+      remarks,
+      user_id: userId,
+      updatedAt: now,
+    };
+
+    scope.markModified(`items.${idx}.commitment_date_history`);
+    await scope.save();
+
+    const updatedItem = scope.items[idx];
+
+    return res.status(200).json({
+      message: "Commitment date updated successfully.",
+      data: {
+        scope_id: id,
+        item_id,
+        item: updatedItem,
+      },
+    });
+  } catch (error) {
+    console.error("updateCommitmentDate error:", error);
+    return res.status(500).json({
+      message: "Internal server error.",
+      error: error?.message || error,
+    });
+  }
+};
 module.exports = {
   createScope,
   getScopeById,
@@ -602,4 +679,5 @@ module.exports = {
   updateScopeStatus,
   getScopePdf,
   ensureProjectScope,
+  updateCommitmentDate
 };
