@@ -1,6 +1,5 @@
   const mongoose = require("mongoose");
   const updateStatus = require("../utils/updatestatus.utils");
-const updateCommitmentDate = require("../utils/updatecommitmentdate.utils");
 
   const scopeSchema = new mongoose.Schema(
     {
@@ -119,7 +118,6 @@ const updateCommitmentDate = require("../utils/updatecommitmentdate.utils");
 
   scopeSchema.pre("save", function (next) {
     updateStatus(this, "open");
-    // updateCommitmentDate(this.items);
     next();
   });
 
