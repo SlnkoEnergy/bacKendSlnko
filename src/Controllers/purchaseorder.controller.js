@@ -1131,140 +1131,164 @@ const getallpodetail = async function (req, res) {
   try {
     const { po_number } = req.query;
 
-    // If no po_number, return list of POs
+    // 1) If no po_number, return list of POs (only numbers)
     if (!po_number) {
       const poList = await purchaseOrderModells
         .find({}, { po_number: 1, _id: 0 })
         .lean();
 
       return res.status(200).json({
-        po_numbers: poList.map((po) => po.po_number),
+        po_numbers: (poList || []).map((po) => po.po_number),
       });
     }
 
-    // Load PO
+    // 2) Load PO
     const selectedPo = await purchaseOrderModells.findOne({ po_number }).lean();
     if (!selectedPo) {
       return res.status(404).json({ message: "PO not found" });
     }
 
-    // Total po_value (handles string/number)
+    // 3) Total po_value (robust against "", null, missing)
     const poAggregate = await purchaseOrderModells.aggregate([
       { $match: { po_number } },
       {
         $group: {
           _id: "$po_number",
-          total_po_value: { $sum: { $toDouble: "$po_value" } },
+          total_po_value: {
+            $sum: {
+              $convert: {
+                input: "$po_value",
+                to: "double",
+                onError: 0,
+                onNull: 0,
+              },
+            },
+          },
         },
       },
     ]);
     const po_value = poAggregate.length ? poAggregate[0].total_po_value : 0;
 
-    // ---- Resolve item names from MaterialCategory ----
+    // 4) ---- Resolve item names from MaterialCategory ----
     // Collect category ObjectIds from item[]
     const categoryIds = [];
     if (Array.isArray(selectedPo.item)) {
       for (const it of selectedPo.item) {
         const id = it?.category;
-        if (id) {
-          if (id instanceof mongoose.Types.ObjectId) {
-            categoryIds.push(id);
-          } else if (
-            typeof id === "string" &&
-            mongoose.Types.ObjectId.isValid(id)
-          ) {
-            categoryIds.push(new mongoose.Types.ObjectId(id));
-          }
+        if (!id) continue;
+
+        if (id instanceof mongoose.Types.ObjectId) {
+          categoryIds.push(id);
+        } else if (typeof id === "string" && mongoose.Types.ObjectId.isValid(id)) {
+          categoryIds.push(new mongoose.Types.ObjectId(id));
         }
       }
     }
 
     // Find category names for collected ids
-    let categoryNameById = new Map();
+    const categoryNameById = new Map();
     if (categoryIds.length) {
       const cats = await materialCategoryModells
         .find({ _id: { $in: categoryIds } }, { name: 1 })
         .lean();
+
       for (const c of cats) {
-        if (c?._id && c?.name) categoryNameById.set(String(c._id), c.name);
+        if (c?._id) categoryNameById.set(String(c._id), c?.name || "");
       }
     }
 
-    // Build item string: prefer category.name, else product_name, else ""
+    // Build item string: prefer category.name, else product_name
     const itemNames = [];
     if (Array.isArray(selectedPo.item)) {
       for (const it of selectedPo.item) {
         let name = "";
         const catId = it?.category;
         if (catId) {
-          const key = String(
+          const key =
             catId instanceof mongoose.Types.ObjectId
-              ? catId
-              : new mongoose.Types.ObjectId(catId)
-          );
-          name = categoryNameById.get(key) || "";
+              ? String(catId)
+              : (mongoose.Types.ObjectId.isValid(catId) ? String(new mongoose.Types.ObjectId(catId)) : null);
+
+          if (key) name = categoryNameById.get(key) || "";
         }
         if (!name && typeof it?.product_name === "string") {
-          name = it.product_name.trim();
+          const pn = it.product_name.trim();
+          if (pn) name = pn;
         }
         if (name) itemNames.push(name);
       }
     }
     // Remove duplicates while preserving order
     const seen = new Set();
-    const deduped = itemNames.filter((n) =>
-      seen.has(n) ? false : (seen.add(n), true)
-    );
+    const deduped = itemNames.filter((n) => (seen.has(n) ? false : (seen.add(n), true)));
     const itemName = deduped.join(", ");
 
-    // ---- Vendor details (unchanged) ----
+    // 5) ---- Vendor details: NOW fetch by vendor _id (ObjectId or string) ----
     let vendorDetails = {};
-    if (selectedPo.vendor) {
-      const matchedVendor = await vendorModells
-        .findOne({ name: selectedPo.vendor })
-        .lean();
-      if (matchedVendor) {
+    const vendorId = selectedPo.vendor; // expected to be vendor _id now
+    if (vendorId) {
+      let vendorDoc = null;
+
+      // Accept both ObjectId and string forms
+      if (vendorId instanceof mongoose.Types.ObjectId) {
+        vendorDoc = await vendorModells.findById(vendorId).lean();
+      } else if (typeof vendorId === "string" && mongoose.Types.ObjectId.isValid(vendorId)) {
+        vendorDoc = await vendorModells.findById(new mongoose.Types.ObjectId(vendorId)).lean();
+      } else {
+        // Fallback (legacy data: stored vendor name)
+        vendorDoc = await vendorModells.findOne({ name: vendorId }).lean();
+      }
+
+      if (vendorDoc) {
         vendorDetails = {
-          benificiary: matchedVendor.name,
-          acc_number: matchedVendor.Account_No,
-          ifsc: matchedVendor.IFSC_Code,
-          branch: matchedVendor.Bank_Name,
+          vendor_id: String(vendorDoc._id),
+          benificiary: vendorDoc.name || "",
+          acc_number: vendorDoc.Account_No || vendorDoc.account_no || "",
+          ifsc: vendorDoc.IFSC_Code || vendorDoc.ifsc || "",
+          // "branch" previously mapped to Bank_Name in your code; keep both just in case
+          branch: vendorDoc.Branch || vendorDoc.branch || vendorDoc.Bank_Name || "",
+          bank_name: vendorDoc.Bank_Name || "",
         };
       }
     }
 
-    // ---- Approved payments sum ----
+    // 6) ---- Approved payments sum (robust conversion) ----
     const approvedPayments = await payRequestModells.aggregate([
       { $match: { po_number, approved: "Approved" } },
       {
         $group: {
           _id: "$po_number",
-          totalAdvancePaid: { $sum: { $toDouble: "$amount_paid" } },
+          totalAdvancePaid: {
+            $sum: {
+              $convert: {
+                input: "$amount_paid",
+                to: "double",
+                onError: 0,
+                onNull: 0,
+              },
+            },
+          },
         },
       },
     ]);
-    const totalAdvancePaid = approvedPayments.length
-      ? approvedPayments[0].totalAdvancePaid
-      : 0;
+    const totalAdvancePaid = approvedPayments.length ? approvedPayments[0].totalAdvancePaid : 0;
 
     const po_balance = po_value - totalAdvancePaid;
 
-    // ---- Final response (same keys) ----
+    // 7) ---- Final response ----
     return res.status(200).json({
       p_id: selectedPo.p_id,
       po_number: selectedPo.po_number,
       po_value,
-      vendor: selectedPo.vendor,
-      item: itemName, // resolved MaterialCategory names (fallback to product_name)
+      vendor: vendorDetails.benificiary || selectedPo.vendor, // human friendly
+      item: itemName,
       total_advance_paid: totalAdvancePaid,
       po_balance,
-      ...vendorDetails,
+      ...vendorDetails, // includes vendor_id, acc_number, ifsc, branch, bank_name
     });
   } catch (err) {
     console.error("Error fetching purchase order:", err);
-    return res
-      .status(500)
-      .json({ message: "Server error", error: err.message });
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
@@ -1912,26 +1936,33 @@ const getExportPo = async (req, res) => {
 const updateSalesPO = async (req, res) => {
   try {
     const { id } = req.params;
-    const { remarks, basic_sales, gst_on_sales, po_number } = req.body || {};
+    const { remarks, basic_sales, gst_on_sales, sales_invoice, po_number } =
+      req.body || {};
 
     if (!id && !po_number) {
       return res
         .status(400)
-        .json({ message: "Provide _id (param) or po_number (body)." });
+        .json({ message: "Provide either _id (param) or po_number (body)." });
     }
-    if (!remarks || String(remarks).trim() === "") {
+
+    if (!remarks?.trim()) {
       return res
         .status(400)
-        .json({ message: "Remarks are required to update Sales PO" });
+        .json({ message: "Remarks are required to update Sales PO." });
     }
 
     const basic = Number(basic_sales);
     const gst = Number(gst_on_sales);
+    const invoice = String(sales_invoice || "").trim();
+
     if (!Number.isFinite(basic))
       return res.status(400).json({ message: "basic_sales must be a number" });
     if (!Number.isFinite(gst))
       return res.status(400).json({ message: "gst_on_sales must be a number" });
+    if (!invoice)
+      return res.status(400).json({ message: "Sales Invoice is mandatory" });
 
+    // 🔹 Find PO by id or po_number
     const po = id
       ? await purchaseOrderModells.findById(id)
       : await purchaseOrderModells.findOne({
@@ -1941,43 +1972,28 @@ const updateSalesPO = async (req, res) => {
     if (!po) return res.status(404).json({ message: "PO not found" });
 
     const poValue = Number(po.po_value) || 0;
-    const totalBilled = Number(po.total_billed) || 0;
-
-    if (!Number.isFinite(totalBilled)) {
-      return res.status(400).json({
-        message:
-          "Invalid total_billed on PO (not a number). Please correct the data.",
-        details: { po_value: poValue, total_billed: po.total_billed },
-      });
-    }
-    if (totalBilled < 0) {
-      return res.status(400).json({
-        message:
-          "Invalid PO state: total_billed cannot be less than 0. Please correct the PO before recording sales.",
-        details: { po_value: poValue, total_billed: totalBilled },
-        rule: "total_billed >= 0",
-      });
-    }
-
-    const cap = Math.max(0, poValue - totalBilled);
     const alreadySales = Number(po.total_sales_value) || 0;
-
     const entryTotal = basic + gst;
 
+    // 🔹 Prepare upload path
     const safePo = (s) =>
       String(s || "")
         .trim()
         .replace(/[\/\s]+/g, "_");
-    const folderPath = `Account/PO/${safePo(po.po_number)}`;
-    const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
 
+    const folderPath = `Account/PO/${safePo(po.po_number)}`;
+    const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(
+      folderPath
+    )}`;
+
+    // 🔹 File upload logic
     const files = req.file
       ? [req.file]
       : Array.isArray(req.files)
-        ? req.files
-        : req.files && typeof req.files === "object"
-          ? Object.values(req.files).flat()
-          : [];
+      ? req.files
+      : req.files && typeof req.files === "object"
+      ? Object.values(req.files).flat()
+      : [];
 
     const uploadedAttachments = [];
 
@@ -1992,24 +2008,24 @@ const updateSalesPO = async (req, res) => {
         file.buffer || (file.path ? fs.readFileSync(file.path) : null);
       if (!buffer) continue;
 
+      // 🔹 Compress image files
       if (mimeType.startsWith("image/")) {
         try {
           const ext = mime.extension(mimeType);
-          if (ext === "jpeg" || ext === "jpg")
-            buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+          const sharpInst = sharp(buffer);
+          if (["jpeg", "jpg"].includes(ext))
+            buffer = await sharpInst.jpeg({ quality: 40 }).toBuffer();
           else if (ext === "png")
-            buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
+            buffer = await sharpInst.png({ quality: 40 }).toBuffer();
           else if (ext === "webp")
-            buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
-          else buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+            buffer = await sharpInst.webp({ quality: 40 }).toBuffer();
+          else buffer = await sharpInst.jpeg({ quality: 40 }).toBuffer();
         } catch (e) {
-          console.warn(
-            "Image compression failed, using original buffer:",
-            e?.message
-          );
+          console.warn("Image compression failed, using original:", e.message);
         }
       }
 
+      // 🔹 Upload
       try {
         const form = new FormData();
         form.append("file", buffer, {
@@ -2023,7 +2039,7 @@ const updateSalesPO = async (req, res) => {
           maxBodyLength: Infinity,
         });
 
-        const data = resp?.data || null;
+        const data = resp?.data || {};
         const url =
           (Array.isArray(data) &&
             (typeof data[0] === "string" ? data[0] : data[0]?.url)) ||
@@ -2045,36 +2061,37 @@ const updateSalesPO = async (req, res) => {
       }
     }
 
+    // 🔹 Update PO
     const userId = req.user?.userId || req.user?._id || null;
     if (!Array.isArray(po.sales_Details)) po.sales_Details = [];
 
     po.sales_Details.push({
-      remarks: String(remarks).trim(),
+      remarks: remarks.trim(),
       attachments: uploadedAttachments,
       converted_at: new Date(),
       basic_sales: basic,
       gst_on_sales: gst,
+      sales_invoice: invoice,
       user_id: userId,
     });
+
     po.isSales = true;
     po.total_sales_value = alreadySales + entryTotal;
 
     po.markModified("sales_Details");
-
     await po.save();
 
     return res.status(200).json({
       message:
         uploadedAttachments.length > 0
-          ? "Sales PO updated with attachments (isSales=true)"
-          : "Sales PO updated (remarks only, isSales=true)",
-      cap_context: {
+          ? "Sales PO updated with attachments (isSales = true)"
+          : "Sales PO updated successfully (isSales = true)",
+      data: {
+        po_number: po.po_number,
         po_value: poValue,
-        total_billed: totalBilled,
         total_sales_value: po.total_sales_value,
-        remaining_allowed_sales: Math.max(0, cap - po.total_sales_value),
+        attachments: uploadedAttachments,
       },
-      data: po,
     });
   } catch (error) {
     console.error("Error updating Sales PO:", error);
@@ -2083,6 +2100,7 @@ const updateSalesPO = async (req, res) => {
       .json({ message: "Error updating Sales PO", error: error.message });
   }
 };
+
 
 //Move-Recovery
 const moverecovery = async function (req, res) {

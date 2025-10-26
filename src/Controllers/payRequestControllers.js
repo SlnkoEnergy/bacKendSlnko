@@ -1809,10 +1809,9 @@ const getPay = async (req, res) => {
     const searchRegex = search ? new RegExp(search, "i") : null;
     const shouldFilterStatus = status && status.toLowerCase() !== "all";
     const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const statusRegex = shouldFilterStatus
-      ? new RegExp(`^${escapeRegex(status)}$`, "i")
-      : null;
+    const statusRegex = shouldFilterStatus ? new RegExp(`^${escapeRegex(status)}$`, "i") : null;
 
+    // --- visibility by employee ---
     let EmpDetail = false;
     if (req?.user?.emp_id !== undefined) {
       EmpDetail = req.user.emp_id === "SE-203";
@@ -1821,11 +1820,10 @@ const getPay = async (req, res) => {
       const u = await userModells.findById(id).select("emp_id").lean();
       EmpDetail = (u?.emp_id || "") === "SE-203";
     }
-    const visibilityFilterStage = EmpDetail
-      ? [{ $match: { paid_for: "I&C" } }]
-      : [];
+    const visibilityFilterStage = EmpDetail ? [{ $match: { paid_for: "I&C" } }] : [];
 
-    const lookupStage = {
+    // --- project join ---
+    const lookupProjectStage = {
       $lookup: {
         from: "projectdetails",
         localField: "p_id",
@@ -1833,10 +1831,83 @@ const getPay = async (req, res) => {
         as: "project",
       },
     };
-    const unwindStage = {
-      $unwind: { path: "$project", preserveNullAndEmptyArrays: true },
-    };
+    const unwindProjectStage = { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } };
 
+    // --- VENDOR: normalize id and join by _id (fallback to legacy name) ---
+    // NOTE: change `from: "vendors"` if your collection name differs
+    const vendorStages = [
+      {
+        $addFields: {
+          // vendor might be ObjectId or string id or legacy vendor name
+          _vendor_obj_id: {
+            $cond: [
+              { $eq: [{ $type: "$vendor" }, "objectId"] },
+              "$vendor",
+              {
+                $convert: {
+                  input: "$vendor",
+                  to: "objectId",
+                  onError: null,
+                  onNull: null,
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "vendors",
+          let: { vid: "$_vendor_obj_id", vname: "$vendor" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $and: [{ $ne: ["$$vid", null] }, { $eq: ["$_id", "$$vid"] }] },
+                    // fallback for legacy records where request.vendor stored the vendor name
+                    { $eq: ["$name", "$$vname"] },
+                  ],
+                },
+              },
+            },
+            {
+              $project: {
+                name: 1,
+                Account_No: 1,
+                account_no: 1,
+                IFSC_Code: 1,
+                ifsc: 1,
+                Bank_Name: 1,
+                Branch: 1,
+              },
+            },
+          ],
+          as: "vendorDoc",
+        },
+      },
+      { $unwind: { path: "$vendorDoc", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          vendor_id: {
+            $cond: [
+              { $ne: ["$_vendor_obj_id", null] },
+              { $toString: "$_vendor_obj_id" },
+              null,
+            ],
+          },
+          vendor_name: { $ifNull: ["$vendorDoc.name", "$vendor"] },
+          vendor_acc_number: { $ifNull: ["$vendorDoc.Account_No", "$vendorDoc.account_no"] },
+          vendor_ifsc: { $ifNull: ["$vendorDoc.IFSC_Code", "$vendorDoc.ifsc"] },
+          vendor_bank_name: { $ifNull: ["$vendorDoc.Bank_Name", ""] },
+          vendor_branch: {
+            $ifNull: ["$vendorDoc.Branch", { $ifNull: ["$vendorDoc.Bank_Name", ""] }],
+          },
+        },
+      },
+    ];
+
+    // --- search (now can search vendor_name as well) ---
     const commonMatch = [];
     if (searchRegex) {
       commonMatch.push({
@@ -1845,7 +1916,8 @@ const getPay = async (req, res) => {
           { cr_id: { $regex: searchRegex } },
           { paid_for: { $regex: searchRegex } },
           { po_number: { $regex: searchRegex } },
-          { vendor: { $regex: searchRegex } },
+          { vendor: { $regex: searchRegex } },         // legacy
+          { vendor_name: { $regex: searchRegex } },    // joined name
           { utr: { $regex: searchRegex } },
           { "project.customer": { $regex: searchRegex } },
         ],
@@ -1857,9 +1929,7 @@ const getPay = async (req, res) => {
         ? [{ $match: { "approval_status.stage": { $ne: "Trash Pending" } } }]
         : [];
 
-    const statusMatchStage = statusRegex
-      ? [{ $match: { approved: { $regex: statusRegex } } }]
-      : [];
+    const statusMatchStage = statusRegex ? [{ $match: { approved: { $regex: statusRegex } } }] : [];
 
     const addTypeStage = {
       $addFields: {
@@ -1885,8 +1955,9 @@ const getPay = async (req, res) => {
     };
 
     const baseCommon = [
-      lookupStage,
-      unwindStage,
+      lookupProjectStage,
+      unwindProjectStage,
+      ...vendorStages, // <--- ensure vendor is joined BEFORE search
       ...(commonMatch.length ? [{ $match: { $and: commonMatch } }] : []),
       ...visibilityFilterStage,
       addTypeStage,
@@ -1903,12 +1974,7 @@ const getPay = async (req, res) => {
               {
                 $floor: {
                   $divide: [
-                    {
-                      $subtract: [
-                        { $toDate: "$credit.credit_deadline" },
-                        "$$NOW",
-                      ],
-                    },
+                    { $subtract: [{ $toDate: "$credit.credit_deadline" }, "$$NOW"] },
                     1000 * 60 * 60 * 24,
                   ],
                 },
@@ -1921,12 +1987,7 @@ const getPay = async (req, res) => {
                       $divide: [
                         {
                           $subtract: [
-                            {
-                              $add: [
-                                "$timers.trash_started_at",
-                                1000 * 60 * 60 * 24 * 15,
-                              ],
-                            },
+                            { $add: ["$timers.trash_started_at", 1000 * 60 * 60 * 24 * 15] },
                             "$$NOW",
                           ],
                         },
@@ -1943,6 +2004,12 @@ const getPay = async (req, res) => {
       },
     ];
 
+    const projection = {
+      project: 0,
+      vendorDoc: 0,
+      _vendor_obj_id: 0,
+    };
+
     const [paginatedData, totalData, tabWiseCounts] = await Promise.all([
       payRequestModells.aggregate([
         ...baseCommon,
@@ -1950,7 +2017,7 @@ const getPay = async (req, res) => {
         ...statusMatchStage,
         ...tabMatchStage,
         ...remainingDaysStage,
-        { $project: { project: 0 } },
+        { $project: projection },
         { $sort: { createdAt: -1 } },
         { $skip: skip },
         { $limit: pageSize },
@@ -1991,6 +2058,7 @@ const getPay = async (req, res) => {
     res.status(500).json({ msg: "Error retrieving data", error: err.message });
   }
 };
+
 
 const getTrashPayment = async (req, res) => {
   try {

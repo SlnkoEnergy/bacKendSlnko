@@ -5,8 +5,10 @@ const projectBalanceModel = require("../models/projectBalance.model");
 //Add Money
 const addMoney = async (req, res) => {
   try {
-    const { p_id, submitted_by, cr_amount, cr_mode, cr_date, comment } =
-      req.body;
+    const { p_id, cr_amount, cr_mode, cr_date, comment } = req.body;
+
+
+    const submitted_by = req.user.userId;
 
     const project = await projectModells.findOne({ p_id: Number(p_id) });
     if (!project) return res.status(404).json({ msg: "Project not found" });
@@ -44,7 +46,7 @@ const addMoney = async (req, res) => {
 
     const creditEntry = {
       cr_date: new Date(),
-      cr_amount: Number(cr_amount) || 0,
+      cr_amount: amount,
       added_by: submitted_by || null,
     };
 
@@ -70,6 +72,7 @@ const addMoney = async (req, res) => {
     res.status(500).json({ msg: "Server error", error: err.message });
   }
 };
+
 
 //get all bill
 
