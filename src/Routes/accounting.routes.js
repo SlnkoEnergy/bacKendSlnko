@@ -21,8 +21,7 @@ const {
   getProjectBalances,
 } = require("../Controllers/Accounting/ProjectBalance");
 const { standbyRecord } = require("../Controllers/Accounting/standbyRecord");
-const { syncAllCustomerSummaries } = require("../Controllers/customerSummary.controller");
-const jwtMW = require("../middlewares/auth");
+const auth = require("../middlewares/auth.middleware.js");
 
 router.get("/approved-payment", auth, paymentApproved);
 router.get("/utr-submission", auth, utrSubmission);
