@@ -269,12 +269,12 @@ const getAllTasks = async (req, res) => {
       const delegatedVisibility =
         delegatedUserIds.length > 0
           ? {
-              $or: [
-                { createdBy: { $in: delegatedUserIds } },
-                { assigned_to: { $in: delegatedUserIds } },
-                { "sub_tasks.assigned_to": { $in: delegatedUserIds } },
-              ],
-            }
+            $or: [
+              { createdBy: { $in: delegatedUserIds } },
+              { assigned_to: { $in: delegatedUserIds } },
+              { "sub_tasks.assigned_to": { $in: delegatedUserIds } },
+            ],
+          }
           : null;
 
       // Department list for manager/visitor
@@ -1304,11 +1304,11 @@ const taskCards = async (req, res) => {
     const firstMatch =
       preAccess.length || matchBlocks.length
         ? {
-            $match:
-              mode === "any"
-                ? { $or: [...preAccess, ...matchBlocks] }
-                : { $and: [...preAccess, ...matchBlocks] },
-          }
+          $match:
+            mode === "any"
+              ? { $or: [...preAccess, ...matchBlocks] }
+              : { $and: [...preAccess, ...matchBlocks] },
+        }
         : { $match: {} };
 
     // ---- build pipeline
@@ -2628,11 +2628,11 @@ const getUserPerformance = async (req, res) => {
       $addFields: {
         union_assignees: wantsSubtasks
           ? {
-              $setUnion: [
-                { $ifNull: ["$assigned_to_arr", []] },
-                { $ifNull: ["$sub_assignee_ids", []] },
-              ],
-            }
+            $setUnion: [
+              { $ifNull: ["$assigned_to_arr", []] },
+              { $ifNull: ["$sub_assignee_ids", []] },
+            ],
+          }
           : { $ifNull: ["$assigned_to_arr", []] },
       },
     });
@@ -2649,8 +2649,8 @@ const getUserPerformance = async (req, res) => {
         },
         isAssignedSubtaskUser: wantsSubtasks
           ? {
-              $in: ["$union_assignees", { $ifNull: ["$sub_assignee_ids", []] }],
-            }
+            $in: ["$union_assignees", { $ifNull: ["$sub_assignee_ids", []] }],
+          }
           : false,
       },
     });
@@ -3404,10 +3404,10 @@ const getAgingByResolution = async (req, res) => {
       const hit = raw.find((r) => Number(r._id) === Number(t));
       statsByBucket[t] = hit
         ? {
-            completed: hit.completed,
-            pending: hit.pending,
-            cancelled: hit.cancelled,
-          }
+          completed: hit.completed,
+          pending: hit.pending,
+          cancelled: hit.cancelled,
+        }
         : { ...zeros };
     });
 
