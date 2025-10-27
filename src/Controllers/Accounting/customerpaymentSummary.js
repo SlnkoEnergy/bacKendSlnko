@@ -4351,7 +4351,7 @@ balanceSummary = {
 
 
     // ---------- PDF ----------
-    const apiUrl = `${process.env.PDF_PORT}customer-summary/cu-summary`;
+    const apiUrl = `${process.env.PDF_PORT}/customer-summary/cu-summary`;
     const axiosResponse = await axios({
       method: "post",
       url: apiUrl,
