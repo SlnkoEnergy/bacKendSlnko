@@ -24,7 +24,7 @@ router.put(
   updateScopeStatus
 );
 router.delete("/scope", jwtMW.authentication, deleteScope);
-router.get("/scope-pdf", jwtMW.authentication, getScopePdf);
+router.post("/scope-pdf", jwtMW.authentication, getScopePdf);
 router.put("/ensureProjectScope", ensureProjectScope);
 router.put(
   "/:id/scope/:item_id/commitment",
