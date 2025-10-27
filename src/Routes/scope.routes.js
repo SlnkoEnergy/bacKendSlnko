@@ -23,7 +23,7 @@ router.put(
   updateScopeStatus
 );
 router.delete("/scope", auth, deleteScope);
-router.get("/scope-pdf", auth, getScopePdf);
+router.post("/scope-pdf", auth, getScopePdf);
 router.put("/ensureProjectScope", ensureProjectScope);
 router.put(
   "/:id/scope/:item_id/commitment",
