@@ -19,9 +19,8 @@ const mime = require("mime-types");
 const userModells = require("../models/user.model");
 const { getnovuNotification } = require("../utils/nouvnotification.utils");
 const inspectionModel = require("../models/inspection.model");
-const billModel = require("../models/bill.model");
 const projectModel = require("../models/project.model");
-const purchaseorderModel = require("../models/purchaseorder.model");
+const PohistoryModel = require("../models/Pohistory.model");
 
 function toSafeNumber(v) {
   const n = Number(v);
