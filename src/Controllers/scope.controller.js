@@ -428,157 +428,280 @@ const getAllScopes = async (req, res) => {
 
 const exportScopes = async (req, res) => {
   try {
-    const { selected } = req.body;
+    // 1) Mode selection
+    const mode = (req.query.type || "selected").toLowerCase();
 
-    const uniqueSelected = [...new Set(selected)];
+    // 2) Build the initial $match for "selected" mode
+    let initialMatch = {};
+    if (mode === "selected") {
+      const { selected = [] } = req.body || {};
+      const uniqueSelected = [...new Set(selected)].filter(Boolean);
 
-    if (uniqueSelected.length > 0) {
-      const pipeline = [
-        {
-          $match: {
-            _id: {
-              $in: uniqueSelected.map((id) => new mongoose.Types.ObjectId(id)),
-            },
-          },
+      if (!uniqueSelected.length) {
+        return res.status(400).json({ message: "No selected scopes provided" });
+      }
+
+      initialMatch = {
+        _id: {
+          $in: uniqueSelected.map((id) => new mongoose.Types.ObjectId(id)),
         },
-        {
-          $lookup: {
-            from: "projectdetails",
-            localField: "project_id",
-            foreignField: "_id",
-            as: "project",
-          },
-        },
-        { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
+      };
+    }
 
-        {
-          $lookup: {
-            from: "handoversheets",
-            let: { pid: "$project.p_id" },
-            pipeline: [
-              { $match: { $expr: { $eq: ["$p_id", "$$pid"] } } },
-              {
-                $project: {
-                  _id: 1,
-                  project_kwp: "$project_detail.project_kwp",
-                  dc_capacity: "$project_detail.proposed_dc_capacity",
-                  cam_member_name: "$other_details.cam_member_name",
-                  submitted_by: 1,
-                },
+    // 3) Common pipeline (your original, with minor tweaks)
+    const pipeline = [
+      { $match: initialMatch },
+
+      {
+        $lookup: {
+          from: "projectdetails",
+          localField: "project_id",
+          foreignField: "_id",
+          as: "project",
+        },
+      },
+      { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
+
+      {
+        $lookup: {
+          from: "handoversheets",
+          let: { pid: "$project.p_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$p_id", "$$pid"] } } },
+            {
+              $project: {
+                _id: 1,
+                project_kwp: "$project_detail.project_kwp",
+                dc_capacity: "$project_detail.proposed_dc_capacity",
+                cam_member_name: "$other_details.cam_member_name",
+                submitted_by: 1,
               },
-            ],
-            as: "hs",
-          },
-        },
-        { $addFields: { hs: { $arrayElemAt: ["$hs", 0] } } },
-
-        {
-          $lookup: {
-            from: "users",
-            localField: "hs.submitted_by",
-            foreignField: "_id",
-            as: "hs_submitted_by_user",
-          },
-        },
-        {
-          $addFields: {
-            hs_submitted_by_user: {
-              $arrayElemAt: ["$hs_submitted_by_user", 0],
             },
+          ],
+          as: "hs",
+        },
+      },
+      { $addFields: { hs: { $arrayElemAt: ["$hs", 0] } } },
+
+      {
+        $lookup: {
+          from: "users",
+          localField: "hs.submitted_by",
+          foreignField: "_id",
+          as: "hs_submitted_by_user",
+        },
+      },
+      {
+        $addFields: {
+          hs_submitted_by_user: {
+            $arrayElemAt: ["$hs_submitted_by_user", 0],
           },
         },
+      },
 
-        {
-          $lookup: {
-            from: "purchaseorders",
-            let: { pcode: "$project.code" },
-            pipeline: [
-              { $match: { $expr: { $eq: ["$p_id", "$$pcode"] } } },
-              {
-                $project: {
-                  _id: 1,
-                  po_number: 1,
-                  date: 1,
-                  etd: 1,
-                  delivery_date: 1,
-                  "current_status.status": 1,
-                  item: 1,
-                },
+      {
+        $lookup: {
+          from: "purchaseorders",
+          let: { pcode: "$project.code" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$p_id", "$$pcode"] } } },
+            {
+              $project: {
+                _id: 1,
+                po_number: 1,
+                date: 1,
+                etd: 1,
+                delivery_date: 1,
+                "current_status.status": 1,
+                item: 1,
               },
-            ],
-            as: "posForProject",
-          },
+            },
+          ],
+          as: "posForProject",
         },
+      },
 
-        { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
 
-        {
-          $addFields: {
-            matchedPOs: {
-              $filter: {
-                input: "$posForProject",
-                as: "po",
-                cond: {
-                  $gt: [
-                    {
-                      $size: {
-                        $filter: {
-                          input: { $ifNull: ["$$po.item", []] },
-                          as: "poi",
-                          cond: { $eq: ["$$poi.category", "$items.item_id"] },
-                        },
+      // Match scopes’ items to POs that contain that item category
+      {
+        $addFields: {
+          matchedPOs: {
+            $filter: {
+              input: "$posForProject",
+              as: "po",
+              cond: {
+                $gt: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: { $ifNull: ["$$po.item", []] },
+                        as: "poi",
+                        cond: { $eq: ["$$poi.category", "$items.item_id"] },
                       },
                     },
-                    0,
-                  ],
-                },
+                  },
+                  0,
+                ],
               },
             },
           },
         },
-        {
-          $unwind: {
-            path: "$matchedPOs",
-            preserveNullAndEmptyArrays: true,
-          },
+      },
+      {
+        $unwind: {
+          path: "$matchedPOs",
+          preserveNullAndEmptyArrays: true, 
         },
+      },
+    ];
 
-        {
-          $project: {
-            _id: 0, // Exclude _id field from the output
-            project_id: "$project.code",
-            project_name: "$project.name",
-            project_group: "$project.p_group",
-            state: "$project.state",
-            kwp: { $ifNull: ["$hs.project_kwp", "$project.project_kwp"] },
-            dc: { $ifNull: ["$hs.dc_capacity", "$project.dc_capacity"] },
-            cam_person: {
-              $ifNull: ["$hs.cam_member_name", "$hs_submitted_by_user.name"],
-            },
-            item_name: "$items.name",
-            scope: "$items.scope",
-            po_number: { $ifNull: ["$matchedPOs.po_number", "Pending"] },
-            po_status: { $ifNull: ["$matchedPOs.current_status.status", ""] },
-            po_date: { $ifNull: ["$matchedPOs.date", null] },
-            etd: { $ifNull: ["$matchedPOs.etd", null] },
-            delivered_date: { $ifNull: ["$matchedPOs.delivery_date", null] },
-          },
-        },
-      ];
+    // 4) Build filter matchStage for "all" mode using req.query
+    if (mode === "all") {
+      const {
+        project_id,
+        state,
+        cam_person, 
+        po_status,
+        item_name, 
+        scope,
+        etd_from,
+        etd_to,
+        delivered_from,
+        delivered_to,
+        po_date_from,
+        po_date_to,
+      } = req.query || {};
 
-      const selectedScopes = await scopeModel.aggregate(pipeline);
+      const matchStage = {};
 
-      const csvParser = new Parser();
-      const csvData = csvParser.parse(selectedScopes);
+      // Project filter (expects project _id)
+      if (project_id && mongoose.isValidObjectId(project_id)) {
+        matchStage["project._id"] = new mongoose.Types.ObjectId(project_id);
+      }
 
-      res.header("Content-Type", "text/csv");
-      res.attachment("selected_scopes_export.csv");
-      res.send(csvData);
-    } else {
-      return res.status(400).json({
-        message: "No selected scopes provided",
-      });
+      // State filter (exact, case-insensitive)
+      if (state && String(state).trim()) {
+        matchStage["project.state"] = new RegExp(`^${String(state).trim()}$`, "i");
+      }
+
+      // CAM Person filter (hs.submitted_by equals user _id)
+      if (cam_person && mongoose.isValidObjectId(cam_person)) {
+        matchStage["hs.submitted_by"] = new mongoose.Types.ObjectId(cam_person);
+      }
+
+      // PO Status filter:
+      if (po_status && String(po_status).trim()) {
+        if (String(po_status).toLowerCase().trim() === "pending") {
+          matchStage.$or = [
+            { matchedPOs: null },
+            { "matchedPOs.po_number": { $exists: false } },
+          ];
+        } else {
+          matchStage["matchedPOs.current_status.status"] = new RegExp(
+            `^${String(po_status).trim()}$`,
+            "i"
+          );
+        }
+      }
+
+      // Item filter: item_name is actually the item_id (ObjectId)
+      if (item_name && mongoose.isValidObjectId(item_name)) {
+        matchStage["items.item_id"] = new mongoose.Types.ObjectId(item_name);
+      }
+
+      // Scope filter (text contains)
+      if (scope && String(scope).trim()) {
+        matchStage["items.scope"] = new RegExp(String(scope).trim(), "i");
+      }
+
+      // ETD date range
+      if (etd_from || etd_to) {
+        matchStage["matchedPOs.etd"] = {};
+        if (etd_from) matchStage["matchedPOs.etd"].$gte = new Date(etd_from);
+        if (etd_to) {
+          const end = new Date(etd_to);
+          end.setHours(23, 59, 59, 999);
+          matchStage["matchedPOs.etd"].$lte = end;
+        }
+      }
+
+      // Delivered date range
+      if (delivered_from || delivered_to) {
+        matchStage["matchedPOs.delivery_date"] = {};
+        if (delivered_from)
+          matchStage["matchedPOs.delivery_date"].$gte = new Date(delivered_from);
+        if (delivered_to) {
+          const end = new Date(delivered_to);
+          end.setHours(23, 59, 59, 999);
+          matchStage["matchedPOs.delivery_date"].$lte = end;
+        }
+      }
+
+      // PO date range
+      if (po_date_from || po_date_to) {
+        matchStage["matchedPOs.date"] = {};
+        if (po_date_from) matchStage["matchedPOs.date"].$gte = new Date(po_date_from);
+        if (po_date_to) {
+          const end = new Date(po_date_to);
+          end.setHours(23, 59, 59, 999);
+          matchStage["matchedPOs.date"].$lte = end;
+        }
+      }
+
+      // Apply filters after all the lookups/unwinds that produce these fields
+      if (Object.keys(matchStage).length) {
+        pipeline.push({ $match: matchStage });
+      }
     }
+
+    // 5) Final projection (common)
+    pipeline.push({
+      $project: {
+        _id: 0,
+        project_id: "$project.code",
+        project_name: "$project.name",
+        project_group: "$project.p_group",
+        state: "$project.state",
+        ac_capacity: { $ifNull: ["$hs.project_kwp", "$project.project_kwp"] },
+        dc_capacity: { $ifNull: ["$hs.dc_capacity", "$project.dc_capacity"] },
+        cam_person: { $ifNull: ["$hs.cam_member_name", "$hs_submitted_by_user.name"] },
+        category_name: "$items.name",
+        scope: "$items.scope",
+        po_number: { $ifNull: ["$matchedPOs.po_number", "Pending"] },
+        po_status: { $ifNull: ["$matchedPOs.current_status.status", ""] },
+        po_date: { $ifNull: ["$matchedPOs.date", null] },
+        etd: { $ifNull: ["$matchedPOs.etd", null] },
+        delivered_date: { $ifNull: ["$matchedPOs.delivery_date", null] },
+      },
+    });
+
+    // 6) Run aggregation + CSV export
+    const rows = await scopeModel.aggregate(pipeline);
+
+    const csvParser = new Parser({
+      fields: [
+        "project_id",
+        "project_name",
+        "project_group",
+        "state",
+        "ac_capacity",
+        "dc_capacity",
+        "cam_person",
+        "category_name",
+        "scope",
+        "po_number",
+        "po_status",
+        "po_date",
+        "etd",
+        "delivered_date",
+      ],
+    });
+
+    const csvData = csvParser.parse(rows);
+    res.header("Content-Type", "text/csv");
+    res.attachment("selected_scopes_export.csv");
+    res.send(csvData);
   } catch (error) {
     console.error("ExportScopes error:", error);
     res.status(500).json({
@@ -748,7 +871,6 @@ const getScopePdf = async (req, res) => {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    // Handover (CAM Person) by project p_id
     const projectPid = project?.p_id || project?.pid || null;
     const handover = projectPid
       ? await handoverModel
@@ -761,7 +883,6 @@ const getScopePdf = async (req, res) => {
     const projectStatus =
       project?.current_status?.status || project?.status || null;
 
-    // Load scope(s)
     const scopeData = await scopeModel
       .find({ project_id })
       .populate("current_status.user_id", "_id name")
@@ -775,51 +896,28 @@ const getScopePdf = async (req, res) => {
         .json({ message: "No scope data found for this project" });
     }
 
-    const allItemIds = [];
+    const allItemIdSet = new Set();
     for (const s of scopeData) {
       const items = Array.isArray(s.items) ? s.items : [];
       for (const it of items) {
-        if (it?.item_id && new mongoose.isValidObjectId(it.item_id)) {
-          allItemIds.push(String(it.item_id));
+        if (it?.item_id && mongoose.isValidObjectId(it.item_id)) {
+          allItemIdSet.add(String(it.item_id));
         }
       }
     }
+    const allItemIds = Array.from(allItemIdSet);
 
-    const categories = await MaterialCategory.find({ _id: { $in: allItemIds } })
-      .select("_id status")
-      .lean();
+    const categories = allItemIds.length
+      ? await MaterialCategory.find({ _id: { $in: allItemIds } })
+          .select("_id status")
+          .lean()
+      : [];
 
-    const catStatusMap = new Map(
-      categories.map((c) => [String(c._id), c.status || "inactive"])
+    const activeCategoryIdSet = new Set(
+      categories
+        .filter((c) => String(c.status).toLowerCase() === "active")
+        .map((c) => String(c._id))
     );
-
-    const inactiveByScope = [];
-    scopeData.forEach((s, idx) => {
-      const items = Array.isArray(s.items) ? s.items : [];
-      const inactiveItems = items
-        .filter((it) => {
-          const key = it?.item_id ? String(it.item_id) : null;
-          const st = key ? catStatusMap.get(key) : "inactive";
-          return st !== "active";
-        })
-        .map((it) => ({
-          item_id: it?.item_id || null,
-          name: it?.name || null,
-          type: it?.type || null,
-          scope: it?.scope || null,
-          category_status: it?.item_id
-            ? catStatusMap.get(String(it.item_id)) || "inactive"
-            : "inactive",
-        }));
-
-      if (inactiveItems.length > 0) {
-        inactiveByScope.push({
-          scope_index: idx,
-          scope_id: s?._id || null,
-          inactive_items: inactiveItems,
-        });
-      }
-    });
 
     const projectCode = String(project?.code || "").trim();
     const pos = projectCode
@@ -831,7 +929,6 @@ const getScopePdf = async (req, res) => {
           .lean()
       : [];
 
-    // categoryId -> [po, ...]
     const catToPOs = new Map();
     for (const po of pos) {
       const items = Array.isArray(po.item) ? po.item : [];
@@ -843,14 +940,19 @@ const getScopePdf = async (req, res) => {
       }
     }
 
-    // Process scopes → items/rows (all categories are active at this point)
     const processed = scopeData.map((scope) => {
       const plainItems = Array.isArray(scope.items) ? scope.items : [];
 
+      const activeItems = plainItems.filter((it) => {
+        const id = it?.item_id ? String(it.item_id) : null;
+        return id && activeCategoryIdSet.has(id);
+      });
+
       let sr = 0;
-      const items = plainItems.map((it) => {
+      const items = activeItems.map((it) => {
         sr += 1;
         const itemId = it?.item_id ? String(it.item_id) : null;
+
         const poList = (catToPOs.get(itemId) || []).map((p) => ({
           po_number: fmt(p?.po_number),
           status: fmt(p?.current_status?.status),
@@ -860,17 +962,18 @@ const getScopePdf = async (req, res) => {
         }));
 
         const sorted = sortAndDedupePos(poList);
-        const effective = sorted.length
-          ? sorted
-          : [
-              {
-                po_number: "Pending",
-                status: "",
-                po_date: null,
-                etd: null,
-                delivered_date: null,
-              },
-            ];
+        const effective =
+          sorted.length > 0
+            ? sorted
+            : [
+                {
+                  po_number: "Pending",
+                  status: "",
+                  po_date: null,
+                  etd: null,
+                  delivered_date: null,
+                },
+              ];
 
         const first_po = effective[0];
         const other_pos = effective.slice(1);
@@ -888,7 +991,7 @@ const getScopePdf = async (req, res) => {
         };
       });
 
-      // Flatten rows for the PDF service
+      // Flatten rows for PDF service
       const rows = [];
       for (const it of items) {
         rows.push({
@@ -922,9 +1025,9 @@ const getScopePdf = async (req, res) => {
       return {
         ...scope,
         project,
-        totalItems: plainItems.length,
-        items,
-        rows,
+        totalItems: activeItems.length,
+        items, 
+        rows,  
         handover: {
           cam_member_name: camMemberName,
           p_id: handover?.p_id || null,
@@ -934,7 +1037,13 @@ const getScopePdf = async (req, res) => {
       };
     });
 
-    // hand off to PDF service
+    const totalRows = processed.reduce((acc, s) => acc + (s.rows?.length || 0), 0);
+    if (totalRows === 0) {
+      return res
+        .status(404)
+        .json({ message: "No active items found for this project" });
+    }
+
     const apiUrl = `${process.env.PDF_PORT}/scopePdf/scope-pdf`;
     const axiosResponse = await axios({
       method: "post",
@@ -960,6 +1069,7 @@ const getScopePdf = async (req, res) => {
     });
   }
 };
+
 
 const IT_TEAM_USER_ID = new mongoose.Types.ObjectId("6839a4086356310d4e15f6fd");
 
