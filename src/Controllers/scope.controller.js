@@ -901,24 +901,88 @@ const updateScopeStatus = async (req, res) => {
 };
 
 // --- helpers (keep local so this stays self-contained) ---
-const statusWeight = { po_created: 0, approval_done: 1, approval_pending: 2 };
-const fmt = (v) => (v == null ? null : v);
-const sortAndDedupePos = (arr = []) => {
-  const key = (p) =>
-    `${p.po_number ?? "null"}|${p.status ?? ""}|${p.po_date ?? ""}|${p.etd ?? ""}|${p.delivered_date ?? ""}`;
-  const map = new Map();
-  for (const p of arr) map.set(key(p), p);
-  const unique = Array.from(map.values());
-  return unique
-    .map((p) => ({
-      p,
-      w: statusWeight[p?.status] ?? 99,
-      ts: p?.po_date ? new Date(p.po_date).getTime() : -Infinity,
-    }))
-    .sort((a, b) => a.w - b.w || b.ts - a.ts)
-    .map((x) => x.p);
+const fmt = (v) => {
+  if (v === null || v === undefined) return "";
+  if (v instanceof Date || /^\d{4}-\d{2}-\d{2}T/.test(String(v))) {
+    const d = new Date(v);
+    if (!isNaN(d)) return d.toLocaleDateString("en-IN");
+  }
+  return String(v);
 };
 
+const prettyStatus = (s) => {
+  if (!s) return "";
+  const x = String(s).trim().replace(/_/g, " ");
+  return x
+    .split(/\s+/)
+    .map((w) => (w.toLowerCase() === "po" ? "PO" : w[0]?.toUpperCase() + w.slice(1)))
+    .join(" ");
+};
+
+const statusOrder = { po_created: 0, approval_done: 1, approval_pending: 2 };
+const posKey = (p) =>
+  `${p.po_number ?? "null"}|${p.status ?? ""}|${p.po_date ?? ""}|${p.etd ?? ""}|${p.delivered_date ?? ""}`;
+
+function sortAndDedupePos(list) {
+  const seen = new Map();
+  for (const p of list) seen.set(posKey(p), p);
+  const unique = Array.from(seen.values());
+  const enriched = unique.map((p) => ({
+    p,
+    w: statusOrder[p?.status] ?? 9,
+    ts: p?.po_date ? new Date(p.po_date).getTime() : -Infinity,
+  }));
+  enriched.sort((a, b) => a.w - b.w || b.ts - a.ts);
+  return enriched.map((x) => x.p);
+}
+
+/* ------------ column config ------------- */
+const AVAILABLE_COLUMNS = [
+  { key: "scope", label: "Scope", get: (r) => (r.scope ? "Slnko" : "Client"), raw: (r) => r.scope },
+  { key: "quantity", label: "Qty", get: (r) => fmt(r.quantity) },
+  { key: "uom", label: "UoM", get: (r) => fmt(r.uom) },
+  { key: "commitment_date", label: "Commitment Date", get: (r) => fmt(r.commitment_date) },
+  { key: "po_number", label: "PO Number", get: (r) => fmt(r.po_number) },
+  { key: "po_status", label: "PO Status", get: (r) => prettyStatus(r.po_status) },
+  { key: "po_date", label: "PO Date", get: (r) => fmt(r.po_date) },
+  { key: "etd", label: "ETD", get: (r) => fmt(r.etd) },
+  { key: "delivered_date", label: "Delivered Date", get: (r) => fmt(r.delivered_date) },
+];
+
+const DEFAULT_COLUMN_KEYS = [
+  "commitment_date",
+  "po_number",
+  "po_status",
+  "po_date",
+  "etd",
+  "delivered_date",
+];
+
+function resolveColumnDefs(req) {
+  let input = [];
+  if (Array.isArray(req.body?.columns)) input = req.body.columns;
+  else if (typeof req.query?.columns === "string") {
+    input = req.query.columns.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+
+ const keys = (input.length ? input : DEFAULT_COLUMN_KEYS)
+  .map((k) => (typeof k === "string" ? k : k?.key)) 
+  .filter(Boolean)
+  .map((k) => k.toLowerCase());
+
+
+  const byKey = new Map(AVAILABLE_COLUMNS.map((c) => [c.key, c]));
+  const defs = [];
+  const seen = new Set();
+  for (const k of keys) {
+    if (byKey.has(k) && !seen.has(k)) {
+      defs.push(byKey.get(k));
+      seen.add(k);
+    }
+  }
+  if (!defs.length) defs.push(byKey.get("po_number"));
+  return defs.map(({ key, label, get }) => ({ key, label, get }));
+}
 const getScopePdf = async (req, res) => {
   try {
     const { project_id, view, format } = req.query;
@@ -940,8 +1004,7 @@ const getScopePdf = async (req, res) => {
       : null;
 
     const camMemberName = handover?.submitted_by?.name || null;
-    const projectStatus =
-      project?.current_status?.status || project?.status || null;
+    const projectStatus = project?.current_status?.status || project?.status || null;
 
     const scopeData = await scopeModel
       .find({ project_id })
@@ -951,9 +1014,7 @@ const getScopePdf = async (req, res) => {
       .lean();
 
     if (!scopeData?.length) {
-      return res
-        .status(404)
-        .json({ message: "No scope data found for this project" });
+      return res.status(404).json({ message: "No scope data found for this project" });
     }
 
     const allItemIdSet = new Set();
@@ -977,13 +1038,12 @@ const getScopePdf = async (req, res) => {
         .map((c) => String(c._id))
     );
 
+
     const projectCode = String(project?.code || "").trim();
     const pos = projectCode
       ? await purchaseorderModel
           .find({ p_id: projectCode })
-          .select(
-            "_id po_number date etd delivery_date current_status item createdAt"
-          )
+          .select("_id po_number date etd delivery_date current_status item createdAt")
           .lean()
       : [];
     const catToPOs = new Map();
@@ -996,23 +1056,24 @@ const getScopePdf = async (req, res) => {
       }
     }
 
-    const processed = scopeData.map((scope) => {
-      const plainItems = Array.isArray(scope.items) ? scope.items : [];
+    const columnDefs = resolveColumnDefs(req); 
 
-      const activeItems = plainItems.filter((it) => {
+    const processed = scopeData.map((scope) => {
+      const rawItems = Array.isArray(scope.items) ? scope.items : [];
+      const activeItems = rawItems.filter((it) => {
         const id = it?.item_id ? String(it.item_id) : null;
         return id && activeCategoryIdSet.has(id);
       });
 
       let sr = 0;
-      const items = activeItems.map((it) => {
+      const rows = [];
+
+      for (const it of activeItems) {
         sr += 1;
         const itemId = it?.item_id ? String(it.item_id) : null;
-        const commitmentDate = it?.current_commitment_date?.date || null;
-
         const poList = (catToPOs.get(itemId) || []).map((p) => ({
           po_number: fmt(p?.po_number),
-          status: fmt(p?.current_status?.status),
+          po_status: fmt(p?.current_status?.status),
           po_date: fmt(p?.date),
           etd: fmt(p?.etd),
           delivered_date: fmt(p?.delivery_date),
@@ -1025,7 +1086,7 @@ const getScopePdf = async (req, res) => {
             : [
                 {
                   po_number: "Pending",
-                  status: "",
+                  po_status: "",
                   po_date: null,
                   etd: null,
                   delivered_date: null,
@@ -1033,59 +1094,52 @@ const getScopePdf = async (req, res) => {
               ];
 
         const first_po = effective[0];
-        const other_pos = effective.slice(1);
+        const others = effective.slice(1);
 
-        return {
+        const baseParent = {
           sr_no: sr,
-          item_id: it.item_id,
           name: it.name,
           type: it.type,
-          scope: it.scope,
+          scope: it.scope === "slnko",
           quantity: it.quantity,
           uom: it.uom,
-          commitment_date: commitmentDate,
-          first_po,
-          other_pos,
-        };
-      });
-
-      const rows = [];
-      for (const it of items) {
-        rows.push({
-          sr_no: it.sr_no,
-          name: it.name,
-          type: it.type,
-          scope: it.scope,
-          commitment_date: fmt(it.commitment_date),
-          po_number: it.first_po?.po_number || "Pending",
-          po_status: it.first_po?.status || "",
-          po_date: it.first_po?.po_date || null,
-          etd: it.first_po?.etd || null,
-          delivered_date: it.first_po?.delivered_date || null,
+          commitment_date: it?.current_commitment_date?.date || null,
+          po_number: first_po.po_number,
+          po_status: first_po.po_status,
+          po_date: first_po.po_date,
+          etd: first_po.etd,
+          delivered_date: first_po.delivered_date,
           _isChild: false,
-        });
-        for (const p of it.other_pos) {
-          rows.push({
+        };
+
+        for (const c of columnDefs) baseParent[c.key] = c.get(baseParent);
+
+        rows.push(baseParent);
+
+        for (const p of others) {
+          const child = {
             sr_no: "",
             name: "",
             type: "",
             scope: "",
+            quantity: "",
+            uom: "",
             commitment_date: "",
-            po_number: p?.po_number || "Pending",
-            po_status: p?.status || "",
-            po_date: p?.po_date || null,
-            etd: p?.etd || null,
-            delivered_date: p?.delivered_date || null,
+            po_number: p.po_number,
+            po_status: p.po_status,
+            po_date: p.po_date,
+            etd: p.etd,
+            delivered_date: p.delivered_date,
             _isChild: true,
-          });
+          };
+          for (const c of columnDefs) child[c.key] = c.get(child);
+          rows.push(child);
         }
       }
 
       return {
         ...scope,
         project,
-        totalItems: activeItems.length,
-        items,
         rows,
         handover: {
           cam_member_name: camMemberName,
@@ -1096,40 +1150,30 @@ const getScopePdf = async (req, res) => {
       };
     });
 
-    const totalRows = processed.reduce(
-      (acc, s) => acc + (s.rows?.length || 0),
-      0
-    );
+    const totalRows = processed.reduce((acc, s) => acc + (s.rows?.length || 0), 0);
     if (totalRows === 0) {
-      return res
-        .status(404)
-        .json({ message: "No active items found for this project" });
+      return res.status(404).json({ message: "No active items found for this project" });
     }
 
     const isLandscape = String(view).toLowerCase() === "landscape";
     const normalizeFormat = (f) => {
       if (!f) return "A4";
-      const val = String(f).trim().toUpperCase();
+      const val = String(f).trim();
       const map = {
-        A0: "A0",
-        A1: "A1",
-        A2: "A2",
-        A3: "A3",
-        A4: "A4",
-        A5: "A5",
-        Letter: "Letter",
-        Legal: "Legal",
-        Tabloid: "Tabloid",
+        A0: "A0", A1: "A1", A2: "A2", A3: "A3", A4: "A4", A5: "A5",
+        Letter: "Letter", Legal: "Legal", Tabloid: "Tabloid",
       };
-      return map[val] || "A4";
+      return map[val] || map[val.toUpperCase()] || "A4";
     };
     const pdfFormat = normalizeFormat(format);
+
     const apiUrl = `${process.env.PDF_PORT}/scopePdf/scope-pdf`;
     const axiosResponse = await axios({
       method: "post",
       url: apiUrl,
       data: {
         scopes: processed,
+        columns: columnDefs.map(({ key, label }) => ({ key, label })),
         pdfOptions: { landscape: isLandscape, format: pdfFormat },
       },
       responseType: "stream",
@@ -1152,6 +1196,7 @@ const getScopePdf = async (req, res) => {
     });
   }
 };
+
 
 const IT_TEAM_USER_ID = new mongoose.Types.ObjectId("6839a4086356310d4e15f6fd");
 
@@ -1223,7 +1268,6 @@ const updateCommitmentDate = async (req, res) => {
     const { id, item_id } = req.params;
     const { date, remarks } = req.body;
 
-    // Validate inputs
     if (!date || !remarks) {
       return res.status(400).json({ message: "Date and Remarks are required" });
     }
@@ -1239,13 +1283,11 @@ const updateCommitmentDate = async (req, res) => {
       return res.status(400).json({ message: "Invalid date value" });
     }
 
-    // Load the document so pre('save') middleware will fire
     const scope = await scopeModel.findById(id);
     if (!scope) {
       return res.status(404).json({ message: "Scope not found" });
     }
 
-    // Find the targeted item by comparing string vs ObjectId
     const idx = scope.items.findIndex(
       (it) => it?.item_id?.toString() === item_id
     );
@@ -1256,7 +1298,6 @@ const updateCommitmentDate = async (req, res) => {
     const now = new Date();
     const userId = req?.user?._id || req?.user?.userId || req?.user?.id || null;
 
-    // Push to history
     scope.items[idx].commitment_date_history =
       scope.items[idx].commitment_date_history || [];
     scope.items[idx].commitment_date_history.push({
