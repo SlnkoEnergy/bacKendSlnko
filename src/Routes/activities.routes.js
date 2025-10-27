@@ -7,13 +7,13 @@ const {
   updateDependency,
   deleteDependency
 } = require("../Controllers/activities.controller");
-const jwtMW = require("../middlewares/auth");
+const auth = require("../middlewares/auth.middleware.js");
 
-router.post("/activity", jwtMW.authentication, createActivity);
-router.put("/activity/:id", jwtMW.authentication, editActivity);
-router.delete("/activity/:id", jwtMW.authentication, deleteActivity);
-router.get("/activities", jwtMW.authentication, namesearchOfActivities);
-router.put('/:id/updatedependency', jwtMW.authentication, updateDependency);
-router.delete('/:id/deletedependency/:dependencyId', jwtMW.authentication, deleteDependency);
+router.post("/activity", auth, createActivity);
+router.put("/activity/:id", auth, editActivity);
+router.delete("/activity/:id", auth, deleteActivity);
+router.get("/activities", auth, namesearchOfActivities);
+router.put('/:id/updatedependency', auth, updateDependency);
+router.delete('/:id/deletedependency/:dependencyId', auth, deleteDependency);
 
 module.exports = router;

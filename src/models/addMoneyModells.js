@@ -5,11 +5,18 @@ const moneySchema = new mongoose.Schema(
     p_id: {
       type: Number,
     },
+       project_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "projectDetail",
+      index: true,
+    },
     comment: {
       type: String,
     },
     submitted_by: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
     },
     cr_amount: {
       type: Number,

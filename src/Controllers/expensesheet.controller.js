@@ -68,12 +68,10 @@ const getAllExpense = async (req, res) => {
       },
     ];
 
-    // Apply access control
     if (
       currentUser.department === "superadmin" ||
       currentUser.department === "admin"
     ) {
-      // No additional filtering
     } else if (
       currentUser.department === "HR" &&
       currentUser.emp_id !== "SE-208"
@@ -204,7 +202,10 @@ const createExpense = async (req, res) => {
     }
 
     const folderType = user.role === "site" ? "onsite" : "offsite";
-    const folderPath = `expense_sheet/${folderType}/${user.emp_id}`.replace(/ /g, "_");
+    const folderPath = `expense_sheet/${folderType}/${user.emp_id}`.replace(
+      / /g,
+      "_"
+    );
     const uploadedFileMap = {};
 
     for (const file of req.files || []) {
@@ -488,15 +489,15 @@ const toNumberExpr = (expr) => ({
         input: {
           $replaceAll: {
             input: {
-              $trim: { input: { $ifNull: [expr, ""] } }
+              $trim: { input: { $ifNull: [expr, ""] } },
             },
             find: "₹",
-            replacement: ""
-          }
+            replacement: "",
+          },
         },
         find: ",",
-        replacement: ""
-      }
+        replacement: "",
+      },
     },
     to: "double",
     onError: 0,
@@ -509,7 +510,8 @@ const toObjectId = (id) => new mongoose.Types.ObjectId(String(id));
 const exportExpenseSheetsCSV = async (req, res) => {
   try {
     const sheetIds = req.body.sheetIds;
-    const dashboard = String(req.query.dashboard ?? "").toLowerCase() === "true";
+    const dashboard =
+      String(req.query.dashboard ?? "").toLowerCase() === "true";
 
     if (!Array.isArray(sheetIds) || sheetIds.length === 0) {
       return res.status(400).json({ message: "No sheetIds provided." });
@@ -528,7 +530,7 @@ const exportExpenseSheetsCSV = async (req, res) => {
             emp_name: { $first: "$emp_name" },
             current_status: { $first: "$current_status.status" },
             requested: { $sum: toNumberExpr("$items.invoice.invoice_amount") },
-            approved: { $sum: toNumberExpr("$items.approved_amount") }, 
+            approved: { $sum: toNumberExpr("$items.approved_amount") },
           },
         },
         {
@@ -664,7 +666,8 @@ const exportExpenseSheetsCSV = async (req, res) => {
         const invoice = Number(row["Invoice Amount"] || 0);
         const approved = Number(row["Approved Amount"] || 0);
 
-        if (!summaryMap[category]) summaryMap[category] = { requested: 0, approved: 0 };
+        if (!summaryMap[category])
+          summaryMap[category] = { requested: 0, approved: 0 };
         summaryMap[category].requested += invoice;
         summaryMap[category].approved += approved;
 
@@ -678,7 +681,8 @@ const exportExpenseSheetsCSV = async (req, res) => {
         "Summary by Category",
         "Category,Total Requested Amount,Total Approved Amount",
         ...Object.entries(summaryMap).map(
-          ([cat, v]) => `"${cat}",${v.requested.toFixed(2)},${v.approved.toFixed(2)}`
+          ([cat, v]) =>
+            `"${cat}",${v.requested.toFixed(2)},${v.approved.toFixed(2)}`
         ),
         `"Total",${totalRequested.toFixed(2)},${totalApproved.toFixed(2)}`,
       ];
@@ -700,7 +704,6 @@ const exportExpenseSheetsCSV = async (req, res) => {
       .json({ message: "Internal Server Error", error: err.message });
   }
 };
-
 
 const getExpensePdf = async (req, res) => {
   try {
@@ -750,10 +753,11 @@ const getExpensePdf = async (req, res) => {
 
     axiosResponse.data.pipe(res);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching PDF", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error fetching PDF", error: error.message });
   }
 };
-
 
 module.exports = {
   getAllExpense,
@@ -765,5 +769,5 @@ module.exports = {
   updateExpenseStatusItems,
   deleteExpense,
   exportExpenseSheetsCSV,
-  getExpensePdf
+  getExpensePdf,
 };

@@ -12,6 +12,8 @@ const materialCategoryModells = require("../models/materialcategory.model");
 const userModells = require("../models/user.model");
 const utrCounter = require("../models/utrCounter");
 const projectBalanceModel = require("../models/projectBalance.model");
+const { sendUsingTemplate } = require("../utils/sendemail.utils");
+const { sendNotification } = require("../utils/sendnotification.utils");
 
 const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
 const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
@@ -1082,7 +1084,6 @@ const accApproved = async function (req, res) {
     return res.status(500).json({ message: "Server error" });
   }
 };
-
 const utrUpdate = async function (req, res) {
   const { pay_id, cr_id, utr, utr_submitted_by: bodySubmittedBy } = req.body;
 
@@ -1105,6 +1106,9 @@ const utrUpdate = async function (req, res) {
   let httpStatus = 200;
   let payload = null;
 
+  let emailPayload = null;
+  let isPaymentAgainstPO = false;
+
   const buildSubtractDoc = (p, useUtr) => ({
     p_id: p.p_id,
     pay_type: p.pay_type,
@@ -1122,9 +1126,10 @@ const utrUpdate = async function (req, res) {
         ? { pay_id, acc_match: "matched" }
         : { cr_id, "approval_status.stage": "Final" };
 
-      let payment = await payRequestModells
+      const payment = await payRequestModells
         .findOne(paymentFilter)
         .session(session);
+
       if (!payment) {
         httpStatus = 404;
         payload = {
@@ -1132,8 +1137,14 @@ const utrUpdate = async function (req, res) {
             ? "No matching record found for pay_id or account not matched."
             : "No matching record found with this CR ID at stage 'Final'.",
         };
-        return;
+        return; // exit transaction callback
       }
+
+      isPaymentAgainstPO = payment.pay_type === "Payment Against PO";
+
+      const vendor = await vendorModells
+        .findOne({ name: payment.vendor })
+        .lean();
 
       const oldUtr = (payment.utr || "").trim() || null;
       const utrChanged = oldUtr !== trimmedUtr;
@@ -1141,6 +1152,7 @@ const utrUpdate = async function (req, res) {
       const dup = await payRequestModells
         .findOne({ utr: trimmedUtr, _id: { $ne: payment._id } })
         .session(session);
+
       if (dup) {
         httpStatus = 409;
         payload = { message: "UTR already exists on another record." };
@@ -1151,6 +1163,7 @@ const utrUpdate = async function (req, res) {
         utr: trimmedUtr,
         ...(submittedBy ? { utr_submitted_by: submittedBy } : {}),
       };
+
       await payRequestModells.updateOne(
         { _id: payment._id },
         { $set: setFields },
@@ -1209,6 +1222,7 @@ const utrUpdate = async function (req, res) {
           const alreadyCounted =
             Array.isArray(poDoc?.advance_paid_refs) &&
             poDoc.advance_paid_refs.includes(refKey);
+
           if (!alreadyCounted) {
             await purchaseOrderModells.updateOne(
               { po_number: payment.po_number },
@@ -1234,7 +1248,9 @@ const utrUpdate = async function (req, res) {
 
         const debitEntry = utrChanged
           ? {
-              dbt_date: payment.updatedAt ? new Date(payment.updatedAt) : new Date(),
+              dbt_date: payment.updatedAt
+                ? new Date(payment.updatedAt)
+                : new Date(),
               amount_paid: Number(payment.amount_paid) || 0,
               remarks:
                 payment.remarks || payment.comment || payment.note || null,
@@ -1257,11 +1273,7 @@ const utrUpdate = async function (req, res) {
 
         if (utrChanged && debitEntry) {
           updateDoc.$push = {
-            recentDebits: {
-              $each: [debitEntry],
-              $position: 0,
-              $slice: 3,
-            },
+            recentDebits: { $each: [debitEntry], $position: 0, $slice: 3 },
           };
         }
 
@@ -1271,17 +1283,41 @@ const utrUpdate = async function (req, res) {
         });
       }
 
+      // Stage email payload to use AFTER commit
+      if (utrChanged) {
+        const projDoc = await projectModells
+          .findOne({ p_id: Number(payment.p_id) }, { code: 1, name: 1 })
+          .lean()
+          .session(session);
+
+        const paymentDate = payment.dbt_date || payment.updatedAt || new Date();
+
+        emailPayload = {
+          vendor_name: payment.vendor || "",
+          project: { name: projDoc?.code || "" },
+          payment: {
+            date: paymentDate,
+            amount: Number(payment.amount_paid) || 0,
+          },
+          name_to_send: [payment.vendor] || "",
+          utr: trimmedUtr,
+          user_id: req.user?.userId,
+          tags: ["vendor"],
+          po_number: payment.po_number || "",
+          vendor_email: vendor?.contact_details?.email || "",
+        };
+      }
+
       httpStatus = 200;
       payload = {
-        message: isCrPath
-          ? utrChanged
+        message: Boolean(cr_id)
+          ? oldUtr !== trimmedUtr
             ? "Credit UTR Updated"
             : "UTR unchanged via cr_id; details synced."
-          : utrChanged
+          : oldUtr !== trimmedUtr
             ? "Payment UTR Submitted"
             : "UTR unchanged via pay_id; details synced.",
-        data: payment,
-        subtractMoney: subtractMoneyDoc,
+        // return some minimal info; avoid returning the whole payment doc if not needed
       };
     });
   } catch (err) {
@@ -1290,13 +1326,28 @@ const utrUpdate = async function (req, res) {
         .status(409)
         .json({ message: "UTR already exists.", error: err.message });
     }
-    console.error("utrUpdate error:", err);
     return res.status(500).json({
       message: "An error occurred while updating the UTR number.",
       error: err?.message,
     });
   } finally {
     session.endSession();
+  }
+
+  // *** use the hoisted flag instead of `payment.type`
+  if (emailPayload && isPaymentAgainstPO) {
+    setImmediate(() => {
+      try {
+        sendUsingTemplate(
+          "vendor-payment-email",
+          emailPayload,
+          { sendNotification },
+          { strict: false }
+        );
+      } catch (e) {
+        console.error("[utrUpdate] email send error:", e?.message || e);
+      }
+    });
   }
 
   return res.status(httpStatus).json(payload);
@@ -1809,10 +1860,9 @@ const getPay = async (req, res) => {
     const searchRegex = search ? new RegExp(search, "i") : null;
     const shouldFilterStatus = status && status.toLowerCase() !== "all";
     const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const statusRegex = shouldFilterStatus
-      ? new RegExp(`^${escapeRegex(status)}$`, "i")
-      : null;
+    const statusRegex = shouldFilterStatus ? new RegExp(`^${escapeRegex(status)}$`, "i") : null;
 
+    // --- visibility by employee ---
     let EmpDetail = false;
     if (req?.user?.emp_id !== undefined) {
       EmpDetail = req.user.emp_id === "SE-203";
@@ -1821,11 +1871,10 @@ const getPay = async (req, res) => {
       const u = await userModells.findById(id).select("emp_id").lean();
       EmpDetail = (u?.emp_id || "") === "SE-203";
     }
-    const visibilityFilterStage = EmpDetail
-      ? [{ $match: { paid_for: "I&C" } }]
-      : [];
+    const visibilityFilterStage = EmpDetail ? [{ $match: { paid_for: "I&C" } }] : [];
 
-    const lookupStage = {
+    // --- project join ---
+    const lookupProjectStage = {
       $lookup: {
         from: "projectdetails",
         localField: "p_id",
@@ -1833,10 +1882,83 @@ const getPay = async (req, res) => {
         as: "project",
       },
     };
-    const unwindStage = {
-      $unwind: { path: "$project", preserveNullAndEmptyArrays: true },
-    };
+    const unwindProjectStage = { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } };
 
+    // --- VENDOR: normalize id and join by _id (fallback to legacy name) ---
+    // NOTE: change `from: "vendors"` if your collection name differs
+    const vendorStages = [
+      {
+        $addFields: {
+          // vendor might be ObjectId or string id or legacy vendor name
+          _vendor_obj_id: {
+            $cond: [
+              { $eq: [{ $type: "$vendor" }, "objectId"] },
+              "$vendor",
+              {
+                $convert: {
+                  input: "$vendor",
+                  to: "objectId",
+                  onError: null,
+                  onNull: null,
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "vendors",
+          let: { vid: "$_vendor_obj_id", vname: "$vendor" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $and: [{ $ne: ["$$vid", null] }, { $eq: ["$_id", "$$vid"] }] },
+                    // fallback for legacy records where request.vendor stored the vendor name
+                    { $eq: ["$name", "$$vname"] },
+                  ],
+                },
+              },
+            },
+            {
+              $project: {
+                name: 1,
+                Account_No: 1,
+                account_no: 1,
+                IFSC_Code: 1,
+                ifsc: 1,
+                Bank_Name: 1,
+                Branch: 1,
+              },
+            },
+          ],
+          as: "vendorDoc",
+        },
+      },
+      { $unwind: { path: "$vendorDoc", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          vendor_id: {
+            $cond: [
+              { $ne: ["$_vendor_obj_id", null] },
+              { $toString: "$_vendor_obj_id" },
+              null,
+            ],
+          },
+          vendor_name: { $ifNull: ["$vendorDoc.name", "$vendor"] },
+          vendor_acc_number: { $ifNull: ["$vendorDoc.Account_No", "$vendorDoc.account_no"] },
+          vendor_ifsc: { $ifNull: ["$vendorDoc.IFSC_Code", "$vendorDoc.ifsc"] },
+          vendor_bank_name: { $ifNull: ["$vendorDoc.Bank_Name", ""] },
+          vendor_branch: {
+            $ifNull: ["$vendorDoc.Branch", { $ifNull: ["$vendorDoc.Bank_Name", ""] }],
+          },
+        },
+      },
+    ];
+
+    // --- search (now can search vendor_name as well) ---
     const commonMatch = [];
     if (searchRegex) {
       commonMatch.push({
@@ -1845,7 +1967,8 @@ const getPay = async (req, res) => {
           { cr_id: { $regex: searchRegex } },
           { paid_for: { $regex: searchRegex } },
           { po_number: { $regex: searchRegex } },
-          { vendor: { $regex: searchRegex } },
+          { vendor: { $regex: searchRegex } },         // legacy
+          { vendor_name: { $regex: searchRegex } },    // joined name
           { utr: { $regex: searchRegex } },
           { "project.customer": { $regex: searchRegex } },
         ],
@@ -1857,9 +1980,7 @@ const getPay = async (req, res) => {
         ? [{ $match: { "approval_status.stage": { $ne: "Trash Pending" } } }]
         : [];
 
-    const statusMatchStage = statusRegex
-      ? [{ $match: { approved: { $regex: statusRegex } } }]
-      : [];
+    const statusMatchStage = statusRegex ? [{ $match: { approved: { $regex: statusRegex } } }] : [];
 
     const addTypeStage = {
       $addFields: {
@@ -1885,8 +2006,9 @@ const getPay = async (req, res) => {
     };
 
     const baseCommon = [
-      lookupStage,
-      unwindStage,
+      lookupProjectStage,
+      unwindProjectStage,
+      ...vendorStages, // <--- ensure vendor is joined BEFORE search
       ...(commonMatch.length ? [{ $match: { $and: commonMatch } }] : []),
       ...visibilityFilterStage,
       addTypeStage,
@@ -1903,12 +2025,7 @@ const getPay = async (req, res) => {
               {
                 $floor: {
                   $divide: [
-                    {
-                      $subtract: [
-                        { $toDate: "$credit.credit_deadline" },
-                        "$$NOW",
-                      ],
-                    },
+                    { $subtract: [{ $toDate: "$credit.credit_deadline" }, "$$NOW"] },
                     1000 * 60 * 60 * 24,
                   ],
                 },
@@ -1921,12 +2038,7 @@ const getPay = async (req, res) => {
                       $divide: [
                         {
                           $subtract: [
-                            {
-                              $add: [
-                                "$timers.trash_started_at",
-                                1000 * 60 * 60 * 24 * 15,
-                              ],
-                            },
+                            { $add: ["$timers.trash_started_at", 1000 * 60 * 60 * 24 * 15] },
                             "$$NOW",
                           ],
                         },
@@ -1943,6 +2055,12 @@ const getPay = async (req, res) => {
       },
     ];
 
+    const projection = {
+      project: 0,
+      vendorDoc: 0,
+      _vendor_obj_id: 0,
+    };
+
     const [paginatedData, totalData, tabWiseCounts] = await Promise.all([
       payRequestModells.aggregate([
         ...baseCommon,
@@ -1950,7 +2068,7 @@ const getPay = async (req, res) => {
         ...statusMatchStage,
         ...tabMatchStage,
         ...remainingDaysStage,
-        { $project: { project: 0 } },
+        { $project: projection },
         { $sort: { createdAt: -1 } },
         { $skip: skip },
         { $limit: pageSize },
@@ -1991,6 +2109,7 @@ const getPay = async (req, res) => {
     res.status(500).json({ msg: "Error retrieving data", error: err.message });
   }
 };
+
 
 const getTrashPayment = async (req, res) => {
   try {
@@ -2239,6 +2358,86 @@ const getpy = async function (req, res) {
   res.status(200).json({ msg: "All pay request", data: data });
 };
 
+const getPayRequestByVendor = async (req, res) => {
+  try {
+    const { vendor, page = "1", limit = "10", search = "" } = req.query;
+
+    if (!vendor || typeof vendor !== "string" || !vendor.trim()) {
+      return res
+        .status(400)
+        .json({ message: "Vendor name is required in query." });
+    }
+    const trimmedVendor = vendor.trim();
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const rawLimit = Math.max(parseInt(limit, 10) || 10, 1);
+    const limitNum = Math.min(rawLimit, 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    const filter = {
+      vendor: { $regex: new RegExp(`^${trimmedVendor}$`, "i") },
+      approved: "Approved",
+    };
+
+    if (typeof search === "string" && search.trim()) {
+      const q = search.trim();
+
+      const asNumber = Number(q);
+      const isNumeric = Number.isFinite(asNumber);
+
+      filter.$or = [
+        { po_number: { $regex: q, $options: "i" } },
+        { remarks: { $regex: q, $options: "i" } },
+        { pay_type: { $regex: q, $options: "i" } },
+        { utr: { $regex: q, $options: "i" } },
+        { pay_id: { $regex: q, $options: "i" } },
+        ...(isNumeric
+          ? [
+              { amount_paid: asNumber },
+              { gst_amount: asNumber },
+              { basic_amount: asNumber },
+            ]
+          : []),
+      ];
+    }
+
+    const [total, data] = await Promise.all([
+      payRequestModells.countDocuments(filter),
+      payRequestModells
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+    ]);
+
+    if (total === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No approved payment requests found for vendor: ${trimmedVendor}`,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      vendor: trimmedVendor,
+      count: data.length,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+      data,
+    });
+  } catch (error) {
+    console.error("Error fetching approved pay requests by vendor:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   payRrequest,
   getPaySummary,
@@ -2263,4 +2462,5 @@ module.exports = {
   hold_approve_pending,
   getExcelDataById,
   getpy,
+  getPayRequestByVendor,
 };

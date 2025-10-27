@@ -10,47 +10,47 @@ const {
   getMaterialScope,
   fetchExcelFromBOQ,
 } = require("../Controllers/purchaserequest.controller");
-const jwtMW = require("../middlewares/auth");
+const auth = require("../middlewares/auth.middleware.js");
 router.post(
   "/purchase-request",
-  jwtMW.authentication,
+  auth,
   CreatePurchaseRequest
 );
 router.get(
   "/purchase-request",
-  jwtMW.authentication,
+  auth,
   getAllPurchaseRequest
 );
 router.get(
   "/purchase-request/:id",
-  jwtMW.authentication,
+  auth,
   getPurchaseRequestById
 );
 router.get(
   "/purchase-request-project_id",
-  jwtMW.authentication,
+  auth,
   getAllPurchaseRequestByProjectId
 );
 router.put(
   "/purchase-request/:id",
-  jwtMW.authentication,
+  auth,
   UpdatePurchaseRequest
 );
 router.delete(
   "/purchase-request/:id",
-  jwtMW.authentication,
+  auth,
   deletePurchaseRequest
 );
 router.get(
   "/:project_id/item/:item_id/pr/:pr_id",
-  jwtMW.authentication,
+  auth,
   getPurchaseRequest
 );
 router.get(
   "/material-scope",
-  jwtMW.authentication,
+  auth,
   getMaterialScope
 );
-router.get('/fetch-boq', jwtMW.authentication, fetchExcelFromBOQ);
+router.get('/fetch-boq', auth, fetchExcelFromBOQ);
 
 module.exports = router;

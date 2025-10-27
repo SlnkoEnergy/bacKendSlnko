@@ -1,8 +1,9 @@
-FROM node:16-alpine
+FROM node:20-alpine
 WORKDIR /protrac/backend
 COPY package.json ./
 RUN npm install
 COPY . .
+ENV NODE_OPTIONS="--require ./bootstrap-fetch.js"
 ENV DB_URL=${DB_URL}
 ENV DB_DEVELOPMENT_URL=${DB_DEVELOPMENT_URL}
 ENV PASSKEY=${PASSKEY}

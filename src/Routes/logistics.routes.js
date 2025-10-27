@@ -15,26 +15,26 @@ const {
   deleteLogisticHistory,
 } = require("../Controllers/logisticshistory.controller");
 
-const jwtMW = require("../middlewares/auth");
-const upload = require("../middlewares/multer");
+const auth = require("../middlewares/auth.middleware.js");
+const upload = require("../middlewares/multer.middleware.js");
 // Logistic Routes
-router.get("/logistic", jwtMW.authentication, getAllLogistics);
+router.get("/logistic", auth, getAllLogistics);
 
-router.get("/logistic/:id", jwtMW.authentication, getLogisticById);
+router.get("/logistic/:id", auth, getLogisticById);
 
-router.post("/logistic", jwtMW.authentication, createLogistic);
-router.put("/logistic/:_id", jwtMW.authentication, upload, updateLogistic);
+router.post("/logistic", auth, createLogistic);
+router.put("/logistic/:_id", auth, upload, updateLogistic);
 
-router.delete("/logistic/:_id", jwtMW.authentication, deleteLogistic);
-router.put("/logistic/:id/status", jwtMW.authentication, updateLogisticStatus);
+router.delete("/logistic/:_id", auth, deleteLogistic);
+router.put("/logistic/:id/status", auth, updateLogisticStatus);
 
-router.get("/logistichistory", jwtMW.authentication, listLogisticHistory);
-router.get("/logistichistory/:id", jwtMW.authentication, getLogisticHistory);
-router.post("/logistichistory", jwtMW.authentication, createLogisticHistory);
-router.put("/logistichistory/:id", jwtMW.authentication, updateLogisticHistory);
+router.get("/logistichistory", auth, listLogisticHistory);
+router.get("/logistichistory/:id", auth, getLogisticHistory);
+router.post("/logistichistory", auth, createLogisticHistory);
+router.put("/logistichistory/:id", auth, updateLogisticHistory);
 router.delete(
   "/LogisticHistory/:id",
-  jwtMW.authentication,
+  auth,
   deleteLogisticHistory
 );
 

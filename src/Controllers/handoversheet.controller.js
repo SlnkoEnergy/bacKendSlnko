@@ -8,7 +8,7 @@ const userModells = require("../models/user.model");
 const materialCategoryModells = require("../models/materialcategory.model");
 const scopeModel = require("../models/scope.model");
 const bdleadsModells = require("../models/bdleads.model");
-const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const { sendNotification } = require("../utils/sendnotification.utils");
 const postsModel = require("../models/posts.model");
 const activitiesModel = require("../models/activities.model");
 const projectactivitiesModel = require("../models/projectactivities.model");
@@ -167,7 +167,7 @@ const createhandoversheet = async function (req, res) {
         link1: `/sales`,
       };
       setImmediate(() => {
-        getnovuNotification(workflow, Ids, data).catch((err) =>
+        sendNotification(workflow, Ids, data).catch((err) =>
           console.error("Notification error:", err)
         );
       });
@@ -946,7 +946,7 @@ const updatestatus = async function (req, res) {
       };
 
       setImmediate(() => {
-        getnovuNotification(workflow, senders, data).catch((err) =>
+        sendNotification(workflow, senders, data).catch((err) =>
           console.error("Notification error:", err)
         );
       });
