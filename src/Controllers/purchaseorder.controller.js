@@ -1147,7 +1147,10 @@ const getallpodetail = async function (req, res) {
 
         if (id instanceof mongoose.Types.ObjectId) {
           categoryIds.push(id);
-        } else if (typeof id === "string" && mongoose.Types.ObjectId.isValid(id)) {
+        } else if (
+          typeof id === "string" &&
+          mongoose.Types.ObjectId.isValid(id)
+        ) {
           categoryIds.push(new mongoose.Types.ObjectId(id));
         }
       }
@@ -1173,7 +1176,9 @@ const getallpodetail = async function (req, res) {
           const key =
             catId instanceof mongoose.Types.ObjectId
               ? String(catId)
-              : (mongoose.Types.ObjectId.isValid(catId) ? String(new mongoose.Types.ObjectId(catId)) : null);
+              : mongoose.Types.ObjectId.isValid(catId)
+                ? String(new mongoose.Types.ObjectId(catId))
+                : null;
 
           if (key) name = categoryNameById.get(key) || "";
         }
@@ -1186,7 +1191,9 @@ const getallpodetail = async function (req, res) {
     }
 
     const seen = new Set();
-    const deduped = itemNames.filter((n) => (seen.has(n) ? false : (seen.add(n), true)));
+    const deduped = itemNames.filter((n) =>
+      seen.has(n) ? false : (seen.add(n), true)
+    );
     const itemName = deduped.join(", ");
 
     let vendorDetails = {};
@@ -1197,8 +1204,13 @@ const getallpodetail = async function (req, res) {
       // Accept both ObjectId and string forms
       if (vendorId instanceof mongoose.Types.ObjectId) {
         vendorDoc = await vendorModells.findById(vendorId).lean();
-      } else if (typeof vendorId === "string" && mongoose.Types.ObjectId.isValid(vendorId)) {
-        vendorDoc = await vendorModells.findById(new mongoose.Types.ObjectId(vendorId)).lean();
+      } else if (
+        typeof vendorId === "string" &&
+        mongoose.Types.ObjectId.isValid(vendorId)
+      ) {
+        vendorDoc = await vendorModells
+          .findById(new mongoose.Types.ObjectId(vendorId))
+          .lean();
       } else {
         // Fallback (legacy data: stored vendor name)
         vendorDoc = await vendorModells.findOne({ name: vendorId }).lean();
@@ -1211,7 +1223,8 @@ const getallpodetail = async function (req, res) {
           acc_number: vendorDoc.Account_No || vendorDoc.account_no || "",
           ifsc: vendorDoc.IFSC_Code || vendorDoc.ifsc || "",
           // "branch" previously mapped to Bank_Name in your code; keep both just in case
-          branch: vendorDoc.Branch || vendorDoc.branch || vendorDoc.Bank_Name || "",
+          branch:
+            vendorDoc.Branch || vendorDoc.branch || vendorDoc.Bank_Name || "",
           bank_name: vendorDoc.Bank_Name || "",
         };
       }
@@ -1235,7 +1248,9 @@ const getallpodetail = async function (req, res) {
         },
       },
     ]);
-    const totalAdvancePaid = approvedPayments.length ? approvedPayments[0].totalAdvancePaid : 0;
+    const totalAdvancePaid = approvedPayments.length
+      ? approvedPayments[0].totalAdvancePaid
+      : 0;
 
     const po_balance = po_value - totalAdvancePaid;
 
@@ -1252,7 +1267,9 @@ const getallpodetail = async function (req, res) {
     });
   } catch (err) {
     console.error("Error fetching purchase order:", err);
-    return res.status(500).json({ message: "Server error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
 
@@ -1972,8 +1989,7 @@ const getExportPo = async (req, res) => {
 const updateSalesPO = async (req, res) => {
   try {
     const { id } = req.params;
-    const { remarks, basic_sales, gst_on_sales, sales_invoice, po_number } =
-      req.body || {};
+    const { remarks, basic_sales, sales_invoice, po_number } = req.body || {};
 
     if (!id && !po_number) {
       return res
@@ -1988,17 +2004,14 @@ const updateSalesPO = async (req, res) => {
     }
 
     const basic = Number(basic_sales);
-    const gst = Number(gst_on_sales);
     const invoice = String(sales_invoice || "").trim();
 
     if (!Number.isFinite(basic))
       return res.status(400).json({ message: "basic_sales must be a number" });
-    if (!Number.isFinite(gst))
-      return res.status(400).json({ message: "gst_on_sales must be a number" });
     if (!invoice)
       return res.status(400).json({ message: "Sales Invoice is mandatory" });
 
-    // 🔹 Find PO by id or po_number
+   
     const po = id
       ? await purchaseOrderModells.findById(id)
       : await purchaseOrderModells.findOne({
@@ -2007,11 +2020,22 @@ const updateSalesPO = async (req, res) => {
 
     if (!po) return res.status(404).json({ message: "PO not found" });
 
+  
+    const project = await projectModel.findById(po.project_id, {
+      billing_type: 1,
+    });
+
+    const billingType = project?.billing_type || "Individual";
+
+  
+    const gstRate = billingType === "Composite" ? 0.089 : 0.18;
+    const gst = Number((basic * gstRate).toFixed(2));
+
     const poValue = Number(po.po_value) || 0;
     const alreadySales = Number(po.total_sales_value) || 0;
     const entryTotal = basic + gst;
 
-    // 🔹 Prepare upload path
+   
     const safePo = (s) =>
       String(s || "")
         .trim()
@@ -2022,14 +2046,14 @@ const updateSalesPO = async (req, res) => {
       folderPath
     )}`;
 
-    // 🔹 File upload logic
+    
     const files = req.file
       ? [req.file]
       : Array.isArray(req.files)
-      ? req.files
-      : req.files && typeof req.files === "object"
-      ? Object.values(req.files).flat()
-      : [];
+        ? req.files
+        : req.files && typeof req.files === "object"
+          ? Object.values(req.files).flat()
+          : [];
 
     const uploadedAttachments = [];
 
@@ -2044,7 +2068,7 @@ const updateSalesPO = async (req, res) => {
         file.buffer || (file.path ? fs.readFileSync(file.path) : null);
       if (!buffer) continue;
 
-      // 🔹 Compress image files
+     
       if (mimeType.startsWith("image/")) {
         try {
           const ext = mime.extension(mimeType);
@@ -2061,7 +2085,6 @@ const updateSalesPO = async (req, res) => {
         }
       }
 
-      // 🔹 Upload
       try {
         const form = new FormData();
         form.append("file", buffer, {
@@ -2097,7 +2120,7 @@ const updateSalesPO = async (req, res) => {
       }
     }
 
-    // 🔹 Update PO
+ 
     const userId = req.user?.userId || req.user?._id || null;
     if (!Array.isArray(po.sales_Details)) po.sales_Details = [];
 
@@ -2124,7 +2147,11 @@ const updateSalesPO = async (req, res) => {
           : "Sales PO updated successfully (isSales = true)",
       data: {
         po_number: po.po_number,
+        billing_type: billingType,
+        gst_rate_applied: `${(gstRate * 100).toFixed(1)}%`,
         po_value: poValue,
+        basic_sales: basic,
+        gst_on_sales: gst,
         total_sales_value: po.total_sales_value,
         attachments: uploadedAttachments,
       },
@@ -2136,7 +2163,6 @@ const updateSalesPO = async (req, res) => {
       .json({ message: "Error updating Sales PO", error: error.message });
   }
 };
-
 
 //Move-Recovery
 const moverecovery = async function (req, res) {
