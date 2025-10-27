@@ -265,10 +265,10 @@ router.get(
 
 router.get("/project-dropdown-detail", auth, getProjectsDropdown);
 
-router.get("/project-state-detail", jwtMW.authentication, getProjectStates);
-router.get("/allposts", jwtMW.authentication, getAllPosts);
-router.put('/updateprojectstatusforpreviousprojects', jwtMW.authentication, updateProjectStatusForPreviousProjects);
-router.put('/updateprojectsubmittedby', jwtMW.authentication, updateSubmittedByOfProject);
+router.get("/project-state-detail", auth, getProjectStates);
+router.get("/allposts", auth, getAllPosts);
+router.put('/updateprojectstatusforpreviousprojects', auth, updateProjectStatusForPreviousProjects);
+router.put('/updateprojectsubmittedby', auth, updateSubmittedByOfProject);
 router.put("/updateSkippedProject", updateSkippedProject);
 
 //addMoney APi
