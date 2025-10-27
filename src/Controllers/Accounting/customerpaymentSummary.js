@@ -370,6 +370,31 @@ const clientHistoryResult = await ProjectModel.aggregate([
         },
         { $sort: { createdAt: -1 } },
         { $addFields: { po_numberStr: { $toString: "$po_number" } } },
+        {
+  $addFields: {
+    last_sales_detail: {
+      $let: {
+        vars: { tail: { $slice: [{ $ifNull: ["$sales_Details", []] }, -1] } },
+        in: {
+          $cond: [
+            { $gt: [{ $size: "$$tail" }, 0] },
+            {
+              basic_sales: { $toDouble: { $ifNull: [{ $arrayElemAt: ["$$tail.basic_sales", 0] }, 0] } },
+              gst_on_sales: { $toDouble: { $ifNull: [{ $arrayElemAt: ["$$tail.gst_on_sales", 0] }, 0] } },
+              total_sales_value: {
+                $add: [
+                  { $toDouble: { $ifNull: [{ $arrayElemAt: ["$$tail.basic_sales", 0] }, 0] } },
+                { $toDouble: { $ifNull: [{ $arrayElemAt: ["$$tail.gst_on_sales", 0] }, 0] } },
+                ],
+              },
+            },
+            { basic_sales: 0, gst_on_sales: 0, total_sales_value: 0 },
+          ],
+        },
+      },
+    },
+  },
+},
 
          // --- Approved payments (advance) ---
             {
@@ -504,32 +529,33 @@ const clientHistoryResult = await ProjectModel.aggregate([
             },
           },
         },
+        
 
         { $project: { bill_agg: 0 } },
-        {
+  {
   $addFields: {
     total_sales_value: {
-      $toDouble: {
-        $ifNull: ["$last_sales_detail.total_sales_value", 0],
-      },
+      $toDouble: { $ifNull: ["$last_sales_detail.total_sales_value", 0] },
     },
-
-    // ✅ total_unbilled_sales = (bill_basic + bill_gst) - total_sales_value
     total_unbilled_sales: {
       $round: [
         {
           $subtract: [
-            {
-              $add: [
-                asDouble("$bill_basic"),
-                asDouble("$bill_gst"),
-              ],
-            },
-            {
-              $toDouble: {
-                $ifNull: ["$last_sales_detail.total_sales_value", 0],
-              },
-            },
+            { $add: [ asDouble("$bill_basic"), asDouble("$bill_gst") ] },
+            { $toDouble: { $ifNull: ["$last_sales_detail.total_sales_value", 0] } },
+          ],
+        },
+        2,
+      ],
+    },
+
+    // ✅ simple: bill_basic - basic_sales
+    remaining_sales_closure: {
+      $round: [
+        {
+          $subtract: [
+            { $toDouble: { $ifNull: ["$bill_basic", 0] } },
+            { $toDouble: { $ifNull: ["$last_sales_detail.basic_sales", 0] } },
           ],
         },
         2,
@@ -537,6 +563,8 @@ const clientHistoryResult = await ProjectModel.aggregate([
     },
   },
 },
+
+
       ],
       
       as: "purchase_orders",
@@ -547,6 +575,9 @@ const clientHistoryResult = await ProjectModel.aggregate([
   { $unwind: { path: "$purchase_orders", preserveNullAndEmptyArrays: false } },
   { $match: { "purchase_orders._id": { $exists: true } } },
   { $sort: { "purchase_orders.createdAt": -1 } },
+  // { $match: { "purchase_orders.remaining_sales_closure": { $gt: 0 } } },
+
+
 
   // --- Vendor lookup ---
   {
@@ -564,6 +595,8 @@ const clientHistoryResult = await ProjectModel.aggregate([
     },
   },
 },
+
+
 { $project: { _vendor: 0 } },
 
         ...(searchRegex
@@ -598,6 +631,8 @@ const clientHistoryResult = await ProjectModel.aggregate([
       bill_basic: "$purchase_orders.bill_basic", // Bill values calculated
       bill_gst: "$purchase_orders.bill_gst",     // Bill values calculated
       total_billed_value: "$purchase_orders.total_billed_value", // Calculated total_billed_value
+      remaining_sales_closure: "$purchase_orders.remaining_sales_closure",
+
 
       // Correct handling of advance_paid with missing values
       advance_paid: {
@@ -659,6 +694,7 @@ const clientHistoryResult = await ProjectModel.aggregate([
           acc.total_remaining_amount += Number(curr.remaining_amount || 0);
            acc.total_sales_value += Number(curr.total_sales_value || 0);
            acc.total_gst += Number (curr.gst || 0);
+           acc.total_remaining_sales_closure += Number (curr.remaining_sales_closure || 0);
         
 
           return acc;
@@ -675,6 +711,7 @@ const clientHistoryResult = await ProjectModel.aggregate([
           total_unbilled_sales: 0,
           total_remaining_amount: 0,
           total_sales_value: 0,
+          total_remaining_sales_closure :0
         }
       );
 
@@ -1601,33 +1638,33 @@ total_adjustment:1,
           total_sales_value: 1,
 
           total_unbilled_sales: 1,
-          balance_with_slnko: {
-  $round: [
-    {
-      $subtract: [
-        {
-          $subtract: [
-            {
-              $subtract: [
-                { $ifNull: ["$netBalance", 0] },
-                { $ifNull: ["$total_sales_value", 0] }
-              ]
-            },
-            { $ifNull: ["$total_unbilled_sales", 0] }
-          ]
-        },
-        {
-          $add: [
-            { $ifNull: ["$advance_left_after_billed", 0] },
-            { $ifNull: ["$total_adjustment", 0] }
-          ]
-        }
-      ],
-    },
-    2
-  ]
-}
-,
+//           balance_with_slnko: {
+//   $round: [
+//     {
+//       $subtract: [
+//         {
+//           $subtract: [
+//             {
+//               $subtract: [
+//                 { $ifNull: ["$netBalance", 0] },
+//                 { $ifNull: ["$total_sales_value", 0] }
+//               ]
+//             },
+//             { $ifNull: ["$total_unbilled_sales", 0] }
+//           ]
+//         },
+//         {
+//           $add: [
+//             { $ifNull: ["$advance_left_after_billed", 0] },
+//             { $ifNull: ["$total_adjustment", 0] }
+//           ]
+//         }
+//       ],
+//     },
+//     2
+//   ]
+// }
+
           //       advance_left_after_billed: {
           //   $round: [
           //     {
@@ -1660,6 +1697,14 @@ const exact_remaining_pay_to_vendor =
     ? (clientMeta?.total_po_with_gst || 0) - (clientMeta?.total_billed_value || 0)
     : (balanceSummary?.total_advance_paid || 0);
 
+    const balance_with_slnko =
+  (balanceSummary?.netBalance || 0) -
+  (balanceSummary?.total_sales_value || 0) -
+  (clientMeta?.total_billed_value || 0) -
+  (remaining_advance_left_after_billed || 0) -
+  (balanceSummary?.total_adjustment || 0);
+
+
     const responseData = {
       projectDetails: {
         customer_name: project.customer,
@@ -1688,7 +1733,8 @@ const exact_remaining_pay_to_vendor =
       ...balanceSummary,
       aggregate_billed_value: clientMeta.total_billed_value || 0,
       remaining_advance_left_after_billed,
-  exact_remaining_pay_to_vendor
+  exact_remaining_pay_to_vendor,
+  balance_with_slnko
 
     };
 
