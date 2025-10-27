@@ -145,6 +145,23 @@ const getAllMaterialCategories = async (req, res) => {
   }
 };
 
+const getAllCategoriesDropdown = async (req, res) => {
+  try {
+    const data = await materialcategoryModel.find({ status: "active" }).lean();
+
+    return res.status(200).json({
+      message: "Fetch Successfully",
+      data,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      err: error.message,
+    });
+  }
+};
+
+
 const namesearchOfMaterialCategories = async (req, res) => {
   try {
     const {
@@ -167,16 +184,16 @@ const namesearchOfMaterialCategories = async (req, res) => {
       status: "active",
       ...(search
         ? {
-            name: {
-              $regex: search.trim().replace(/\s+/g, ".*"),
-              $options: "i",
-            },
-          }
+          name: {
+            $regex: search.trim().replace(/\s+/g, ".*"),
+            $options: "i",
+          },
+        }
         : {}),
     };
 
-    let scopeIds = null;        
-    let allowedIds = null;     
+    let scopeIds = null;
+    let allowedIds = null;
 
     if (prFlag && project_id && mongoose.Types.ObjectId.isValid(project_id)) {
       const scopeDoc = await scopeModel
@@ -294,9 +311,9 @@ const namesearchOfMaterialCategories = async (req, res) => {
     const finalFilter =
       idSet && idSet.length > 0
         ? {
-            ...baseFilter,
-            _id: { $in: idSet.map((id) => new mongoose.Types.ObjectId(id)) },
-          }
+          ...baseFilter,
+          _id: { $in: idSet.map((id) => new mongoose.Types.ObjectId(id)) },
+        }
         : baseFilter;
 
     const projection = { _id: 1, name: 1, description: 1 };
@@ -628,5 +645,6 @@ module.exports = {
   getAllMaterialCategoriesDropdown,
   namesearchOfMaterialCategories,
   searchNameAllCategory,
-  searchNameAllProduct
+  searchNameAllProduct,
+  getAllCategoriesDropdown
 };

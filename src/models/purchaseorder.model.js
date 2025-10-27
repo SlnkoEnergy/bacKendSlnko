@@ -1,7 +1,5 @@
 const { default: mongoose } = require("mongoose");
-const {
-  updatePurchaseRequestStatus,
-} = require("../utils/updatePurchaseRequestStatus");
+const updateStatus = require("../utils/updatestatus.utils");
 
 const salesDetailSchema = new mongoose.Schema(
   {
@@ -17,6 +15,9 @@ const salesDetailSchema = new mongoose.Schema(
       },
     ],
     converted_at: { type: Date, default: Date.now },
+    basic_sales: { type: Number, required: true },
+    gst_on_sales: { type: Number, required: true },
+    sales_invoice:{type: String},
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { _id: false }
@@ -44,6 +45,10 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: String,
     },
     total_bills: {
+      type: Number,
+      default: 0,
+    },
+    total_sales_value: {
       type: Number,
       default: 0,
     },
@@ -93,7 +98,8 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: Number,
     },
     vendor: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Vendor",
     },
     partial_billing: {
       type: String,
@@ -215,7 +221,7 @@ const purchaseOrderSchema = new mongoose.Schema(
 );
 
 purchaseOrderSchema.pre("save", function (next) {
-  updatePurchaseRequestStatus(this, "status_history", "current_status");
+  updateStatus(this, "approval_pending");
   next();
 });
 

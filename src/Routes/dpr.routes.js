@@ -15,26 +15,26 @@ const {
   updateStatusDprTask,
   deleteDprTask,
 } = require("../Controllers/dprtask.controller");
-const jwtMW = require("../middlewares/auth");
+const auth = require("../middlewares/auth.middleware.js");
 
 // DPR Routes
-router.get("/dpr", jwtMW.authentication, getAllDpr);
-router.get("/dpr/:_id", jwtMW.authentication, getDprById);
-router.post("/dpr", jwtMW.authentication, createDpr);
-router.put("/dpr/:_id", jwtMW.authentication, updateDpr);
-router.put("/:_id/updateStatus", jwtMW.authentication, updateDprStatus);
-router.delete("/dpr/:_id", jwtMW.authentication, deleteDpr);
+router.get("/dpr", auth, getAllDpr);
+router.get("/dpr/:_id", auth, getDprById);
+router.post("/dpr", auth, createDpr);
+router.put("/dpr/:_id", auth, updateDpr);
+router.put("/:_id/updateStatus", auth, updateDprStatus);
+router.delete("/dpr/:_id", auth, deleteDpr);
 
 // DPR Task Routes
-router.get("/dpr-task", jwtMW.authentication, getAllDprTasks);
-router.get("/dpr-task/:_id", jwtMW.authentication, getDprTaskById);
-router.post("/dpr-task", jwtMW.authentication, createDprTask);
-router.put("/dpr-task/:_id", jwtMW.authentication, updateDprTask);
+router.get("/dpr-task", auth, getAllDprTasks);
+router.get("/dpr-task/:_id", auth, getDprTaskById);
+router.post("/dpr-task", auth, createDprTask);
+router.put("/dpr-task/:_id", auth, updateDprTask);
 router.put(
   "/:_id/updateStatusDprTask",
-  jwtMW.authentication,
+  auth,
   updateStatusDprTask
 );
-router.delete("/dpr-task/:_id", jwtMW.authentication, deleteDprTask);
+router.delete("/dpr-task/:_id", auth, deleteDprTask);
 
 module.exports = router;

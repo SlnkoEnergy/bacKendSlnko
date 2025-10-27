@@ -1,76 +1,348 @@
 const vendorModells = require("../models/vendor.model");
+const axios = require("axios");
+const FormData = require("form-data");
+const mime = require("mime-types");
+const sharp = require("sharp");
+const purchaseorderModel = require("../models/purchaseorder.model");
+const payRequestModells = require("../models/payRequestModells");
+const { sendNotification } = require("../utils/sendnotification.utils");
+const { sendUsingTemplate } = require("../utils/sendemail.utils");
 
-const addVendor = async function (req, res) {
-  try {
-    let {
-      id,
+const slugify = (str = "") =>
+  String(str)
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
 
-      name,
+async function uploadFiles(files, folderPath) {
+  const uploaded = [];
 
-      Beneficiary_Name,
+  for (const file of files || []) {
+    const origMime =
+      file.mimetype ||
+      mime.lookup(file.originalname) ||
+      "application/octet-stream";
+    const origExt =
+      mime.extension(origMime) ||
+      (file.originalname.split(".").pop() || "").toLowerCase();
 
-      Account_No,
+    let outBuffer = file.buffer;
+    let outExt = origExt;
+    let outMime = origMime;
 
-      Bank_Name,
+    if (origMime.startsWith("image/")) {
+      let target = ["jpeg", "jpg", "png", "webp"].includes(origExt)
+        ? origExt
+        : "jpeg";
+      if (target === "jpg") target = "jpeg";
 
-      IFSC_Code,
-    } = req.body;
+      if (target === "jpeg") {
+        outBuffer = await sharp(outBuffer).jpeg({ quality: 40 }).toBuffer();
+        outExt = "jpg";
+        outMime = "image/jpeg";
+      } else if (target === "png") {
+        outBuffer = await sharp(outBuffer)
+          .png({ compressionLevel: 9 })
+          .toBuffer();
+        outExt = "png";
+        outMime = "image/png";
+      } else if (target === "webp") {
+        outBuffer = await sharp(outBuffer).webp({ quality: 40 }).toBuffer();
+        outExt = "webp";
+        outMime = "image/webp";
+      }
+    }
 
-    const vendorexist = await vendorModells.findOne({
-      name: name,
+    const base = file.originalname.replace(/\.[^/.]+$/, "");
+    const finalName = `${base}.${outExt}`;
+
+    const form = new FormData();
+    form.append("file", outBuffer, {
+      filename: finalName,
+      contentType: outMime,
     });
 
-    if (vendorexist) {
+    const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(
+      folderPath
+    )}`;
+
+    const resp = await axios.post(uploadUrl, form, {
+      headers: {
+        ...form.getHeaders(),
+      },
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+
+    const data = resp.data;
+    const url =
+      Array.isArray(data) && data.length > 0
+        ? data[0]
+        : data.url || data.fileUrl || (data.data && data.data.url) || null;
+
+    if (url) uploaded.push({ name: finalName, url });
+    else console.warn(`No URL returned for ${finalName}`);
+  }
+
+  return uploaded;
+}
+
+// --- Main handler
+const addVendor = async function addVendor(req, res) {
+  try {
+    let data = req.body?.data ?? req.body;
+    if (typeof data === "string") {
+      try {
+        data = JSON.parse(data);
+      } catch (_e) {}
+    }
+    if (!data || typeof data !== "object") {
+      return res.status(400).json({ msg: "Invalid payload." });
+    }
+    const rawName = (data.name || "").trim();
+
+    if (!rawName) {
+      return res.status(400).json({ msg: "Vendor name is required." });
+    }
+
+    const vendorExist = await vendorModells.findOne({ name: rawName });
+    if (vendorExist) {
       return res.status(400).json({ msg: "Vendor already exists!" });
     }
-    const add_vendor = new vendorModells({
-      id,
-      name,
 
-      Beneficiary_Name,
+    const safeName = slugify(rawName);
+    const folderPath = `vendor/${safeName}`;
 
-      Account_No,
+    let profileImageUrl = "";
+    if (req.files && req.files.length > 0) {
+      const uploaded = await uploadFiles(req.files, folderPath);
+      profileImageUrl = uploaded?.[0]?.url || "";
+    }
 
-      Bank_Name,
+    const vendorDoc = {
+      ...data,
+      name: rawName,
+      profile_image: profileImageUrl || data.profile_image || "",
+    };
 
-      IFSC_Code,
+    const emailPayload = {
+      vendor_name: rawName,
+      vendor_email: data.contact_details?.email || "",
+      contact_phone: data.contact_details?.phone || "",
+      account_number: data.Account_Number || "",
+      bank_name: data.Bank_Name || "",
+      ifsc_code: data.IFSC_Code || "",
+      beneficiary_name: data.Beneficiary_Name || "",
+      user_id: req.user?.userId || "",
+      name_to_send: [rawName],
+      tags: ["vendor"],
+    };
+
+    const vendor = new vendorModells(vendorDoc);
+    await vendor.save();
+
+    setImmediate(() => {
+      sendUsingTemplate(
+        "vendor-onboarding-email",
+        emailPayload,
+        { sendNotification },
+        { strict: false }
+      ).catch((e) =>
+        console.error("[utrUpdate] email send error:", e?.message || e)
+      );
     });
 
-    // Save the record to the database
-    await add_vendor.save();
-
-    // Send a success response
     return res.status(200).json({
       msg: "Vendor added successfully",
-      data: add_vendor,
+      data: vendor,
     });
   } catch (error) {
+    console.error("addVendor error:", error);
     res.status(400).json({
-      msg: "Error addVendor project",
+      msg: "Internal Server Error",
       error: error.message,
-      validationErrors: error.errors, // Show validation errors if any
     });
   }
 };
-
 // Get all vendors
 const getVendor = async function (req, res) {
   let data = await vendorModells.find();
   res.status(200).json({ msg: "all vendor", data });
 };
 
-// Update vendor
+const getAllVendors = async (req, res) => {
+  try {
+    const { page, limit, search } = req.query;
+    const pageNumber = parseInt(page) || 1;
+    const limitNumber = parseInt(limit) || 10;
+    const skip = (pageNumber - 1) * limitNumber;
+    const query = search
+      ? {
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { "contact_details.email": { $regex: search, $options: "i" } },
+            { "contact_details.phone": { $regex: search, $options: "i" } },
+          ],
+        }
+      : {};
+    const total = await vendorModells.countDocuments(query);
+    const vendors = await vendorModells
+      .find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNumber);
+    res.status(200).json({
+      msg: "All vendors",
+      data: vendors,
+      pagination: {
+        total,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(total / limitNumber),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ msg: "Server error", error: error.message });
+  }
+};
 
+const escapeRegExp = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const getVendorById = async function (req, res) {
+  try {
+    const id = req.params.id;
+    const vendor = await vendorModells.findById(id).lean();
+
+    if (!vendor) {
+      return res.status(404).json({ msg: "Vendor not found" });
+    }
+
+    const vendorName = (vendor.name || "").trim();
+    if (!vendorName) {
+      return res.status(200).json({
+        msg: "Vendor fetched successfully (no name to aggregate by)",
+        data: vendor,
+        totals: { count: 0, totalPOValue: 0, totalAmountPaid: 0 },
+      });
+    }
+
+    const [totals = { count: 0, totalPOValue: 0, totalAmountPaid: 0 }] =
+      await payRequestModells.aggregate([
+        // match vendor by name (case-insensitive exact)
+        {
+          $match: {
+            vendor: {
+              $regex: new RegExp(`^${escapeRegExp(vendorName)}$`, "i"),
+            },
+          },
+        },
+        // sanitize & parse numbers safely
+        {
+          $addFields: {
+            po_value_sanitized: {
+              $replaceAll: {
+                input: { $toString: { $ifNull: ["$po_value", "0"] } },
+                find: ",",
+                replacement: "",
+              },
+            },
+            amount_paid_sanitized: {
+              $replaceAll: {
+                input: { $toString: { $ifNull: ["$amount_paid", "0"] } },
+                find: ",",
+                replacement: "",
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            po_value_num: {
+              $convert: {
+                input: "$po_value_sanitized",
+                to: "double",
+                onError: 0,
+                onNull: 0,
+              },
+            },
+            amount_paid_num: {
+              $convert: {
+                input: "$amount_paid_sanitized",
+                to: "double",
+                onError: 0,
+                onNull: 0,
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            totalPOValue: { $sum: "$po_value_num" },
+            totalAmountPaid: { $sum: "$amount_paid_num" },
+          },
+        },
+        { $project: { _id: 0, count: 1, totalPOValue: 1, totalAmountPaid: 1 } },
+      ]);
+
+    return res.status(200).json({
+      msg: "Vendor fetched successfully",
+      data: vendor,
+      totals,
+    });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ msg: "Internal Server error", error: error.message });
+  }
+};
+
+// Update vendor
 const updateVendor = async function (req, res) {
-  let _id = req.params._id;
+  let id = req.params.id;
   let updateData = req.body;
   try {
-    let update = await vendorModells.findByIdAndUpdate(_id, updateData, {
+    let update = await vendorModells.findByIdAndUpdate(id, updateData, {
       new: true,
     });
-
+    const vendor = await vendorModells.findById(id).lean();
     if (!update) {
       return res.status(404).json({ msg: "Vendor not found" });
+    }
+
+    const sendEmail =
+      updateData?.Account_No ||
+      updateData?.IFSC_Code ||
+      updateData?.Bank_Name ||
+      updateData?.Beneficiary_Name;
+
+    const emailPayload = {
+      vendor_name: vendor.name || "",
+      vendor_email: vendor.contact_details?.email || "",
+      account_number: updateData?.Account_No || "",
+      bank_name: updateData?.Bank_Name || "",
+      ifsc_code: updateData?.IFSC_Code || "",
+      beneficiary_name: updateData?.Beneficiary_Name || "",
+      contact_phone: vendor.contact_details?.phone || "",
+      user_id: req.user?.userId || "",
+      name_to_send: [vendor.name || ""],
+      tags: ["vendor"],
+    };
+
+    if (sendEmail && emailPayload) {
+      setImmediate(() => {
+        sendUsingTemplate(
+          "vendor-update-email",
+          emailPayload,
+          { sendNotification },
+          { strict: false }
+        ).catch((e) =>
+          console.error("[vendorUpdate] email send error:", e?.message || e)
+        );
+      });
     }
 
     res.status(200).json({
@@ -78,21 +350,25 @@ const updateVendor = async function (req, res) {
       data: update,
     });
   } catch (error) {
-    res.status(400).json({ msg: "Server error", error: error.message });
+    res
+      .status(400)
+      .json({ msg: "Internal Server error", error: error.message });
   }
 };
 
 // Delete Vendor
 const deleteVendor = async function (req, res) {
-  let _id = req.params._id;
+  let id = req.params.id;
   try {
-    let deleted = await vendorModells.findByIdAndDelete(_id);
+    let deleted = await vendorModells.findByIdAndDelete(id);
     if (!deleted) {
       return res.status(404).json({ msg: "Vendor not found" });
     }
     res.status(200).json({ msg: "Vendor deleted successfully" });
   } catch (error) {
-    res.status(400).json({ msg: "Server error", error: error.message });
+    res
+      .status(400)
+      .json({ msg: " Internal Server error", error: error.message });
   }
 };
 
@@ -161,11 +437,72 @@ const getVendorNameSearch = async (req, res) => {
   }
 };
 
+const norm = (s) =>
+  String(s || "")
+    .trim()
+    .replace(/\s+/g, " ") // collapse spaces
+    .toLowerCase();
+
+const changeVendorNametoObjectIdInPO = async (req, res) => {
+  try {
+    const vendors = await vendorModells.find({}, { name: 1 }).lean();
+    const nameToId = new Map();
+    for (const v of vendors) nameToId.set(norm(v.name), v._id);
+
+    const ops = [];
+    for (const [nameNorm, _id] of nameToId.entries()) {
+      ops.push({
+        updateMany: {
+          filter: {
+            $expr: {
+              $and: [
+                { $eq: [{ $type: "$vendor" }, "string"] },
+                {
+                  $eq: [
+                    { $toLower: { $trim: { input: "$vendor" } } },
+                    nameNorm,
+                  ],
+                },
+              ],
+            },
+          },
+          update: { $set: { vendor: _id } },
+        },
+      });
+    }
+
+    if (ops.length) {
+      const result = await purchaseorderModel.bulkWrite(ops, {
+        ordered: false,
+      });
+      console.log("Bulk update result:", result);
+    }
+
+    const stillStrings = await purchaseorderModel.aggregate([
+      { $match: { $expr: { $eq: [{ $type: "$vendor" }, "string"] } } },
+      { $group: { _id: "$vendor", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 50 },
+    ]);
+
+    return res.status(200).json({
+      msg: "Vendor names updated to ObjectId in Purchase Orders",
+      remaining_string_vendors_top50: stillStrings,
+    });
+  } catch (error) {
+    console.error("Migration error:", error);
+    return res.status(500).json({ msg: "Server error", error: error.message });
+  }
+};
+//
 module.exports = {
   addVendor,
   getVendor,
+  getAllVendors,
+  getVendorById,
   updateVendor,
   deleteVendor,
   getVendorDropwdown,
   getVendorNameSearch,
+  changeVendorNametoObjectIdInPO,
 };

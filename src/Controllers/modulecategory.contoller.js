@@ -7,7 +7,7 @@ const mongoose = require("mongoose");
 const handoversheetModells = require("../models/handoversheet.model");
 const projectModells = require("../models/project.model");
 const userModells = require("../models/user.model");
-const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const { sendNotification } = require("../utils/sendnotification.utils");
 
 const createModuleCategory = async (req, res) => {
   try {
@@ -470,7 +470,7 @@ const updateModuleCategoryStatus = async (req, res) => {
       }
 
       setImmediate(() => {
-        getnovuNotification(workflow, senders, data).catch(err =>
+        sendNotification(workflow, senders, data).catch(err =>
           console.error("Notification error:", err)
         );
       });

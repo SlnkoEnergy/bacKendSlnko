@@ -17,7 +17,7 @@ const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
 const userModells = require("../models/user.model");
-const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const { sendNotification } = require("../utils/sendnotification.utils");
 const inspectionModel = require("../models/inspection.model");
 const projectModel = require("../models/project.model");
 const PohistoryModel = require("../models/Pohistory.model");
@@ -47,7 +47,6 @@ const toNum = (expr) => ({
   },
 });
 
-// --- Pipeline stays same ---
 const aggregationPipeline = [
   {
     $lookup: {
@@ -574,10 +573,10 @@ const addPo = async function (req, res) {
       newPO,
     });
   } catch (error) {
-    console.error("addPo error:", error);
-    res
-      .status(500)
-      .send({ message: "An error occurred while processing your request." });
+    res.status(500).send({
+      message: "An error occurred while processing your request.",
+      error: error.message,
+    });
   }
 };
 
@@ -851,13 +850,31 @@ const getPOByPONumber = async (req, res) => {
     const poDoc = await purchaseOrderModells
       .findOne(query)
       .populate("submitted_By", "_id name")
+      .populate("vendor", "_id name")
       .lean();
 
     if (!poDoc) {
       return res.status(404).json({ msg: "Purchase Order not found" });
     }
 
-    // Handle both `item` and `items`
+    let vendor_id = "";
+    let vendor_name = "";
+
+    if (poDoc.vendor && typeof poDoc.vendor === "object" && poDoc.vendor._id) {
+      vendor_id = String(poDoc.vendor._id);
+      vendor_name = poDoc.vendor.name || "";
+    } else if (poDoc.vendor && mongoose.isValidObjectId(poDoc.vendor)) {
+      const v = await vendorModells
+        .findById(poDoc.vendor)
+        .select("_id name")
+        .lean();
+      vendor_id = v?._id ? String(v._id) : String(poDoc.vendor);
+      vendor_name = v?.name || "";
+    } else if (typeof poDoc.vendor === "string") {
+      vendor_name = poDoc.vendor;
+      if (poDoc.vendor_id) vendor_id = String(poDoc.vendor_id);
+    }
+
     const itemsArr = Array.isArray(poDoc?.items)
       ? poDoc.items
       : Array.isArray(poDoc?.item)
@@ -881,7 +898,6 @@ const getPOByPONumber = async (req, res) => {
         }
       }
 
-      // Fetch missing category names
       const catDocs = catIdSet.size
         ? await materialCategoryModells
             .find({ _id: { $in: Array.from(catIdSet) } })
@@ -910,52 +926,14 @@ const getPOByPONumber = async (req, res) => {
       if (Array.isArray(poDoc.item)) poDoc.item = mappedItems;
     }
 
-    const catIdSet = new Set();
-    for (const it of itemsArr) {
-      const cat = it?.category;
-      if (!cat) continue;
-
-      if (
-        typeof cat === "object" &&
-        cat?._id &&
-        mongoose.isValidObjectId(cat._id)
-      ) {
-        catIdSet.add(String(cat._id));
-      } else if (mongoose.isValidObjectId(cat)) {
-        catIdSet.add(String(cat));
-      }
-    }
-
-    // Fetch missing category names
-    const catDocs = catIdSet.size
-      ? await materialCategoryModells
-          .find({ _id: { $in: Array.from(catIdSet) } })
-          .select({ name: 1 })
-          .lean()
-      : [];
-
-    const catMap = new Map(
-      catDocs.map((c) => [String(c._id), { _id: c._id, name: c.name }])
-    );
-
-    const mappedItems = itemsArr.map((it) => {
-      const cat = it?.category;
-      if (cat && typeof cat === "object" && cat._id) {
-        const key = String(cat._id);
-        return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
-      }
-      if (cat && mongoose.isValidObjectId(cat)) {
-        const key = String(cat);
-        return catMap.has(key) ? { ...it, category: catMap.get(key) } : it;
-      }
-      return it;
-    });
     const inspectionCount = await inspectionModel.countDocuments({
       po_number: poDoc.po_number,
     });
 
     const updatedPO = {
       ...poDoc,
+      vendor_id,
+      vendor: vendor_name,
       inspectionCount,
     };
 
@@ -979,10 +957,8 @@ const generatePurchaseOrderPdf = async (req, res) => {
       return res.status(400).json({ msg: "po number or id is required" });
     }
 
-    // Build query
     let query = {};
     if (po_number && _id) {
-      // If you want BOTH to match, use $and instead of $or
       query = {
         $or: [
           { po_number },
@@ -1003,10 +979,9 @@ const generatePurchaseOrderPdf = async (req, res) => {
       };
     }
 
-    // Fetch the PO (await!)
     const doc = await purchaseOrderModells
       .findOne(query)
-      .select("item date po_number vendor p_id _id") // include what you need
+      .select("item date po_number vendor p_id _id")
       .lean()
       .exec();
 
@@ -1014,7 +989,7 @@ const generatePurchaseOrderPdf = async (req, res) => {
       subject_type: "purchase_order",
       subject_id: String(doc._id),
       event_type: "note",
-      message: { $regex: /^Payment Terms & Conditions/i }, // starts with, case-insensitive
+      message: { $regex: /^Payment Terms & Conditions/i },
     })
       .select("message")
       .lean();
@@ -1023,7 +998,6 @@ const generatePurchaseOrderPdf = async (req, res) => {
       return res.status(404).json({ msg: "Purchase order not found" });
     }
 
-    // Map DB items -> generator's expected shape
     const Purchase = (doc.item || []).map((it) => {
       const qty = Number(it?.quantity) || 0;
       const unit = Number(it?.cost) || 0;
@@ -1035,8 +1009,8 @@ const generatePurchaseOrderPdf = async (req, res) => {
         make: it?.make || "",
         quantity: qty,
         unit_price: unit,
-        taxes: taxPct, // percent
-        amount: qty * unit + (qty * unit * taxPct) / 100, // base amount
+        taxes: taxPct,
+        amount: qty * unit + (qty * unit * taxPct) / 100,
       };
     });
 
@@ -1131,115 +1105,147 @@ const getallpodetail = async function (req, res) {
   try {
     const { po_number } = req.query;
 
-    // If no po_number, return list of POs
     if (!po_number) {
       const poList = await purchaseOrderModells
         .find({}, { po_number: 1, _id: 0 })
         .lean();
 
       return res.status(200).json({
-        po_numbers: poList.map((po) => po.po_number),
+        po_numbers: (poList || []).map((po) => po.po_number),
       });
     }
 
-    // Load PO
     const selectedPo = await purchaseOrderModells.findOne({ po_number }).lean();
     if (!selectedPo) {
       return res.status(404).json({ message: "PO not found" });
     }
 
-    // Total po_value (handles string/number)
     const poAggregate = await purchaseOrderModells.aggregate([
       { $match: { po_number } },
       {
         $group: {
           _id: "$po_number",
-          total_po_value: { $sum: { $toDouble: "$po_value" } },
+          total_po_value: {
+            $sum: {
+              $convert: {
+                input: "$po_value",
+                to: "double",
+                onError: 0,
+                onNull: 0,
+              },
+            },
+          },
         },
       },
     ]);
     const po_value = poAggregate.length ? poAggregate[0].total_po_value : 0;
 
-    // ---- Resolve item names from MaterialCategory ----
-    // Collect category ObjectIds from item[]
     const categoryIds = [];
     if (Array.isArray(selectedPo.item)) {
       for (const it of selectedPo.item) {
         const id = it?.category;
-        if (id) {
-          if (id instanceof mongoose.Types.ObjectId) {
-            categoryIds.push(id);
-          } else if (
-            typeof id === "string" &&
-            mongoose.Types.ObjectId.isValid(id)
-          ) {
-            categoryIds.push(new mongoose.Types.ObjectId(id));
-          }
+        if (!id) continue;
+
+        if (id instanceof mongoose.Types.ObjectId) {
+          categoryIds.push(id);
+        } else if (
+          typeof id === "string" &&
+          mongoose.Types.ObjectId.isValid(id)
+        ) {
+          categoryIds.push(new mongoose.Types.ObjectId(id));
         }
       }
     }
 
-    // Find category names for collected ids
     let categoryNameById = new Map();
     if (categoryIds.length) {
       const cats = await materialCategoryModells
         .find({ _id: { $in: categoryIds } }, { name: 1 })
         .lean();
+
       for (const c of cats) {
-        if (c?._id && c?.name) categoryNameById.set(String(c._id), c.name);
+        if (c?._id) categoryNameById.set(String(c._id), c?.name || "");
       }
     }
 
-    // Build item string: prefer category.name, else product_name, else ""
     const itemNames = [];
     if (Array.isArray(selectedPo.item)) {
       for (const it of selectedPo.item) {
         let name = "";
         const catId = it?.category;
         if (catId) {
-          const key = String(
+          const key =
             catId instanceof mongoose.Types.ObjectId
-              ? catId
-              : new mongoose.Types.ObjectId(catId)
-          );
-          name = categoryNameById.get(key) || "";
+              ? String(catId)
+              : mongoose.Types.ObjectId.isValid(catId)
+                ? String(new mongoose.Types.ObjectId(catId))
+                : null;
+
+          if (key) name = categoryNameById.get(key) || "";
         }
         if (!name && typeof it?.product_name === "string") {
-          name = it.product_name.trim();
+          const pn = it.product_name.trim();
+          if (pn) name = pn;
         }
         if (name) itemNames.push(name);
       }
     }
-    // Remove duplicates while preserving order
+
     const seen = new Set();
     const deduped = itemNames.filter((n) =>
       seen.has(n) ? false : (seen.add(n), true)
     );
     const itemName = deduped.join(", ");
 
-    // ---- Vendor details (unchanged) ----
     let vendorDetails = {};
-    if (selectedPo.vendor) {
-      const matchedVendor = await vendorModells
-        .findOne({ name: selectedPo.vendor })
-        .lean();
-      if (matchedVendor) {
+    const vendorId = selectedPo.vendor; // expected to be vendor _id now
+    if (vendorId) {
+      let vendorDoc = null;
+
+      // Accept both ObjectId and string forms
+      if (vendorId instanceof mongoose.Types.ObjectId) {
+        vendorDoc = await vendorModells.findById(vendorId).lean();
+      } else if (
+        typeof vendorId === "string" &&
+        mongoose.Types.ObjectId.isValid(vendorId)
+      ) {
+        vendorDoc = await vendorModells
+          .findById(new mongoose.Types.ObjectId(vendorId))
+          .lean();
+      } else {
+        // Fallback (legacy data: stored vendor name)
+        vendorDoc = await vendorModells.findOne({ name: vendorId }).lean();
+      }
+
+      if (vendorDoc) {
         vendorDetails = {
-          benificiary: matchedVendor.name,
-          acc_number: matchedVendor.Account_No,
-          ifsc: matchedVendor.IFSC_Code,
-          branch: matchedVendor.Bank_Name,
+          vendor_id: String(vendorDoc._id),
+          benificiary: vendorDoc.name || "",
+          acc_number: vendorDoc.Account_No || vendorDoc.account_no || "",
+          ifsc: vendorDoc.IFSC_Code || vendorDoc.ifsc || "",
+          // "branch" previously mapped to Bank_Name in your code; keep both just in case
+          branch:
+            vendorDoc.Branch || vendorDoc.branch || vendorDoc.Bank_Name || "",
+          bank_name: vendorDoc.Bank_Name || "",
         };
       }
     }
 
-    // ---- Approved payments sum ----
     const approvedPayments = await payRequestModells.aggregate([
       { $match: { po_number, approved: "Approved" } },
       {
         $group: {
           _id: "$po_number",
-          totalAdvancePaid: { $sum: { $toDouble: "$amount_paid" } },
+          totalAdvancePaid: {
+            $sum: {
+              $convert: {
+                input: "$amount_paid",
+                to: "double",
+                onError: 0,
+                onNull: 0,
+              },
+            },
+          },
         },
       },
     ]);
@@ -1249,16 +1255,16 @@ const getallpodetail = async function (req, res) {
 
     const po_balance = po_value - totalAdvancePaid;
 
-    // ---- Final response (same keys) ----
+    // 7) ---- Final response ----
     return res.status(200).json({
       p_id: selectedPo.p_id,
       po_number: selectedPo.po_number,
       po_value,
-      vendor: selectedPo.vendor,
-      item: itemName, // resolved MaterialCategory names (fallback to product_name)
+      vendor: vendorDetails.benificiary || selectedPo.vendor, // human friendly
+      item: itemName,
       total_advance_paid: totalAdvancePaid,
       po_balance,
-      ...vendorDetails,
+      ...vendorDetails, // includes vendor_id, acc_number, ifsc, branch, bank_name
     });
   } catch (err) {
     console.error("Error fetching purchase order:", err);
@@ -1286,9 +1292,19 @@ const getPaginatedPo = async (req, res) => {
     const pageSize = parseInt(req.query.pageSize, 10) || 10;
     const skip = (page - 1) * pageSize;
 
-    const search = (req.query.search || "").trim();
+    const search = (req.query.search || "").trim(); // unified search term
     const status = (req.query.status || "").trim();
     const filter = (req.query.filter || "").trim();
+
+    // vendor_id (optional)
+    const vendorIdParam = (req.query.vendor_id || "").trim();
+    let vendorObjectId = null;
+    if (vendorIdParam) {
+      if (!mongoose.isValidObjectId(vendorIdParam)) {
+        return res.status(400).json({ msg: "Invalid vendor_id" });
+      }
+      vendorObjectId = new mongoose.Types.ObjectId(vendorIdParam);
+    }
 
     const parseCustomDate = (dateStr) => {
       if (!dateStr) return null;
@@ -1309,18 +1325,8 @@ const getPaginatedPo = async (req, res) => {
         : "";
     const itemSearchRegex = itemSearch ? new RegExp(itemSearch, "i") : null;
 
+    // Build AND clauses for specific id filters (NOT the global "search")
     const andClauses = [];
-
-    if (search) {
-      const searchRegex = new RegExp(search, "i");
-      andClauses.push({
-        $or: [
-          { p_id: { $regex: searchRegex } },
-          { po_number: { $regex: searchRegex } },
-          { vendor: { $regex: searchRegex } },
-        ],
-      });
-    }
 
     if (req.query.item_id) {
       const idStr = String(req.query.item_id);
@@ -1338,10 +1344,10 @@ const getPaginatedPo = async (req, res) => {
       andClauses.push({ "pr.pr_id": maybeId });
     }
 
+    // Base equality/range filters (dates use computed dateObj)
     const baseEq = {
       ...(req.query.project_id && { p_id: req.query.project_id }),
 
-      // created date range uses dateObj (computed below)
       ...(createdFrom || createdTo
         ? {
             dateObj: {
@@ -1401,7 +1407,7 @@ const getPaginatedPo = async (req, res) => {
           baseEq["current_status.status"] = "delivered";
           break;
         case "Short Quantity":
-          matchStage["current_status.status"] = "short_quantity";
+          baseEq["current_status.status"] = "short_quantity";
           break;
         case "Partially Delivered":
           baseEq["current_status.status"] = "partially_delivered";
@@ -1415,13 +1421,12 @@ const getPaginatedPo = async (req, res) => {
       ? { $and: andClauses, ...baseEq }
       : baseEq;
 
-    // Reusable first stage: safe compute dateObj from possibly empty/invalid strings
-    const safeDateObjStage = {
+    // First stage: safely compute dateObj and also create a consistent string for PO number
+    const safeDateObjAndPoStrStage = {
       $addFields: {
         dateObj: {
           $switch: {
             branches: [
-              // Parse only when it's a non-empty string
               {
                 case: {
                   $and: [
@@ -1432,24 +1437,86 @@ const getPaginatedPo = async (req, res) => {
                 then: {
                   $dateFromString: {
                     dateString: "$date",
-                    format: "%Y-%m-%d", // change if your stored format differs
+                    format: "%Y-%m-%d",
                     onError: null,
                     onNull: null,
                   },
                 },
               },
-              // Already a BSON Date
               { case: { $eq: [{ $type: "$date" }, "date"] }, then: "$date" },
             ],
             default: null,
           },
         },
+        po_number_str: { $toString: "$po_number" }, // for stable regex search
       },
     };
 
-    const pipeline = [
-      safeDateObjStage,
+    // Vendor resolution stages (support vendor stored as ObjectId or string)
+    const vendorResolveStages = [
+      {
+        $addFields: {
+          vendor_obj_id: {
+            $cond: [
+              { $eq: [{ $type: "$vendor" }, "objectId"] },
+              "$vendor",
+              null,
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "vendors",
+          localField: "vendor_obj_id",
+          foreignField: "_id",
+          as: "vendorDoc",
+        },
+      },
+      {
+        $addFields: {
+          vendor_name: {
+            $cond: [
+              { $gt: [{ $size: "$vendorDoc" }, 0] },
+              { $arrayElemAt: ["$vendorDoc.name", 0] },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$vendor" }, "string"] },
+                  "$vendor",
+                  "",
+                ],
+              },
+            ],
+          },
+        },
+      },
+      { $project: { vendorDoc: 0 } },
+    ];
 
+    // Optional vendor_id filter (after vendor_obj_id is added)
+    const vendorIdMatchStage = vendorObjectId
+      ? [{ $match: { vendor_obj_id: vendorObjectId } }]
+      : [];
+
+    // Single, unified search across p_id, po_number_str, vendor_name
+    const makeSearchStage = (s) => {
+      if (!s) return [];
+      const re = new RegExp(s, "i");
+      return [
+        {
+          $match: {
+            $or: [
+              { p_id: { $regex: re } },
+              { po_number_str: { $regex: re } },
+              { vendor_name: { $regex: re } },
+            ],
+          },
+        },
+      ];
+    };
+
+    const pipeline = [
+      safeDateObjAndPoStrStage,
       { $match: preMatch },
 
       {
@@ -1472,7 +1539,6 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-
       {
         $addFields: {
           partial_billing: {
@@ -1484,7 +1550,6 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
-
       ...(status ? [{ $match: { partial_billing: status } }] : []),
 
       {
@@ -1512,9 +1577,14 @@ const getPaginatedPo = async (req, res) => {
           ]
         : []),
 
+      ...vendorResolveStages,
+      ...vendorIdMatchStage,
+
+      ...makeSearchStage(search), // unified search here (AFTER vendor_name exists)
+
       {
         $addFields: {
-          po_number: { $toString: "$po_number" },
+          // keep numeric conversions for projection
           po_value: {
             $convert: {
               input: "$po_value",
@@ -1543,7 +1613,8 @@ const getPaginatedPo = async (req, res) => {
           _id: 1,
           po_number: 1,
           p_id: 1,
-          vendor: 1,
+          vendor: "$vendor_name",
+          vendor_id: "$vendor_obj_id",
           date: 1,
           po_value: 1,
           po_basic: 1,
@@ -1565,8 +1636,9 @@ const getPaginatedPo = async (req, res) => {
     ];
 
     const countPipeline = [
-      safeDateObjStage,
+      safeDateObjAndPoStrStage,
       { $match: preMatch },
+
       {
         $addFields: {
           total_billed_num: {
@@ -1598,6 +1670,8 @@ const getPaginatedPo = async (req, res) => {
           },
         },
       },
+      ...(status ? [{ $match: { partial_billing: status } }] : []),
+
       {
         $lookup: {
           from: "materialcategories",
@@ -1622,7 +1696,12 @@ const getPaginatedPo = async (req, res) => {
             },
           ]
         : []),
-      ...(status ? [{ $match: { partial_billing: status } }] : []),
+
+      ...vendorResolveStages,
+      ...vendorIdMatchStage,
+
+      ...makeSearchStage(search),
+
       { $count: "total" },
     ];
 
@@ -1672,7 +1751,6 @@ const getExportPo = async (req, res) => {
               .filter(Boolean)
           : [];
 
-    // 1) Selected IDs (if any)
     const rawIds = [
       ...toArray(req.body?.purchaseorders),
       ...toArray(req.query?.purchaseorders),
@@ -2151,7 +2229,7 @@ const getExportPo = async (req, res) => {
 
     const parser = new Parser({ fields, quote: '"', withBOM: false });
     const csvBody = parser.parse(rows);
-    const csv = "\uFEFF" + csvBody; // BOM for Excel
+    const csv = "\uFEFF" + csvBody;
 
     const fileName = `PO_Items_Export_${new Date().toISOString().slice(0, 10)}.csv`;
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -2168,27 +2246,64 @@ const getExportPo = async (req, res) => {
 const updateSalesPO = async (req, res) => {
   try {
     const { id } = req.params;
-    const { remarks } = req.body || {};
+    const { remarks, basic_sales, sales_invoice, po_number } = req.body || {};
 
-    if (!id) return res.status(400).json({ message: "_id is required" });
-    if (!remarks || String(remarks).trim() === "") {
+    if (!id && !po_number) {
       return res
         .status(400)
-        .json({ message: "Remarks are required to update Sales PO" });
+        .json({ message: "Provide either _id (param) or po_number (body)." });
     }
 
-    const po = await purchaseOrderModells.findById(id);
-    if (!po) return res.status(404).json({ message: "PO not found" });
-    // if (!po.isSales)
-    //   return res.status(400).json({ message: "This PO is not a Sales PO" });
+    if (!remarks?.trim()) {
+      return res
+        .status(400)
+        .json({ message: "Remarks are required to update Sales PO." });
+    }
 
+    const basic = Number(basic_sales);
+    const invoice = String(sales_invoice || "").trim();
+
+    if (!Number.isFinite(basic))
+      return res.status(400).json({ message: "basic_sales must be a number" });
+    if (!invoice)
+      return res.status(400).json({ message: "Sales Invoice is mandatory" });
+
+   
+    const po = id
+      ? await purchaseOrderModells.findById(id)
+      : await purchaseOrderModells.findOne({
+          po_number: String(po_number).trim(),
+        });
+
+    if (!po) return res.status(404).json({ message: "PO not found" });
+
+  
+    const project = await projectModel.findById(po.project_id, {
+      billing_type: 1,
+    });
+
+    const billingType = project?.billing_type || "Individual";
+
+  
+    const gstRate = billingType === "Composite" ? 0.089 : 0.18;
+    const gst = Number((basic * gstRate).toFixed(2));
+
+    const poValue = Number(po.po_value) || 0;
+    const alreadySales = Number(po.total_sales_value) || 0;
+    const entryTotal = basic + gst;
+
+   
     const safePo = (s) =>
       String(s || "")
         .trim()
         .replace(/[\/\s]+/g, "_");
-    const folderPath = `Account/PO/${safePo(po.po_number)}`;
-    const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
 
+    const folderPath = `Account/PO/${safePo(po.po_number)}`;
+    const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(
+      folderPath
+    )}`;
+
+    
     const files = req.file
       ? [req.file]
       : Array.isArray(req.files)
@@ -2210,38 +2325,37 @@ const updateSalesPO = async (req, res) => {
         file.buffer || (file.path ? fs.readFileSync(file.path) : null);
       if (!buffer) continue;
 
+     
       if (mimeType.startsWith("image/")) {
         try {
           const ext = mime.extension(mimeType);
-          if (ext === "jpeg" || ext === "jpg")
-            buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+          const sharpInst = sharp(buffer);
+          if (["jpeg", "jpg"].includes(ext))
+            buffer = await sharpInst.jpeg({ quality: 40 }).toBuffer();
           else if (ext === "png")
-            buffer = await sharp(buffer).png({ quality: 40 }).toBuffer();
+            buffer = await sharpInst.png({ quality: 40 }).toBuffer();
           else if (ext === "webp")
-            buffer = await sharp(buffer).webp({ quality: 40 }).toBuffer();
-          else buffer = await sharp(buffer).jpeg({ quality: 40 }).toBuffer();
+            buffer = await sharpInst.webp({ quality: 40 }).toBuffer();
+          else buffer = await sharpInst.jpeg({ quality: 40 }).toBuffer();
         } catch (e) {
-          console.warn(
-            "Image compression failed, using original buffer:",
-            e?.message
-          );
+          console.warn("Image compression failed, using original:", e.message);
         }
       }
 
-      const form = new FormData();
-      form.append("file", buffer, {
-        filename: attachment_name,
-        contentType: mimeType,
-      });
-
       try {
+        const form = new FormData();
+        form.append("file", buffer, {
+          filename: attachment_name,
+          contentType: mimeType,
+        });
+
         const resp = await axios.post(uploadUrl, form, {
           headers: form.getHeaders(),
           maxContentLength: Infinity,
           maxBodyLength: Infinity,
         });
 
-        const data = resp?.data || null;
+        const data = resp?.data || {};
         const url =
           (Array.isArray(data) &&
             (typeof data[0] === "string" ? data[0] : data[0]?.url)) ||
@@ -2250,11 +2364,9 @@ const updateSalesPO = async (req, res) => {
           data?.data?.url ||
           null;
 
-        if (url) {
+        if (url)
           uploadedAttachments.push({ attachment_url: url, attachment_name });
-        } else {
-          console.warn(`No URL returned for ${attachment_name}`);
-        }
+        else console.warn(`No URL returned for ${attachment_name}`);
       } catch (e) {
         console.error(
           "Upload failed:",
@@ -2265,26 +2377,41 @@ const updateSalesPO = async (req, res) => {
       }
     }
 
+ 
     const userId = req.user?.userId || req.user?._id || null;
     if (!Array.isArray(po.sales_Details)) po.sales_Details = [];
+
     po.sales_Details.push({
-      remarks: String(remarks).trim(),
+      remarks: remarks.trim(),
       attachments: uploadedAttachments,
       converted_at: new Date(),
+      basic_sales: basic,
+      gst_on_sales: gst,
+      sales_invoice: invoice,
       user_id: userId,
     });
 
     po.isSales = true;
+    po.total_sales_value = alreadySales + entryTotal;
 
     po.markModified("sales_Details");
-
     await po.save();
 
     return res.status(200).json({
-      message: uploadedAttachments.length
-        ? "Sales PO updated with attachments (isSales=true)"
-        : "Sales PO updated (remarks only, isSales=true)",
-      data: po,
+      message:
+        uploadedAttachments.length > 0
+          ? "Sales PO updated with attachments (isSales = true)"
+          : "Sales PO updated successfully (isSales = true)",
+      data: {
+        po_number: po.po_number,
+        billing_type: billingType,
+        gst_rate_applied: `${(gstRate * 100).toFixed(1)}%`,
+        po_value: poValue,
+        basic_sales: basic,
+        gst_on_sales: gst,
+        total_sales_value: po.total_sales_value,
+        attachments: uploadedAttachments,
+      },
     });
   } catch (error) {
     console.error("Error updating Sales PO:", error);
@@ -2293,6 +2420,7 @@ const updateSalesPO = async (req, res) => {
       .json({ message: "Error updating Sales PO", error: error.message });
   }
 };
+
 //Move-Recovery
 const moverecovery = async function (req, res) {
   const { _id } = req.params._id;
@@ -2590,7 +2718,7 @@ const updateStatusPO = async (req, res) => {
         };
 
         setImmediate(() => {
-          getnovuNotification(workflow, senders, data).catch((err) =>
+          sendNotification(workflow, senders, data).catch((err) =>
             console.error("Notification error:", err)
           );
         });
@@ -2792,7 +2920,6 @@ const getPoBasic = async (req, res) => {
     });
   }
 };
-// 👉 ADD THIS FUNCTION anywhere in the controller (e.g., below updateStatusPO)
 
 const bulkMarkDelivered = async (req, res) => {
   try {
@@ -2909,7 +3036,6 @@ const bulkMarkDelivered = async (req, res) => {
       await purchaseRequest.findByIdAndUpdate(pr._id, { items: updatedItems });
     };
 
-    // Update all affected PRs (in parallel but not too crazy)
     await Promise.all(prIds.map((id) => recomputePRItems(id)));
 
     return res.status(200).json({
@@ -2939,7 +3065,6 @@ const bulkMarkDelivered = async (req, res) => {
 // Controller
 const linkProjectToPOByPid = async (req, res) => {
   try {
-    // 1) Collect only those POs that need linking (have p_id string, missing project_id)
     const poCodes = await purchaseOrderModells.distinct("p_id", {
       p_id: { $type: "string", $ne: "" },
       $or: [{ project_id: { $exists: false } }, { project_id: null }],
@@ -2953,7 +3078,6 @@ const linkProjectToPOByPid = async (req, res) => {
       });
     }
 
-    // 2) Load projects by code
     const projects = await projectModel
       .find({ code: { $in: poCodes } }, { _id: 1, code: 1 })
       .lean();
@@ -2962,20 +3086,18 @@ const linkProjectToPOByPid = async (req, res) => {
       projects.map((p) => [String(p.code).trim(), p._id])
     );
 
-    // 3) Build bulk updates: set project_id where p_id matches code
     const ops = [];
     for (const code of poCodes) {
       const projectId = codeToProjectId.get(String(code).trim());
-      if (!projectId) continue; // no matching project—skip
+      if (!projectId) continue;
 
       ops.push({
         updateMany: {
-          // ✅ never modify p_id; only use it for filtering
           filter: {
             p_id: code,
             $or: [{ project_id: { $exists: false } }, { project_id: null }],
           },
-          update: { $set: { project_id: projectId } }, // ✅ only add project_id
+          update: { $set: { project_id: projectId } },
         },
       });
     }

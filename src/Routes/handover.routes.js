@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const jwtMW = require("../middlewares/auth.js");
+const auth = require("../middlewares/auth.middleware.js");
 const {
   createhandoversheet,
   gethandoversheetdata,
@@ -17,29 +17,29 @@ const {
 //handdoversheet
 router.post(
   "/create-hand-over-sheet",
-  jwtMW.authentication,
+  auth,
   createhandoversheet
 );
-router.post("/handover-export", jwtMW.authentication, getexportToCsv);
+router.post("/handover-export", auth, getexportToCsv);
 router.get(
   "/get-all-handover-sheet",
-  jwtMW.authentication,
+  auth,
   gethandoversheetdata
 );
 router.put(
   "/edit-hand-over-sheet/:_id",
-  jwtMW.authentication,
+  auth,
   edithandoversheetdata
 );
-router.put("/update-status/:_id", jwtMW.authentication, updatestatus);
-router.get("/get-handoversheet", jwtMW.authentication, getByIdOrLeadId);
-router.put("/migrateProject", jwtMW.authentication, migrateProjectToHandover);
-router.put("/updateAssignedto/:id", jwtMW.authentication, updateAssignedTo);
+router.put("/update-status/:_id", auth, updatestatus);
+router.get("/get-handoversheet", auth, getByIdOrLeadId);
+router.put("/migrateProject", auth, migrateProjectToHandover);
+router.put("/updateAssignedto/:id", auth, updateAssignedTo);
 router.get("/manipulate-handover", ManipulateHandover);
 router.get("/manipulate-handover-submitted", ManipulateHandoverSubmittedBy);
 router.put(
   "/manipulatesubmittedby",
-  jwtMW.authentication,
+  auth,
   manipulatesubmittedbyBD
 );
 
