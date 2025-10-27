@@ -1694,8 +1694,9 @@ total_adjustment:1,
 
 const exact_remaining_pay_to_vendor =
   clientMeta?.total_billed_value > balanceSummary?.total_advance_paid
-    ? (clientMeta?.total_po_with_gst || 0) - (clientMeta?.total_billed_value || 0)
-    : (balanceSummary?.total_advance_paid || 0);
+    ? (balanceSummary?.total_po_with_gst || 0) - (clientMeta?.total_billed_value || 0)
+    : (balanceSummary?.total_po_with_gst || 0) - (balanceSummary?.total_advance_paid || 0);
+
 
     const balance_with_slnko =
   (balanceSummary?.netBalance || 0) -
