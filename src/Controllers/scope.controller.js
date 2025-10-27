@@ -210,16 +210,26 @@ const updateScopeStatus = async (req, res) => {
 const getScopePdf = async (req, res) => {
   try {
     const { project_id } = req.query;
-
     if (!project_id) {
       return res.status(400).json({ message: "Project ID is required" });
     }
 
-    const project = await projectModells.findById(project_id);
-
+    const project = await projectModells.findById(project_id).lean();
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
+
+    const projectPid = project?.p_id || project?.pid || null;
+    const handover = projectPid
+      ? await handoverModel
+          .findOne({ p_id: projectPid })
+          .populate("submitted_by", "_id name")
+          .lean()
+      : null;
+
+    const camMemberName = handover?.submitted_by?.name || null;
+    const projectStatus =
+      project?.current_status?.status || project?.status || null;
 
     const scopeData = await scopeModel
       .find({ project_id })
@@ -234,27 +244,159 @@ const getScopePdf = async (req, res) => {
         .json({ message: "No scope data found for this project" });
     }
 
-    const processed = scopeData.map((scope) => ({
-      ...scope,
-      project: project,
-      totalItems: scope.items?.length || 0,
-      items: (scope.items || []).map((item) => ({
-        type: item.type,
-        scope: item.scope,
-        quantity: item.quantity,
-        uom: item.uom,
-        name: item.name,
-      })),
-    }));
+    const allItemIdSet = new Set();
+    for (const s of scopeData) {
+      const items = Array.isArray(s.items) ? s.items : [];
+      for (const it of items) {
+        if (it?.item_id && mongoose.isValidObjectId(it.item_id)) {
+          allItemIdSet.add(String(it.item_id));
+        }
+      }
+    }
+    const allItemIds = Array.from(allItemIdSet);
+
+    const categories = allItemIds.length
+      ? await MaterialCategory.find({ _id: { $in: allItemIds } })
+          .select("_id status")
+          .lean()
+      : [];
+
+    const activeCategoryIdSet = new Set(
+      categories
+        .filter((c) => String(c.status).toLowerCase() === "active")
+        .map((c) => String(c._id))
+    );
+
+    const projectCode = String(project?.code || "").trim();
+    const pos = projectCode
+      ? await purchaseorderModel
+          .find({ p_id: projectCode })
+          .select(
+            "_id po_number date etd delivery_date current_status item createdAt"
+          )
+          .lean()
+      : [];
+
+    const catToPOs = new Map();
+    for (const po of pos) {
+      const items = Array.isArray(po.item) ? po.item : [];
+      for (const poIt of items) {
+        const catId = poIt?.category ? String(poIt.category) : null;
+        if (!catId) continue;
+        if (!catToPOs.has(catId)) catToPOs.set(catId, []);
+        catToPOs.get(catId).push(po);
+      }
+    }
+
+    const processed = scopeData.map((scope) => {
+      const plainItems = Array.isArray(scope.items) ? scope.items : [];
+
+      const activeItems = plainItems.filter((it) => {
+        const id = it?.item_id ? String(it.item_id) : null;
+        return id && activeCategoryIdSet.has(id);
+      });
+
+      let sr = 0;
+      const items = activeItems.map((it) => {
+        sr += 1;
+        const itemId = it?.item_id ? String(it.item_id) : null;
+
+        const poList = (catToPOs.get(itemId) || []).map((p) => ({
+          po_number: fmt(p?.po_number),
+          status: fmt(p?.current_status?.status),
+          po_date: fmt(p?.date),
+          etd: fmt(p?.etd),
+          delivered_date: fmt(p?.delivery_date),
+        }));
+
+        const sorted = sortAndDedupePos(poList);
+        const effective =
+          sorted.length > 0
+            ? sorted
+            : [
+                {
+                  po_number: "Pending",
+                  status: "",
+                  po_date: null,
+                  etd: null,
+                  delivered_date: null,
+                },
+              ];
+
+        const first_po = effective[0];
+        const other_pos = effective.slice(1);
+
+        return {
+          sr_no: sr,
+          item_id: it.item_id,
+          name: it.name,
+          type: it.type,
+          scope: it.scope,
+          quantity: it.quantity,
+          uom: it.uom,
+          first_po,
+          other_pos,
+        };
+      });
+
+      // Flatten rows for PDF service
+      const rows = [];
+      for (const it of items) {
+        rows.push({
+          sr_no: it.sr_no,
+          name: it.name,
+          type: it.type,
+          scope: it.scope,
+          po_number: it.first_po?.po_number || "Pending",
+          po_status: it.first_po?.status || "",
+          po_date: it.first_po?.po_date || null,
+          etd: it.first_po?.etd || null,
+          delivered_date: it.first_po?.delivered_date || null,
+          _isChild: false,
+        });
+        for (const p of it.other_pos) {
+          rows.push({
+            sr_no: "",
+            name: "",
+            type: "",
+            scope: "",
+            po_number: p?.po_number || "Pending",
+            po_status: p?.status || "",
+            po_date: p?.po_date || null,
+            etd: p?.etd || null,
+            delivered_date: p?.delivered_date || null,
+            _isChild: true,
+          });
+        }
+      }
+
+      return {
+        ...scope,
+        project,
+        totalItems: activeItems.length,
+        items, 
+        rows,  
+        handover: {
+          cam_member_name: camMemberName,
+          p_id: handover?.p_id || null,
+          _id: handover?._id || null,
+        },
+        project_status: projectStatus,
+      };
+    });
+
+    const totalRows = processed.reduce((acc, s) => acc + (s.rows?.length || 0), 0);
+    if (totalRows === 0) {
+      return res
+        .status(404)
+        .json({ message: "No active items found for this project" });
+    }
 
     const apiUrl = `${process.env.PDF_PORT}/scopePdf/scope-pdf`;
-
     const axiosResponse = await axios({
       method: "post",
       url: apiUrl,
-      data: {
-        scopes: processed,
-      },
+      data: { scopes: processed },
       responseType: "stream",
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
@@ -266,13 +408,13 @@ const getScopePdf = async (req, res) => {
         axiosResponse.headers["content-disposition"] ||
         `attachment; filename="Scope_${project?.code || project?._id}.pdf"`,
     });
-
     axiosResponse.data.pipe(res);
   } catch (error) {
     console.error("Error generating scope PDF:", error);
-    res
-      .status(500)
-      .json({ message: "Error generating scope PDF", error: error.message });
+    res.status(500).json({
+      message: "Error generating scope PDF",
+      error: error.message,
+    });
   }
 };
 
