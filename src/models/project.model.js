@@ -8,7 +8,7 @@ const projectSchema = new mongoose.Schema(
     name: { type: String, default: " " },
     p_group: { type: String },
     email: { type: String },
-    number: { type: String },
+    number: { type: Number },
     alt_number: {
       type: String,
     },
@@ -33,7 +33,7 @@ const projectSchema = new mongoose.Schema(
       type: String,
     },
     project_kwp: { type: String },
-    dc_capacity:{type: String},
+    dc_capacity: { type: String },
     distance: { type: String },
     tarrif: { type: String },
     land: { type: String },

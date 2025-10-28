@@ -187,7 +187,8 @@ const {
   syncAllProjectBalances,
   syncRecentCreditsAndDebits,
 } = require("../Controllers/Accounting/ProjectBalance.js");
-const { getProjectByNumber } = require("../Controllers/ticket.controller.js");
+const { getProjectByNumber, createComplaint, updateTicketStatus, getAllTicket } = require("../Controllers/ticket.controller.js");
+const { getAllCategoriesDropdown } = require("../Controllers/materialcategory.controller.js");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -776,6 +777,11 @@ router.post("/sync-recent-transactions", syncRecentCreditsAndDebits);
 // Ticket Routes 
 
 router.get("/projectByNo", getProjectByNumber);
+router.post("/create-complaint", upload, createComplaint);
+router.put("/updateTicketStatus", auth, updateTicketStatus);
+router.get("/getAllTicket", auth, getAllTicket);
+router.get("/get-projectById/:_id", getProjectById);
+router.get("/getAllCategories", getAllCategoriesDropdown);
 
 
 module.exports = router;

@@ -9,6 +9,12 @@ const ticketSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "projectDetail",
         },
+        documents: [
+            {
+                attachment_url: { type: String },
+            }
+        ],
+        
         short_description: {
             type: String,
         },

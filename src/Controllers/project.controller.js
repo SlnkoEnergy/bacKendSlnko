@@ -889,7 +889,7 @@ const getActivityLineForProject = async (req, res) => {
 
 const getProjectsDropdown = async (req, res) => {
   try {
-  
+
     const data = await projectModells.find().lean();
 
     return res.status(200).json({
@@ -1196,7 +1196,7 @@ const updateSubmittedByOfProject = async (req, res) => {
 
     for (const proj of projects) {
       // we only want the ones that are exactly empty string ("") per your rule
-      if (proj.submitted_by !== "") { 
+      if (proj.submitted_by !== "") {
         skipped++;
         continue;
       }
