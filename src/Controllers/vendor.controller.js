@@ -131,7 +131,7 @@ const addVendor = async function addVendor(req, res) {
       vendor_name: rawName,
       vendor_email: data.contact_details?.email || "",
       contact_phone: data.contact_details?.phone || "",
-      account_number: data.Account_Number || "",
+      account_number: data.Account_No || "",
       bank_name: data.Bank_Name || "",
       ifsc_code: data.IFSC_Code || "",
       beneficiary_name: data.Beneficiary_Name || "",
