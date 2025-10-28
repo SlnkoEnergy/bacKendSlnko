@@ -3206,7 +3206,7 @@ gst_as_po_basic: 1,
               extraGST: 1,
 
 total_adjustment:1,
-          total_advance_paid: 1,
+          // total_advance_paid: 1,
           total_billed_value: 1,
           total_sales_value: 1,
 
@@ -3259,16 +3259,16 @@ total_adjustment:1,
     ]);
 
     const remaining_advance_left_after_billed =
-  balanceSummary?.total_advance_paid > clientMeta?.total_billed_value
-    ? (balanceSummary?.total_advance_paid || 0) -
+  clientMeta?.total_advance_paid > clientMeta?.total_billed_value
+    ? (clientMeta?.total_advance_paid || 0) -
       (balanceSummary?.total_sales_value || 0) -
       (clientMeta?.total_billed_value || 0)
     : 0;
 
 const exact_remaining_pay_to_vendor =
-  clientMeta?.total_billed_value > balanceSummary?.total_advance_paid
+  clientMeta?.total_billed_value > clientMeta?.total_advance_paid
     ? (balanceSummary?.total_po_with_gst || 0) - (clientMeta?.total_billed_value || 0)
-    : (balanceSummary?.total_po_with_gst || 0) - (balanceSummary?.total_advance_paid || 0);
+    : (balanceSummary?.total_po_with_gst || 0) - (clientMeta?.total_advance_paid || 0);
 
 
     const balance_with_slnko =
@@ -3278,6 +3278,8 @@ const exact_remaining_pay_to_vendor =
   (remaining_advance_left_after_billed || 0) -
   (balanceSummary?.total_adjustment || 0);
   const aggregate_billed_value = clientMeta?.total_billed_value;
+
+  const total_advance_paid = clientMeta?.total_advance_paid
 
 
     const responseData = {
@@ -3309,7 +3311,8 @@ const exact_remaining_pay_to_vendor =
       aggregate_billed_value,
       remaining_advance_left_after_billed,
   exact_remaining_pay_to_vendor,
-  balance_with_slnko
+  balance_with_slnko,
+  total_advance_paid
 
     };
 
@@ -3542,7 +3545,7 @@ if (tab && exportToCSV !== "csv") {
         ["1", "Total Received", INR(bs.total_received)],
         ["2", "Total Return", INR(bs.total_return)],
         ["3", "Net Balance [(1)-(2)]", INR(bs.netBalance)],
-        ["4", "Total Advances Paid to Vendors", INR(bs.total_advance_paid)],
+        ["4", "Total Advances Paid to Vendors", INR(total_advance_paid)],
         ["", "Billing Details", ""],
         [
           "5",
