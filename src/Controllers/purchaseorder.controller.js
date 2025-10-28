@@ -675,9 +675,9 @@ const editPO = async function (req, res) {
             Array.isArray(respData) && respData.length > 0
               ? respData[0]
               : respData.url ||
-                respData.fileUrl ||
-                (respData.data && respData.data.url) ||
-                null;
+              respData.fileUrl ||
+              (respData.data && respData.data.url) ||
+              null;
         } catch (e) {
           console.error("Upload failed for:", attachment_name, e?.message);
         }
@@ -899,9 +899,9 @@ const getPOByPONumber = async (req, res) => {
 
       const catDocs = catIdSet.size
         ? await materialCategoryModells
-            .find({ _id: { $in: Array.from(catIdSet) } })
-            .select({ name: 1 })
-            .lean()
+          .find({ _id: { $in: Array.from(catIdSet) } })
+          .select({ name: 1 })
+          .lean()
         : [];
 
       const catMap = new Map(
@@ -1349,29 +1349,29 @@ const getPaginatedPo = async (req, res) => {
 
       ...(createdFrom || createdTo
         ? {
-            dateObj: {
-              ...(createdFrom ? { $gte: createdFrom } : {}),
-              ...(createdTo ? { $lte: createdTo } : {}),
-            },
-          }
+          dateObj: {
+            ...(createdFrom ? { $gte: createdFrom } : {}),
+            ...(createdTo ? { $lte: createdTo } : {}),
+          },
+        }
         : {}),
 
       ...(etdFrom || etdTo
         ? {
-            etd: {
-              ...(etdFrom ? { $gte: etdFrom } : {}),
-              ...(etdTo ? { $lte: etdTo } : {}),
-            },
-          }
+          etd: {
+            ...(etdFrom ? { $gte: etdFrom } : {}),
+            ...(etdTo ? { $lte: etdTo } : {}),
+          },
+        }
         : {}),
 
       ...(deliveryFrom || deliveryTo
         ? {
-            delivery_date: {
-              ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
-              ...(deliveryTo ? { $lte: deliveryTo } : {}),
-            },
-          }
+          delivery_date: {
+            ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
+            ...(deliveryTo ? { $lte: deliveryTo } : {}),
+          },
+        }
         : {}),
     };
 
@@ -1568,12 +1568,12 @@ const getPaginatedPo = async (req, res) => {
       },
       ...(itemSearch
         ? [
-            {
-              $match: {
-                resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
-              },
+          {
+            $match: {
+              resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
             },
-          ]
+          },
+        ]
         : []),
 
       ...vendorResolveStages,
@@ -1688,12 +1688,12 @@ const getPaginatedPo = async (req, res) => {
       },
       ...(itemSearch
         ? [
-            {
-              $match: {
-                resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
-              },
+          {
+            $match: {
+              resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
             },
-          ]
+          },
+        ]
         : []),
 
       ...vendorResolveStages,
@@ -1714,12 +1714,12 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-            .replace(/ /g, "/")
+          .toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+          .replace(/ /g, "/")
         : "";
 
     const data = result.map((it) => ({ ...it, date: formatDate(it.date) }));
@@ -1740,16 +1740,18 @@ const getPaginatedPo = async (req, res) => {
 
 const getExportPo = async (req, res) => {
   try {
+
     const toArray = (v) =>
       Array.isArray(v)
         ? v
         : typeof v === "string"
           ? v
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
           : [];
 
+    // 1) Selected IDs (if any)
     const rawIds = [
       ...toArray(req.body?.purchaseorders),
       ...toArray(req.query?.purchaseorders),
@@ -1762,15 +1764,151 @@ const getExportPo = async (req, res) => {
       )
       .filter(Boolean);
 
-    if (!validIds.length) {
-      return res.status(400).json({ msg: "No valid PO ids provided." });
+    // 2) Otherwise use filters (for “All” export)
+    const filters = req.body?.filters || req.query?.filters || {};
+    let matchStage = {};
+
+    if (validIds.length) {
+      matchStage = { _id: { $in: validIds } };
+    } else {
+      const {
+        status,
+        search,
+        etdFrom,
+        etdTo,
+        deliveryFrom,
+        deliveryTo,
+        filter,
+        project_id,
+        pr_id,
+        item_id,
+        itemSearch,
+      } = filters;
+
+      console.log(status);
+      const and = [];
+
+      if (project_id)
+        and.push({ $or: [{ project_id }, { "project_id._id": project_id }] });
+      if (pr_id) and.push({ $or: [{ pr_id }, { "pr._id": pr_id }] });
+      if (item_id) and.push({ "item._id": item_id });
+
+      if (search) {
+        const q = String(search).trim();
+        and.push({
+          $or: [
+            { p_id: new RegExp(q, "i") },
+            { po_number: new RegExp(q, "i") },
+            { vendor: new RegExp(q, "i") },
+          ],
+        });
+      }
+
+      if (itemSearch) {
+        and.push({
+          $or: [
+            { "item.category_name": new RegExp(itemSearch, "i") },
+            { "item.product_name": new RegExp(itemSearch, "i") },
+          ],
+        });
+      }
+
+      const toISO = (d, endOfDay = false) => {
+        if (!d) return null;
+        const dt = new Date(d);
+        if (Number.isNaN(dt)) return null;
+        if (endOfDay) dt.setHours(23, 59, 59, 999);
+        return dt;
+      };
+
+      if (etdFrom || etdTo) {
+        const gte = toISO(etdFrom);
+        const lte = toISO(etdTo, true);
+        const range = {};
+        if (gte) range.$gte = gte;
+        if (lte) range.$lte = lte;
+        and.push({ etd: range });
+      }
+
+      if (deliveryFrom || deliveryTo) {
+        const gte = toISO(deliveryFrom);
+        const lte = toISO(deliveryTo, true);
+        const range = {};
+        if (gte) range.$gte = gte;
+        if (lte) range.$lte = lte;
+        and.push({ delivery_date: range });
+      }
+
+      // UI “Filter” mapping
+      if (filter) {
+        const baseEq = {};
+        switch (filter) {
+          case "Approval Pending":
+            baseEq["current_status.status"] = "approval_pending";
+            break;
+          case "Approval Done":
+            baseEq["current_status.status"] = "approval_done";
+            break;
+          case "ETD Pending":
+            baseEq["current_status.status"] = "po_created";
+            baseEq["etd"] = null;
+            break;
+          case "ETD Done":
+            baseEq["current_status.status"] = "po_created";
+            baseEq["etd"] = { $ne: null };
+            break;
+          case "Material Ready":
+            baseEq["current_status.status"] = "material_ready";
+            baseEq["material_ready_date"] = { $ne: null };
+            break;
+          case "Ready to Dispatch":
+            baseEq["current_status.status"] = "ready_to_dispatch";
+            baseEq["dispatch_date"] = { $ne: null };
+            break;
+          case "Out for Delivery":
+            baseEq["current_status.status"] = "out_for_delivery";
+            break;
+          case "Delivered":
+            baseEq["current_status.status"] = "delivered";
+            break;
+          case "Short Quantity":
+            baseEq["current_status.status"] = "short_quantity";
+            break;
+          case "Partially Delivered":
+            baseEq["current_status.status"] = "partially_delivered";
+            break;
+          default:
+            break;
+        }
+        if (Object.keys(baseEq).length) and.push(baseEq);
+      }
+
+      // Bill Status (Fully / Pending)
+      if (status === "Fully Billed") {
+        and.push({
+          $expr: {
+            $gte: [
+              { $toDouble: { $ifNull: ["$total_billed", 0] } },
+              { $toDouble: { $ifNull: ["$po_value", 0] } },
+            ],
+          },
+        });
+      } else if (status === "Bill Pending") {
+        and.push({
+          $expr: {
+            $lt: [
+              { $toDouble: { $ifNull: ["$total_billed", 0] } },
+              { $toDouble: { $ifNull: ["$po_value", 0] } },
+            ],
+          },
+        });
+      }
+
+      matchStage = and.length ? { $and: and } : {};
     }
 
-    const matchStage = { _id: { $in: validIds } };
-
-    // ---- aggregation: one row per item ----
     const pipeline = [
-      { $match: matchStage },
+      Object.keys(matchStage).length ? { $match: matchStage } : null,
 
       {
         $addFields: {
@@ -1794,7 +1932,19 @@ const getExportPo = async (req, res) => {
         },
       },
 
-      // Sum of approved payments with UTR for this PO
+      {
+        $addFields: {
+          partial_billing: {
+            $cond: [
+              { $gte: ["$total_billed_num", "$po_value_num"] },
+              "Fully Billed",
+              "Bill Pending",
+            ],
+          },
+        },
+      },
+
+      // Sum approved payments (UTR present)
       {
         $lookup: {
           from: "payrequests",
@@ -1834,10 +1984,8 @@ const getExportPo = async (req, res) => {
         },
       },
 
-      // explode items
       { $unwind: { path: "$item", preserveNullAndEmptyArrays: false } },
 
-      // per-item numeric conversions & computed totals
       {
         $addFields: {
           item_category_name: { $ifNull: ["$item.category_name", "-"] },
@@ -1888,17 +2036,91 @@ const getExportPo = async (req, res) => {
         },
       },
 
+      // -------- NEW: Delay calculation --------
+      {
+        $addFields: {
+          delay_days: {
+            $cond: [
+              { $eq: ["$etd", null] },
+              0,
+              {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: ["$dispatch_date", null] },
+                      { $gt: ["$dispatch_date", "$etd"] },
+                    ],
+                  },
+                  {
+                    $dateDiff: {
+                      startDate: "$etd",
+                      endDate: "$dispatch_date",
+                      unit: "day",
+                    },
+                  },
+                  {
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: ["$dispatch_date", null] },
+                          { $gt: ["$$NOW", "$etd"] },
+                        ],
+                      },
+                      {
+                        $dateDiff: {
+                          startDate: "$etd",
+                          endDate: "$$NOW",
+                          unit: "day",
+                        },
+                      },
+                      0,
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          delay_label: {
+            $cond: [
+              { $gt: ["$delay_days", 0] },
+              {
+                $concat: ["Delayed by ", { $toString: "$delay_days" }, " days"],
+              },
+              "No delay",
+            ],
+          },
+        },
+      },
+      // -------- END FIX --------
+
       {
         $project: {
           _id: 0,
-          // PO-level
           p_id: 1,
           po_number: "$po_number_str",
           vendor: 1,
           date: 1,
+          etd: 1,
+          delivery_date: 1,
+          dispatch_date: 1,
+          material_ready_date: 1,
+          current_status_status: "$current_status.status",
+
+          // numbers & computed fields
           po_value_num: 1,
           amount_paid_num: 1,
           total_billed_num: 1,
+          partial_billing: 1,
+
+          // delay fields
+          delay_days: 1,
+          delay_label: 1,
+
+          // per-item
           category_name: "$item_category_name",
           product_name: "$item_product_name",
           uom: "$item_uom",
@@ -1909,53 +2131,90 @@ const getExportPo = async (req, res) => {
           line_total_incl_gst: 1,
         },
       },
-    ];
+    ].filter(Boolean);
 
     const rowsAgg = await purchaseOrderModells.aggregate(pipeline);
 
     const formatDate = (d) => {
       if (!d) return "";
       const dt = new Date(d);
-      if (isNaN(dt)) return "";
+      if (isNaN(dt)) return String(d); // keep raw if not a valid Date
       const dd = String(dt.getDate()).padStart(2, "0");
       const mon = dt.toLocaleString("en-GB", { month: "short" });
-      const yy = String(dt.getFullYear()).slice(-2);
+      const yy = String(dt.getFullYear());
       return `${dd}-${mon}-${yy}`;
     };
 
-    const TOL = 0.01;
+    // Map current_status -> your UI filter label
+    const deriveFilterLabel = (r) => {
+      const s = String(r.current_status_status || "").toLowerCase();
 
-    const rows = rowsAgg.map((r) => {
-      const status =
-        Math.abs((r.total_billed_num || 0) - (r.po_value_num || 0)) <= TOL
-          ? "Fully Billed"
-          : "Waiting Bills";
+      if (s === "approval_pending") return "Approval Pending";
+      if (s === "approval_done") return "Approval Done";
+      if (s === "po_created" && !r.etd) return "ETD Pending";
+      if (s === "po_created" && r.etd) return "ETD Done";
+      if (s === "material_ready" && r.material_ready_date)
+        return "Material Ready";
+      if (s === "ready_to_dispatch" && r.dispatch_date)
+        return "Ready to Dispatch";
+      if (s === "out_for_delivery") return "Out for Delivery";
+      if (s === "delivered") return "Delivered";
+      if (s === "short_quantity") return "Short Quantity";
+      if (s === "partially_delivered") return "Partially Delivered";
 
-      return {
-        p_id: r.p_id || "",
-        po_number: r.po_number || "",
-        vendor: r.vendor || "",
-        po_date: formatDate(r.date),
-        category: r.category_name || "-",
-        product: r.product_name || "-",
-        uom: r.uom || "-",
-        quantity: Number(r.quantity || 0),
-        unit_price: Number(r.unit_price || 0),
-        gst_percent: Number(r.gst_percent || 0),
-        line_basic: Number(r.line_basic || 0),
-        line_total_incl_gst: Number(r.line_total_incl_gst || 0),
-        po_value: Number(r.po_value_num || 0),
-        amount_paid: Number(r.amount_paid_num || 0),
-        total_billed: Number(r.total_billed_num || 0),
-        billing_status: status,
-      };
-    });
+      return "";
+    };
 
+    // Final CSV rows
+    const rows = rowsAgg.map((r) => ({
+      p_id: r.p_id || "",
+      po_number: r.po_number || "",
+      vendor: r.vendor || "",
+
+      po_date: formatDate(r.date), // PO date is your string field
+      etd_date: formatDate(r.etd),
+      mr_date: formatDate(r.material_ready_date),
+      rtd_date: formatDate(r.dispatch_date),
+      delivery_date: formatDate(r.delivery_date),
+
+      filter: deriveFilterLabel(r),
+
+      // delay
+      delay_days: Number(r.delay_days || 0),
+      delay_label: r.delay_label || "No delay",
+
+      category: r.category_name || "-",
+      product: r.product_name || "-",
+      uom: r.uom || "-",
+      quantity: Number(r.quantity || 0),
+      unit_price: Number(r.unit_price || 0),
+      gst_percent: Number(r.gst_percent || 0),
+      line_basic: Number(r.line_basic || 0),
+      line_total_incl_gst: Number(r.line_total_incl_gst || 0),
+
+      po_value: Number(r.po_value_num || 0),
+      amount_paid: Number(r.amount_paid_num || 0),
+      total_billed: Number(r.total_billed_num || 0),
+      billing_status: r.partial_billing || "",
+    }));
+
+    // CSV headers (added Delay columns + date columns + Filter)
     const fields = [
       { label: "Project ID", value: "p_id" },
       { label: "PO Number", value: "po_number" },
       { label: "Vendor", value: "vendor" },
+
       { label: "PO Date", value: "po_date" },
+      { label: "ETD Date", value: "etd_date" },
+      { label: "MR Date", value: "mr_date" },
+      { label: "RTD Date", value: "rtd_date" },
+      { label: "Delivery Date", value: "delivery_date" },
+
+      { label: "Filter", value: "filter" },
+
+      { label: "Delay (days)", value: "delay_days" },
+      { label: "Delay Label", value: "delay_label" },
+
       { label: "Category", value: "category" },
       { label: "Product", value: "product" },
       { label: "UOM", value: "uom" },
@@ -1972,7 +2231,7 @@ const getExportPo = async (req, res) => {
 
     const parser = new Parser({ fields, quote: '"', withBOM: false });
     const csvBody = parser.parse(rows);
-    const csv = "\uFEFF" + csvBody;
+    const csv = "\uFEFF" + csvBody; // BOM for Excel
 
     const fileName = `PO_Items_Export_${new Date().toISOString().slice(0, 10)}.csv`;
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -2011,23 +2270,23 @@ const updateSalesPO = async (req, res) => {
     if (!invoice)
       return res.status(400).json({ message: "Sales Invoice is mandatory" });
 
-   
+
     const po = id
       ? await purchaseOrderModells.findById(id)
       : await purchaseOrderModells.findOne({
-          po_number: String(po_number).trim(),
-        });
+        po_number: String(po_number).trim(),
+      });
 
     if (!po) return res.status(404).json({ message: "PO not found" });
 
-  
+
     const project = await projectModel.findById(po.project_id, {
       billing_type: 1,
     });
 
     const billingType = project?.billing_type || "Individual";
 
-  
+
     const gstRate = billingType === "Composite" ? 0.089 : 0.18;
     const gst = Number((basic * gstRate).toFixed(2));
 
@@ -2035,7 +2294,7 @@ const updateSalesPO = async (req, res) => {
     const alreadySales = Number(po.total_sales_value) || 0;
     const entryTotal = basic + gst;
 
-   
+
     const safePo = (s) =>
       String(s || "")
         .trim()
@@ -2046,7 +2305,7 @@ const updateSalesPO = async (req, res) => {
       folderPath
     )}`;
 
-    
+
     const files = req.file
       ? [req.file]
       : Array.isArray(req.files)
@@ -2068,7 +2327,7 @@ const updateSalesPO = async (req, res) => {
         file.buffer || (file.path ? fs.readFileSync(file.path) : null);
       if (!buffer) continue;
 
-     
+
       if (mimeType.startsWith("image/")) {
         try {
           const ext = mime.extension(mimeType);
@@ -2120,7 +2379,7 @@ const updateSalesPO = async (req, res) => {
       }
     }
 
- 
+
     const userId = req.user?.userId || req.user?._id || null;
     if (!Array.isArray(po.sales_Details)) po.sales_Details = [];
 
@@ -2509,14 +2768,14 @@ const getPoBasic = async (req, res) => {
         },
         ...(search
           ? [
-              {
-                $or: [
-                  { p_id: { $regex: searchRegex } },
-                  { po_number: { $regex: searchRegex } },
-                  { vendor: { $regex: searchRegex } },
-                ],
-              },
-            ]
+            {
+              $or: [
+                { p_id: { $regex: searchRegex } },
+                { po_number: { $regex: searchRegex } },
+                { vendor: { $regex: searchRegex } },
+              ],
+            },
+          ]
           : []),
       ],
     };
