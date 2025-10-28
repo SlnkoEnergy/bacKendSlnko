@@ -1354,6 +1354,7 @@ const toNum = (expr) => ({
     onNull: 0,
   },
 });
+const toDouble = (v) => ({ $toDouble: { $ifNull: [v, 0] } });
 
 const syncAllProjectBalances = async (req, res) => {
   try {
@@ -1387,7 +1388,9 @@ const syncAllProjectBalances = async (req, res) => {
         $lookup: {
           from: "purchaseorders",
           let: { projectId: "$_id" },
-          pipeline: [{ $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } }],
+          pipeline: [
+            { $match: { $expr: { $eq: ["$project_id", "$$projectId"] } } },
+          ],
           as: "pos",
         },
       },
@@ -1421,6 +1424,24 @@ const syncAllProjectBalances = async (req, res) => {
         },
       },
 
+      {
+        $addFields: {
+          totalAmountPaid: { $round: [{ $ifNull: ["$paidAmount", 0] }, 2] },
+          netAdvance: {
+            $round: [
+              { $subtract: [{ $ifNull: ["$paidAmount", 0] }, { $ifNull: ["$totalBillValue", 0] }] },
+              2,
+            ],
+          },
+          balancePayable: {
+            $round: [
+              { $subtract: [{ $ifNull: ["$total_po_with_gst", 0] }, { $ifNull: ["$paidAmount", 0] }] },
+              2,
+            ],
+          },
+        },
+      },
+
       // --- Totals ---
       {
         $addFields: {
@@ -1428,7 +1449,11 @@ const syncAllProjectBalances = async (req, res) => {
             $round: [
               {
                 $sum: {
-                  $map: { input: "$credits", as: "c", in: toNum("$$c.cr_amount") },
+                  $map: {
+                    input: "$credits",
+                    as: "c",
+                    in: toNum("$$c.cr_amount"),
+                  },
                 },
               },
               2,
@@ -1438,7 +1463,11 @@ const syncAllProjectBalances = async (req, res) => {
             $round: [
               {
                 $sum: {
-                  $map: { input: "$debits", as: "d", in: toNum("$$d.amount_paid") },
+                  $map: {
+                    input: "$debits",
+                    as: "d",
+                    in: toNum("$$d.amount_paid"),
+                  },
                 },
               },
               2,
@@ -1448,8 +1477,24 @@ const syncAllProjectBalances = async (req, res) => {
             $round: [
               {
                 $subtract: [
-                  { $sum: { $map: { input: "$credits", as: "c", in: toNum("$$c.cr_amount") } } },
-                  { $sum: { $map: { input: "$debits", as: "d", in: toNum("$$d.amount_paid") } } },
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$credits",
+                        as: "c",
+                        in: toNum("$$c.cr_amount"),
+                      },
+                    },
+                  },
+                  {
+                    $sum: {
+                      $map: {
+                        input: "$debits",
+                        as: "d",
+                        in: toNum("$$d.amount_paid"),
+                      },
+                    },
+                  },
                 ],
               },
               2,
@@ -1463,7 +1508,11 @@ const syncAllProjectBalances = async (req, res) => {
                     $sum: {
                       $map: {
                         input: {
-                          $filter: { input: "$adjustments", as: "a", cond: { $eq: ["$$a.adj_type", "Add"] } },
+                          $filter: {
+                            input: "$adjustments",
+                            as: "a",
+                            cond: { $eq: ["$$a.adj_type", "Add"] },
+                          },
                         },
                         as: "a",
                         in: { $abs: toNum("$$a.adj_amount") },
@@ -1474,7 +1523,11 @@ const syncAllProjectBalances = async (req, res) => {
                     $sum: {
                       $map: {
                         input: {
-                          $filter: { input: "$adjustments", as: "a", cond: { $eq: ["$$a.adj_type", "Subtract"] } },
+                          $filter: {
+                            input: "$adjustments",
+                            as: "a",
+                            cond: { $eq: ["$$a.adj_type", "Subtract"] },
+                          },
                         },
                         as: "a",
                         in: { $abs: toNum("$$a.adj_amount") },
@@ -1495,7 +1548,15 @@ const syncAllProjectBalances = async (req, res) => {
           paidAmount: {
             $cond: [
               { $gt: [{ $size: "$pays" }, 0] },
-              { $sum: { $map: { input: "$pays", as: "p", in: toNum("$$p.amount_paid") } } },
+              {
+                $sum: {
+                  $map: {
+                    input: "$pays",
+                    as: "p",
+                    in: toNum("$$p.amount_paid"),
+                  },
+                },
+              },
               {
                 $sum: {
                   $map: {
@@ -1517,6 +1578,46 @@ const syncAllProjectBalances = async (req, res) => {
                   },
                 },
               },
+            ],
+          },
+        },
+      },
+
+      {
+        $addFields: {
+          total_return: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$debits",
+                        as: "d",
+                        cond: { $eq: ["$$d.paid_for", "Customer Adjustment"] },
+                      },
+                    },
+                    as: "r",
+                    in: toDouble("$$r.amount_paid"),
+                  },
+                },
+              },
+              2,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          totalAmountPaidNew: {
+            $round: [
+              {
+                $subtract: [
+                  { $ifNull: ["$totalDebit", 0] },
+                  { $ifNull: ["$total_return", 0] },
+                ],
+              },
+              2,
             ],
           },
         },
@@ -1546,20 +1647,16 @@ const syncAllProjectBalances = async (req, res) => {
               2,
             ],
           },
-        },
-      },
-      {
-        $addFields: {
           gst_as_po_basic: {
             $round: [
               {
                 $sum: {
                   $map: {
                     input: "$pos",
-                    as: "d",
+                    as: "po",
                     in: {
                       $convert: {
-                        input: { $trim: { input: "$$d.gst" } },
+                        input: { $trim: { input: "$$po.gst" } },
                         to: "double",
                         onError: 0,
                         onNull: 0,
@@ -1575,21 +1672,66 @@ const syncAllProjectBalances = async (req, res) => {
       },
       {
         $addFields: {
-          total_po_with_gst: { $round: [{ $add: ["$total_po_basic", "$gst_as_po_basic"] }, 2] },
+          total_po_with_gst: {
+            $round: [
+              {
+                $add: [
+                  { $ifNull: ["$total_po_basic", 0] },
+                  { $ifNull: ["$gst_as_po_basic", 0] },
+                ],
+              },
+              2,
+            ],
+          },
         },
       },
       {
         $addFields: {
-          totalAmountPaid: { $round: [{ $ifNull: ["$paidAmount", 0] }, 2] },
-          netAdvance: {
+          totalSalesValue: {
             $round: [
-              { $subtract: [{ $ifNull: ["$paidAmount", 0] }, { $ifNull: ["$totalBillValue", 0] }] },
+              {
+                $sum: {
+                  $map: {
+                    input: "$pos",
+                    as: "po",
+                    in: {
+                      $let: {
+                        vars: { v: "$$po.total_sales_value" },
+                        in: {
+                          $convert: {
+                            input: {
+                              $cond: [
+                                { $eq: [{ $type: "$$v" }, "string"] },
+                                { $trim: { input: "$$v" } },
+                                "$$v", 
+                              ],
+                            },
+                            to: "double",
+                            onError: 0,
+                            onNull: 0,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
               2,
             ],
           },
+        },
+      },
+
+      {
+        $addFields: {
           balancePayable: {
             $round: [
-              { $subtract: [{ $ifNull: ["$total_po_with_gst", 0] }, { $ifNull: ["$paidAmount", 0] }] },
+              {
+                $subtract: [
+                  { $ifNull: ["$total_po_with_gst", 0] },
+                  { $ifNull: ["$paidAmount", 0] },
+                ],
+              },
               2,
             ],
           },
@@ -1627,7 +1769,12 @@ const syncAllProjectBalances = async (req, res) => {
             $round: [
               {
                 $subtract: [
-                  { $subtract: [{ $ifNull: ["$netBalance", 0] }, { $ifNull: ["$totalAmountPaid", 0] }] },
+                  {
+                    $subtract: [
+                      { $ifNull: ["$netBalance", 0] },
+                      { $ifNull: ["$totalAmountPaid", 0] },
+                    ],
+                  },
                   { $ifNull: ["$totalAdjustment", 0] },
                 ],
               },
@@ -1643,7 +1790,14 @@ const syncAllProjectBalances = async (req, res) => {
           tcs: {
             $cond: {
               if: { $gt: ["$netBalance", 5000000] },
-              then: { $round: [{ $multiply: [{ $subtract: ["$netBalance", 5000000] }, 0.001] }, 0] },
+              then: {
+                $round: [
+                  {
+                    $multiply: [{ $subtract: ["$netBalance", 5000000] }, 0.001],
+                  },
+                  0,
+                ],
+              },
               else: 0,
             },
           },
@@ -1652,19 +1806,85 @@ const syncAllProjectBalances = async (req, res) => {
       {
         $addFields: {
           balanceRequired: {
-            $round: [{ $subtract: [{ $subtract: ["$balanceSlnko", "$balancePayable"] }, "$tcs"] }, 2],
+            $round: [
+              {
+                $subtract: [
+                  { $subtract: ["$balanceSlnko", "$balancePayable"] },
+                  "$tcs",
+                ],
+              },
+              2,
+            ],
           },
         },
       },
+      {
+  $addFields: {
+    totalBilledValue: {
+      $round: [
+        {
+          $sum: {
+            $map: {
+              input: {
+                $filter: {
+                  input: "$bills",
+                  as: "bill",
+                  cond: {
+                    $in: ["$$bill.po_number", "$pos.po_number"],
+                  },
+                },
+              },
+              as: "b",
+              in: {
+                $let: {
+                  vars: {
+                    bill_value: {
+                      $convert: {
+                        input: { $ifNull: ["$$b.bill_value", 0] },
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                    gst_percent: {
+                      $convert: {
+                        input: { $ifNull: ["$$b.gst_on_percent", 0] },
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                  },
+                  in: {
+                    $add: [
+                      "$$bill_value",
+                      { $multiply: ["$$bill_value", { $divide: ["$$gst_percent", 100] }] },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+        2,
+      ],
+    },
+  },
+},
+
 
       // --- Recent credits/debits (latest 3) ---
       {
         $addFields: {
           _creditsSorted: {
-            $reverseArray: { $sortArray: { input: "$credits", sortBy: { createdAt: 1 } } },
+            $reverseArray: {
+              $sortArray: { input: "$credits", sortBy: { createdAt: 1 } },
+            },
           },
           _debitsSorted: {
-            $reverseArray: { $sortArray: { input: "$debits", sortBy: { createdAt: 1 } } },
+            $reverseArray: {
+              $sortArray: { input: "$debits", sortBy: { createdAt: 1 } },
+            },
           },
         },
       },
@@ -1723,7 +1943,11 @@ const syncAllProjectBalances = async (req, res) => {
           totalDebit: 1,
           availableAmount: 1,
           totalAdjustment: 1,
+          total_return: 1,
           totalAmountPaid: 1,
+          totalAmountPaidNew: 1,
+          totalSalesValue: 1,
+          totalBilledValue:1,
           balanceSlnko: 1,
           balancePayable: 1,
           balanceRequired: 1,
@@ -1736,7 +1960,9 @@ const syncAllProjectBalances = async (req, res) => {
     const results = await projectModells.aggregate(aggregationPipeline);
 
     if (!results.length) {
-      return res.status(404).json({ success: false, message: "No projects found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "No projects found" });
     }
 
     const ops = results.map((row) => ({
@@ -1754,6 +1980,11 @@ const syncAllProjectBalances = async (req, res) => {
             balanceRequired: row.balanceRequired,
             recentCredits: row.recentCredits || [],
             recentDebits: row.recentDebits || [],
+            total_return: row.total_return,
+            totalAmountPaid: row.totalAmountPaid,
+            totalAmountPaidNew: row.totalAmountPaidNew,
+            totalSalesValue: row.totalSalesValue,
+            totalBilledValue: row.totalBilledValue
           },
         },
         upsert: true,
@@ -1772,7 +2003,6 @@ const syncAllProjectBalances = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
-
 
 const getProjectBalances = async (req, res) => {
   try {
@@ -1944,23 +2174,21 @@ const getProjectBalances = async (req, res) => {
 
 const syncRecentCreditsAndDebits = async (req, res) => {
   try {
-    
     const projects = await projectModells.find({}, { _id: 1, p_id: 1 }).lean();
     if (!projects.length) {
-      return res.status(404).json({ success: false, message: "No projects found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "No projects found" });
     }
 
-    
     const ops = await Promise.all(
       projects.map(async ({ _id: projectId, p_id: pid }) => {
-        
         const pidCandidates = [pid];
         const asNum = Number(pid);
         if (!Number.isNaN(asNum)) pidCandidates.push(asNum);
         const asStr = String(pid);
         pidCandidates.push(asStr);
 
-       
         const credits = await addMoneyModells
           .find({ p_id: { $in: pidCandidates } })
           .sort({ updatedAt: -1, createdAt: -1 })
@@ -1969,23 +2197,30 @@ const syncRecentCreditsAndDebits = async (req, res) => {
           .lean();
 
         const recentCredits = credits.map((c) => ({
-          cr_date: c.updatedAt ? new Date(c.updatedAt) : (c.createdAt ? new Date(c.createdAt) : new Date()),
+          cr_date: c.updatedAt
+            ? new Date(c.updatedAt)
+            : c.createdAt
+              ? new Date(c.createdAt)
+              : new Date(),
           cr_amount: Number(c.cr_amount) || 0,
           added_by: c.submitted_by || null,
           ...(c.comment ? { remarks: c.comment } : {}),
         }));
 
-
         const debits = await debitMoneyModells
           .find({ p_id: { $in: pidCandidates } })
           .sort({ updatedAt: -1, createdAt: -1 })
           .limit(3)
-        
+
           .select("amount_paid remarks paid_for dbt_date createdAt")
           .lean();
 
         const recentDebits = debits.map((d) => ({
-          dbt_date: d.updatedAt ? new Date(d.updatedAt) : (d.createdAt ? new Date(d.createdAt) : new Date()),
+          dbt_date: d.updatedAt
+            ? new Date(d.updatedAt)
+            : d.createdAt
+              ? new Date(d.createdAt)
+              : new Date(),
           amount_paid: Number(d.amount_paid) || 0,
           paid_for: d.paid_for || null,
           ...(d.remarks ? { remarks: d.remarks } : {}),
@@ -2007,7 +2242,6 @@ const syncRecentCreditsAndDebits = async (req, res) => {
       })
     );
 
-  
     if (ops.length) {
       await projectBalanceModel.bulkWrite(ops, { ordered: false });
     }
