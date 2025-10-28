@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
 
 const ticketCounterSchema = new mongoose.Schema({
-    phone_no: {
-        type: Number, required: true
+    state: {
+        type: String, required: true
     },
     count: { type: Number, default: 1 },
 

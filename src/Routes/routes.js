@@ -187,8 +187,16 @@ const {
   syncAllProjectBalances,
   syncRecentCreditsAndDebits,
 } = require("../Controllers/Accounting/ProjectBalance.js");
-const { getProjectByNumber, createComplaint, updateTicketStatus, getAllTicket } = require("../Controllers/ticket.controller.js");
-const { getAllCategoriesDropdown } = require("../Controllers/materialcategory.controller.js");
+const {
+  getProjectByNumber,
+  createComplaint,
+  updateTicketStatus,
+  getAllTicket,
+  getTicketByTicketNo,
+} = require("../Controllers/ticket.controller.js");
+const {
+  getAllCategoriesDropdown,
+} = require("../Controllers/materialcategory.controller.js");
 
 // Admin router
 router.post("/user-registratioN-IT", userRegister);
@@ -347,11 +355,7 @@ router.get(
 
   getTrashPayment
 );
-router.put(
-  "/acc-matched",
-  auth,
-  account_matched
-);
+router.put("/acc-matched", auth, account_matched);
 router.put("/utr-update", auth, utrUpdate);
 router.put(
   "/account-approve",
@@ -438,7 +442,7 @@ router.get(
   getExcelDataById
 );
 router.get("/get-pay-smry", auth, getpy);
-router.get('/payrequestvendor', auth, getPayRequestByVendor);
+router.get("/payrequestvendor", auth, getPayRequestByVendor);
 
 //adjustment request
 router.post(
@@ -774,14 +778,14 @@ router.get("/get-modified-expense-by-id", auth, getModifiedExpenseById);
 router.post("/project-balances/sync-all", syncAllProjectBalances);
 router.post("/sync-recent-transactions", syncRecentCreditsAndDebits);
 
-// Ticket Routes 
+// Ticket Routes
 
 router.get("/projectByNo", getProjectByNumber);
 router.post("/create-complaint", upload, createComplaint);
-router.put("/updateTicketStatus", auth, updateTicketStatus);
+router.put("/updateTicketStatus/:_id", auth, updateTicketStatus);
 router.get("/getAllTicket", auth, getAllTicket);
 router.get("/get-projectById/:_id", getProjectById);
 router.get("/getAllCategories", getAllCategoriesDropdown);
-
+router.get("/getTicketByNo", getTicketByTicketNo);
 
 module.exports = router;

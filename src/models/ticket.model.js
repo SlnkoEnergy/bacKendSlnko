@@ -29,6 +29,7 @@ const ticketSchema = new mongoose.Schema(
             status: {
                 type: String,
                 enum: [
+                    "pending",
                     "in progress",
                     "cancelled",
                     "completed",
@@ -52,8 +53,9 @@ const ticketSchema = new mongoose.Schema(
                 status: {
                     type: String,
                     enum: [
+                        "pending",
                         "in progress",
-                        "cnacelled",
+                        "cancelled",
                         "completed",
                     ],
                 },
