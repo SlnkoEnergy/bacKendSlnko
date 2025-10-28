@@ -25,11 +25,13 @@ const addBill = catchAsyncError(async function (req, res, next) {
 
   const trim_bill_number = bill_number.trim();
 
-  const existingBill = await billModel.findOne({ bill_number: trim_bill_number });
+  const existingBill = await billModel.findOne({
+    bill_number: trim_bill_number,
+  });
 
   if (existingBill && existingBill.po_number === po_number) {
     return res.status(404).json({
-      message: "Bill Already Exists For this Po Number"
+      message: "Bill Already Exists For this Po Number",
     });
   }
 
@@ -116,14 +118,14 @@ const getPaginatedBill = catchAsyncError(async (req, res) => {
 
   const matchStage = search
     ? {
-      $or: [
-        { bill_number: { $regex: searchRegex } },
-        { po_number: { $regex: searchRegex } },
-        { approved_by: { $regex: searchRegex } },
-        { "poData.vendor": { $regex: searchRegex } },
-        { "poData.item": { $regex: searchRegex } },
-      ],
-    }
+        $or: [
+          { bill_number: { $regex: searchRegex } },
+          { po_number: { $regex: searchRegex } },
+          { approved_by: { $regex: searchRegex } },
+          { "poData.vendor": { $regex: searchRegex } },
+          { "poData.item": { $regex: searchRegex } },
+        ],
+      }
     : {};
 
   const pipeline = [
@@ -236,7 +238,6 @@ const getPaginatedBill = catchAsyncError(async (req, res) => {
   });
 });
 
-
 const getAllBill = catchAsyncError(async (req, res, next) => {
   const page = Number.parseInt(req.query.page, 10) || 1;
   const pageSize = Number.parseInt(req.query.pageSize, 10) || 10;
@@ -253,7 +254,9 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
     po_number = String(po_number).trim();
   }
 
-  const rawSearch = (req.query.search ?? req.query.q ?? req.body.search ?? "").toString().trim();
+  const rawSearch = (req.query.search ?? req.query.q ?? req.body.search ?? "")
+    .toString()
+    .trim();
   const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   const filters = [];
@@ -263,7 +266,14 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
     const tokens = rawSearch.split(/\s+/).filter(Boolean).slice(0, 6);
     const andOfOrs = tokens.map((t) => {
       const rx = new RegExp(escapeRegExp(t), "i");
-      return { $or: [{ po_no: rx }, { vendor: rx }, { bill_no: rx }, { project_id: rx }] };
+      return {
+        $or: [
+          { po_no: rx },
+          { vendor: rx },
+          { bill_no: rx },
+          { project_id: rx },
+        ],
+      };
     });
     filters.push({ $and: andOfOrs });
   }
@@ -283,12 +293,13 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
   const from = parseDMY(fromRaw);
   const to0 = parseDMY(toRaw);
   // exclusive end so full day is included
-  const toExclusive = to0 ? new Date(to0.getFullYear(), to0.getMonth(), to0.getDate() + 1) : null;
+  const toExclusive = to0
+    ? new Date(to0.getFullYear(), to0.getMonth(), to0.getDate() + 1)
+    : null;
 
   const rangeCond = {};
   if (from) rangeCond.$gte = from;
   if (toExclusive) rangeCond.$lt = toExclusive;
-
 
   const pipeline = [
     // minimal PO join
@@ -296,33 +307,53 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
       $addFields: {
         __bill_date: {
           $let: {
-            vars: { b: "$bill_date" }, in:
-            {
+            vars: { b: "$bill_date" },
+            in: {
               $cond: [
-                { $eq: [{ $type: "$$b" }, "date"] }, "$$b",
+                { $eq: [{ $type: "$$b" }, "date"] },
+                "$$b",
                 {
                   $cond: [
                     { $eq: [{ $type: "$$b" }, "string"] },
-                    { $dateFromString: { dateString: "$$b", onError: null, onNull: null } },
-                    null
-                  ]
-                }
-              ]
-            }
-          }
+                    {
+                      $dateFromString: {
+                        dateString: "$$b",
+                        onError: null,
+                        onNull: null,
+                      },
+                    },
+                    null,
+                  ],
+                },
+              ],
+            },
+          },
         },
-      }
+      },
     },
 
     // Apply the range: include if bill_date OR created_on is within range
-    ...(Object.keys(rangeCond).length ? [{ $match: { __bill_date: rangeCond } }] : []),
+    ...(Object.keys(rangeCond).length
+      ? [{ $match: { __bill_date: rangeCond } }]
+      : []),
 
     {
       $lookup: {
         from: "purchaseorders",
         localField: "po_number",
         foreignField: "po_number",
-        pipeline: [{ $project: { _id: 0, p_id: 1, vendor: 1, po_value: 1, total_billed: 1, item: 1 } }],
+        pipeline: [
+          {
+            $project: {
+              _id: 0,
+              p_id: 1,
+              vendor: 1,
+              po_value: 1,
+              total_billed: 1,
+              item: 1,
+            },
+          },
+        ],
         as: "po",
       },
     },
@@ -337,8 +368,24 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
             in: {
               $cond: [
                 { $eq: [{ $type: "$$x" }, "string"] },
-                { $convert: { input: { $replaceAll: { input: "$$x", find: ",", replacement: "" } }, to: "double", onError: 0, onNull: 0 } },
-                { $convert: { input: "$$x", to: "double", onError: 0, onNull: 0 } },
+                {
+                  $convert: {
+                    input: {
+                      $replaceAll: { input: "$$x", find: ",", replacement: "" },
+                    },
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+                {
+                  $convert: {
+                    input: "$$x",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
               ],
             },
           },
@@ -349,8 +396,24 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
             in: {
               $cond: [
                 { $eq: [{ $type: "$$x" }, "string"] },
-                { $convert: { input: { $replaceAll: { input: "$$x", find: ",", replacement: "" } }, to: "double", onError: 0, onNull: 0 } },
-                { $convert: { input: "$$x", to: "double", onError: 0, onNull: 0 } },
+                {
+                  $convert: {
+                    input: {
+                      $replaceAll: { input: "$$x", find: ",", replacement: "" },
+                    },
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+                {
+                  $convert: {
+                    input: "$$x",
+                    to: "double",
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
               ],
             },
           },
@@ -369,7 +432,11 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
         po_value: "$__po_value_num",
         total_billed: "$__total_billed_num",
         po_status: {
-          $cond: [{ $eq: ["$__po_value_num", "$__total_billed_num"] }, "fully billed", "waiting bills"],
+          $cond: [
+            { $eq: ["$__po_value_num", "$__total_billed_num"] },
+            "fully billed",
+            "waiting bills",
+          ],
         },
       },
     },
@@ -388,6 +455,43 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
           // capture sort keys for stable re-sort after group
           { $addFields: { __sortAt: "$createdAt", __sortId: "$_id" } },
 
+          {
+            $lookup: {
+              from: "vendors",
+              let: { vendorId: "$po.vendor" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $eq: [
+                        "$_id",
+                        {
+                          $cond: [
+                            { $eq: [{ $type: "$$vendorId" }, "objectId"] },
+                            "$$vendorId",
+                            null,
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+                { $project: { name: 1 } },
+              ],
+              as: "vendorDoc",
+            },
+          },
+
+          {
+            $addFields: {
+              vendor: {
+                $ifNull: [
+                  { $arrayElemAt: ["$vendorDoc.name", 0] },
+                  "$po.vendor",
+                ],
+              },
+            },
+          },
 
           // re-sort deterministically
           { $sort: { __sortAt: -1, __sortId: -1 } },
@@ -398,7 +502,9 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
               from: "users",
               localField: "approved_by",
               foreignField: "_id",
-              pipeline: [{ $project: { _id: 0, name: 1, full_name: 1, username: 1 } }],
+              pipeline: [
+                { $project: { _id: 0, name: 1, full_name: 1, username: 1 } },
+              ],
               as: "_approvedUser",
             },
           },
@@ -419,7 +525,15 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
           },
           { $addFields: { created_on: "$createdAt" } },
           {
-            $unset: ["__sortAt", "__sortId", "_cat", "_itemArr", "_approvedUser", "_wasItemArray", "items"],
+            $unset: [
+              "__sortAt",
+              "__sortId",
+              "_cat",
+              "_itemArr",
+              "_approvedUser",
+              "_wasItemArray",
+              "items",
+            ],
           },
           {
             $project: {
@@ -444,7 +558,11 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
       },
     },
 
-    { $addFields: { total: { $ifNull: [{ $arrayElemAt: ["$totalCount.count", 0] }, 0] } } },
+    {
+      $addFields: {
+        total: { $ifNull: [{ $arrayElemAt: ["$totalCount.count", 0] }, 0] },
+      },
+    },
     { $project: { totalCount: 0 } },
   ];
 
@@ -460,7 +578,6 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
     data,
   });
 });
-
 
 //Bills Exports
 const exportBills = catchAsyncError(async (req, res, next) => {
@@ -740,7 +857,8 @@ const updatebill = catchAsyncError(async function (req, res, next) {
       const prevBillValue = existingBill.bill_value || 0;
       const newBillValue = data.bill_value || 0;
 
-      const adjustedTotalBilled = prevTotalBilled - prevBillValue + newBillValue;
+      const adjustedTotalBilled =
+        prevTotalBilled - prevBillValue + newBillValue;
 
       po.total_billed = adjustedTotalBilled;
       await po.save();
@@ -749,7 +867,6 @@ const updatebill = catchAsyncError(async function (req, res, next) {
 
   res.status(200).json({ msg: "Bill updated successfully", data });
 });
-
 
 //delete-bill
 const deleteBill = catchAsyncError(async function (req, res, next) {
@@ -795,7 +912,6 @@ const bill_approved = catchAsyncError(async function (req, res, next) {
   });
 });
 
-
 function escapeRegex(s = "") {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -811,16 +927,20 @@ async function findUserByName(raw) {
   if (!name) return null;
 
   // 1) exact match (case-insensitive)
-  let user = await userModells.findOne({
-    name: { $regex: `^${escapeRegex(name)}$`, $options: "i" },
-  }).lean();
+  let user = await userModells
+    .findOne({
+      name: { $regex: `^${escapeRegex(name)}$`, $options: "i" },
+    })
+    .lean();
 
   if (user) return user;
 
   // 2) fallback: contains (case-insensitive)
-  user = await userModells.findOne({
-    name: { $regex: escapeRegex(name), $options: "i" },
-  }).lean();
+  user = await userModells
+    .findOne({
+      name: { $regex: escapeRegex(name), $options: "i" },
+    })
+    .lean();
 
   return user || null;
 }
@@ -828,12 +948,14 @@ async function findUserByName(raw) {
 const manipulatebill = async (req, res) => {
   try {
     // Only fetch bills where either field is a string -> reduces work
-    const bills = await billModel.find({
-      $or: [
-        { submitted_by: { $type: "string" } },
-        { approved_by: { $type: "string" } },
-      ],
-    }).lean(); // lean for speed; we'll bulkWrite updates
+    const bills = await billModel
+      .find({
+        $or: [
+          { submitted_by: { $type: "string" } },
+          { approved_by: { $type: "string" } },
+        ],
+      })
+      .lean(); // lean for speed; we'll bulkWrite updates
 
     let processed = 0;
     let toUpdate = [];
@@ -894,7 +1016,7 @@ const manipulatebill = async (req, res) => {
     res.status(200).json({
       message: "Bills normalized successfully",
       processed,
-      updated: bulkResult ? (bulkResult.modifiedCount || 0) : 0,
+      updated: bulkResult ? bulkResult.modifiedCount || 0 : 0,
       attempted: toUpdate.length,
     });
   } catch (error) {
