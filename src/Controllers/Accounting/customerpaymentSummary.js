@@ -1544,56 +1544,76 @@ const tab = (req.query.tab || "").toLowerCase();
     const totalCredited = creditData?.summary?.[0]?.totalCredited || 0;
 
     // ---------- Debit ----------
-    const debitMatch = { p_id: projectId };
-    if (searchDebit) {
-      const regex = new RegExp(searchDebit, "i");
-      debitMatch.$or = [
-        { paid_for: regex },
-        { vendor: regex },
-        { po_number: regex },
-      ];
-    }
-    if (startDate || endDate) {
-      debitMatch.dbt_date = {};
-      if (startDate) debitMatch.dbt_date.$gte = startDate;
-      if (endDate) debitMatch.dbt_date.$lte = endDate;
-    }
+const escapeRegex = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const hasSearch = !!(searchDebit && searchDebit.trim());
+const searchEsc = hasSearch ? escapeRegex(searchDebit.trim()) : null;
+const isDigits = hasSearch && /^\d+$/.test(searchDebit.trim());
 
-    const [debitData] = await DebitModel.aggregate([
-      { $match: debitMatch },
-      {
-        $facet: {
-          history: [
-            { $sort: { createdAt: -1 } },
-            { $skip: skip },
-  { $limit: pageSize },
-            {
-              $project: {
-                _id: 1,
-                amount_paid: 1,
-                paid_for: 1,
-                po_number: 1,
-                utr: 1,
-                updatedAt: 1,
-                createdAt: 1,
-                vendor: 1,
-                dbt_date: 1,
-              },
-            },
-          ],
-          summary: [
-            {
-              $group: {
-                _id: null,
-                totalDebited: { $sum: asDouble("$amount_paid") },
-              },
-            },
-          ],
-        },
-      },
-    ]);
-    const debitHistory = debitData?.history || [];
-    const totalDebited = debitData?.summary?.[0]?.totalDebited || 0;
+const baseMatch = { p_id: projectId };
+if (startDate || endDate) {
+  baseMatch.dbt_date = {};
+  if (startDate) baseMatch.dbt_date.$gte = startDate;
+  if (endDate) baseMatch.dbt_date.$lte = endDate;
+}
+
+const [debitData] = await DebitModel.aggregate([
+  // 1) Cheap, index-friendly filters first
+  { $match: baseMatch },
+
+  // 2) Normalize searchable fields to strings
+  {
+    $addFields: {
+      po_numberStr: { $toString: { $ifNull: ["$po_number", ""] } },
+      vendorStr:    { $toString: { $ifNull: ["$vendor", ""] } },
+      paid_forStr:  { $toString: { $ifNull: ["$paid_for", ""] } },
+    }
+  },
+
+  // 3) Apply search after normalization
+  ...(hasSearch ? [{
+    $match: {
+      $or: [
+        // substring match for mixed-format POs like "ENERGY-PO/25-26/02142"
+        { po_numberStr: { $regex: searchEsc, $options: "i" } },
+        // fast exact numeric match if user typed only digits
+        ...(isDigits ? [{ po_number: Number(searchDebit.trim()) }] : []),
+        { vendorStr:   { $regex: searchEsc, $options: "i" } },
+        { paid_forStr: { $regex: searchEsc, $options: "i" } },
+      ]
+    }
+  }] : []),
+
+  // 4) Results + totals in one go
+  {
+    $facet: {
+      history: [
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: pageSize },
+        {
+          $project: {
+            _id: 1,
+            amount_paid: 1,
+            paid_for: 1,
+            po_number: 1,
+            utr: 1,
+            updatedAt: 1,
+            createdAt: 1,
+            vendor: 1,
+            dbt_date: 1,
+          }
+        }
+      ],
+      summary: [
+        { $group: { _id: null, totalDebited: { $sum: asDouble("$amount_paid") } } }
+      ]
+    }
+  }
+]);
+
+const debitHistory = debitData?.history || [];
+const totalDebited = debitData?.summary?.[0]?.totalDebited || 0;
+
 
     // ---------- Adjustment ----------
     const adjustmentMatch = { p_id: projectId };
@@ -1692,7 +1712,7 @@ const tab = (req.query.tab || "").toLowerCase();
       adjustmentData?.summary?.[0]?.totalDebitAdjustment || 0;
 
     // ---------- Client History (POs) ----------
-    const searchRegex = searchClient ? new RegExp(searchClient, "i") : null;
+const searchRegex = searchClient ? new RegExp(escapeRegex(searchClient), "i") : null;
 
 const clientHistoryResult = await ProjectModel.aggregate([
   { $match: { _id: projectOid } },
@@ -1715,6 +1735,25 @@ const clientHistoryResult = await ProjectModel.aggregate([
         },
         { $sort: { createdAt: -1 } },
         { $addFields: { po_numberStr: { $toString: "$po_number" } } },
+
+    // Early filtering inside purchaseorders pipeline
+...(searchClient
+  ? [
+      {
+        $match: {
+          $or: [
+            // numeric match if pure digits
+            ...( /^\d+$/.test(searchClient)
+              ? [{ po_number: Number(searchClient) }]
+              : []),
+            // substring match on po_numberStr (ENERGY-PO/25-26/02142 will match "02142")
+            { po_numberStr: { $regex: escapeRegex(searchClient), $options: "i" } },
+          ],
+        },
+      },
+    ]
+  : []),
+
         {
   $addFields: {
     last_sales_detail: {
@@ -1910,6 +1949,7 @@ const clientHistoryResult = await ProjectModel.aggregate([
 },
 
 
+
       ],
       
       as: "purchase_orders",
@@ -1923,11 +1963,99 @@ const clientHistoryResult = await ProjectModel.aggregate([
   { $skip: skip },
 { $limit: pageSize },
  
+  {
+  $addFields: {
+    item_name: {
+      $let: {
+        vars: {
+          arr: {
+            $cond: [
+              { $eq: [ { $type: "$purchase_orders.item" }, "array" ] },
+              "$purchase_orders.item",
+              []
+            ]
+          },
+          str: {
+            $cond: [
+              { $eq: [ { $type: "$purchase_orders.item" }, "string" ] },
+              { $trim: { input: { $ifNull: [ "$purchase_orders.item", "" ] } } },
+              ""
+            ]
+          }
+        },
+        in: {
+          $cond: [
+            { $gt: [ { $size: "$$arr" }, 0 ] },
+            {
+              $reduce: {
+                input: {
+                  $setUnion: [
+                    {
+                      $filter: {
+                        input: {
+                          $map: {
+                            input: "$$arr",
+                            as: "it",
+                            in: {
+                              $let: {
+                                vars: { t: { $type: "$$it" } },
+                                in: {
+                                  $cond: [
+                                    { $eq: ["$$t", "object"] },
+                                    {
+                                      $trim: {
+                                        input: {
+                                          $ifNull: [
+                                            "$$it.product_name",
+                                            { $ifNull: ["$$it.name", ""] }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    {
+                                      $cond: [
+                                        { $eq: ["$$t", "string"] },
+                                        { $trim: { input: "$$it" } },
+                                        ""
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        },
+                        as: "n",
+                        cond: { $ne: ["$$n", ""] }
+                      }
+                    },
+                    [] // de-dupe
+                  ]
+                },
+                initialValue: "",
+                in: {
+                  $cond: [
+                    { $eq: ["$$value", ""] },
+                    "$$this",
+                    { $concat: ["$$value", ", ", "$$this"] }
+                  ]
+                }
+              }
+            },
+            { $cond: [ { $ne: ["$$str", ""] }, "$$str", "-" ] }
+          ]
+        }
+      }
+    }
+  }
+},
+
+
 
 
 
   // --- Vendor lookup ---
-  {
+{
   $lookup: {
     from: "vendors",
     localField: "purchase_orders.vendor",
@@ -1937,28 +2065,25 @@ const clientHistoryResult = await ProjectModel.aggregate([
 },
 {
   $addFields: {
-    vendor: {
-      $ifNull: [{ $arrayElemAt: ["$_vendor.name", 0] }, null],
-    },
+    vendorName: { $ifNull: [{ $arrayElemAt: ["$_vendor.name", 0] }, ""] }
   },
 },
 
 
-{ $project: { _vendor: 0 } },
 
-        ...(searchRegex
-        ? [
-            {
-              $match: {
-                $or: [
-                  { "purchase_orders.vendor": searchRegex },
-                  { "purchase_orders.po_number": searchRegex },
-                  { code: searchRegex },
-                ],
-              },
-            },
-          ]
-        : []),
+
+...(searchRegex ? [{
+  $match: {
+    $or: [
+      { vendorName: searchRegex },
+      { "purchase_orders.po_numberStr": searchRegex },
+      { code: searchRegex },
+      { item_name: searchRegex }
+    ]
+  }
+}] : []),
+
+
 
 
   // --- Final projection ---
@@ -1966,10 +2091,11 @@ const clientHistoryResult = await ProjectModel.aggregate([
     $project: {
       _id: "$purchase_orders._id",
       project_code: "$code",
+      // item_name: 1,
       po_number: "$purchase_orders.po_number",
-      vendor: "$vendor",
+      vendor: "$vendorName",
       po_value: "$purchase_orders.po_value",
-      item_name: "$purchase_orders.item_name",
+      item_name: "$item_name",
       total_unbilled_sales: "$purchase_orders.total_unbilled_sales",
     total_sales_value: asDouble("$purchase_orders.last_sales_detail.total_sales_value"),
 
@@ -2106,6 +2232,102 @@ const clientHistoryResult = await ProjectModel.aggregate([
               },
             },
 
+            {
+  $addFields: {
+    item_name: {
+      $let: {
+        vars: {
+          // Normalize "item" to an array of entries
+          arr: {
+            $switch: {
+              branches: [
+                { case: { $eq: [ { $type: "$item" }, "array" ] },  then: "$item" },
+                { case: { $eq: [ { $type: "$item" }, "object" ] }, then: [ "$item" ] },
+              ],
+              default: []
+            }
+          },
+          // If "item" is a plain string, keep it here
+          str: {
+            $cond: [
+              { $eq: [ { $type: "$item" }, "string" ] },
+              { $trim: { input: { $ifNull: [ "$item", "" ] } } },
+              ""
+            ]
+          }
+        },
+        in: {
+          $cond: [
+            // Prefer normalized array path if we have entries
+            { $gt: [ { $size: "$$arr" }, 0 ] },
+            {
+              $reduce: {
+                input: {
+                  $setUnion: [
+                    {
+                      $filter: {
+                        input: {
+                          $map: {
+                            input: "$$arr",
+                            as: "it",
+                            in: {
+                              $let: {
+                                vars: { t: { $type: "$$it" } },
+                                in: {
+                                  $cond: [
+                                    // array entry is an object → product_name → fallback name
+                                    { $eq: ["$$t", "object"] },
+                                    {
+                                      $trim: {
+                                        input: {
+                                          $ifNull: [
+                                            "$$it.product_name",
+                                            { $ifNull: [ "$$it.name", "" ] }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    // array entry is a string
+                                    {
+                                      $cond: [
+                                        { $eq: ["$$t", "string"] },
+                                        { $trim: { input: "$$it" } },
+                                        ""
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        },
+                        as: "n",
+                        cond: { $ne: ["$$n", ""] }
+                      }
+                    },
+                    [] // de-dupe
+                  ]
+                },
+                initialValue: "",
+                in: {
+                  $cond: [
+                    { $eq: ["$$value", ""] },
+                    "$$this",
+                    { $concat: ["$$value", ", ", "$$this"] }
+                  ]
+                }
+              }
+            },
+            // Fall back to plain string if present, else "-"
+            { $cond: [ { $ne: ["$$str", ""] }, "$$str", "-" ] }
+          ]
+        }
+      }
+    }
+  }
+},
+
+
             // BillDetails lookup
             // --- BillDetails lookup (sum across all docs & items) ---
            {
@@ -2240,6 +2462,7 @@ const clientHistoryResult = await ProjectModel.aggregate([
               },
             },
 
+
             {
               $project: {
                 _id: 1,
@@ -2248,6 +2471,7 @@ const clientHistoryResult = await ProjectModel.aggregate([
                 po_value: asDouble("$po_value"),
                 po_basic: asDouble("$po_basic"),
                 gst: asDouble("$gst"),
+                item_name:"$item_name",
                 createdAt: 1,
                 advance_paid: {
                   $cond: [
@@ -3325,7 +3549,7 @@ if (tab && exportToCSV !== "csv") {
           "Invoice issued to customer",
           INR(bs.total_sales_value),
         ],
-        ["6", "Bills received, yet to be invoiced to customer" ,INR(total_billed_value)],
+        ["6", "Bills received, yet to be invoiced to customer" ,INR(aggregate_billed_value)],
           [
           "7",
           "	Advances left after bills received [4-5-6]",
