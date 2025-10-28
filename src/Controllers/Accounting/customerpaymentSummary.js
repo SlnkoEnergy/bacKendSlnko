@@ -3211,49 +3211,7 @@ total_adjustment:1,
           total_sales_value: 1,
 
           total_unbilled_sales: 1,
-//           balance_with_slnko: {
-//   $round: [
-//     {
-//       $subtract: [
-//         {
-//           $subtract: [
-//             {
-//               $subtract: [
-//                 { $ifNull: ["$netBalance", 0] },
-//                 { $ifNull: ["$total_sales_value", 0] }
-//               ]
-//             },
-//             { $ifNull: ["$total_unbilled_sales", 0] }
-//           ]
-//         },
-//         {
-//           $add: [
-//             { $ifNull: ["$advance_left_after_billed", 0] },
-//             { $ifNull: ["$total_adjustment", 0] }
-//           ]
-//         }
-//       ],
-//     },
-//     2
-//   ]
-// }
 
-          //       advance_left_after_billed: {
-          //   $round: [
-          //     {
-          //       $subtract: [
-          //         { $ifNull: ["$total_advance_paid", 0] },
-          //         {
-          //           $add: [
-          //             { $ifNull: ["$total_sales_value", 0] },
-          //             { $ifNull: ["$total_unbilled_sales", 0] },
-          //           ],
-          //         },
-          //       ],
-          //     },
-          //     2,
-          //   ],
-          // }, 
         },
       },
     ]);
@@ -3279,7 +3237,9 @@ const exact_remaining_pay_to_vendor =
   (balanceSummary?.total_adjustment || 0);
   const aggregate_billed_value = clientMeta?.total_billed_value;
 
-  const total_advance_paid = clientMeta?.total_advance_paid
+  const total_advance_paid = (totalDebited || 0) - (balanceSummary?.total_return);
+
+
 
 
     const responseData = {
