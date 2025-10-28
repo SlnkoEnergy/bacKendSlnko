@@ -304,7 +304,6 @@ router.put("/:id/updateEtdOrDelivery", auth, updateEditandDeliveryDate);
 router.put("/sales-update/:id", auth, upload, updateSalesPO);
 router.put("/bulk-mark-delivered", auth, bulkMarkDelivered);
 router.post("/purchase-orders/link-project/bulk", linkProjectToPOByPid);
-
 router.post("/purchase-generate-pdf", auth, generatePurchaseOrderPdf);
 
 //pay Request api
