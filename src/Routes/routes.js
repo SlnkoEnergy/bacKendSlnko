@@ -26,7 +26,7 @@ const {
   getAllPosts,
   updateProjectStatusForPreviousProjects,
   updateSubmittedByOfProject,
-  updateSkippedProject
+  updateSkippedProject,
 } = require("../Controllers/project.controller.js");
 
 const {
@@ -267,31 +267,20 @@ router.get("/project-dropdown-detail", auth, getProjectsDropdown);
 
 router.get("/project-state-detail", auth, getProjectStates);
 router.get("/allposts", auth, getAllPosts);
-router.put('/updateprojectstatusforpreviousprojects', auth, updateProjectStatusForPreviousProjects);
-router.put('/updateprojectsubmittedby', auth, updateSubmittedByOfProject);
+router.put(
+  "/updateprojectstatusforpreviousprojects",
+  auth,
+  updateProjectStatusForPreviousProjects
+);
+router.put("/updateprojectsubmittedby", auth, updateSubmittedByOfProject);
 router.put("/updateSkippedProject", updateSkippedProject);
 
 //addMoney APi
-router.post(
-  "/Add-MoneY-IT",
-  auth,
-
-  addMoney
-);
+router.post("/Add-MoneY-IT", auth, addMoney);
 router.get("/all-bilL-IT", auth, allbill);
 router.get("/project-by-pid", auth, getAllProjects);
-router.post(
-  "/get-bilL-IT",
-  auth,
-
-  credit_amount
-);
-router.delete(
-  "/delete-crdit-amount/:_id",
-  auth,
-
-  deleteCreditAmount
-);
+router.post("/get-bilL-IT", auth, credit_amount);
+router.delete("/delete-crdit-amount/:_id", auth, deleteCreditAmount);
 
 //purchase order controller
 router.post("/Add-purchase-ordeR-IT", auth, addPo);
@@ -343,11 +332,7 @@ router.get(
 
   getTrashPayment
 );
-router.put(
-  "/acc-matched",
-  auth,
-  account_matched
-);
+router.put("/acc-matched", auth, account_matched);
 router.put("/utr-update", auth, utrUpdate);
 router.put(
   "/account-approve",
@@ -434,7 +419,7 @@ router.get(
   getExcelDataById
 );
 router.get("/get-pay-smry", auth, getpy);
-router.get('/payrequestvendor', auth, getPayRequestByVendor);
+router.get("/payrequestvendor", auth, getPayRequestByVendor);
 
 //adjustment request
 router.post(

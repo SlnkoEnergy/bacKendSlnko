@@ -900,7 +900,6 @@ const updateScopeStatus = async (req, res) => {
   }
 };
 
-// --- helpers (keep local so this stays self-contained) ---
 const fmt = (v) => {
   if (v === null || v === undefined) return "";
   if (v instanceof Date || /^\d{4}-\d{2}-\d{2}T/.test(String(v))) {
@@ -915,7 +914,9 @@ const prettyStatus = (s) => {
   const x = String(s).trim().replace(/_/g, " ");
   return x
     .split(/\s+/)
-    .map((w) => (w.toLowerCase() === "po" ? "PO" : w[0]?.toUpperCase() + w.slice(1)))
+    .map((w) =>
+      w.toLowerCase() === "po" ? "PO" : w[0]?.toUpperCase() + w.slice(1)
+    )
     .join(" ");
 };
 
@@ -938,16 +939,33 @@ function sortAndDedupePos(list) {
 
 /* ------------ column config ------------- */
 const AVAILABLE_COLUMNS = [
-  { key: "scope", label: "Scope", get: (r) => (r.scope ? "Slnko" : "Client"), raw: (r) => r.scope },
+  {
+    key: "scope",
+    label: "Scope",
+    get: (r) => (r.scope ? "Slnko" : "Client"),
+    raw: (r) => r.scope,
+  },
   { key: "quantity", label: "Qty", get: (r) => fmt(r.quantity) },
   { key: "uom", label: "UoM", get: (r) => fmt(r.uom) },
-  { key: "commitment_date", label: "Commitment Date", get: (r) => fmt(r.commitment_date) },
-   { key: "remarks", label: "Remarks", get: (r) => fmt(r.remarks) },
+  {
+    key: "commitment_date",
+    label: "Commitment Date",
+    get: (r) => fmt(r.commitment_date),
+  },
+  { key: "remarks", label: "Remarks", get: (r) => fmt(r.remarks) },
   { key: "po_number", label: "PO Number", get: (r) => fmt(r.po_number) },
-  { key: "po_status", label: "PO Status", get: (r) => prettyStatus(r.po_status) },
+  {
+    key: "po_status",
+    label: "PO Status",
+    get: (r) => prettyStatus(r.po_status),
+  },
   { key: "po_date", label: "PO Date", get: (r) => fmt(r.po_date) },
   { key: "etd", label: "ETD", get: (r) => fmt(r.etd) },
-  { key: "delivered_date", label: "Delivered Date", get: (r) => fmt(r.delivered_date) },
+  {
+    key: "delivered_date",
+    label: "Delivered Date",
+    get: (r) => fmt(r.delivered_date),
+  },
 ];
 
 const DEFAULT_COLUMN_KEYS = [
@@ -963,14 +981,16 @@ function resolveColumnDefs(req) {
   let input = [];
   if (Array.isArray(req.body?.columns)) input = req.body.columns;
   else if (typeof req.query?.columns === "string") {
-    input = req.query.columns.split(",").map((s) => s.trim()).filter(Boolean);
+    input = req.query.columns
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
- const keys = (input.length ? input : DEFAULT_COLUMN_KEYS)
-  .map((k) => (typeof k === "string" ? k : k?.key)) 
-  .filter(Boolean)
-  .map((k) => k.toLowerCase());
-
+  const keys = (input.length ? input : DEFAULT_COLUMN_KEYS)
+    .map((k) => (typeof k === "string" ? k : k?.key))
+    .filter(Boolean)
+    .map((k) => k.toLowerCase());
 
   const byKey = new Map(AVAILABLE_COLUMNS.map((c) => [c.key, c]));
   const defs = [];
@@ -1005,7 +1025,8 @@ const getScopePdf = async (req, res) => {
       : null;
 
     const camMemberName = handover?.submitted_by?.name || null;
-    const projectStatus = project?.current_status?.status || project?.status || null;
+    const projectStatus =
+      project?.current_status?.status || project?.status || null;
 
     const scopeData = await scopeModel
       .find({ project_id })
@@ -1015,7 +1036,9 @@ const getScopePdf = async (req, res) => {
       .lean();
 
     if (!scopeData?.length) {
-      return res.status(404).json({ message: "No scope data found for this project" });
+      return res
+        .status(404)
+        .json({ message: "No scope data found for this project" });
     }
 
     const allItemIdSet = new Set();
@@ -1039,12 +1062,13 @@ const getScopePdf = async (req, res) => {
         .map((c) => String(c._id))
     );
 
-
     const projectCode = String(project?.code || "").trim();
     const pos = projectCode
       ? await purchaseorderModel
           .find({ p_id: projectCode })
-          .select("_id po_number date etd delivery_date current_status item createdAt")
+          .select(
+            "_id po_number date etd delivery_date current_status item createdAt"
+          )
           .lean()
       : [];
     const catToPOs = new Map();
@@ -1057,7 +1081,7 @@ const getScopePdf = async (req, res) => {
       }
     }
 
-    const columnDefs = resolveColumnDefs(req); 
+    const columnDefs = resolveColumnDefs(req);
 
     const processed = scopeData.map((scope) => {
       const rawItems = Array.isArray(scope.items) ? scope.items : [];
@@ -1127,7 +1151,7 @@ const getScopePdf = async (req, res) => {
             quantity: "",
             uom: "",
             commitment_date: "",
-            remarks:"",
+            remarks: "",
             po_number: p.po_number,
             po_status: p.po_status,
             po_date: p.po_date,
@@ -1153,9 +1177,14 @@ const getScopePdf = async (req, res) => {
       };
     });
 
-    const totalRows = processed.reduce((acc, s) => acc + (s.rows?.length || 0), 0);
+    const totalRows = processed.reduce(
+      (acc, s) => acc + (s.rows?.length || 0),
+      0
+    );
     if (totalRows === 0) {
-      return res.status(404).json({ message: "No active items found for this project" });
+      return res
+        .status(404)
+        .json({ message: "No active items found for this project" });
     }
 
     const isLandscape = String(view).toLowerCase() === "landscape";
@@ -1163,8 +1192,15 @@ const getScopePdf = async (req, res) => {
       if (!f) return "A4";
       const val = String(f).trim();
       const map = {
-        A0: "A0", A1: "A1", A2: "A2", A3: "A3", A4: "A4", A5: "A5",
-        Letter: "Letter", Legal: "Legal", Tabloid: "Tabloid",
+        A0: "A0",
+        A1: "A1",
+        A2: "A2",
+        A3: "A3",
+        A4: "A4",
+        A5: "A5",
+        Letter: "Letter",
+        Legal: "Legal",
+        Tabloid: "Tabloid",
       };
       return map[val] || map[val.toUpperCase()] || "A4";
     };
@@ -1199,7 +1235,6 @@ const getScopePdf = async (req, res) => {
     });
   }
 };
-
 
 const IT_TEAM_USER_ID = new mongoose.Types.ObjectId("6839a4086356310d4e15f6fd");
 

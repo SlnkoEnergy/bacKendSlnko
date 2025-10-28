@@ -451,7 +451,6 @@ const addPo = async function (req, res) {
     const {
       p_id,
       date,
-      project_id,
       po_number,
       vendor,
       pr_id,
@@ -481,13 +480,12 @@ const addPo = async function (req, res) {
         .send({ message: "items array is required and cannot be empty." });
 
     let projectObjectId;
-    if (project_id) {
-      if (!mongoose.Types.ObjectId.isValid(project_id)) {
-        return res.status(400).send({ message: "Invalid project_id." });
-      }
-      projectObjectId = new mongoose.Types.ObjectId(project_id);
-    }
 
+    const project = await projectModel.findOne({ code: p_id });
+    if (!project) {
+      return res.status(404).json("Project Not Found");
+    }
+    const project_id = project._id;
     const exists = await purchaseOrderModells.exists({ po_number });
     if (exists && initial_status !== "approval_pending")
       return res.status(400).send({ message: "PO Number already used!" });
@@ -532,7 +530,7 @@ const addPo = async function (req, res) {
 
     const newPO = new purchaseOrderModells({
       p_id,
-      project_id: projectObjectId,
+      project_id: project_id,
       po_number,
       date,
       item: itemsSanitized,
@@ -2268,7 +2266,6 @@ const updateSalesPO = async (req, res) => {
     if (!invoice)
       return res.status(400).json({ message: "Sales Invoice is mandatory" });
 
-   
     const po = id
       ? await purchaseOrderModells.findById(id)
       : await purchaseOrderModells.findOne({
@@ -2277,14 +2274,12 @@ const updateSalesPO = async (req, res) => {
 
     if (!po) return res.status(404).json({ message: "PO not found" });
 
-  
     const project = await projectModel.findById(po.project_id, {
       billing_type: 1,
     });
 
     const billingType = project?.billing_type || "Individual";
 
-  
     const gstRate = billingType === "Composite" ? 0.089 : 0.18;
     const gst = Number((basic * gstRate).toFixed(2));
 
@@ -2292,7 +2287,6 @@ const updateSalesPO = async (req, res) => {
     const alreadySales = Number(po.total_sales_value) || 0;
     const entryTotal = basic + gst;
 
-   
     const safePo = (s) =>
       String(s || "")
         .trim()
@@ -2303,7 +2297,6 @@ const updateSalesPO = async (req, res) => {
       folderPath
     )}`;
 
-    
     const files = req.file
       ? [req.file]
       : Array.isArray(req.files)
@@ -2325,7 +2318,6 @@ const updateSalesPO = async (req, res) => {
         file.buffer || (file.path ? fs.readFileSync(file.path) : null);
       if (!buffer) continue;
 
-     
       if (mimeType.startsWith("image/")) {
         try {
           const ext = mime.extension(mimeType);
@@ -2377,7 +2369,6 @@ const updateSalesPO = async (req, res) => {
       }
     }
 
- 
     const userId = req.user?.userId || req.user?._id || null;
     if (!Array.isArray(po.sales_Details)) po.sales_Details = [];
 
