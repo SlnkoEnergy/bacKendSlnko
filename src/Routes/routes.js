@@ -276,26 +276,11 @@ router.put("/updateprojectsubmittedby", auth, updateSubmittedByOfProject);
 router.put("/updateSkippedProject", updateSkippedProject);
 
 //addMoney APi
-router.post(
-  "/Add-MoneY-IT",
-  auth,
-
-  addMoney
-);
+router.post("/Add-MoneY-IT", auth, addMoney);
 router.get("/all-bilL-IT", auth, allbill);
 router.get("/project-by-pid", auth, getAllProjects);
-router.post(
-  "/get-bilL-IT",
-  auth,
-
-  credit_amount
-);
-router.delete(
-  "/delete-crdit-amount/:_id",
-  auth,
-
-  deleteCreditAmount
-);
+router.post("/get-bilL-IT", auth, credit_amount);
+router.delete("/delete-crdit-amount/:_id", auth, deleteCreditAmount);
 
 //purchase order controller
 router.post("/Add-purchase-ordeR-IT", auth, addPo);
