@@ -31,9 +31,6 @@ const digitsByKey = {};
 
 const getCustomerPaymentSummary = async (req, res) => {
   try {
-    const page = parseInt(req.query.page, 10) || 1;
-    const pageSize = parseInt(req.query.pageSize, 10) || 50;
-    const skip = (page - 1) * pageSize;
     const tab = (req.query.tab || "").toLowerCase();
 
     const {
@@ -140,8 +137,7 @@ const getCustomerPaymentSummary = async (req, res) => {
         $facet: {
           history: [
             { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: pageSize },
+         
             {
               $project: {
                 _id: 1,
@@ -180,10 +176,8 @@ const getCustomerPaymentSummary = async (req, res) => {
     }
 
     const [debitData] = await DebitModel.aggregate([
-      // 1) Cheap, index-friendly filters first
+     
       { $match: baseMatch },
-
-      // 2) Normalize searchable fields to strings
       {
         $addFields: {
           po_numberStr: { $toString: { $ifNull: ["$po_number", ""] } },
@@ -217,8 +211,6 @@ const getCustomerPaymentSummary = async (req, res) => {
         $facet: {
           history: [
             { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: pageSize },
             {
               $project: {
                 _id: 1,
@@ -264,8 +256,7 @@ const getCustomerPaymentSummary = async (req, res) => {
         $facet: {
           history: [
             { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: pageSize },
+       
             {
               $project: {
                 _id: 1,
@@ -667,8 +658,6 @@ const getCustomerPaymentSummary = async (req, res) => {
       },
       { $match: { "purchase_orders._id": { $exists: true } } },
       { $sort: { "purchase_orders.createdAt": -1 } },
-      { $skip: skip },
-      { $limit: pageSize },
 
       {
         $addFields: {
@@ -1267,8 +1256,6 @@ const getCustomerPaymentSummary = async (req, res) => {
       },
       { $unwind: { path: "$sales_orders", preserveNullAndEmptyArrays: false } },
       { $replaceRoot: { newRoot: "$sales_orders" } },
-      { $skip: skip },
-      { $limit: pageSize },
     ]);
 
     const salesMeta = salesHistoryResult.reduce(
@@ -1416,7 +1403,7 @@ const getCustomerPaymentSummary = async (req, res) => {
             },
             {
               $lookup: {
-                from: "biildetails", // Correct collection name (biildetails)
+                from: "biildetails",
                 let: { poNum: "$po_numberStr" },
                 pipeline: [
                   {
@@ -2110,12 +2097,9 @@ const getCustomerPaymentSummary = async (req, res) => {
       else if (tab === "adjustment")
         filtered.adjustment = responseData.adjustment;
       else if (tab === "purchase")
-        filtered.clientHistory = responseData.clientHistory; // vendor POs
+        filtered.clientHistory = responseData.clientHistory;
       else if (tab === "sales")
         filtered.salesHistory = responseData.salesHistory;
-
-      filtered.page = page;
-      filtered.pageSize = pageSize;
 
       return res.status(200).json(filtered);
     }
