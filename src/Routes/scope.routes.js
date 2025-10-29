@@ -7,6 +7,8 @@ const {
   deleteScope,
   getScopePdf,
   ensureProjectScope,
+  updateCommitmentDate,
+  exportScopes,
 } = require("../Controllers/scope.controller");
 const router = require("express").Router();
 const auth = require("../middlewares/auth.middleware.js");
@@ -21,7 +23,13 @@ router.put(
   updateScopeStatus
 );
 router.delete("/scope", auth, deleteScope);
-router.get("/scope-pdf", auth, getScopePdf);
+router.post("/scope-pdf", auth, getScopePdf);
 router.put("/ensureProjectScope", ensureProjectScope);
+router.put(
+  "/:id/scope/:item_id/commitment",
+  auth,
+  updateCommitmentDate
+);
+router.post('/export-scopes', auth, exportScopes);
 
 module.exports = router;
