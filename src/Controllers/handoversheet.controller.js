@@ -94,8 +94,41 @@ const migrateProjectToHandover = async (req, res) => {
   }
 };
 
+const safe = (s = "") => String(s).replace(/[\\/]/g, "_").replace(/\s+/g, "_");
+
+async function uploadBufferToBlob({ buffer, originalname, mimetype, folderPath }) {
+  const form = new FormData();
+  form.append("file", buffer, { filename: originalname, contentType: mimetype });
+
+  const uploadUrl =
+    `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
+
+  const resp = await axios.post(uploadUrl, form, {
+    headers: form.getHeaders(),
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+  });
+
+  const d = resp.data;
+  const url = Array.isArray(d) && d.length > 0
+    ? d[0]
+    : d.url || d.fileUrl || (d.data && d.data.url) || null;
+
+  if (!url) throw new Error("UPLOAD_API did not return a file URL");
+  return url;
+}
+
+async function downloadToBuffer(url) {
+  const resp = await axios.get(url, { responseType: "arraybuffer" });
+  const contentType = resp.headers["content-type"] || "application/octet-stream";
+  return { buffer: Buffer.from(resp.data), contentType };
+}
+
 const createhandoversheet = async function (req, res) {
   try {
+    const base =
+      typeof req.body.data === "string" ? JSON.parse(req.body.data) : req.body;
+
     const {
       id,
       p_id,
@@ -103,14 +136,21 @@ const createhandoversheet = async function (req, res) {
       order_details,
       project_detail,
       commercial_details,
-      other_details,
+      other_details = {},
       invoice_detail,
-    } = req.body;
+      documents, 
+      status_of_handoversheet,
+      is_locked,
+    } = base;
 
     const userId = req.user.userId;
     const user = await userModells.findById(userId);
-
     other_details.submitted_by_BD = userId;
+
+    const exists = await hanoversheetmodells.findOne({ id });
+    if (exists) {
+      return res.status(400).json({ message: "Handoversheet already exists" });
+    }
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -121,38 +161,95 @@ const createhandoversheet = async function (req, res) {
       commercial_details,
       other_details,
       invoice_detail,
-      status_of_handoversheet: req.body.status_of_handoversheet || "draft",
+      status_of_handoversheet: status_of_handoversheet || "draft",
+      is_locked: is_locked || "locked",
       submitted_by: userId,
     });
 
-    cheched_id = await hanoversheetmodells.findOne({ id: id });
-    if (cheched_id) {
-      return res.status(400).json({ message: "Handoversheet already exists" });
+    await handoversheet.save();
+
+    const savedDocs = [];
+
+    if (Array.isArray(req.files) && req.files.length) {
+      for (const f of req.files) {
+        try {
+          const fileName = f.originalname || "document";
+          const leaf = `${safe(fileName)}/files`;
+          const folderPath = `Handovers/${handoversheet.id}/${leaf}`;
+
+          const url = await uploadBufferToBlob({
+            buffer: f.buffer,
+            originalname: fileName,
+            mimetype: f.mimetype || "application/octet-stream",
+            folderPath,
+          });
+
+          savedDocs.push({
+            filename: fileName,
+            fileurl: url,
+            fileType: f.mimetype || "application/octet-stream",
+          });
+        } catch (e) {
+          console.warn("File upload failed:", f.originalname, e?.message);
+        }
+      }
+    }
+    if (documents && (Array.isArray(documents) || typeof documents === "string")) {
+      const list = Array.isArray(documents) ? documents : [documents];
+
+      for (const item of list) {
+        try {
+          const url = typeof item === "string" ? item : item.url;
+          if (!url) continue;
+
+          const docNameRaw =
+            (typeof item === "object" && item.name) ||
+            url.split("/").pop() ||
+            "document";
+          const docName = decodeURIComponent(docNameRaw);
+          const { buffer, contentType } = await downloadToBuffer(url);
+          const leaf = `${safe(docName)}/files`;
+          const folderPath = `Handovers/${handoversheet._id}/${leaf}`;
+
+          const uploadedUrl = await uploadBufferToBlob({
+            buffer,
+            originalname: docName,
+            mimetype: contentType,
+            folderPath,
+          });
+
+          savedDocs.push({
+            filename: docName,
+            fileurl: uploadedUrl,
+            fileType: contentType,
+          });
+        } catch (e) {
+          console.warn("URL ingest failed:", item, e?.message);
+        }
+      }
     }
 
-    if (
-      req.body.status_of_handoversheet === "Approved" &&
-      req.body.is_locked === "locked"
-    ) {
-      const projectData = await projectmodells.findOne({ p_id: p_id });
+    if (savedDocs.length) {
+      handoversheet.documents = savedDocs;
+      await handoversheet.save();
+    }
+
+    if (status_of_handoversheet === "Approved" && (is_locked === "locked")) {
+      const projectData = await projectmodells.findOne({ p_id });
       if (!projectData) {
         return res.status(404).json({ message: "Project not found" });
       }
-
-      const moduleCategoryData = new moduleCategory({
-        project_id: projectData._id,
-      });
-
+      const moduleCategoryData = new moduleCategory({ project_id: projectData._id });
       await moduleCategoryData.save();
     }
 
-    const lead = await bdleadsModells.findOne({ id: id });
-    lead.status_of_handoversheet = req.body.status_of_handoversheet || "draft";
-    lead.handover_lock = req.body.handover_lock || "locked";
-    await lead.save();
-    await handoversheet.save();
+    const lead = await bdleadsModells.findOne({ id });
+    if (lead) {
+      lead.status_of_handoversheet = status_of_handoversheet || "draft";
+      lead.handover_lock = is_locked || "locked";
+      await lead.save();
+    }
 
-    // Notification for Creating Handover
     try {
       const workflow = "handover-submit";
       const Ids = await userModells
@@ -160,28 +257,33 @@ const createhandoversheet = async function (req, res) {
         .select("_id")
         .lean()
         .then((users) => users.map((u) => u._id));
+
       const data = {
-        message: `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`,
-        link: `leadProfile?id=${lead._id}&tab=handover`,
+        message: `${user?.name} submitted the handover for Lead ${lead?.id || id} on ${new Date().toLocaleString()}.`,
+        link: `leadProfile?id=${lead?._id}&tab=handover`,
         type: "sales",
         link1: `/sales`,
       };
+
       setImmediate(() => {
         sendNotification(workflow, Ids, data).catch((err) =>
           console.error("Notification error:", err)
         );
       });
-    } catch (error) {
-      console.log(error);
+    } catch (err) {
+      console.log("Notification error:", err?.message);
     }
-    res.status(200).json({
+
+    return res.status(200).json({
       message: "Data saved successfully",
       handoversheet,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Create Handover error:", error);
+    return res.status(500).json({ message: error.message || "Internal Server Error" });
   }
 };
+
 
 const gethandoversheetdata = async function (req, res) {
   try {

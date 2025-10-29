@@ -141,4 +141,4 @@ module.exports = {
   updateLoan,
   updateLoanStatus,
   deleteLoan,
-};
+};  

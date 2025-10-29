@@ -1432,6 +1432,23 @@ const updatePriority = async (req, res) => {
   }
 };
 
+const getDocuments = async (req, res) => {
+  try {
+    const { id } = req.query;
+    const lead = await bdleadsModells.findById(id);
+    const documents = lead.documents;
+    res.status(200).json({
+      message: "Documents Found Successfully",
+      data: documents,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllLeads,
   getAllLeadDropdown,
@@ -1451,4 +1468,5 @@ module.exports = {
   getLeadCounts,
   updateLeadStatusBulk,
   updatePriority,
+  getDocuments,
 };
