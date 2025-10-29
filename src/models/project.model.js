@@ -8,7 +8,7 @@ const projectSchema = new mongoose.Schema(
     name: { type: String, default: " " },
     p_group: { type: String },
     email: { type: String },
-    number: { type: Number },
+    number: { type: String },
     alt_number: {
       type: String,
     },

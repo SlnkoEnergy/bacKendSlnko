@@ -1,9 +1,11 @@
 const { default: mongoose } = require("mongoose");
 const projectModel = require("../models/project.model");
 const ticketModel = require("../models/ticket.model");
+const tasksModells = require("../models/task.model");
 const TicketCounterSchema = require("../models/ticketCounter.controller");
 const FormData = require("form-data");
 const axios = require("axios");
+const materialcategoryModel = require("../models/materialcategory.model");
 const getProjectByNumber = async (req, res) => {
   try {
     let { number } = req.query;
@@ -27,7 +29,7 @@ const getProjectByNumber = async (req, res) => {
     }
 
     const data = await projectModel
-      .find({ number: Number(number) })
+      .find({ number: String(number) })
       .select("name _id")
       .lean();
 
@@ -102,7 +104,7 @@ const createComplaint = async (req, res) => {
       { $inc: { count: 1 } },
       { new: true, upsert: true }
     );
-    const ticket_id = `Ticket-${stateCode}-${String(counter.count).padStart(3, "0")}`;
+    const ticket_id = `T${stateCode}${String(counter.count).padStart(3, "0")}`;
 
     // ---------------- file uploads ----------------
     const files = Array.isArray(req.files) ? req.files : [];
@@ -133,9 +135,9 @@ const createComplaint = async (req, res) => {
         Array.isArray(respData) && respData.length > 0
           ? respData[0]
           : respData.url ||
-            respData.fileUrl ||
-            (respData.data && respData.data.url) ||
-            null;
+          respData.fileUrl ||
+          (respData.data && respData.data.url) ||
+          null;
 
       if (url) {
         uploadedFileMap[count] = url;
@@ -147,6 +149,14 @@ const createComplaint = async (req, res) => {
     const documents = Object.values(uploadedFileMap).map((url) => ({
       attachment_url: url,
     }));
+
+    const attachments = Object.values(uploadedFileMap).map((url) => ({
+      url,
+      updatedAt: new Date,
+
+    }))
+
+    const categoryData = await materialcategoryModel.findById(material).select("name");
     // ---------------- create ticket ----------------
     const ticket = new ticketModel({
       project_id,
@@ -155,8 +165,28 @@ const createComplaint = async (req, res) => {
       short_description,
       ticket_id,
       documents,
+      number: projectData.number
     });
 
+    const task = new tasksModells({
+      taskCode: ticket_id,
+      title: categoryData.name,
+      type: "complaint",
+      description: short_description,
+      project_id,
+      priority: "1",
+      comments: [
+        {
+          remarks: description,
+          user_id: new mongoose.Types.ObjectId("6839a4086356310d4e15f6fd"),
+        },
+      ],
+      attachments,
+      assigned_to: [new mongoose.Types.ObjectId("6839a4086356310d4e15f6fd")], // ✅ array
+    });
+
+
+    await task.save();
     const saved = await ticket.save();
 
     return res
@@ -318,35 +348,78 @@ const getAllTicket = async (req, res) => {
 
 const getTicketByTicketNo = async (req, res) => {
   try {
-    const { ticket_id, number } = req.query;
-
-    // Check if at least one query parameter is provided
-    if (!ticket_id && !number) {
+    const raw = String(req.query.raw || "").trim();
+    if (!raw) {
       return res.status(400).json({
-        message: "Please provide either ticket_id or phone number.",
+        success: false,
+        message: "Please provide the 'raw' parameter (ticket id or phone number).",
       });
     }
 
-    // Build dynamic query
-    const query = {};
-    if (ticket_id) query.ticket_id = ticket_id;
-    if (number) query.number = number;
+    // --- normalize phone-like inputs ---
+    const onlyDigits = raw.replace(/[^\d]/g, ""); // strip non-digits
+    let normalizedPhone = onlyDigits;
 
-    const data = await ticketModel.find(query);
+    // remove India country code if present (supports +91 / 91)
+    if (normalizedPhone.startsWith("91") && normalizedPhone.length >= 12) {
+      normalizedPhone = normalizedPhone.slice(2);
+    }
+    // now normalizedPhone might be 10 digits if it's a mobile number
 
-    if (!data || data.length === 0) {
+    // --- detect whether raw looks like a ticket id ---
+    // Ticket ID heuristic: starts with T- (case-insensitive) or has letters + dashes
+    const looksLikeTicketId =
+      /^[Tt]-/.test(raw) ||
+      /^[A-Za-z].*[-_].*$/.test(raw); // lax fallback, adjust if needed
+
+    // Build query
+    let query = {};
+    if (looksLikeTicketId) {
+      // Case-insensitive exact match for ticket_id
+      query = { ticket_id: new RegExp(`^${raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") };
+    } else if (normalizedPhone.length === 10) {
+      // Phone search: support number stored as Number or String
+      const asNumber = Number(normalizedPhone);
+      query = {
+        $or: [{ number: asNumber }, { number: normalizedPhone }],
+      };
+    } else {
+      // Fallback: try an OR on both fields
+      const asNumber = Number(onlyDigits);
+      query = {
+        $or: [
+          { ticket_id: new RegExp(`^${raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+          ...(Number.isFinite(asNumber) && onlyDigits
+            ? [{ number: asNumber }, { number: onlyDigits }]
+            : []),
+        ],
+      };
+    }
+
+    const tickets = await ticketModel
+      .find(query)
+      .populate({ path: "project_id", select: "name" })
+      .populate({ path: "material", select: "name" })
+      .sort({ updatedAt: -1 });
+
+    if (!tickets || tickets.length === 0) {
       return res.status(404).json({
-        message: "No complaint found.",
+        success: false,
+        message: "No tickets found for the provided input.",
+        data: [],
       });
     }
 
     return res.status(200).json({
-      message: "Complaint found successfully.",
-      data,
+      success: true,
+      message: "Ticket(s) fetched successfully.",
+      data: tickets,
     });
   } catch (error) {
+    console.error("Error in getTicketByNo:", error);
     return res.status(500).json({
-      message: "Internal Server Error",
+      success: false,
+      message: "Internal server error.",
       error: error.message,
     });
   }

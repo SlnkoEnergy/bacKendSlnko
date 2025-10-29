@@ -8,6 +8,7 @@ const FormData = require("form-data");
 const sharp = require("sharp");
 const mime = require("mime-types");
 const { default: mongoose } = require("mongoose");
+const ticketModel = require("../models/ticket.model");
 
 const createTask = async (req, res) => {
   try {
@@ -987,6 +988,32 @@ const updateTaskStatus = async (req, res) => {
       remarks,
       user_id: req.user.userId,
     });
+
+
+
+    if (task.type === "complaint") {
+      const ticket = await ticketModel.findOne({ ticket_id: task.taskCode });
+
+      if (!ticket) {
+        return res.status(404).json({
+          message: "Ticket Not Found",
+        });
+      }
+
+
+      const newStatusEntry = {
+        status,
+        remarks,
+        user_id: req.user.user_id,
+        updatedAt: new Date(),
+      };
+
+      ticket.current_status = newStatusEntry;
+
+      ticket.status_history.push(newStatusEntry);
+
+      await ticket.save();
+    }
     await task.save();
     res.status(200).json({
       message: "Task Updated Successfully",

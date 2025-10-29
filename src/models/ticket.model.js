@@ -14,7 +14,7 @@ const ticketSchema = new mongoose.Schema(
                 attachment_url: { type: String },
             }
         ],
-        
+
         short_description: {
             type: String,
         },
@@ -29,10 +29,12 @@ const ticketSchema = new mongoose.Schema(
             status: {
                 type: String,
                 enum: [
+                    "completed",
                     "pending",
                     "in progress",
+                    "draft",
                     "cancelled",
-                    "completed",
+                    "system",
                 ],
             },
             remarks: {
@@ -53,10 +55,12 @@ const ticketSchema = new mongoose.Schema(
                 status: {
                     type: String,
                     enum: [
+                        "completed",
                         "pending",
                         "in progress",
+                        "draft",
                         "cancelled",
-                        "completed",
+                        "system",
                     ],
                 },
                 remarks: {
@@ -72,6 +76,11 @@ const ticketSchema = new mongoose.Schema(
                 },
             },
         ],
+
+        number: {
+            type: String,
+        }
+
     },
     { timestamps: true }
 );
