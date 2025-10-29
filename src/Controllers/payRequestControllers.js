@@ -458,7 +458,7 @@ const payRrequest = async (req, res) => {
       })
       .lean();
 
-    if (!project?.code) {
+    if (!project?._id || !project?.code) {
       return res.status(400).json({ msg: "Invalid or missing project." });
     }
 
@@ -498,6 +498,12 @@ const payRrequest = async (req, res) => {
     }
 
     const initialStage = credit?.credit_status ? "Credit Pending" : "Draft";
+     let tab_pay = "instant";
+    if (credit?.credit_status === true && cr_id) {
+      tab_pay = "credit";
+    } else if (pay_id) {
+      tab_pay = "instant";
+    }
 
     const newPayment = new payRequestModells({
       p_id: Number(p_id) || project.p_id,
@@ -524,6 +530,8 @@ const payRrequest = async (req, res) => {
       utr,
       other,
       comment,
+      tab_pay,
+      project_id: project._id, 
 
       credit: {
         credit_deadline: credit?.credit_deadline || null,
@@ -571,6 +579,8 @@ const payRrequest = async (req, res) => {
       .json({ msg: "Failed to request payment", error: error.message });
   }
 };
+
+
 
 const deadlineExtendRequest = async (req, res) => {
   const { _id } = req.params;
@@ -1850,19 +1860,18 @@ const getExcelDataById = async function (req, res) {
 const getPay = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 50;
+    const pageSize = parseInt(req.query.pageSize) || 10;
     const skip = (page - 1) * pageSize;
 
     const search = (req.query.search || "").trim();
     const status = (req.query.status || "").trim();
-    const tab = (req.query.tab || "").trim();
+    const tab = (req.query.tab || "").trim().toLowerCase();
 
     const searchRegex = search ? new RegExp(search, "i") : null;
     const shouldFilterStatus = status && status.toLowerCase() !== "all";
     const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const statusRegex = shouldFilterStatus ? new RegExp(`^${escapeRegex(status)}$`, "i") : null;
 
-    // --- visibility by employee ---
     let EmpDetail = false;
     if (req?.user?.emp_id !== undefined) {
       EmpDetail = req.user.emp_id === "SE-203";
@@ -1871,244 +1880,141 @@ const getPay = async (req, res) => {
       const u = await userModells.findById(id).select("emp_id").lean();
       EmpDetail = (u?.emp_id || "") === "SE-203";
     }
-    const visibilityFilterStage = EmpDetail ? [{ $match: { paid_for: "I&C" } }] : [];
 
-    // --- project join ---
-    const lookupProjectStage = {
-      $lookup: {
-        from: "projectdetails",
-        localField: "p_id",
-        foreignField: "p_id",
-        as: "project",
-      },
-    };
-    const unwindProjectStage = { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } };
+    const matchStage = {};
+    if (EmpDetail) matchStage.paid_for = "I&C";
+    if (tab) matchStage.tab_pay = tab;
+    if (statusRegex) matchStage.approved = { $regex: statusRegex };
 
-    // --- VENDOR: normalize id and join by _id (fallback to legacy name) ---
-    // NOTE: change `from: "vendors"` if your collection name differs
-    const vendorStages = [
+    const matchSearchStage = searchRegex
+      ? {
+          $or: [
+            { pay_id: { $regex: searchRegex } },
+            { cr_id: { $regex: searchRegex } },
+            { paid_for: { $regex: searchRegex } },
+            { po_number: { $regex: searchRegex } },
+            { vendor: { $regex: searchRegex } },
+            { utr: { $regex: searchRegex } },
+          ],
+        }
+      : {};
+
+    const pipeline = [
       {
-        $addFields: {
-          // vendor might be ObjectId or string id or legacy vendor name
-          _vendor_obj_id: {
-            $cond: [
-              { $eq: [{ $type: "$vendor" }, "objectId"] },
-              "$vendor",
-              {
-                $convert: {
-                  input: "$vendor",
-                  to: "objectId",
-                  onError: null,
-                  onNull: null,
-                },
-              },
-            ],
-          },
-        },
+        $match: Object.keys(matchSearchStage).length
+          ? { $and: [matchStage, matchSearchStage] }
+          : matchStage,
       },
       {
-        $lookup: {
-          from: "vendors",
-          let: { vid: "$_vendor_obj_id", vname: "$vendor" },
-          pipeline: [
+        $facet: {
+          data: [
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: pageSize },
             {
-              $match: {
-                $expr: {
-                  $or: [
-                    { $and: [{ $ne: ["$$vid", null] }, { $eq: ["$_id", "$$vid"] }] },
-                    // fallback for legacy records where request.vendor stored the vendor name
-                    { $eq: ["$name", "$$vname"] },
+              $lookup: {
+                from: "projectdetails",
+                localField: "project_id",
+                foreignField: "_id",
+                pipeline: [{ $project: { customer: 1, code: 1 } }],
+                as: "project",
+              },
+            },
+            { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
+            {
+              $lookup: {
+                from: "vendors",
+                localField: "vendor",
+                foreignField: "_id",
+                pipeline: [{ $project: { name: 1 } }],
+                as: "vendorDoc",
+              },
+            },
+            { $unwind: { path: "$vendorDoc", preserveNullAndEmptyArrays: true } },
+            {
+              $addFields: {
+                vendor_name: { $ifNull: ["$vendorDoc.name", "$vendor"] },
+                customer_name: "$project.customer",
+              },
+            },
+            {
+              $addFields: {
+                remaining_days: {
+                  $cond: [
+                    { $eq: ["$tab_pay", "credit"] },
+                    {
+                      $floor: {
+                        $divide: [
+                          { $subtract: [{ $toDate: "$credit.credit_deadline" }, "$$NOW"] },
+                          1000 * 60 * 60 * 24,
+                        ],
+                      },
+                    },
+                    {
+                      $cond: [
+                        { $eq: ["$approval_status.stage", "Trash Pending"] },
+                        {
+                          $floor: {
+                            $divide: [
+                              {
+                                $subtract: [
+                                  { $add: ["$timers.trash_started_at", 1000 * 60 * 60 * 24 * 15] },
+                                  "$$NOW",
+                                ],
+                              },
+                              1000 * 60 * 60 * 24,
+                            ],
+                          },
+                        },
+                        null,
+                      ],
+                    },
                   ],
                 },
               },
             },
             {
               $project: {
-                name: 1,
-                Account_No: 1,
-                account_no: 1,
-                IFSC_Code: 1,
-                ifsc: 1,
-                Bank_Name: 1,
-                Branch: 1,
+                project: 0,
+                vendorDoc: 0,
               },
             },
           ],
-          as: "vendorDoc",
-        },
-      },
-      { $unwind: { path: "$vendorDoc", preserveNullAndEmptyArrays: true } },
-      {
-        $addFields: {
-          vendor_id: {
-            $cond: [
-              { $ne: ["$_vendor_obj_id", null] },
-              { $toString: "$_vendor_obj_id" },
-              null,
-            ],
-          },
-          vendor_name: { $ifNull: ["$vendorDoc.name", "$vendor"] },
-          vendor_acc_number: { $ifNull: ["$vendorDoc.Account_No", "$vendorDoc.account_no"] },
-          vendor_ifsc: { $ifNull: ["$vendorDoc.IFSC_Code", "$vendorDoc.ifsc"] },
-          vendor_bank_name: { $ifNull: ["$vendorDoc.Bank_Name", ""] },
-          vendor_branch: {
-            $ifNull: ["$vendorDoc.Branch", { $ifNull: ["$vendorDoc.Bank_Name", ""] }],
-          },
+          total: [{ $count: "count" }],
+          tabCounts: [{ $group: { _id: "$tab_pay", count: { $sum: 1 } } }],
         },
       },
     ];
 
-    // --- search (now can search vendor_name as well) ---
-    const commonMatch = [];
-    if (searchRegex) {
-      commonMatch.push({
-        $or: [
-          { pay_id: { $regex: searchRegex } },
-          { cr_id: { $regex: searchRegex } },
-          { paid_for: { $regex: searchRegex } },
-          { po_number: { $regex: searchRegex } },
-          { vendor: { $regex: searchRegex } },         // legacy
-          { vendor_name: { $regex: searchRegex } },    // joined name
-          { utr: { $regex: searchRegex } },
-          { "project.customer": { $regex: searchRegex } },
-        ],
-      });
-    }
+    const [result] = await payRequestModells.aggregate(pipeline);
 
-    const instantStageExclusion =
-      tab === "instant"
-        ? [{ $match: { "approval_status.stage": { $ne: "Trash Pending" } } }]
-        : [];
-
-    const statusMatchStage = statusRegex ? [{ $match: { approved: { $regex: statusRegex } } }] : [];
-
-    const addTypeStage = {
-      $addFields: {
-        customer_name: "$project.customer",
-        type: {
-          $switch: {
-            branches: [
-              { case: { $ifNull: ["$pay_id", false] }, then: "instant" },
-              {
-                case: {
-                  $and: [
-                    { $eq: ["$credit.credit_status", true] },
-                    { $ifNull: ["$cr_id", false] },
-                  ],
-                },
-                then: "credit",
-              },
-            ],
-            default: "instant",
-          },
-        },
-      },
-    };
-
-    const baseCommon = [
-      lookupProjectStage,
-      unwindProjectStage,
-      ...vendorStages, // <--- ensure vendor is joined BEFORE search
-      ...(commonMatch.length ? [{ $match: { $and: commonMatch } }] : []),
-      ...visibilityFilterStage,
-      addTypeStage,
-    ];
-
-    const tabMatchStage = tab ? [{ $match: { type: tab } }] : [];
-
-    const remainingDaysStage = [
-      {
-        $addFields: {
-          remaining_days: {
-            $cond: [
-              { $eq: ["$type", "credit"] },
-              {
-                $floor: {
-                  $divide: [
-                    { $subtract: [{ $toDate: "$credit.credit_deadline" }, "$$NOW"] },
-                    1000 * 60 * 60 * 24,
-                  ],
-                },
-              },
-              {
-                $cond: [
-                  { $eq: ["$approval_status.stage", "Trash Pending"] },
-                  {
-                    $floor: {
-                      $divide: [
-                        {
-                          $subtract: [
-                            { $add: ["$timers.trash_started_at", 1000 * 60 * 60 * 24 * 15] },
-                            "$$NOW",
-                          ],
-                        },
-                        1000 * 60 * 60 * 24,
-                      ],
-                    },
-                  },
-                  null,
-                ],
-              },
-            ],
-          },
-        },
-      },
-    ];
-
-    const projection = {
-      project: 0,
-      vendorDoc: 0,
-      _vendor_obj_id: 0,
-    };
-
-    const [paginatedData, totalData, tabWiseCounts] = await Promise.all([
-      payRequestModells.aggregate([
-        ...baseCommon,
-        ...instantStageExclusion,
-        ...statusMatchStage,
-        ...tabMatchStage,
-        ...remainingDaysStage,
-        { $project: projection },
-        { $sort: { createdAt: -1 } },
-        { $skip: skip },
-        { $limit: pageSize },
-      ]),
-      payRequestModells.aggregate([
-        ...baseCommon,
-        ...instantStageExclusion,
-        ...statusMatchStage,
-        ...tabMatchStage,
-        { $count: "total" },
-      ]),
-      payRequestModells.aggregate([
-        ...baseCommon,
-        ...statusMatchStage,
-        { $group: { _id: "$type", count: { $sum: 1 } } },
-      ]),
-    ]);
+    const data = result?.data || [];
+    const total = result?.total?.[0]?.count || 0;
+    const tabCounts = result?.tabCounts || [];
 
     const countsByType = { instant: 0, credit: 0 };
-    tabWiseCounts.forEach((t) => {
-      if (t?._id === "instant") countsByType.instant = t.count;
-      if (t?._id === "credit") countsByType.credit = t.count;
+    tabCounts.forEach((t) => {
+      if (t._id === "instant") countsByType.instant = t.count;
+      if (t._id === "credit") countsByType.credit = t.count;
     });
 
     res.status(200).json({
       msg: "pay-summary",
       meta: {
-        total: totalData[0]?.total || 0,
+        total,
         page,
-        count: paginatedData.length,
+        count: data.length,
         instantTotal: countsByType.instant,
         creditTotal: countsByType.credit,
       },
-      data: paginatedData,
+      data,
     });
   } catch (err) {
-    console.error(err);
+    console.error("getPay error:", err);
     res.status(500).json({ msg: "Error retrieving data", error: err.message });
   }
 };
+
 
 
 const getTrashPayment = async (req, res) => {
@@ -2254,7 +2160,6 @@ const approve_pending = async function (req, res) {
         pay_id: data.pay_id,
         pay_type: data.pay_type,
         amount_paid: data.amount_paid,
-        // amt_for_customer: data.amt_for_customer,
         dbt_date: data.dbt_date,
         paid_for: data.paid_for,
         vendor: data.vendor,
@@ -2437,6 +2342,87 @@ const getPayRequestByVendor = async (req, res) => {
     });
   }
 };
+const addPayTab = async (req, res) => {
+  try {
+    // --- 1) Your existing tab_pay logic (unchanged) ---
+    const tabResult = await payRequestModells.updateMany(
+      {},
+      [
+        {
+          $set: {
+            tab_pay: {
+              $cond: [
+                { $and: [{ $ne: ["$pay_id", null] }, { $ne: ["$pay_id", ""] }] },
+                "instant",
+                {
+                  $cond: [
+                    { $and: [{ $ne: ["$cr_id", null] }, { $ne: ["$cr_id", ""] }] },
+                    "credit",
+                    "instant",
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      ]
+    );
+
+    // --- 2) Build a p_id -> project._id map from the projects collection ---
+    const projects = await projectModells.find({}, { _id: 1, p_id: 1 }).lean();
+    const pidToProjId = new Map(
+      projects.map((p) => [Number(p.p_id), p._id]) // ensure numeric key
+    );
+
+    // --- 3) Find payrequests missing project_id and prepare bulk updates ---
+    const missingFilter = {
+      $or: [{ project_id: { $exists: false } }, { project_id: null }],
+    };
+
+    const payRequests = await payRequestModells
+      .find(missingFilter, { _id: 1, p_id: 1 })
+      .lean();
+
+    const ops = [];
+    for (const pr of payRequests) {
+      const projId = pidToProjId.get(Number(pr.p_id));
+      if (projId) {
+        ops.push({
+          updateOne: {
+            filter: { _id: pr._id, ...missingFilter }, // keep safe guard
+            update: { $set: { project_id: projId } },
+          },
+        });
+      }
+    }
+
+    let projectLinkModified = 0;
+    if (ops.length > 0) {
+      const bw = await payRequestModells.bulkWrite(ops, { ordered: false });
+      // bw.modifiedCount is available in Mongoose 7+, fall back for older
+      projectLinkModified = bw.modifiedCount ?? bw.nModified ?? 0;
+    }
+
+    return res.status(200).json({
+      message:
+        "tab_pay updated and project_id linked where p_id matched successfully.",
+      tab_pay: {
+        matched: tabResult.matchedCount ?? tabResult.nMatched,
+        modified: tabResult.modifiedCount ?? tabResult.nModified,
+      },
+      project_id: {
+        candidatesChecked: payRequests.length,
+        linked: projectLinkModified,
+      },
+    });
+  } catch (error) {
+    console.error("Error in addPayTab:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   payRrequest,
@@ -2463,4 +2449,5 @@ module.exports = {
   getExcelDataById,
   getpy,
   getPayRequestByVendor,
+  addPayTab
 };
