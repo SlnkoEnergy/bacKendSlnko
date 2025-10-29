@@ -879,54 +879,63 @@ const deleteBill = catchAsyncError(async function (req, res, next) {
 });
 
 // bill_appoved
-const bill_approved = catchAsyncError(async function (req, res, next) {
-  const { bill_number } = req.body;
+const bill_approved = catchAsyncError(async (req, res, next) => {
+  const { po_number, bill_number } = req.body;
   const userId = req.user.userId;
-  const existingBill = await billModel.findOne({
-    bill_number: bill_number,
-  });
-  if (!existingBill) {
-    return next(new ErrorHandler("No bill found", 404));
-  }
 
-  if (
-    existingBill.approved_by !== undefined &&
-    existingBill.approved_by !== null
-  ) {
-    return next(
-      new ErrorHandler(
-        "Bill is already approved and cannot be updated to an empty string.",
-        400
-      )
-    );
+  if (!po_number) {
+    return next(new ErrorHandler("PO number is required.", 400));
   }
-  const approvedby = await billModel.findOneAndUpdate(
-    { bill_number },
-    { $set: { approved_by: userId } },
-    { new: true }
+  const filter = bill_number
+    ? { po_number, bill_number }
+    : { po_number };
+
+  const approveFilter = {
+    ...filter,
+    $or: [{ approved_by: { $exists: false } }, { approved_by: null }],
+  };
+
+  const updated = await billModel.findOneAndUpdate(
+    approveFilter,
+    {
+      ...(bill_number ? { $setOnInsert: { bill_number } } : {}),
+      $set: { approved_by: userId }
+    },
+    {
+      new: true,
+      upsert: false,
+    }
   );
 
+  if (!updated) {
+
+    return next(new ErrorHandler("Bill not found or already approved.", 400));
+  }
+
   res.status(200).json({
-    msg: "Bill updated successfully.",
-    data: approvedby,
+    success: true,
+    msg: "Bill approved successfully.",
+    data: updated,
   });
 });
+
+
 
 function escapeRegex(s = "") {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// normalize whitespace; trim; collapse multiple spaces
+
 function normalizeName(s = "") {
   return s.trim().replace(/\s+/g, " ");
 }
 
-// lookup strategy: exact (case-insensitive), else contains (case-insensitive)
+
 async function findUserByName(raw) {
   const name = normalizeName(raw);
   if (!name) return null;
 
-  // 1) exact match (case-insensitive)
+ 
   let user = await userModells
     .findOne({
       name: { $regex: `^${escapeRegex(name)}$`, $options: "i" },

@@ -1292,7 +1292,7 @@ const getPaginatedPo = async (req, res) => {
     const pageSize = parseInt(req.query.pageSize, 10) || 10;
     const skip = (page - 1) * pageSize;
 
-    const search = (req.query.search || "").trim(); // unified search term
+    const search = (req.query.search || "").trim();
     const status = (req.query.status || "").trim();
     const filter = (req.query.filter || "").trim();
 
