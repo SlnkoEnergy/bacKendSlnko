@@ -1421,6 +1421,68 @@ const syncAllProjectBalances = async (req, res) => {
         },
       },
 
+      {
+  $lookup: {
+    from: "users",
+    localField: "_creditUserIds",
+    foreignField: "_id",
+    as: "_creditUsers",
+  },
+},
+{
+  $lookup: {
+    from: "users",
+    localField: "_debitUserIds",
+    foreignField: "_id",
+    as: "_debitUsers",
+  },
+},
+
+// --- Gather user ids for lookup (normalize string/ObjectId) ---
+{
+  $addFields: {
+    _creditUserIds: {
+      $setUnion: [
+        {
+          $map: {
+            input: "$credits",
+            as: "c",
+            in: {
+              $convert: {
+                input: "$$c.submitted_by", 
+                to: "objectId",
+                onError: null,
+                onNull: null,
+              },
+            },
+          },
+        },
+        [],
+      ],
+    },
+    _debitUserIds: {
+      $setUnion: [
+        {
+          $map: {
+            input: "$debits",
+            as: "d",
+            in: {
+              $convert: {
+                input: "$$d.user_id",
+                to: "objectId",
+                onError: null,
+                onNull: null,
+              },
+            },
+          },
+        },
+        [],
+      ],
+    },
+  },
+},
+
+
       // --- Totals ---
       {
         $addFields: {
@@ -1668,44 +1730,109 @@ const syncAllProjectBalances = async (req, res) => {
           },
         },
       },
-      {
-        $addFields: {
-          recentCredits: {
-            $slice: [
-              {
-                $map: {
-                  input: "$_creditsSorted",
-                  as: "c",
+      // --- Recent credits/debits (latest 3) with added_by_name ---
+{
+  $addFields: {
+    recentCredits: {
+      $slice: [
+        {
+          $map: {
+            input: "$_creditsSorted",
+            as: "c",
+            in: {
+              date: "$$c.createdAt",
+              cr_amount: {
+                $convert: { input: "$$c.cr_amount", to: "double", onError: 0, onNull: 0 },
+              },
+              remarks: "$$c.comment",
+              added_by: "$$c.submitted_by",
+              added_by_name: {
+                $let: {
+                  vars: {
+                    uid: {
+                      $convert: { input: "$$c.submitted_by", to: "objectId", onError: null, onNull: null },
+                    },
+                  },
                   in: {
-                    date: "$$c.createdAt",
-                    cr_amount: toNum("$$c.cr_amount"),
-                    remarks: "$$c.comment",
-                    added_by: "$$c.submitted_by",
+                    $ifNull: [
+                      {
+                        $first: {
+                          $map: {
+                            input: {
+                              $filter: {
+                                input: "$_creditUsers",
+                                as: "u",
+                                cond: { $eq: ["$$u._id", "$$uid"] },
+                              },
+                            },
+                            as: "matched",
+                            in: { $ifNull: ["$$matched.name", "$$matched.fullName"] },
+                          },
+                        },
+                      },
+                      "Unknown",
+                    ],
                   },
                 },
               },
-              3,
-            ],
-          },
-          recentDebits: {
-            $slice: [
-              {
-                $map: {
-                  input: "$_debitsSorted",
-                  as: "d",
-                  in: {
-                    date: "$$d.createdAt",
-                    amount_paid: toNum("$$d.amount_paid"),
-                    remarks: "$$d.remarks",
-                    paid_for: "$$d.paid_for",
-                  },
-                },
-              },
-              3,
-            ],
+            },
           },
         },
-      },
+        3,
+      ],
+    },
+    recentDebits: {
+      $slice: [
+        {
+          $map: {
+            input: "$_debitsSorted",
+            as: "d",
+            in: {
+              date: "$$d.createdAt",
+              amount_paid: {
+                $convert: { input: "$$d.amount_paid", to: "double", onError: 0, onNull: 0 },
+              },
+              remarks: "$$d.remarks",
+              paid_for: "$$d.paid_for",
+              added_by: "$$d.user_id",
+              added_by_name: {
+                $let: {
+                  vars: {
+                    uid: {
+                      $convert: { input: "$$d.user_id", to: "objectId", onError: null, onNull: null },
+                    },
+                  },
+                  in: {
+                    $ifNull: [
+                      {
+                        $first: {
+                          $map: {
+                            input: {
+                              $filter: {
+                                input: "$_debitUsers",
+                                as: "u",
+                                cond: { $eq: ["$$u._id", "$$uid"] },
+                              },
+                            },
+                            as: "matched",
+                            in: { $ifNull: ["$$matched.name", "$$matched.fullName"] },
+                          },
+                        },
+                      },
+                      "Unknown",
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+        3,
+      ],
+    },
+  },
+},
+
 
       // --- remove temp arrays before inclusion projection (IMPORTANT) ---
       { $unset: ["_creditsSorted", "_debitsSorted"] },
