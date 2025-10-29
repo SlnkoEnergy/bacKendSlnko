@@ -674,9 +674,9 @@ const editPO = async function (req, res) {
             Array.isArray(respData) && respData.length > 0
               ? respData[0]
               : respData.url ||
-                respData.fileUrl ||
-                (respData.data && respData.data.url) ||
-                null;
+              respData.fileUrl ||
+              (respData.data && respData.data.url) ||
+              null;
         } catch (e) {
           console.error("Upload failed for:", attachment_name, e?.message);
         }
@@ -898,9 +898,9 @@ const getPOByPONumber = async (req, res) => {
 
       const catDocs = catIdSet.size
         ? await materialCategoryModells
-            .find({ _id: { $in: Array.from(catIdSet) } })
-            .select({ name: 1 })
-            .lean()
+          .find({ _id: { $in: Array.from(catIdSet) } })
+          .select({ name: 1 })
+          .lean()
         : [];
 
       const catMap = new Map(
@@ -1350,29 +1350,29 @@ const getPaginatedPo = async (req, res) => {
 
       ...(createdFrom || createdTo
         ? {
-            dateObj: {
-              ...(createdFrom ? { $gte: createdFrom } : {}),
-              ...(createdTo ? { $lte: createdTo } : {}),
-            },
-          }
+          dateObj: {
+            ...(createdFrom ? { $gte: createdFrom } : {}),
+            ...(createdTo ? { $lte: createdTo } : {}),
+          },
+        }
         : {}),
 
       ...(etdFrom || etdTo
         ? {
-            etd: {
-              ...(etdFrom ? { $gte: etdFrom } : {}),
-              ...(etdTo ? { $lte: etdTo } : {}),
-            },
-          }
+          etd: {
+            ...(etdFrom ? { $gte: etdFrom } : {}),
+            ...(etdTo ? { $lte: etdTo } : {}),
+          },
+        }
         : {}),
 
       ...(deliveryFrom || deliveryTo
         ? {
-            delivery_date: {
-              ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
-              ...(deliveryTo ? { $lte: deliveryTo } : {}),
-            },
-          }
+          delivery_date: {
+            ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
+            ...(deliveryTo ? { $lte: deliveryTo } : {}),
+          },
+        }
         : {}),
     };
 
@@ -1569,12 +1569,12 @@ const getPaginatedPo = async (req, res) => {
       },
       ...(itemSearch
         ? [
-            {
-              $match: {
-                resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
-              },
+          {
+            $match: {
+              resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
             },
-          ]
+          },
+        ]
         : []),
 
       ...vendorResolveStages,
@@ -1689,12 +1689,12 @@ const getPaginatedPo = async (req, res) => {
       },
       ...(itemSearch
         ? [
-            {
-              $match: {
-                resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
-              },
+          {
+            $match: {
+              resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
             },
-          ]
+          },
+        ]
         : []),
 
       ...vendorResolveStages,
@@ -1715,12 +1715,12 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-            .replace(/ /g, "/")
+          .toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+          .replace(/ /g, "/")
         : "";
 
     const data = result.map((it) => ({ ...it, date: formatDate(it.date) }));
@@ -1741,16 +1741,18 @@ const getPaginatedPo = async (req, res) => {
 
 const getExportPo = async (req, res) => {
   try {
+
     const toArray = (v) =>
       Array.isArray(v)
         ? v
         : typeof v === "string"
           ? v
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
           : [];
 
+    // 1) Selected IDs (if any)
     const rawIds = [
       ...toArray(req.body?.purchaseorders),
       ...toArray(req.query?.purchaseorders),
@@ -2229,7 +2231,7 @@ const getExportPo = async (req, res) => {
 
     const parser = new Parser({ fields, quote: '"', withBOM: false });
     const csvBody = parser.parse(rows);
-    const csv = "\uFEFF" + csvBody;
+    const csv = "\uFEFF" + csvBody; // BOM for Excel
 
     const fileName = `PO_Items_Export_${new Date().toISOString().slice(0, 10)}.csv`;
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -2271,8 +2273,8 @@ const updateSalesPO = async (req, res) => {
     const po = id
       ? await purchaseOrderModells.findById(id)
       : await purchaseOrderModells.findOne({
-          po_number: String(po_number).trim(),
-        });
+        po_number: String(po_number).trim(),
+      });
 
     if (!po) return res.status(404).json({ message: "PO not found" });
 
@@ -2759,14 +2761,14 @@ const getPoBasic = async (req, res) => {
         },
         ...(search
           ? [
-              {
-                $or: [
-                  { p_id: { $regex: searchRegex } },
-                  { po_number: { $regex: searchRegex } },
-                  { vendor: { $regex: searchRegex } },
-                ],
-              },
-            ]
+            {
+              $or: [
+                { p_id: { $regex: searchRegex } },
+                { po_number: { $regex: searchRegex } },
+                { vendor: { $regex: searchRegex } },
+              ],
+            },
+          ]
           : []),
       ],
     };
