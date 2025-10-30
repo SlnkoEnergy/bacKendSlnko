@@ -2,6 +2,7 @@ const billModel = require("../models/bill.model");
 const purchaseOrderModel = require("../models/purchaseorder.model");
 const moment = require("moment");
 const mongoose = require("mongoose");
+const { Types } = mongoose;
 const { Parser } = require("json2csv");
 const {
   catchAsyncError,
@@ -9,6 +10,19 @@ const {
 const ErrorHandler = require("../middlewares/error.middleware");
 const userModells = require("../models/user.model");
 const materialcategoryModel = require("../models/materialcategory.model");
+
+const toObjectIdOrNull = (val) => {
+  if (!val) return null;
+  if (val instanceof Types.ObjectId) return val;
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    return Types.ObjectId.isValid(trimmed) ? new Types.ObjectId(trimmed) : null;
+  }
+  if (typeof val === "object" && val._id && Types.ObjectId.isValid(val._id)) {
+    return new Types.ObjectId(val._id);
+  }
+  return null;
+};
 
 const addBill = catchAsyncError(async function (req, res, next) {
   const {
@@ -879,40 +893,70 @@ const deleteBill = catchAsyncError(async function (req, res, next) {
 });
 
 // bill_appoved
+
+const normStr = (v) =>
+  v == null ? "" : String(Array.isArray(v) ? v[0] : v).trim();
+
 const bill_approved = catchAsyncError(async (req, res, next) => {
-  const { po_number, bill_number } = req.body;
-  const userId = req.user.userId;
+  let { po_number, bill_number } = req.body;
+  const rawUserId = req.user?.userId;
 
-  if (!po_number) {
-    return next(new ErrorHandler("PO number is required.", 400));
-  }
-  const filter = bill_number
-    ? { po_number, bill_number }
-    : { po_number };
+  po_number = normStr(po_number);
+  bill_number = normStr(bill_number);
 
-  const approveFilter = {
-    ...filter,
-    $or: [{ approved_by: { $exists: false } }, { approved_by: null }],
+  if (!po_number) return next(new ErrorHandler("PO number is required.", 400));
+
+  const approverId = toObjectIdOrNull(rawUserId);
+  if (!approverId) return next(new ErrorHandler("Invalid approver id.", 400));
+
+  const expr = {
+    $and: [
+      {
+        $eq: [
+          { $trim: { input: { $toString: "$po_number" } } },
+          po_number,
+        ],
+      },
+      ...(bill_number
+        ? [
+            {
+              $eq: [
+                { $trim: { input: { $toString: "$bill_number" } } },
+                bill_number,
+              ],
+            },
+          ]
+        : []),
+    ],
   };
 
-  const updated = await billModel.findOneAndUpdate(
-    approveFilter,
-    {
-      ...(bill_number ? { $setOnInsert: { bill_number } } : {}),
-      $set: { approved_by: userId }
-    },
-    {
-      new: true,
-      upsert: false,
-    }
-  );
+  const bill = await billModel.findOne({ $expr: expr }).lean();
+  if (!bill) return next(new ErrorHandler("Bill not found.", 404));
 
-  if (!updated) {
+  const cleanedApprovedBy = toObjectIdOrNull(bill.approved_by);
+  const patch = {};
 
-    return next(new ErrorHandler("Bill not found or already approved.", 400));
+  if (bill.approved_by === "" || bill.approved_by !== cleanedApprovedBy) {
+    patch.approved_by = cleanedApprovedBy;
   }
 
-  res.status(200).json({
+  if (cleanedApprovedBy) {
+    if (Object.keys(patch).length) {
+      await billModel.updateOne({ _id: bill._id }, { $set: patch });
+    }
+    const refreshed = await billModel.findById(bill._id).lean();
+    return res.status(200).json({
+      success: true,
+      msg: "Bill already approved.",
+      data: refreshed,
+    });
+  }
+
+  patch.approved_by = approverId;
+  await billModel.updateOne({ _id: bill._id }, { $set: patch });
+
+  const updated = await billModel.findById(bill._id).lean();
+  return res.status(200).json({
     success: true,
     msg: "Bill approved successfully.",
     data: updated,
@@ -925,17 +969,14 @@ function escapeRegex(s = "") {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-
 function normalizeName(s = "") {
   return s.trim().replace(/\s+/g, " ");
 }
-
 
 async function findUserByName(raw) {
   const name = normalizeName(raw);
   if (!name) return null;
 
- 
   let user = await userModells
     .findOne({
       name: { $regex: `^${escapeRegex(name)}$`, $options: "i" },

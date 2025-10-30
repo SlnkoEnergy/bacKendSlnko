@@ -368,11 +368,10 @@ const getCustomerPaymentSummary = async (req, res) => {
                   {
                     $match: {
                       $or: [
-                        // numeric match if pure digits
+                        
                         ...(/^\d+$/.test(searchClient)
                           ? [{ po_number: Number(searchClient) }]
                           : []),
-                        // substring match on po_numberStr (ENERGY-PO/25-26/02142 will match "02142")
                         {
                           po_numberStr: {
                             $regex: escapeRegex(searchClient),
@@ -493,99 +492,117 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             },
 
-            // --- Lookup biildetails for PO ---
-            {
-              $lookup: {
-                from: "biildetails",
-                let: { poNum: "$po_numberStr" },
-                pipeline: [
-                  {
-                    $match: {
-                      $expr: { $eq: [{ $toString: "$po_number" }, "$$poNum"] },
-                    },
+{
+  $lookup: {
+    from: "biildetails",
+    let: { poNum: "$po_numberStr" },
+    pipeline: [
+      {
+        $match: {
+          $expr: { $eq: [{ $toString: "$po_number" }, "$$poNum"] },
+        },
+      },
+      { $project: { item: 1 } },
+
+    
+      {
+        $unwind: {
+          path: "$item",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+    
+      {
+        $addFields: {
+          bill_value_num: {
+            $toDouble: {
+              $replaceAll: {
+                input: {
+                  $replaceAll: {
+                    input: { $toString: { $ifNull: ["$item.bill_value", "0"] } },
+                    find: ",",
+                    replacement: "",
                   },
-                  { $project: { item: 1 } },
-                  {
-                    $unwind: {
-                      path: "$item",
-                      preserveNullAndEmptyArrays: true,
-                    },
-                  },
-                  {
-                    $addFields: {
-                      bill_value_num: {
-                        $toDouble: {
-                          $replaceAll: {
-                            input: {
-                              $toString: { $ifNull: ["$item.bill_value", 0] },
-                            },
-                            find: ",",
-                            replacement: "",
-                          },
-                        },
-                      },
-                      gst_num: {
-                        $toDouble: {
-                          $replaceAll: {
-                            input: {
-                              $replaceAll: {
-                                input: {
-                                  $toString: {
-                                    $ifNull: ["$item.gst_percent", 0],
-                                  },
-                                },
-                                find: "%",
-                                replacement: "",
-                              },
-                            },
-                            find: ",",
-                            replacement: "",
-                          },
-                        },
-                      },
-                    },
-                  },
-                  {
-                    $group: {
-                      _id: null,
-                      bill_basic_sum: { $sum: "$bill_value_num" },
-                      bill_gst_sum: {
-                        $sum: {
-                          $multiply: [
-                            "$bill_value_num",
-                            { $divide: ["$gst_num", 100] },
-                          ],
-                        },
-                      },
-                    },
-                  },
-                  { $project: { _id: 0, bill_basic_sum: 1, bill_gst_sum: 1 } },
-                ],
-                as: "bill_agg",
+                },
+                find: " ",
+                replacement: "",
               },
             },
-
-            // If no matching biildetails found, set bill_basic and bill_gst to 0
-            {
-              $addFields: {
-                bill_basic: {
-                  $cond: [
-                    { $gt: [{ $size: "$bill_agg" }, 0] },
-                    { $arrayElemAt: ["$bill_agg.bill_basic_sum", 0] },
-                    0, // Default to 0 if no matching po_number
-                  ],
+          },
+          gst_num: {
+            $toDouble: {
+              $replaceAll: {
+                input: {
+                  $replaceAll: {
+                    input: {
+                      $replaceAll: {
+                        input: { $toString: { $ifNull: ["$item.gst_percent", "0"] } },
+                        find: "%",
+                        replacement: "",
+                      },
+                    },
+                    find: ",",
+                    replacement: "",
+                  },
                 },
-                bill_gst: {
-                  $cond: [
-                    { $gt: [{ $size: "$bill_agg" }, 0] },
-                    { $arrayElemAt: ["$bill_agg.bill_gst_sum", 0] },
-                    0, // Default to 0 if no matching po_number
-                  ],
-                },
+                find: " ",
+                replacement: "",
               },
             },
+          },
+          qty_num: {
+            $toDouble: {
+              $replaceAll: {
+                input: { $toString: { $ifNull: ["$item.quantity", "0"] } },
+                find: ",",
+                replacement: "",
+              },
+            },
+          },
+        },
+      },
 
-            // Calculate total_billed_value
+   
+      {
+        $addFields: {
+          line_basic: { $multiply: ["$qty_num", "$bill_value_num"] },
+          line_gst: {
+            $multiply: [
+              { $multiply: ["$qty_num", "$bill_value_num"] },
+              { $divide: ["$gst_num", 100] },
+            ],
+          },
+        },
+      },
+
+
+      {
+        $group: {
+          _id: null,
+          bill_basic_sum: { $sum: "$line_basic" },
+          bill_gst_sum:   { $sum: "$line_gst" },
+        },
+      },
+      { $project: { _id: 0, bill_basic_sum: 1, bill_gst_sum: 1 } },
+    ],
+    as: "bill_agg",
+  },
+},
+{
+  $addFields: {
+    bill_basic: {
+      $ifNull: [{ $arrayElemAt: ["$bill_agg.bill_basic_sum", 0] }, 0],
+    },
+    bill_gst: {
+      $ifNull: [{ $arrayElemAt: ["$bill_agg.bill_gst_sum", 0] }, 0],
+    },
+  },
+}
+
+,
+
+
             {
               $addFields: {
                 total_billed_value: {
@@ -626,7 +643,7 @@ const getCustomerPaymentSummary = async (req, res) => {
                   ],
                 },
 
-                // ✅ simple: bill_basic - basic_sales
+              
                 remaining_sales_closure: {
                   $round: [
                     {
@@ -731,7 +748,7 @@ const getCustomerPaymentSummary = async (req, res) => {
                               cond: { $ne: ["$$n", ""] },
                             },
                           },
-                          [], // de-dupe
+                          [],
                         ],
                       },
                       initialValue: "",
