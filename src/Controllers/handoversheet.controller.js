@@ -147,10 +147,10 @@ const createhandoversheet = async function (req, res) {
     const user = await userModells.findById(userId);
     other_details.submitted_by_BD = userId;
 
-    const exists = await hanoversheetmodells.findOne({ id });
-    if (exists) {
-      return res.status(400).json({ message: "Handoversheet already exists" });
-    }
+    // const exists = await hanoversheetmodells.findOne({ id });
+    // if (exists) {
+    //   return res.status(400).json({ message: "Handoversheet already exists" });
+    // }
 
     const handoversheet = new hanoversheetmodells({
       id,
