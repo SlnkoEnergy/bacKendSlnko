@@ -977,12 +977,12 @@ const generatePurchaseOrderPdf = async (req, res) => {
       };
     }
 
-  const doc = await purchaseOrderModells
-  .findOne(query)
-  .populate("vendor", "_id name")
-  .select("item date po_number vendor p_id _id") 
-  .lean()
-  .exec();
+    const doc = await purchaseOrderModells
+      .findOne(query)
+      .populate("vendor", "_id name")
+      .select("item date po_number vendor p_id _id")
+      .lean()
+      .exec();
 
 
     const notes = await PohistoryModel.find({
@@ -1757,6 +1757,7 @@ const getExportPo = async (req, res) => {
       ...toArray(req.body?.purchaseorders),
       ...toArray(req.query?.purchaseorders),
     ];
+
     const validIds = rawIds
       .map((id) =>
         mongoose.Types.ObjectId.isValid(id)
