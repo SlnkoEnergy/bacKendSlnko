@@ -7,7 +7,6 @@ const { Parser } = require("json2csv");
 const { default: axios } = require("axios");
 const { default: mongoose } = require("mongoose");
 
-
 const asDouble = (v) => ({ $toDouble: { $ifNull: [v, 0] } });
 
 const fmtDate = (d) => {
@@ -27,6 +26,24 @@ const roundMoney = (v, digits = 0) => {
   return Object.is(r, -0) ? 0 : r;
 };
 const digitsByKey = {};
+
+const toStr = (v) => {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string" || typeof v === "number") return String(v);
+  if (typeof v === "object") {
+   
+    const cand = v.name ?? v.label ?? v.value ?? v.text ?? v.title ?? "";
+    return (typeof cand === "string" || typeof cand === "number") ? String(cand) : "";
+  }
+  return "";
+};
+
+const cleanToken = (s) => toStr(s).replace(/(^"|"$)/g, "").trim();
+
+const isNA = (s) => {
+  const t = cleanToken(s).toUpperCase();
+  return !t || t === "NA" || t === "N/A" || t === "-";
+};
 
 
 const getCustomerPaymentSummary = async (req, res) => {
@@ -89,28 +106,36 @@ const getCustomerPaymentSummary = async (req, res) => {
     const projectId = projectDoc.p_id;
     const projectOid = projectDoc._id;
 
-    const formatAddress = (address) => {
-      if (typeof address === "object" && address !== null) {
-        const village = (address.village_name || "")
-          .replace(/(^"|"$)/g, "")
-          .trim();
-        const district = (address.district_name || "")
-          .replace(/(^"|"$)/g, "")
-          .trim();
-        if (
-          (!village || village.toUpperCase() === "NA") &&
-          (!district || district.toUpperCase() === "NA")
-        ) {
-          return "-";
-        }
-        return `${village}, ${district}`;
-      }
-      if (typeof address === "string") {
-        const cleaned = address.trim().replace(/(^"|"$)/g, "");
-        return cleaned || "-";
-      }
-      return "-";
-    };
+   const formatAddress = (address) => {
+  try {
+  
+    if (Array.isArray(address)) {
+      const first = address.find(Boolean) ?? "";
+      address = first;
+    }
+
+    if (address && typeof address === "object") {
+      const line1    = cleanToken(address.address_line1 ?? address.line1 ?? address.address);
+      const village  = cleanToken(address.village_name ?? address.village ?? address.villageName);
+      const district = cleanToken(address.district_name ?? address.district ?? address.districtName);
+      const city     = cleanToken(address.city ?? address.town ?? address.tehsil);
+      const state    = cleanToken(address.state ?? address.state_name ?? address.stateName);
+      const pincode  = cleanToken(address.pincode ?? address.pin ?? address.zip);
+
+      const parts = [line1, village, district, city, state, pincode].filter((p) => !isNA(p));
+      return parts.length ? parts.join(", ") : "-";
+    }
+
+    if (typeof address === "string" || typeof address === "number") {
+      const s = cleanToken(address);
+      return s && !isNA(s) ? s : "-";
+    }
+
+    return "-";
+  } catch {
+    return "-";
+  }
+};
 
     const project = {
       name: projectDoc.name,
@@ -119,8 +144,8 @@ const getCustomerPaymentSummary = async (req, res) => {
       customer: projectDoc.customer,
       code: projectDoc.code,
       billing_type: projectDoc.billing_type,
-      billing_address_formatted: formatAddress(projectDoc.billing_address),
-      site_address_formatted: formatAddress(projectDoc.site_address),
+     billing_address_formatted: formatAddress(projectDoc.billing_address ?? ""),
+  site_address_formatted: formatAddress(projectDoc.site_address ?? ""),
     };
 
     // ---------- Credit ----------
@@ -137,7 +162,7 @@ const getCustomerPaymentSummary = async (req, res) => {
         $facet: {
           history: [
             { $sort: { createdAt: -1 } },
-         
+
             {
               $project: {
                 _id: 1,
@@ -176,7 +201,6 @@ const getCustomerPaymentSummary = async (req, res) => {
     }
 
     const [debitData] = await DebitModel.aggregate([
-     
       { $match: baseMatch },
       {
         $addFields: {
@@ -186,15 +210,13 @@ const getCustomerPaymentSummary = async (req, res) => {
         },
       },
 
-      // 3) Apply search after normalization
       ...(hasSearch
         ? [
             {
               $match: {
                 $or: [
-                  // substring match for mixed-format POs like "ENERGY-PO/25-26/02142"
                   { po_numberStr: { $regex: searchEsc, $options: "i" } },
-                  // fast exact numeric match if user typed only digits
+
                   ...(isDigits
                     ? [{ po_number: Number(searchDebit.trim()) }]
                     : []),
@@ -206,7 +228,6 @@ const getCustomerPaymentSummary = async (req, res) => {
           ]
         : []),
 
-      // 4) Results + totals in one go
       {
         $facet: {
           history: [
@@ -240,7 +261,6 @@ const getCustomerPaymentSummary = async (req, res) => {
     const debitHistory = debitData?.history || [];
     const totalDebited = debitData?.summary?.[0]?.totalDebited || 0;
 
-    // ---------- Adjustment ----------
     const adjustmentMatch = { p_id: projectId };
     if (searchAdjustment)
       adjustmentMatch.remark = new RegExp(searchAdjustment, "i");
@@ -256,7 +276,7 @@ const getCustomerPaymentSummary = async (req, res) => {
         $facet: {
           history: [
             { $sort: { createdAt: -1 } },
-       
+
             {
               $project: {
                 _id: 1,
@@ -335,10 +355,10 @@ const getCustomerPaymentSummary = async (req, res) => {
     const totalDebitAdjustment =
       adjustmentData?.summary?.[0]?.totalDebitAdjustment || 0;
 
-    // ---------- Client History (POs) ----------
-    const searchRegex = searchClient
-      ? new RegExp(escapeRegex(searchClient), "i")
-      : null;
+
+    const qRaw = (req.query?.searchClient ?? req.query?.search ?? "").trim();
+    const searchPattern = qRaw ? escapeRegex(qRaw) : null;
+    const isNumericSearch = /^\d+$/.test(qRaw);
 
     const clientHistoryResult = await ProjectModel.aggregate([
       { $match: { _id: projectOid } },
@@ -362,19 +382,15 @@ const getCustomerPaymentSummary = async (req, res) => {
             { $sort: { createdAt: -1 } },
             { $addFields: { po_numberStr: { $toString: "$po_number" } } },
 
-            // Early filtering inside purchaseorders pipeline
-            ...(searchClient
+            ...(isNumericSearch
               ? [
                   {
                     $match: {
                       $or: [
-                        
-                        ...(/^\d+$/.test(searchClient)
-                          ? [{ po_number: Number(searchClient) }]
-                          : []),
+                        { po_number: Number(qRaw) },
                         {
                           po_numberStr: {
-                            $regex: escapeRegex(searchClient),
+                            $regex: searchPattern,
                             $options: "i",
                           },
                         },
@@ -448,7 +464,6 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             },
 
-            // --- Approved payments (advance) ---
             {
               $lookup: {
                 from: "payrequests",
@@ -492,126 +507,127 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             },
 
-{
-  $lookup: {
-    from: "biildetails",
-    let: { poNum: "$po_numberStr" },
-    pipeline: [
-      {
-        $match: {
-          $expr: { $eq: [{ $toString: "$po_number" }, "$$poNum"] },
-        },
-      },
-      { $project: { item: 1 } },
-
-    
-      {
-        $unwind: {
-          path: "$item",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-
-    
-      {
-        $addFields: {
-          bill_value_num: {
-            $toDouble: {
-              $replaceAll: {
-                input: {
-                  $replaceAll: {
-                    input: { $toString: { $ifNull: ["$item.bill_value", "0"] } },
-                    find: ",",
-                    replacement: "",
+            {
+              $lookup: {
+                from: "biildetails",
+                let: { poNum: "$po_numberStr" },
+                pipeline: [
+                  {
+                    $match: {
+                      $expr: { $eq: [{ $toString: "$po_number" }, "$$poNum"] },
+                    },
                   },
-                },
-                find: " ",
-                replacement: "",
-              },
-            },
-          },
-          gst_num: {
-            $toDouble: {
-              $replaceAll: {
-                input: {
-                  $replaceAll: {
-                    input: {
-                      $replaceAll: {
-                        input: { $toString: { $ifNull: ["$item.gst_percent", "0"] } },
-                        find: "%",
-                        replacement: "",
+                  { $project: { item: 1 } },
+                  {
+                    $unwind: {
+                      path: "$item",
+                      preserveNullAndEmptyArrays: true,
+                    },
+                  },
+                  {
+                    $addFields: {
+                      bill_value_num: {
+                        $toDouble: {
+                          $replaceAll: {
+                            input: {
+                              $replaceAll: {
+                                input: {
+                                  $toString: {
+                                    $ifNull: ["$item.bill_value", "0"],
+                                  },
+                                },
+                                find: ",",
+                                replacement: "",
+                              },
+                            },
+                            find: " ",
+                            replacement: "",
+                          },
+                        },
+                      },
+                      gst_num: {
+                        $toDouble: {
+                          $replaceAll: {
+                            input: {
+                              $replaceAll: {
+                                input: {
+                                  $replaceAll: {
+                                    input: {
+                                      $toString: {
+                                        $ifNull: ["$item.gst_percent", "0"],
+                                      },
+                                    },
+                                    find: "%",
+                                    replacement: "",
+                                  },
+                                },
+                                find: ",",
+                                replacement: "",
+                              },
+                            },
+                            find: " ",
+                            replacement: "",
+                          },
+                        },
+                      },
+                      qty_num: {
+                        $toDouble: {
+                          $replaceAll: {
+                            input: {
+                              $toString: { $ifNull: ["$item.quantity", "0"] },
+                            },
+                            find: ",",
+                            replacement: "",
+                          },
+                        },
                       },
                     },
-                    find: ",",
-                    replacement: "",
                   },
-                },
-                find: " ",
-                replacement: "",
+                  {
+                    $addFields: {
+                      line_basic: {
+                        $multiply: ["$qty_num", "$bill_value_num"],
+                      },
+                      line_gst: {
+                        $multiply: [
+                          { $multiply: ["$qty_num", "$bill_value_num"] },
+                          { $divide: ["$gst_num", 100] },
+                        ],
+                      },
+                    },
+                  },
+                  {
+                    $group: {
+                      _id: null,
+                      bill_basic_sum: { $sum: "$line_basic" },
+                      bill_gst_sum: { $sum: "$line_gst" },
+                    },
+                  },
+                  { $project: { _id: 0, bill_basic_sum: 1, bill_gst_sum: 1 } },
+                ],
+                as: "bill_agg",
               },
             },
-          },
-          qty_num: {
-            $toDouble: {
-              $replaceAll: {
-                input: { $toString: { $ifNull: ["$item.quantity", "0"] } },
-                find: ",",
-                replacement: "",
-              },
-            },
-          },
-        },
-      },
-
-   
-      {
-        $addFields: {
-          line_basic: { $multiply: ["$qty_num", "$bill_value_num"] },
-          line_gst: {
-            $multiply: [
-              { $multiply: ["$qty_num", "$bill_value_num"] },
-              { $divide: ["$gst_num", 100] },
-            ],
-          },
-        },
-      },
-
-
-      {
-        $group: {
-          _id: null,
-          bill_basic_sum: { $sum: "$line_basic" },
-          bill_gst_sum:   { $sum: "$line_gst" },
-        },
-      },
-      { $project: { _id: 0, bill_basic_sum: 1, bill_gst_sum: 1 } },
-    ],
-    as: "bill_agg",
-  },
-},
-{
-  $addFields: {
-    bill_basic: {
-      $ifNull: [{ $arrayElemAt: ["$bill_agg.bill_basic_sum", 0] }, 0],
-    },
-    bill_gst: {
-      $ifNull: [{ $arrayElemAt: ["$bill_agg.bill_gst_sum", 0] }, 0],
-    },
-  },
-}
-
-,
-
-
             {
               $addFields: {
-                total_billed_value: {
-                  $add: ["$bill_basic", "$bill_gst"],
+                bill_basic: {
+                  $ifNull: [
+                    { $arrayElemAt: ["$bill_agg.bill_basic_sum", 0] },
+                    0,
+                  ],
+                },
+                bill_gst: {
+                  $ifNull: [{ $arrayElemAt: ["$bill_agg.bill_gst_sum", 0] }, 0],
                 },
               },
             },
-
+            {
+              $addFields: {
+                total_billed_value: { $add: ["$bill_basic", "$bill_gst"] },
+              },
+            },
             { $project: { bill_agg: 0 } },
+
             {
               $addFields: {
                 total_sales_value: {
@@ -642,8 +658,6 @@ const getCustomerPaymentSummary = async (req, res) => {
                     2,
                   ],
                 },
-
-              
                 remaining_sales_closure: {
                   $round: [
                     {
@@ -662,7 +676,6 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             },
           ],
-
           as: "purchase_orders",
         },
       },
@@ -769,46 +782,109 @@ const getCustomerPaymentSummary = async (req, res) => {
         },
       },
 
-      // --- Vendor lookup ---
       {
         $lookup: {
           from: "vendors",
-          localField: "purchase_orders.vendor",
-          foreignField: "_id",
+          let: { vId: "$purchase_orders.vendor" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [
+                    "$_id",
+                    {
+                      $cond: [
+                        { $eq: [{ $type: "$$vId" }, "objectId"] },
+                        "$$vId",
+                        { $toObjectId: "$$vId" },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                displayName: {
+                  $trim: {
+                    input: {
+                      $ifNull: [
+                        "$name",
+                        {
+                          $ifNull: [
+                            "$vendor_name",
+                            { $ifNull: ["$company_name", ""] },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          ],
           as: "_vendor",
         },
       },
       {
         $addFields: {
-          vendorName: { $ifNull: [{ $arrayElemAt: ["$_vendor.name", 0] }, ""] },
+          vendorName: {
+            $ifNull: [{ $arrayElemAt: ["$_vendor.displayName", 0] }, ""],
+          },
         },
       },
 
-      ...(searchRegex
+      ...(searchPattern
         ? [
             {
               $match: {
-                $or: [
-                  { vendorName: searchRegex },
-                  { "purchase_orders.po_numberStr": searchRegex },
-                  { code: searchRegex },
-                  { item_name: searchRegex },
-                ],
+                $expr: {
+                  $or: [
+                    {
+                      $regexMatch: {
+                        input: "$vendorName",
+                        regex: searchPattern,
+                        options: "i",
+                      },
+                    },
+                    {
+                      $regexMatch: {
+                        input: "$item_name",
+                        regex: searchPattern,
+                        options: "i",
+                      },
+                    },
+                    {
+                      $regexMatch: {
+                        input: "$code",
+                        regex: searchPattern,
+                        options: "i",
+                      },
+                    },
+                    {
+                      $regexMatch: {
+                        input: { $toString: "$purchase_orders.po_number" },
+                        regex: searchPattern,
+                        options: "i",
+                      },
+                    },
+                  ],
+                },
               },
             },
           ]
         : []),
 
-      // --- Final projection ---
       {
         $project: {
           _id: "$purchase_orders._id",
           project_code: "$code",
-          // item_name: 1,
           po_number: "$purchase_orders.po_number",
           vendor: "$vendorName",
           po_value: "$purchase_orders.po_value",
           item_name: "$item_name",
+
           total_unbilled_sales: "$purchase_orders.total_unbilled_sales",
           total_sales_value: asDouble(
             "$purchase_orders.last_sales_detail.total_sales_value"
@@ -816,12 +892,11 @@ const getCustomerPaymentSummary = async (req, res) => {
 
           po_basic: "$purchase_orders.po_basic",
           gst: "$purchase_orders.gst",
-          bill_basic: "$purchase_orders.bill_basic", // Bill values calculated
-          bill_gst: "$purchase_orders.bill_gst", // Bill values calculated
-          total_billed_value: "$purchase_orders.total_billed_value", // Calculated total_billed_value
+          bill_basic: "$purchase_orders.bill_basic",
+          bill_gst: "$purchase_orders.bill_gst",
+          total_billed_value: "$purchase_orders.total_billed_value",
           remaining_sales_closure: "$purchase_orders.remaining_sales_closure",
 
-          // Correct handling of advance_paid with missing values
           advance_paid: {
             $cond: [
               {
@@ -845,11 +920,10 @@ const getCustomerPaymentSummary = async (req, res) => {
                   0,
                 ],
               },
-              0, // Default to 0 if no approved payments
+              0,
             ],
           },
 
-          // Remaining amount calculation
           remaining_amount: {
             $subtract: [
               { $toDouble: { $ifNull: ["$purchase_orders.po_value", 0] } },
@@ -1066,8 +1140,6 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             },
 
-            // BillDetails lookup
-            // --- BillDetails lookup (sum across all docs & items) ---
             {
               $lookup: {
                 from: "biildetails",
@@ -1078,11 +1150,8 @@ const getCustomerPaymentSummary = async (req, res) => {
                       $expr: { $eq: [{ $toString: "$po_number" }, "$$poNum"] },
                     },
                   },
-
-                  // keep only `item` array (some documents might store as `item`)
                   { $project: { item: 1 } },
 
-                  // unwind all items from the array
                   {
                     $unwind: {
                       path: "$item",
@@ -1090,16 +1159,23 @@ const getCustomerPaymentSummary = async (req, res) => {
                     },
                   },
 
-                  // clean and normalize numeric values
                   {
                     $addFields: {
                       bill_value_num: {
                         $toDouble: {
                           $replaceAll: {
                             input: {
-                              $toString: { $ifNull: ["$item.bill_value", 0] },
+                              $replaceAll: {
+                                input: {
+                                  $toString: {
+                                    $ifNull: ["$item.bill_value", "0"],
+                                  },
+                                },
+                                find: ",",
+                                replacement: "",
+                              },
                             },
-                            find: ",",
+                            find: " ",
                             replacement: "",
                           },
                         },
@@ -1110,13 +1186,30 @@ const getCustomerPaymentSummary = async (req, res) => {
                             input: {
                               $replaceAll: {
                                 input: {
-                                  $toString: {
-                                    $ifNull: ["$item.gst_percent", 0],
+                                  $replaceAll: {
+                                    input: {
+                                      $toString: {
+                                        $ifNull: ["$item.gst_percent", "0"],
+                                      },
+                                    },
+                                    find: "%",
+                                    replacement: "",
                                   },
                                 },
-                                find: "%",
+                                find: ",",
                                 replacement: "",
                               },
+                            },
+                            find: " ",
+                            replacement: "",
+                          },
+                        },
+                      },
+                      qty_num: {
+                        $toDouble: {
+                          $replaceAll: {
+                            input: {
+                              $toString: { $ifNull: ["$item.quantity", "0"] },
                             },
                             find: ",",
                             replacement: "",
@@ -1126,19 +1219,25 @@ const getCustomerPaymentSummary = async (req, res) => {
                     },
                   },
 
-                  // sum totals per PO
+                  {
+                    $addFields: {
+                      line_basic: {
+                        $multiply: ["$qty_num", "$bill_value_num"],
+                      },
+                      line_gst: {
+                        $multiply: [
+                          { $multiply: ["$qty_num", "$bill_value_num"] },
+                          { $divide: ["$gst_num", 100] },
+                        ],
+                      },
+                    },
+                  },
+
                   {
                     $group: {
                       _id: null,
-                      bill_basic_sum: { $sum: "$bill_value_num" },
-                      bill_gst_sum: {
-                        $sum: {
-                          $multiply: [
-                            "$bill_value_num",
-                            { $divide: ["$gst_num", 100] },
-                          ],
-                        },
-                      },
+                      bill_basic_sum: { $sum: "$line_basic" },
+                      bill_gst_sum: { $sum: "$line_gst" },
                     },
                   },
                   { $project: { _id: 0, bill_basic_sum: 1, bill_gst_sum: 1 } },
@@ -1146,26 +1245,19 @@ const getCustomerPaymentSummary = async (req, res) => {
                 as: "bill_agg",
               },
             },
-
             {
               $addFields: {
                 bill_basic: {
-                  $cond: [
-                    { $gt: [{ $size: "$bill_agg" }, 0] },
+                  $ifNull: [
                     { $arrayElemAt: ["$bill_agg.bill_basic_sum", 0] },
-                    asDouble("$po_basic"),
+                    0,
                   ],
                 },
                 bill_gst: {
-                  $cond: [
-                    { $gt: [{ $size: "$bill_agg" }, 0] },
-                    { $arrayElemAt: ["$bill_agg.bill_gst_sum", 0] },
-                    asDouble("$gst"),
-                  ],
+                  $ifNull: [{ $arrayElemAt: ["$bill_agg.bill_gst_sum", 0] }, 0],
                 },
               },
             },
-
             // Approved payments for advance
             {
               $lookup: {
