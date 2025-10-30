@@ -183,15 +183,13 @@ const getCustomerPaymentSummary = async (req, res) => {
         },
       },
 
-      // 3) Apply search after normalization
       ...(hasSearch
         ? [
             {
               $match: {
                 $or: [
-                  // substring match for mixed-format POs like "ENERGY-PO/25-26/02142"
                   { po_numberStr: { $regex: searchEsc, $options: "i" } },
-                  // fast exact numeric match if user typed only digits
+
                   ...(isDigits
                     ? [{ po_number: Number(searchDebit.trim()) }]
                     : []),
@@ -203,7 +201,6 @@ const getCustomerPaymentSummary = async (req, res) => {
           ]
         : []),
 
-      // 4) Results + totals in one go
       {
         $facet: {
           history: [
@@ -237,7 +234,6 @@ const getCustomerPaymentSummary = async (req, res) => {
     const debitHistory = debitData?.history || [];
     const totalDebited = debitData?.summary?.[0]?.totalDebited || 0;
 
-    // ---------- Adjustment ----------
     const adjustmentMatch = { p_id: projectId };
     if (searchAdjustment)
       adjustmentMatch.remark = new RegExp(searchAdjustment, "i");
@@ -332,10 +328,10 @@ const getCustomerPaymentSummary = async (req, res) => {
     const totalDebitAdjustment =
       adjustmentData?.summary?.[0]?.totalDebitAdjustment || 0;
 
-    // ---------- Client History (POs) ----------
-    const searchRegex = searchClient
-      ? new RegExp(escapeRegex(searchClient), "i")
-      : null;
+
+    const qRaw = (req.query?.searchClient ?? req.query?.search ?? "").trim();
+    const searchPattern = qRaw ? escapeRegex(qRaw) : null;
+    const isNumericSearch = /^\d+$/.test(qRaw);
 
     const clientHistoryResult = await ProjectModel.aggregate([
       { $match: { _id: projectOid } },
@@ -359,18 +355,15 @@ const getCustomerPaymentSummary = async (req, res) => {
             { $sort: { createdAt: -1 } },
             { $addFields: { po_numberStr: { $toString: "$po_number" } } },
 
-            // Early filtering inside purchaseorders pipeline
-            ...(searchClient
+            ...(isNumericSearch
               ? [
                   {
                     $match: {
                       $or: [
-                        ...(/^\d+$/.test(searchClient)
-                          ? [{ po_number: Number(searchClient) }]
-                          : []),
+                        { po_number: Number(qRaw) },
                         {
                           po_numberStr: {
-                            $regex: escapeRegex(searchClient),
+                            $regex: searchPattern,
                             $options: "i",
                           },
                         },
@@ -444,7 +437,6 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             },
 
-            // --- Approved payments (advance) ---
             {
               $lookup: {
                 from: "payrequests",
@@ -499,14 +491,12 @@ const getCustomerPaymentSummary = async (req, res) => {
                     },
                   },
                   { $project: { item: 1 } },
-
                   {
                     $unwind: {
                       path: "$item",
                       preserveNullAndEmptyArrays: true,
                     },
                   },
-
                   {
                     $addFields: {
                       bill_value_num: {
@@ -566,7 +556,6 @@ const getCustomerPaymentSummary = async (req, res) => {
                       },
                     },
                   },
-
                   {
                     $addFields: {
                       line_basic: {
@@ -580,7 +569,6 @@ const getCustomerPaymentSummary = async (req, res) => {
                       },
                     },
                   },
-
                   {
                     $group: {
                       _id: null,
@@ -606,16 +594,13 @@ const getCustomerPaymentSummary = async (req, res) => {
                 },
               },
             },
-
             {
               $addFields: {
-                total_billed_value: {
-                  $add: ["$bill_basic", "$bill_gst"],
-                },
+                total_billed_value: { $add: ["$bill_basic", "$bill_gst"] },
               },
             },
-
             { $project: { bill_agg: 0 } },
+
             {
               $addFields: {
                 total_sales_value: {
@@ -646,7 +631,6 @@ const getCustomerPaymentSummary = async (req, res) => {
                     2,
                   ],
                 },
-
                 remaining_sales_closure: {
                   $round: [
                     {
@@ -665,7 +649,6 @@ const getCustomerPaymentSummary = async (req, res) => {
               },
             },
           ],
-
           as: "purchase_orders",
         },
       },
@@ -772,46 +755,109 @@ const getCustomerPaymentSummary = async (req, res) => {
         },
       },
 
-      // --- Vendor lookup ---
       {
         $lookup: {
           from: "vendors",
-          localField: "purchase_orders.vendor",
-          foreignField: "_id",
+          let: { vId: "$purchase_orders.vendor" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [
+                    "$_id",
+                    {
+                      $cond: [
+                        { $eq: [{ $type: "$$vId" }, "objectId"] },
+                        "$$vId",
+                        { $toObjectId: "$$vId" },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                displayName: {
+                  $trim: {
+                    input: {
+                      $ifNull: [
+                        "$name",
+                        {
+                          $ifNull: [
+                            "$vendor_name",
+                            { $ifNull: ["$company_name", ""] },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          ],
           as: "_vendor",
         },
       },
       {
         $addFields: {
-          vendorName: { $ifNull: [{ $arrayElemAt: ["$_vendor.name", 0] }, ""] },
+          vendorName: {
+            $ifNull: [{ $arrayElemAt: ["$_vendor.displayName", 0] }, ""],
+          },
         },
       },
 
-      ...(searchRegex
+      ...(searchPattern
         ? [
             {
               $match: {
-                $or: [
-                  { vendorName: searchRegex },
-                  { "purchase_orders.po_numberStr": searchRegex },
-                  { code: searchRegex },
-                  { item_name: searchRegex },
-                ],
+                $expr: {
+                  $or: [
+                    {
+                      $regexMatch: {
+                        input: "$vendorName",
+                        regex: searchPattern,
+                        options: "i",
+                      },
+                    },
+                    {
+                      $regexMatch: {
+                        input: "$item_name",
+                        regex: searchPattern,
+                        options: "i",
+                      },
+                    },
+                    {
+                      $regexMatch: {
+                        input: "$code",
+                        regex: searchPattern,
+                        options: "i",
+                      },
+                    },
+                    {
+                      $regexMatch: {
+                        input: { $toString: "$purchase_orders.po_number" },
+                        regex: searchPattern,
+                        options: "i",
+                      },
+                    },
+                  ],
+                },
               },
             },
           ]
         : []),
 
-      // --- Final projection ---
       {
         $project: {
           _id: "$purchase_orders._id",
           project_code: "$code",
-          // item_name: 1,
           po_number: "$purchase_orders.po_number",
           vendor: "$vendorName",
           po_value: "$purchase_orders.po_value",
           item_name: "$item_name",
+
           total_unbilled_sales: "$purchase_orders.total_unbilled_sales",
           total_sales_value: asDouble(
             "$purchase_orders.last_sales_detail.total_sales_value"
@@ -819,12 +865,11 @@ const getCustomerPaymentSummary = async (req, res) => {
 
           po_basic: "$purchase_orders.po_basic",
           gst: "$purchase_orders.gst",
-          bill_basic: "$purchase_orders.bill_basic", // Bill values calculated
-          bill_gst: "$purchase_orders.bill_gst", // Bill values calculated
-          total_billed_value: "$purchase_orders.total_billed_value", // Calculated total_billed_value
+          bill_basic: "$purchase_orders.bill_basic",
+          bill_gst: "$purchase_orders.bill_gst",
+          total_billed_value: "$purchase_orders.total_billed_value",
           remaining_sales_closure: "$purchase_orders.remaining_sales_closure",
 
-          // Correct handling of advance_paid with missing values
           advance_paid: {
             $cond: [
               {
@@ -848,11 +893,10 @@ const getCustomerPaymentSummary = async (req, res) => {
                   0,
                 ],
               },
-              0, // Default to 0 if no approved payments
+              0,
             ],
           },
 
-          // Remaining amount calculation
           remaining_amount: {
             $subtract: [
               { $toDouble: { $ifNull: ["$purchase_orders.po_value", 0] } },
