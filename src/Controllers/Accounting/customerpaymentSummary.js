@@ -1,11 +1,8 @@
 const CreditModel = require("../../models/addMoneyModells");
 const DebitModel = require("../../models/debitMoneyModells");
 const AdjustmentModel = require("../../models/adjustmentRequestModells");
-const ClientModel = require("../../models/purchaseorder.model");
 const ProjectModel = require("../../models/project.model");
-const { Parser } = require("json2csv");
 const { default: axios } = require("axios");
-const { default: mongoose } = require("mongoose");
 
 // ---- helpers (keep these at top of file) ----
 const asDouble = (v) => ({ $toDouble: { $ifNull: [v, 0] } });
