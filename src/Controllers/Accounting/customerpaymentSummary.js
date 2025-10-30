@@ -28,6 +28,24 @@ const roundMoney = (v, digits = 0) => {
 };
 const digitsByKey = {};
 
+const toStr = (v) => {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string" || typeof v === "number") return String(v);
+  if (typeof v === "object") {
+   
+    const cand = v.name ?? v.label ?? v.value ?? v.text ?? v.title ?? "";
+    return (typeof cand === "string" || typeof cand === "number") ? String(cand) : "";
+  }
+  return "";
+};
+
+const cleanToken = (s) => toStr(s).replace(/(^"|"$)/g, "").trim();
+
+const isNA = (s) => {
+  const t = cleanToken(s).toUpperCase();
+  return !t || t === "NA" || t === "N/A" || t === "-";
+};
+
 
 const getCustomerPaymentSummary = async (req, res) => {
   try {
@@ -89,28 +107,36 @@ const getCustomerPaymentSummary = async (req, res) => {
     const projectId = projectDoc.p_id;
     const projectOid = projectDoc._id;
 
-    const formatAddress = (address) => {
-      if (typeof address === "object" && address !== null) {
-        const village = (address.village_name || "")
-          .replace(/(^"|"$)/g, "")
-          .trim();
-        const district = (address.district_name || "")
-          .replace(/(^"|"$)/g, "")
-          .trim();
-        if (
-          (!village || village.toUpperCase() === "NA") &&
-          (!district || district.toUpperCase() === "NA")
-        ) {
-          return "-";
-        }
-        return `${village}, ${district}`;
-      }
-      if (typeof address === "string") {
-        const cleaned = address.trim().replace(/(^"|"$)/g, "");
-        return cleaned || "-";
-      }
-      return "-";
-    };
+   const formatAddress = (address) => {
+  try {
+  
+    if (Array.isArray(address)) {
+      const first = address.find(Boolean) ?? "";
+      address = first;
+    }
+
+    if (address && typeof address === "object") {
+      const line1    = cleanToken(address.address_line1 ?? address.line1 ?? address.address);
+      const village  = cleanToken(address.village_name ?? address.village ?? address.villageName);
+      const district = cleanToken(address.district_name ?? address.district ?? address.districtName);
+      const city     = cleanToken(address.city ?? address.town ?? address.tehsil);
+      const state    = cleanToken(address.state ?? address.state_name ?? address.stateName);
+      const pincode  = cleanToken(address.pincode ?? address.pin ?? address.zip);
+
+      const parts = [line1, village, district, city, state, pincode].filter((p) => !isNA(p));
+      return parts.length ? parts.join(", ") : "-";
+    }
+
+    if (typeof address === "string" || typeof address === "number") {
+      const s = cleanToken(address);
+      return s && !isNA(s) ? s : "-";
+    }
+
+    return "-";
+  } catch {
+    return "-";
+  }
+};
 
     const project = {
       name: projectDoc.name,
@@ -119,8 +145,8 @@ const getCustomerPaymentSummary = async (req, res) => {
       customer: projectDoc.customer,
       code: projectDoc.code,
       billing_type: projectDoc.billing_type,
-      billing_address_formatted: formatAddress(projectDoc.billing_address),
-      site_address_formatted: formatAddress(projectDoc.site_address),
+     billing_address_formatted: formatAddress(projectDoc.billing_address ?? ""),
+  site_address_formatted: formatAddress(projectDoc.site_address ?? ""),
     };
 
     // ---------- Credit ----------
@@ -362,7 +388,7 @@ const getCustomerPaymentSummary = async (req, res) => {
             { $sort: { createdAt: -1 } },
             { $addFields: { po_numberStr: { $toString: "$po_number" } } },
 
-            // Early filtering inside purchaseorders pipeline
+           
             ...(searchClient
               ? [
                   {
