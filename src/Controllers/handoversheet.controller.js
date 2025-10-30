@@ -13,6 +13,9 @@ const postsModel = require("../models/posts.model");
 const activitiesModel = require("../models/activities.model");
 const projectactivitiesModel = require("../models/projectactivities.model");
 const { triggerLoanTasksBulk } = require("../utils/triggerLoanTask");
+const axios = require("axios");
+const FormData = require("form-data");
+const path = require("path");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -94,14 +97,47 @@ const migrateProjectToHandover = async (req, res) => {
   }
 };
 
-const safe = (s = "") => String(s).replace(/[\\/]/g, "_").replace(/\s+/g, "_");
+const safe = (str = "") =>
+  String(str)
+    .trim()
+    .replace(/[\/\\\s]+/g, "_")
+    .replace(/[^a-zA-Z0-9._-]/g, "_");
 
-async function uploadBufferToBlob({ buffer, originalname, mimetype, folderPath }) {
+function normalizeToArray(val) {
+  if (val == null) return [];
+  if (typeof val === "string") {
+    const t = val.trim();
+    if (t.startsWith("[") && t.endsWith("]")) {
+      try {
+        const arr = JSON.parse(t);
+        return Array.isArray(arr) ? arr : [t];
+      } catch {
+        return [val];
+      }
+    }
+    return [val];
+  }
+  if (Array.isArray(val)) return val;
+  if (typeof val === "object") {
+    if (val.url) return [val.url];
+    return [String(val)];
+  }
+  return [String(val)];
+}
+
+async function uploadBufferToBlob({
+  buffer,
+  originalname,
+  mimetype,
+  folderPath,
+}) {
   const form = new FormData();
-  form.append("file", buffer, { filename: originalname, contentType: mimetype });
+  form.append("file", buffer, {
+    filename: originalname,
+    contentType: mimetype,
+  });
 
-  const uploadUrl =
-    `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
+  const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
 
   const resp = await axios.post(uploadUrl, form, {
     headers: form.getHeaders(),
@@ -110,26 +146,21 @@ async function uploadBufferToBlob({ buffer, originalname, mimetype, folderPath }
   });
 
   const d = resp.data;
-  const url = Array.isArray(d) && d.length > 0
-    ? d[0]
-    : d.url || d.fileUrl || (d.data && d.data.url) || null;
+  const url =
+    Array.isArray(d) && d.length > 0
+      ? d[0]
+      : d.url || d.fileUrl || (d.data && d.data.url) || null;
 
   if (!url) throw new Error("UPLOAD_API did not return a file URL");
   return url;
 }
 
-async function downloadToBuffer(url) {
-  const resp = await axios.get(url, { responseType: "arraybuffer" });
-  const contentType = resp.headers["content-type"] || "application/octet-stream";
-  return { buffer: Buffer.from(resp.data), contentType };
-}
-
-const createhandoversheet = async function (req, res) {
+const createhandoversheet = async (req, res) => {
   try {
     const base =
       typeof req.body.data === "string" ? JSON.parse(req.body.data) : req.body;
 
-    const {
+    let {
       id,
       p_id,
       customer_details,
@@ -138,19 +169,14 @@ const createhandoversheet = async function (req, res) {
       commercial_details,
       other_details = {},
       invoice_detail,
-      documents, 
       status_of_handoversheet,
       is_locked,
+      documents: docsInsideData,
     } = base;
 
-    const userId = req.user.userId;
-    const user = await userModells.findById(userId);
-    other_details.submitted_by_BD = userId;
-
-    // const exists = await hanoversheetmodells.findOne({ id });
-    // if (exists) {
-    //   return res.status(400).json({ message: "Handoversheet already exists" });
-    // }
+    const userId = req.user?.userId;
+    const user = userId ? await userModells.findById(userId) : null;
+    if (userId) other_details.submitted_by_BD = userId;
 
     const handoversheet = new hanoversheetmodells({
       id,
@@ -163,19 +189,32 @@ const createhandoversheet = async function (req, res) {
       invoice_detail,
       status_of_handoversheet: status_of_handoversheet || "draft",
       is_locked: is_locked || "locked",
-      submitted_by: userId,
+      submitted_by: userId || null,
     });
 
     await handoversheet.save();
 
-    const savedDocs = [];
+    const docsFromBase = normalizeToArray(docsInsideData);
+    const docsFromBracket = normalizeToArray(req.body["documents[]"]);
+    const docsFromFlat = normalizeToArray(req.body.documents);
 
+    const indexedDocs = Object.keys(req.body)
+      .filter((k) => /^documents\[\d+\]$/.test(k))
+      .map((k) => req.body[k]);
+
+    const documentUrlCandidates = [
+      ...docsFromBase,
+      ...docsFromBracket,
+      ...docsFromFlat,
+      ...indexedDocs,
+    ].filter(Boolean);
+
+    const savedDocs = [];
     if (Array.isArray(req.files) && req.files.length) {
       for (const f of req.files) {
         try {
           const fileName = f.originalname || "document";
-          const leaf = `${safe(fileName)}/files`;
-          const folderPath = `Handovers/${handoversheet.id}/${leaf}`;
+          const folderPath = `Handovers/${safe(handoversheet.id)}`;
 
           const url = await uploadBufferToBlob({
             buffer: f.buffer,
@@ -194,39 +233,18 @@ const createhandoversheet = async function (req, res) {
         }
       }
     }
-    if (documents && (Array.isArray(documents) || typeof documents === "string")) {
-      const list = Array.isArray(documents) ? documents : [documents];
 
-      for (const item of list) {
-        try {
-          const url = typeof item === "string" ? item : item.url;
-          if (!url) continue;
+    for (const raw of documentUrlCandidates) {
+      const u = String(raw || "").trim();
+      if (!u || !/^https?:\/\//i.test(u)) continue;
 
-          const docNameRaw =
-            (typeof item === "object" && item.name) ||
-            url.split("/").pop() ||
-            "document";
-          const docName = decodeURIComponent(docNameRaw);
-          const { buffer, contentType } = await downloadToBuffer(url);
-          const leaf = `${safe(docName)}/files`;
-          const folderPath = `Handovers/${handoversheet._id}/${leaf}`;
-
-          const uploadedUrl = await uploadBufferToBlob({
-            buffer,
-            originalname: docName,
-            mimetype: contentType,
-            folderPath,
-          });
-
-          savedDocs.push({
-            filename: docName,
-            fileurl: uploadedUrl,
-            fileType: contentType,
-          });
-        } catch (e) {
-          console.warn("URL ingest failed:", item, e?.message);
-        }
-      }
+      const last = decodeURIComponent(u.split("/").pop() || "document");
+      const filename = safe(last);
+      savedDocs.push({
+        filename,
+        fileurl: u,
+        fileType: "link",
+      });
     }
 
     if (savedDocs.length) {
@@ -234,12 +252,14 @@ const createhandoversheet = async function (req, res) {
       await handoversheet.save();
     }
 
-    if (status_of_handoversheet === "Approved" && (is_locked === "locked")) {
+    if (status_of_handoversheet === "Approved" && is_locked === "locked") {
       const projectData = await projectmodells.findOne({ p_id });
       if (!projectData) {
         return res.status(404).json({ message: "Project not found" });
       }
-      const moduleCategoryData = new moduleCategory({ project_id: projectData._id });
+      const moduleCategoryData = new moduleCategory({
+        project_id: projectData._id,
+      });
       await moduleCategoryData.save();
     }
 
@@ -258,15 +278,15 @@ const createhandoversheet = async function (req, res) {
         .lean()
         .then((users) => users.map((u) => u._id));
 
-      const data = {
-        message: `${user?.name} submitted the handover for Lead ${lead?.id || id} on ${new Date().toLocaleString()}.`,
+      const noteData = {
+        message: `${user?.name || "Someone"} submitted the handover for Lead ${lead?.id || id} on ${new Date().toLocaleString()}.`,
         link: `leadProfile?id=${lead?._id}&tab=handover`,
         type: "sales",
         link1: `/sales`,
       };
 
       setImmediate(() => {
-        sendNotification(workflow, Ids, data).catch((err) =>
+        sendNotification(workflow, Ids, noteData).catch((err) =>
           console.error("Notification error:", err)
         );
       });
@@ -274,16 +294,18 @@ const createhandoversheet = async function (req, res) {
       console.log("Notification error:", err?.message);
     }
 
+    // 9) Respond
     return res.status(200).json({
       message: "Data saved successfully",
       handoversheet,
     });
   } catch (error) {
     console.error("Create Handover error:", error);
-    return res.status(500).json({ message: error.message || "Internal Server Error" });
+    return res
+      .status(500)
+      .json({ message: error.message || "Internal Server Error" });
   }
 };
-
 
 const gethandoversheetdata = async function (req, res) {
   try {
@@ -629,22 +651,93 @@ const edithandoversheetdata = async function (req, res) {
       return res.status(400).json({ message: "Valid _id param is required" });
     }
 
-    const body = req.body || {};
+    let body = {};
+    if (typeof req.body.data === "string" && req.body.data.trim()) {
+      try {
+        body = JSON.parse(req.body.data);
+      } catch (e) {
+        return res
+          .status(400)
+          .json({ message: "Invalid JSON in 'data' field" });
+      }
+    } else if (req.is("application/json")) {
+      body = req.body || {};
+    }
 
     const update = {
       ...body,
       submitted_by: req?.user?.userId,
     };
 
-    const handoverSheet = await hanoversheetmodells.findByIdAndUpdate(
-      id,
-      { $set: update },
-      { new: true, runValidators: true }
-    );
-
+    // Load sheet
+    const handoverSheet = await hanoversheetmodells.findById(id);
     if (!handoverSheet) {
       return res.status(404).json({ message: "Handover sheet not found" });
     }
+
+    // Apply main field updates
+    Object.assign(handoverSheet, update);
+
+    const names = normalizeToArray(req.body.names);
+    const files = Array.isArray(req.files)
+      ? req.files
+      : Array.isArray(req.files?.files)
+        ? req.files.files
+        : [];
+
+    const folderPath = `Handovers/${safe(handoverSheet.id)}`;
+
+    const newDocs = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (!f || !f.buffer) continue;
+
+      const originalExt = path.extname(f.originalname) || "";
+      const baseNameFromClient = (names[i] || "").trim();
+      const finalBase = safe(
+        baseNameFromClient || f.originalname.replace(/\.[^.]+$/, "")
+      );
+      const finalNameWithExt = originalExt
+        ? `${finalBase}${originalExt}`
+        : finalBase;
+
+      // Upload to blob
+      let fileurl;
+      try {
+        fileurl = await uploadBufferToBlob({
+          buffer: f.buffer,
+          originalname: finalNameWithExt,
+          mimetype: f.mimetype || "application/octet-stream",
+          folderPath,
+        });
+      } catch (e) {
+        // Skip creating a doc if upload failed
+        console.error("Upload failed for", f.originalname, e.message);
+        continue;
+      }
+
+      if (!fileurl) continue;
+
+      newDocs.push({
+        filename: finalBase,
+        fileurl,
+        fileType: f.mimetype || "",
+        originalName: f.originalname,
+        size: f.size,
+        uploadedAt: new Date(),
+      });
+    }
+
+    if (newDocs.length) {
+      handoverSheet.documents = Array.isArray(handoverSheet.documents)
+        ? handoverSheet.documents.concat(newDocs)
+        : newDocs;
+    }
+
+    // Save sheet
+    await handoverSheet.save();
+
+    // Cascade lead flags (optional)
     const leadUpdate = {};
     if (typeof body.is_locked !== "undefined") {
       leadUpdate.handover_lock = body.is_locked;
@@ -652,7 +745,6 @@ const edithandoversheetdata = async function (req, res) {
     if (typeof body.status_of_handoversheet !== "undefined") {
       leadUpdate.status_of_handoversheet = body.status_of_handoversheet;
     }
-
     if (Object.keys(leadUpdate).length) {
       await bdleadsModells.findOneAndUpdate(
         { id: handoverSheet.id },
@@ -662,11 +754,15 @@ const edithandoversheetdata = async function (req, res) {
     }
 
     return res.status(200).json({
-      message: "Status updated successfully",
+      message: "Handover sheet updated successfully",
       handoverSheet,
+      uploaded: newDocs.length,
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error(error);
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 

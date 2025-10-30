@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const auth = require("../middlewares/auth.middleware.js");
+const upload = require("../middlewares/multer.middleware.js")
 const {
   createhandoversheet,
   gethandoversheetdata,
@@ -18,6 +19,7 @@ const {
 router.post(
   "/create-hand-over-sheet",
   auth,
+  upload,
   createhandoversheet
 );
 router.post("/handover-export", auth, getexportToCsv);
@@ -29,6 +31,7 @@ router.get(
 router.put(
   "/edit-hand-over-sheet/:_id",
   auth,
+  upload,
   edithandoversheetdata
 );
 router.put("/update-status/:_id", auth, updatestatus);
