@@ -9,7 +9,7 @@ const {
   getUniqueBank,
   addComment,
   uploadExistingDocument,
-} = require("../controllers/loan.controller");
+} = require("../Controllers/loan.controller");
 const auth = require("../middlewares/auth.middleware");
 const upload = require("../middlewares/multer.middleware");
 
