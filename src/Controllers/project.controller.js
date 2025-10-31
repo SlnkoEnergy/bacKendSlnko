@@ -4,7 +4,8 @@ const projectactivitiesModel = require("../models/projectactivities.model");
 const { default: mongoose } = require("mongoose");
 const activitiesModel = require("../models/activities.model");
 const postsModel = require("../models/posts.model");
-const userModells = require("../models/user.model")
+const userModells = require("../models/user.model");
+const loanModel = require("../models/loan.model");
 
 const createProject = async function (req, res) {
   try {
@@ -200,11 +201,9 @@ const getAllProjects = async (req, res) => {
       query.$or = or;
     }
 
-    // choose fields to return
     const projection =
       "code name customer state number project_kwp dc_capacity current_status project_completion_date ppa_expiry_date bd_commitment_date remaining_days";
 
-    // run query + count in parallel
     const [items, total] = await Promise.all([
       projectModells
         .find(query)
@@ -241,6 +240,43 @@ const getAllProjects = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
+const escapeRx = (s = "") => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+function toDateOrNull(v) {
+  if (!v && v !== 0) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if (typeof v === "number") {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const s = String(v).trim();
+  if (!s) return null;
+
+  // ISO first
+  let d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+
+  // Try DD-MM-YYYY
+  const m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if (m) {
+    const [, dd, mm, yyyy] = m.map(Number);
+    const d2 = new Date(yyyy, mm - 1, dd);
+    return isNaN(d2.getTime()) ? null : d2;
+  }
+  return null;
+}
+
+function buildRange(fromVal, toVal) {
+  const from = toDateOrNull(fromVal);
+  const to = toDateOrNull(toVal);
+
+  if (!from && !to) return null;
+
+  const range = {};
+  if (from) range.$gte = new Date(from.setHours(0, 0, 0, 0));
+  if (to) range.$lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+  return range;
+}
 
 const getAllProjectsForLoan = async (req, res) => {
   try {
@@ -250,52 +286,213 @@ const getAllProjectsForLoan = async (req, res) => {
       search = "",
       status,
       sort = "-createdAt",
+
+      loan_status,
+      bank_state,
+
+      expected_disbursement_from,
+      expected_disbursement_to,
+      expected_sanction_from,
+      expected_sanction_to,
+
+      // actual disbursement
+      actual_disbursement_from,
+      actual_disbursement_to,
+
+      // actual sanction
+      actual_sanction_from,
+      actual_sanction_to,
     } = req.query;
 
     const p = Math.max(1, parseInt(page, 10) || 1);
     const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
     const skip = (p - 1) * l;
 
-    const query = {};
-    if (status && status.toLowerCase() !== "all") {
-      query["current_status.status"] = status;
+    // ---------- Build base project query ----------
+    const projectQuery = {};
+    if (status && String(status).toLowerCase() !== "all") {
+      projectQuery["current_status.status"] = status;
     }
 
     if (search && String(search).trim() !== "") {
-      const safe = String(search)
-        .trim()
-        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const rx = new RegExp(safe, "i");
-
+      const rx = new RegExp(escapeRx(String(search).trim()), "i");
       const or = [{ code: rx }, { name: rx }, { description: rx }];
 
       if (mongoose.isValidObjectId(search)) {
         or.push({ _id: new mongoose.Types.ObjectId(search) });
       }
-      query.$or = or;
+      projectQuery.$or = or;
     }
 
-    // choose fields to return
-    const projection =
-      "code name customer state number project_kwp dc_capacity current_status project_completion_date ppa_expiry_date bd_commitment_date remaining_days";
+    // ---------- Build loan query (only when needed) ----------
+    const hasLoanStatus =
+      typeof loan_status === "string" && loan_status.trim() !== "";
+    const hasAnyTimelineFilter =
+      buildRange(expected_disbursement_from, expected_disbursement_to) ||
+      buildRange(expected_sanction_from, expected_sanction_to) ||
+      buildRange(actual_disbursement_from, actual_disbursement_to) ||
+      buildRange(actual_sanction_from, actual_sanction_to);
 
-    // run query + count in parallel
+    const hasBankState =
+      typeof bank_state === "string" && bank_state.trim() !== "";
+
+    const needLoanFiltering =
+      hasLoanStatus || !!hasAnyTimelineFilter || hasBankState;
+
+    // First, collect all project IDs that match the base project query
+    const baseProjectIds = await projectModells
+      .find(projectQuery)
+      .select({ _id: 1 })
+      .lean();
+
+    const baseIds = baseProjectIds.map((d) => d._id);
+    let filteredIds = baseIds;
+
+    if (needLoanFiltering) {
+      // Special case: "not submitted" -> projects with NO loan at all
+      if (String(loan_status || "").toLowerCase() === "not submitted") {
+        const loansForBase = await loanModel
+          .find({ project_id: { $in: baseIds } })
+          .select({ project_id: 1 })
+          .lean();
+
+        const idsWithLoan = new Set(
+          loansForBase.map((x) => String(x.project_id))
+        );
+        filteredIds = baseIds.filter((id) => !idsWithLoan.has(String(id)));
+      } else {
+        // Build a dynamic loanMatch with all filters
+        const loanMatch = { project_id: { $in: baseIds } };
+
+        if (hasLoanStatus) {
+          loanMatch["current_status.status"] = loan_status;
+        }
+
+        // Bank state filter (no lowercasing; case-insensitive match on any array element)
+        if (hasBankState) {
+          const states = String(bank_state)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (states.length === 1) {
+            loanMatch["banking_details.state"] = new RegExp(
+              `^${escapeRx(states[0])}$`,
+              "i"
+            );
+          } else if (states.length > 1) {
+            loanMatch["banking_details.state"] = {
+              $in: states.map((s) => new RegExp(`^${escapeRx(s)}$`, "i")),
+            };
+          }
+        }
+
+        // Timeline ranges
+        const expDisb = buildRange(
+          expected_disbursement_from,
+          expected_disbursement_to
+        );
+        if (expDisb) {
+          loanMatch["timelines.expected_disbursement_date"] = expDisb;
+        }
+
+        const expSanc = buildRange(
+          expected_sanction_from,
+          expected_sanction_to
+        );
+        if (expSanc) {
+          loanMatch["timelines.expected_sanctioned_date"] = expSanc;
+        }
+
+        const actDisb = buildRange(
+          actual_disbursement_from,
+          actual_disbursement_to
+        );
+        if (actDisb) {
+          loanMatch["timelines.actual_disbursement_date"] = actDisb;
+        }
+
+        const actSanc = buildRange(actual_sanction_from, actual_sanction_to);
+        if (actSanc) {
+          loanMatch["timelines.actual_sanctioned_date"] = actSanc;
+        }
+
+        // Find loans matching loanMatch and keep only those project_ids
+        const loans = await loanModel
+          .find(loanMatch)
+          .select({ project_id: 1 })
+          .lean();
+
+        const allowed = new Set(loans.map((x) => String(x.project_id)));
+        filteredIds = baseIds.filter((id) => allowed.has(String(id)));
+      }
+    }
+
+    // Now query projects that are in filteredIds with sort/pagination
+    const finalProjectQuery = {
+      ...projectQuery,
+      ...(needLoanFiltering ? { _id: { $in: filteredIds } } : {}),
+    };
+
     const [items, total] = await Promise.all([
       projectModells
-        .find(query)
-        .select(projection)
+        .find(finalProjectQuery)
+        .select(
+          "code name customer state number project_kwp dc_capacity current_status project_completion_date ppa_expiry_date bd_commitment_date remaining_days"
+        )
         .sort(sort)
         .skip(skip)
         .limit(l)
         .lean(),
-      projectModells.countDocuments(query),
+      projectModells.countDocuments(finalProjectQuery),
     ]);
+
+    // Attach loan meta for the page items
+    const pageIds = items.map((p) => p._id);
+    let loansByProjectId = new Map();
+
+    if (pageIds.length > 0) {
+      const loans = await loanModel
+        .find({ project_id: { $in: pageIds } })
+        .select({
+          project_id: 1,
+          current_status: 1,
+          comments: 1,
+        })
+        .populate({
+          path: "comments.createdBy",
+          select: "_id name attachment_url",
+        })
+        .sort({ "current_status.updatedAt": -1 })
+        .lean();
+
+      for (const loan of loans) {
+        const key = String(loan.project_id);
+        if (!loansByProjectId.has(key)) {
+          loansByProjectId.set(key, {
+            current_status: loan.current_status ?? null,
+            comments: Array.isArray(loan.comments) ? loan.comments : [],
+          });
+        }
+      }
+    }
+
+    const data = items.map((proj) => {
+      const loanInfo = loansByProjectId.get(String(proj._id)) || {
+        current_status: null,
+        comments: [],
+      };
+      return {
+        ...proj,
+        loan_current_status: loanInfo.current_status,
+        loan_comments: loanInfo.comments,
+      };
+    });
 
     const totalPages = Math.max(1, Math.ceil(total / l));
 
     return res.status(200).json({
       message: "Projects fetched successfully",
-      data: items,
+      data,
       pagination: {
         page: p,
         limit: l,
@@ -308,6 +505,16 @@ const getAllProjectsForLoan = async (req, res) => {
         search: search || null,
         status: status || null,
         sort,
+        loan_status: loan_status || null,
+        bank_state: bank_state || null,
+        expected_disbursement_from: expected_disbursement_from ?? null,
+        expected_disbursement_to: expected_disbursement_to ?? null,
+        expected_sanction_from: expected_sanction_from || null,
+        expected_sanction_to: expected_sanction_to || null,
+        actual_disbursement_from: actual_disbursement_from || null,
+        actual_disbursement_to: actual_disbursement_to || null,
+        actual_sanction_from: actual_sanction_from || null,
+        actual_sanction_to: actual_sanction_to || null,
       },
     });
   } catch (error) {
@@ -348,15 +555,54 @@ const updateProjectStatus = async (req, res) => {
 const getProjectById = async function (req, res) {
   try {
     const id = req.params._id;
-    const project = await projectModells.findById(id);
 
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ msg: "Invalid project id." });
+    }
+
+    const project = await projectModells.findById(id).lean();
     if (!project) {
       return res.status(404).json({ msg: "Project not found!" });
     }
 
-    res.status(200).json({ msg: "Project found!", data: project });
+    let loanAugment = {};
+    const loan = await loanModel
+      .findOne({ project_id: id })
+      .select({ current_status: 1, documents: 1 })
+      .lean();
+
+    if (loan) {
+      const rawStatus = (loan.current_status?.status || "")
+        .trim()
+        .toLowerCase();
+
+      const isDocPending = rawStatus === "document pending";
+
+      if (isDocPending) {
+        const docs = Array.isArray(loan.documents) ? loan.documents : [];
+
+        const documents_pending = docs
+          .filter((d) => !d?.fileurl || String(d.fileurl).trim() === "")
+          .map((d) => ({
+            _id: d?._id,
+            filename: d?.filename || "",
+            fileType: d?.fileType || "",
+            createdBy: d?.createdBy || null,
+            updatedAt: d?.updatedAt || null,
+          }));
+
+        loanAugment = {
+          loan: "document pending",
+          documents_pending,
+        };
+      }
+    }
+
+    return res
+      .status(200)
+      .json({ msg: "Project found!", data: { ...project, ...loanAugment } });
   } catch (error) {
-    res
+    return res
       .status(500)
       .json({ msg: "Error fetching project", error: error.message });
   }
@@ -421,8 +667,8 @@ const getProjectNameSearch = async (req, res) => {
 
     const filter = q
       ? {
-        $or: [{ name: { $regex: regex } }, { code: { $regex: regex } }],
-      }
+          $or: [{ name: { $regex: regex } }, { code: { $regex: regex } }],
+        }
       : {};
 
     const projection = { _id: 1, name: 1, code: 1, site_address: 1 };
@@ -499,8 +745,7 @@ const getProjectDetail = async (req, res) => {
     const { q = "" } = req.query;
 
     // Escape regex special chars to avoid ReDoS or unintended patterns
-    const escapeRegex = (s = "") =>
-      s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapeRegex = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     const hasQuery = typeof q === "string" && q.trim().length > 0;
     const rx = hasQuery ? new RegExp(escapeRegex(q.trim()), "i") : null;
@@ -609,7 +854,7 @@ const getProjectDetail = async (req, res) => {
                           ],
                         },
                       },
-                      { $ne: ["$$a.actual_start", ""], },
+                      { $ne: ["$$a.actual_start", ""] },
                     ],
                   },
                   // actual_finish not set
@@ -621,7 +866,7 @@ const getProjectDetail = async (req, res) => {
                           ["missing", "null"],
                         ],
                       },
-                      { $eq: ["$$a.actual_finish", ""], },
+                      { $eq: ["$$a.actual_finish", ""] },
                     ],
                   },
                 ],
@@ -766,7 +1011,6 @@ const getProjectDetail = async (req, res) => {
   }
 };
 
-
 // controller
 const getProjectStates = async (req, res) => {
   try {
@@ -801,7 +1045,10 @@ const getActivityLineForProject = async (req, res) => {
   try {
     const raw = req.params.projectId || ""; // may be "id" or "id1,id2"
     const ids = raw.includes(",")
-      ? raw.split(",").map((s) => s.trim()).filter(Boolean)
+      ? raw
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
       : raw
         ? [raw]
         : [];
@@ -809,7 +1056,12 @@ const getActivityLineForProject = async (req, res) => {
     const asMs = (d) => (d ? new Date(d).getTime() : null);
 
     // Attach project_name to every payload
-    const buildResponseForDoc = (doc, activityNameById, fallbackProjectId, projectName) => {
+    const buildResponseForDoc = (
+      doc,
+      activityNameById,
+      fallbackProjectId,
+      projectName
+    ) => {
       const now = Date.now();
 
       if (!doc) {
@@ -827,7 +1079,8 @@ const getActivityLineForProject = async (req, res) => {
         .map((a, idx) => ({
           idx,
           activity_id: a.activity_id,
-          activity_name: activityNameById[String(a.activity_id)] || `Activity ${idx + 1}`,
+          activity_name:
+            activityNameById[String(a.activity_id)] || `Activity ${idx + 1}`,
           planned_start_ms: asMs(a.planned_start),
           planned_finish_ms: asMs(a.planned_finish),
           actual_start_ms: asMs(a.actual_start),
@@ -885,7 +1138,9 @@ const getActivityLineForProject = async (req, res) => {
         .map(String);
 
       const actDocs = activityIds.length
-        ? await activitiesModel.find({ _id: { $in: activityIds } }, { name: 1 }).lean()
+        ? await activitiesModel
+            .find({ _id: { $in: activityIds } }, { name: 1 })
+            .lean()
         : [];
 
       const activityNameById = Object.fromEntries(
@@ -907,8 +1162,14 @@ const getActivityLineForProject = async (req, res) => {
 
     // --- MULTI ---
     const [docs, projDocs] = await Promise.all([
-      projectactivitiesModel.find({ project_id: { $in: ids } }).lean().exec(),
-      projectModells.find({ _id: { $in: ids } }, { name: 1 }).lean().exec(), // <— names for all ids
+      projectactivitiesModel
+        .find({ project_id: { $in: ids } })
+        .lean()
+        .exec(),
+      projectModells
+        .find({ _id: { $in: ids } }, { name: 1 })
+        .lean()
+        .exec(), // <— names for all ids
     ]);
 
     const projectNameById = Object.fromEntries(
@@ -918,15 +1179,15 @@ const getActivityLineForProject = async (req, res) => {
     const uniqueActivityIds = Array.from(
       new Set(
         docs.flatMap((d) =>
-          (d.activities || [])
-            .map((a) => String(a.activity_id))
-            .filter(Boolean)
+          (d.activities || []).map((a) => String(a.activity_id)).filter(Boolean)
         )
       )
     );
 
     const actDocs = uniqueActivityIds.length
-      ? await activitiesModel.find({ _id: { $in: uniqueActivityIds } }, { name: 1 }).lean()
+      ? await activitiesModel
+          .find({ _id: { $in: uniqueActivityIds } }, { name: 1 })
+          .lean()
       : [];
 
     const activityNameById = Object.fromEntries(
@@ -961,19 +1222,18 @@ const getActivityLineForProject = async (req, res) => {
   }
 };
 
-
-
 const getProjectsDropdown = async (req, res) => {
   try {
-  
     const data = await projectModells.find().lean();
 
     return res.status(200).json({
       message: "Fetch Successfully",
       data,
-    })
+    });
   } catch (error) {
-    return res.status(500).json({ message: "Internal Server Error", err: error });
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", err: error });
   }
 };
 
@@ -1198,14 +1458,24 @@ const updateProjectStatusForPreviousProjects = async (req, res) => {
           $set: {
             status_history: {
               $cond: [
-                { $or: [{ $eq: ["$status_history", null] }, { $not: ["$status_history"] }] },
+                {
+                  $or: [
+                    { $eq: ["$status_history", null] },
+                    { $not: ["$status_history"] },
+                  ],
+                },
                 [],
                 "$status_history",
               ],
             },
             current_status: {
               $cond: [
-                { $or: [{ $eq: ["$current_status", null] }, { $not: ["$current_status"] }] },
+                {
+                  $or: [
+                    { $eq: ["$current_status", null] },
+                    { $not: ["$current_status"] },
+                  ],
+                },
                 { status: "to be started", updated_at: "$$NOW", user_id: null },
                 "$current_status",
               ],
@@ -1215,7 +1485,12 @@ const updateProjectStatusForPreviousProjects = async (req, res) => {
       ]
     );
 
-    console.log("Matched:", result.matchedCount, "Modified:", result.modifiedCount);
+    console.log(
+      "Matched:",
+      result.matchedCount,
+      "Modified:",
+      result.modifiedCount
+    );
     return res.status(200).json({
       ok: true,
       msg: "Project status history updated successfully",
@@ -1224,30 +1499,37 @@ const updateProjectStatusForPreviousProjects = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ ok: false, msg: "Error updating project status history", error: error.message });
+    return res.status(500).json({
+      ok: false,
+      msg: "Error updating project status history",
+      error: error.message,
+    });
   }
 };
 
 const toObjectIdOrNull = (v) => {
   if (!v) return null;
   if (mongoose.isValidObjectId(v)) return new mongoose.Types.ObjectId(v);
-  if (v?._id && mongoose.isValidObjectId(v._id)) return new mongoose.Types.ObjectId(v._id);
+  if (v?._id && mongoose.isValidObjectId(v._id))
+    return new mongoose.Types.ObjectId(v._id);
   return null;
 };
 
 const updateSubmittedByOfProject = async (req, res) => {
   try {
     // 1) Get projects where submitted_by is missing, null, or (bad) string
-    const projects = await projectModells.find(
-      {
-        $or: [
-          { submitted_by: { $exists: false } },
-          { submitted_by: null },
-          { submitted_by: { $type: "string" } }, // covers "" and any stray strings
-        ],
-      },
-      { _id: 1, p_id: 1, submitted_by: 1 }
-    ).lean();
+    const projects = await projectModells
+      .find(
+        {
+          $or: [
+            { submitted_by: { $exists: false } },
+            { submitted_by: null },
+            { submitted_by: { $type: "string" } }, // covers "" and any stray strings
+          ],
+        },
+        { _id: 1, p_id: 1, submitted_by: 1 }
+      )
+      .lean();
 
     if (!projects.length) {
       return res.status(200).json({
@@ -1259,10 +1541,9 @@ const updateSubmittedByOfProject = async (req, res) => {
 
     // 2) Fetch handovers by p_id
     const pids = projects.map((p) => p.p_id).filter(Boolean);
-    const handovers = await handoversheetModells.find(
-      { p_id: { $in: pids } },
-      { p_id: 1, submitted_by: 1 }
-    ).lean();
+    const handovers = await handoversheetModells
+      .find({ p_id: { $in: pids } }, { p_id: 1, submitted_by: 1 })
+      .lean();
     const handoverByPid = new Map(handovers.map((h) => [String(h.p_id), h]));
 
     // 3) Build updates
@@ -1271,22 +1552,23 @@ const updateSubmittedByOfProject = async (req, res) => {
     let skipped = 0;
 
     // Define a default ObjectId to be used when `submitted_by` is missing
-    const defaultSubmittedById = new mongoose.Types.ObjectId("6839a4086356310d4e15f6fd");
+    const defaultSubmittedById = new mongoose.Types.ObjectId(
+      "6839a4086356310d4e15f6fd"
+    );
 
     for (const proj of projects) {
       // If the `submitted_by` field is missing or empty string, handle it
-      if (proj.submitted_by !== "" && proj.submitted_by != null) { 
+      if (proj.submitted_by !== "" && proj.submitted_by != null) {
         skipped++;
         continue;
       }
 
       const h = handoverByPid.get(String(proj.p_id));
 
-      // If there's no handover, set the submitted_by to default
       if (!h) {
         ops.push({
           updateOne: {
-            filter: { _id: proj._id }, // Update project with default submitted_by
+            filter: { _id: proj._id },
             update: { $set: { submitted_by: defaultSubmittedById } },
           },
         });
@@ -1295,10 +1577,15 @@ const updateSubmittedByOfProject = async (req, res) => {
       }
 
       // If handover exists, get submitted_by from it or set to default
-      const sbId = h.submitted_by ? toObjectIdOrNull(h.submitted_by) : defaultSubmittedById;
+      const sbId = h.submitted_by
+        ? toObjectIdOrNull(h.submitted_by)
+        : defaultSubmittedById;
 
       // If there's no valid submitted_by from handover or a default ID, skip this project
-      if (!sbId) { skipped++; continue; }
+      if (!sbId) {
+        skipped++;
+        continue;
+      }
 
       // If the project already has submitted_by (but wrong value), update it
       ops.push({
@@ -1316,7 +1603,8 @@ const updateSubmittedByOfProject = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      message: "submitted_by synced from handover to project (ObjectId) or set to default.",
+      message:
+        "submitted_by synced from handover to project (ObjectId) or set to default.",
       meta: { totalProjectsChecked: projects.length, updated, skipped },
     });
   } catch (error) {
@@ -1337,25 +1625,30 @@ const updateSkippedProject = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const newSubmittedById = user._id; 
+    const newSubmittedById = user._id;
 
-    const projects = await projectModells.find({ submitted_by: "Guddu Rani Dubey" });
+    const projects = await projectModells.find({
+      submitted_by: "Guddu Rani Dubey",
+    });
     if (projects.length > 0) {
       for (let project of projects) {
-        project.submitted_by = new mongoose.Types.ObjectId(newSubmittedById);  
+        project.submitted_by = new mongoose.Types.ObjectId(newSubmittedById);
         await project.save();
       }
 
       return res.status(200).json({ message: "Projects updated successfully" });
     } else {
-      return res.status(404).json({ message: "No projects found with the specified submitted_by name" });
+      return res.status(404).json({
+        message: "No projects found with the specified submitted_by name",
+      });
     }
   } catch (error) {
     console.error("Error updating projects:", error);
-    return res.status(500).json({ message: "Internal server error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
 };
-
 
 module.exports = {
   createProject,
@@ -1377,5 +1670,5 @@ module.exports = {
   getAllPosts,
   updateProjectStatusForPreviousProjects,
   updateSubmittedByOfProject,
-  updateSkippedProject
+  updateSkippedProject,
 };

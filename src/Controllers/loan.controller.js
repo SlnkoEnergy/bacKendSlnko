@@ -123,7 +123,12 @@ const createLoan = async (req, res) => {
       return res
         .status(400)
         .json({ message: "project_id query param is required." });
-
+    const existingLoan = await Loan.findOne({ project_id: project_id });
+    if (existingLoan) {
+      return res.status(400).json({
+        message: "Loan form Already Present",
+      });
+    }
     const project = await projectModel.findById(project_id).lean();
     if (!project)
       return res.status(404).json({ message: "Project not found." });
@@ -327,10 +332,13 @@ const getAllLoans = async (req, res) => {
 
 const getLoanById = async (req, res) => {
   try {
-    const loan = await Loan.findById(req.params.id)
+    const { project_id } = req.query;
+    const loan = await Loan.findOne({ project_id: project_id })
       .populate("project_id")
       .populate("status_history.user_id")
-      .populate("current_status.user_id");
+      .populate("current_status.user_id")
+      .populate("documents.createdBy", "_id name attachment_url")
+      .populate("comments.createdBy", "_id name attachment_url");
 
     if (!loan)
       return res
@@ -487,18 +495,24 @@ const updateLoan = async (req, res) => {
 
 const updateLoanStatus = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { project_id } = req.params;
     const { status, remarks } = req.body;
     if (!status || !remarks) {
       return res.status(404).json({
         message: "Status and Remarks are required",
       });
     }
-    const loan = await Loan.findById(id);
+    const loan = await Loan.findOne({ project_id: project_id });
     if (!loan) {
       return res
         .status(404)
         .json({ success: false, message: "Loan not found" });
+    }
+    if (status === "sanctioned") {
+      loan.timelines.actual_sanctioned_date = Date.now();
+    }
+    if (status === "disbursed") {
+      loan.timelines.actual_disbursement_date = Date.now();
     }
     loan.status_history.push({
       status,
@@ -506,6 +520,9 @@ const updateLoanStatus = async (req, res) => {
       user_id: req.user.userId,
     });
     await loan.save();
+    res.status(200).json({
+      message: "Loan Status Updated Successfully",
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -527,6 +544,7 @@ const deleteLoan = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 const getUniqueBank = async (req, res) => {
   try {
     const { search } = req.query;
@@ -538,6 +556,7 @@ const getUniqueBank = async (req, res) => {
       "banking_details.name": { $exists: true, $ne: null },
       "banking_details.branch": { $exists: true, $ne: null },
       "banking_details.ifsc_code": { $exists: true, $ne: null },
+      "banking_details.state": { $exists: true, $ne: null },
     };
 
     const banks = await Loan.aggregate([
@@ -550,6 +569,7 @@ const getUniqueBank = async (req, res) => {
           ifsc_code: {
             $toLower: { $trim: { input: "$banking_details.ifsc_code" } },
           },
+          state: { $trim: { input: "$banking_details.state" } },
         },
       },
       // --- Apply search filter if provided ---
@@ -568,6 +588,7 @@ const getUniqueBank = async (req, res) => {
             name: "$name",
             branch: "$branch",
             ifsc_code: "$ifsc_code",
+            state: "$state",
           },
         },
       },
@@ -577,6 +598,7 @@ const getUniqueBank = async (req, res) => {
           name: "$_id.name",
           branch: "$_id.branch",
           ifsc_code: "$_id.ifsc_code",
+          state: "$_id.state",
         },
       },
       { $sort: { name: 1, branch: 1 } },
@@ -606,6 +628,146 @@ const getUniqueBank = async (req, res) => {
   }
 };
 
+const addComment = async (req, res) => {
+  try {
+    const { project_id } = req.query;
+    const { remarks } = req.body;
+    const loan = await Loan.findOne({ project_id: project_id });
+    if (!loan) {
+      return res.status(404).json({
+        message: "Loan for this project Not found",
+      });
+    }
+    loan.comments.push({
+      remarks,
+      createdBy: req.user.userId,
+    });
+    await loan.save();
+    res.status(200).json({
+      message: "Comment Added Successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Internal Server Error",
+    });
+  }
+};
+
+const uploadExistingDocument = async (req, res) => {
+  try {
+    const { project_id, document_id } = req.query;
+
+    if (!project_id || !document_id) {
+      return res.status(400).json({
+        success: false,
+        message: "project_id and document_id query params are required.",
+      });
+    }
+
+    const loan = await Loan.findOne({ project_id });
+    if (!loan) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Loan not found." });
+    }
+
+    const subdoc = loan.documents.id(document_id);
+    if (!subdoc) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Document not found." });
+    }
+
+    const project = await projectModel.findById(project_id).lean();
+    if (!project) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Project not found." });
+    }
+
+    const code = safe(project.code || String(project._id));
+    const folderPath = `protrac/loan/${code}`;
+
+    const file = req.file || (Array.isArray(req.files) && req.files[0]) || null;
+    const bodyUrl =
+      req.body && req.body.file_url ? String(req.body.file_url).trim() : "";
+
+    let finalUrl = "";
+    let finalMime = "application/octet-stream";
+    let finalFilename = subdoc.filename || "document";
+
+    if (file) {
+      const original = file.originalname || "document";
+      const dot = original.lastIndexOf(".");
+      const ext = dot > 0 ? original.slice(dot) : "";
+      const base = safe((subdoc.filename || "").split(".")[0] || "document");
+
+      finalFilename = base + ext;
+      finalMime = file.mimetype || "application/octet-stream";
+
+      finalUrl = await uploadBufferToBlob({
+        buffer: file.buffer,
+        originalname: finalFilename,
+        mimetype: finalMime,
+        folderPath,
+      });
+    } else if (bodyUrl) {
+      finalUrl = bodyUrl;
+      finalMime = "link";
+      if (!subdoc.filename || subdoc.filename.trim() === "") {
+        const lastSeg = decodeURIComponent(bodyUrl.split("/").pop() || "");
+        finalFilename = lastSeg ? safe(lastSeg) : "document";
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Provide a file (multipart/form-data) or file_url in body.",
+      });
+    }
+
+    subdoc.filename = finalFilename;
+    subdoc.fileurl = finalUrl;
+    subdoc.fileType = finalMime;
+    subdoc.updatedAt = new Date();
+    if (req.user?.userId) {
+      subdoc.createdBy = req.user.userId;
+    }
+
+    await loan.save();
+
+    const newDoc = await Documents.create({
+      project_id: project._id,
+      filename: finalFilename,
+      fileurl: finalUrl,
+      fileType: finalMime,
+      createdBy: req.user?.userId || undefined,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Document uploaded & linked successfully.",
+      data: {
+        loan_id: loan._id,
+        updated_document: {
+          _id: subdoc._id,
+          filename: subdoc.filename,
+          fileurl: subdoc.fileurl,
+          fileType: subdoc.fileType,
+          createdBy: subdoc.createdBy,
+          updatedAt: subdoc.updatedAt,
+        },
+        document_row: newDoc,
+      },
+    });
+  } catch (error) {
+    console.error("uploadExistingDocument error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || "Internal Server Error",
+    });
+  }
+};
+
 module.exports = {
   createLoan,
   getAllLoans,
@@ -614,4 +776,6 @@ module.exports = {
   updateLoanStatus,
   deleteLoan,
   getUniqueBank,
+  addComment,
+  uploadExistingDocument,
 };

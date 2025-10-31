@@ -35,9 +35,27 @@ const loanSchema = new mongoose.Schema({
       branch: {
         type: String,
       },
+      state:{
+        type: String
+      },
       ifsc_code: {
         type: String,
       },
+    },
+  ],
+  comments: [
+    {
+      remarks: {
+        type: String,
+      },
+      createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      updatedAt:{
+        type: Date,
+        default: Date.now()
+      }
     },
   ],
   status_history: [
@@ -45,6 +63,7 @@ const loanSchema = new mongoose.Schema({
       status: {
         type: String,
         enum: [
+          "submitted",
           "document pending",
           "under process bank",
           "sanctioned",
@@ -67,6 +86,13 @@ const loanSchema = new mongoose.Schema({
   current_status: {
     status: {
       type: String,
+      enum: [
+        "submitted",
+        "document pending",
+        "under process bank",
+        "sanctioned",
+        "disbursed",
+      ],
     },
     remarks: {
       type: String,
@@ -97,7 +123,7 @@ const loanSchema = new mongoose.Schema({
 });
 
 loanSchema.pre("save", function (next) {
-  updateStatus(this, "document pending");
+  updateStatus(this, "submitted");
   next();
 });
 

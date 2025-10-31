@@ -127,7 +127,7 @@ function normalizeToArray(val) {
     return [val];
   }
   if (Array.isArray(val)) return val;
-  if (typeof val === "object") return [val]; // <- keep objects as objects
+  if (typeof val === "object") return [val];
   return [String(val)];
 }
 
@@ -205,12 +205,20 @@ const createhandoversheet = async (req, res) => {
       invoice_detail,
       status_of_handoversheet,
       is_locked,
-      documents: docsInsideData, // may be array of OBJECTS
+      documents: docsInsideData,
     } = base;
 
     const userId = req.user?.userId;
     const user = userId ? await userModells.findById(userId) : null;
     if (userId) other_details.submitted_by_BD = userId;
+
+    const existingHandover = await handoversheetModells.findOne({ id: id });
+
+    if (existingHandover) {
+      return res.status(400).json({
+        message: "Handover Already Exists",
+      });
+    }
 
     // 1) create the handover shell (as you already do)
     const handoversheet = new hanoversheetmodells({
