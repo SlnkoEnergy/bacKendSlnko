@@ -3,9 +3,9 @@ const { createDocument, getDocumentById, getAllDocuments, updateDocument, delete
 const auth = require('../middlewares/auth.middleware');
 const upload = require('../middlewares/multer.middleware');
 
-router.post('/', auth, createDocument);
-router.get('/:id', auth, getDocumentById);
-router.get('/', auth, getAllDocuments);
+router.post('/', auth, upload, createDocument);
+router.get('/', auth, getDocumentById);
+router.get('/documents', auth, getAllDocuments);
 router.put('/:id', auth, updateDocument);
 router.delete('/:id', auth, deleteDocument);
 

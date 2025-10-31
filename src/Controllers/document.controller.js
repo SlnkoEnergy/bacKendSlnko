@@ -1,4 +1,8 @@
 const Documents = require("../models/document.model");
+const projectModel = require("../models/project.model")
+const axios = require("axios");
+const FormData = require("form-data");
+const path = require("path");
 
 // CREATE a document
 const safe = (str = "") =>
@@ -59,31 +63,13 @@ async function uploadBufferToBlob({
   return url;
 }
 
-// --- helper: safe ObjectId ---
-const toObjectIdOrNull = (v) => {
-  try {
-    return v && mongoose.Types.ObjectId.isValid(v)
-      ? new mongoose.Types.ObjectId(v)
-      : null;
-  } catch {
-    return null;
-  }
-};
-
 const createDocument = async (req, res) => {
   try {
     const base =
       typeof req.body.data === "string" ? JSON.parse(req.body.data) : req.body;
-
-    const rawProjectId = base.project_id || req.body.project_id;
-    const projectOid = toObjectIdOrNull(rawProjectId);
-    if (!projectOid) {
-      return res
-        .status(400)
-        .json({ message: "Invalid or missing project_id." });
-    }
-
-    const project = await projectModells.findById(projectOid).lean();
+    const {project_id} = req.query;
+    const rawProjectId =  project_id;
+    const project = await projectModel.findById(rawProjectId).lean();
     if (!project) {
       return res.status(404).json({ message: "Project not found." });
     }
@@ -129,6 +115,7 @@ const createDocument = async (req, res) => {
             filename: finalFilename,
             fileurl: url,
             fileType: f.mimetype || "application/octet-stream",
+            createdBy: req.user.userId,
           });
 
           saved.push(doc);
@@ -175,8 +162,7 @@ const createDocument = async (req, res) => {
           filename: finalFilename,
           fileurl: raw,
           fileType: "link",
-          // uploaded_by: req.user?.userId || null,
-          // project_code: code,
+          createdBy: req.user.userId,
         });
 
         saved.push(doc);
@@ -212,7 +198,10 @@ const createDocument = async (req, res) => {
 // READ all documents
 const getAllDocuments = async (req, res) => {
   try {
-    const docs = await Documents.find().populate("project_id");
+    const {project_id} = req.query;
+    const docs = await Documents.find({project_id})
+      .populate("project_id", "_id code name")
+      .populate("createdBy", "_id name attachment_url");
     res.status(200).json(docs);
   } catch (error) {
     res
@@ -224,7 +213,10 @@ const getAllDocuments = async (req, res) => {
 // READ single document by ID
 const getDocumentById = async (req, res) => {
   try {
-    const doc = await Documents.findById(req.params.id).populate("project_id");
+    const { project_id } = req.query;
+    const doc = await Documents.findOne({ project_id: project_id })
+      .populate("project_id")
+      .populate("createdBy", "_id name attachment_url");
 
     if (!doc) {
       return res.status(404).json({ message: "Document not found" });

@@ -8,13 +8,13 @@ const loanSchema = new mongoose.Schema({
   },
   documents: [
     {
-      name: {
+      filename: {
         type: String,
       },
-      attachment_url: {
+      fileurl: {
         type: String,
       },
-      remarks: {
+      fileType: {
         type: String,
       },
     },
