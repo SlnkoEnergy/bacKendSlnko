@@ -1355,6 +1355,8 @@ const toNum = (expr) => ({
   },
 });
 
+const toDouble = (v) => ({ $toDouble: { $ifNull: [v, 0] } });
+
 const syncAllProjectBalances = async (req, res) => {
   try {
     const aggregationPipeline = [
@@ -1420,6 +1422,79 @@ const syncAllProjectBalances = async (req, res) => {
           as: "bills",
         },
       },
+
+      // --- Billed totals (basic + GST) ---
+{
+  $addFields: {
+    // Normalize items array: prefer `item`, fallback to `items`
+    _billItemsAll: {
+      $reduce: {
+        input: "$bills",
+        initialValue: [],
+        in: {
+          $concatArrays: [
+            "$$value",
+            { $ifNull: ["$$this.item", { $ifNull: ["$$this.items", []] }] }
+          ]
+        }
+      }
+    }
+  }
+},
+{
+  $addFields: {
+    // Sum of item.bill_value
+    bill_basic: {
+      $round: [
+        {
+          $sum: {
+            $map: {
+              input: "$_billItemsAll",
+              as: "it",
+              in: {
+                $convert: { input: "$$it.bill_value", to: "double", onError: 0, onNull: 0 }
+              }
+            }
+          }
+        },
+        2
+      ]
+    },
+
+    // Sum of (bill_value * quantity * (gst_percent / 100))
+    bill_gst: {
+      $round: [
+        {
+          $sum: {
+            $map: {
+              input: "$_billItemsAll",
+              as: "it",
+              in: {
+                $multiply: [
+                  { $convert: { input: "$$it.bill_value",   to: "double", onError: 0, onNull: 0 } },
+                  { $convert: { input: "$$it.quantity",     to: "double", onError: 0, onNull: 0 } },
+                  { $divide:  [
+                      { $convert: { input: "$$it.gst_percent", to: "double", onError: 0, onNull: 0 } },
+                      100
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        2
+      ]
+    },
+
+    // Final billed value
+    totalBilledValue: {
+      $round: [{ $add: ["$bill_basic", "$bill_gst"] }, 2]
+    }
+  }
+},
+{ $unset: ["_billItemsAll"] },
+
 
       {
   $lookup: {
@@ -1642,7 +1717,8 @@ const syncAllProjectBalances = async (req, res) => {
       },
       {
         $addFields: {
-          totalAmountPaid: { $round: [{ $ifNull: ["$paidAmount", 0] }, 2] },
+          
+          
           netAdvance: {
             $round: [
               { $subtract: [{ $ifNull: ["$paidAmount", 0] }, { $ifNull: ["$totalBillValue", 0] }] },
@@ -1657,6 +1733,88 @@ const syncAllProjectBalances = async (req, res) => {
           },
         },
       },
+   
+
+       {
+        $addFields: {
+          total_return: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$debits",
+                        as: "d",
+                        cond: { $eq: ["$$d.paid_for", "Customer Adjustment"] },
+                      },
+                    },
+                    as: "r",
+                    in: toDouble("$$r.amount_paid"),
+                  },
+                },
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+         {
+        $addFields: {
+          totalAmountPaidNew: {
+            $round: [
+              {
+                $subtract: [
+                  { $ifNull: ["$totalDebit", 0] },
+                  { $ifNull: ["$total_return", 0] },
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+        {
+        $addFields: {
+          totalSalesValue: {
+            $round: [
+              {
+                $sum: {
+                  $map: {
+                    input: "$pos",
+                    as: "po",
+                    in: {
+                      $let: {
+                        vars: { v: "$$po.total_sales_value" },
+                        in: {
+                          $convert: {
+                            input: {
+                              $cond: [
+                                { $eq: [{ $type: "$$v" }, "string"] },
+                                { $trim: { input: "$$v" } },
+                                "$$v", 
+                              ],
+                            },
+                            to: "double",
+                            onError: 0,
+                            onNull: 0,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              2,
+            ],
+          },
+        },
+      },
+
+
+
 
       // --- balanceSlnko ---
       {
@@ -1834,7 +1992,7 @@ const syncAllProjectBalances = async (req, res) => {
 },
 
 
-      // --- remove temp arrays before inclusion projection (IMPORTANT) ---
+
       { $unset: ["_creditsSorted", "_debitsSorted"] },
 
       // --- Projection (pure inclusion) ---
@@ -1850,8 +2008,15 @@ const syncAllProjectBalances = async (req, res) => {
           totalDebit: 1,
           availableAmount: 1,
           totalAdjustment: 1,
-          totalAmountPaid: 1,
+          totalReturn:1,
+          totalAmountPaidNew: 1,
+               totalSalesValue: 1,
+          totalBilledValue:1,
           balanceSlnko: 1,
+          // in $project
+bill_basic: 1,
+bill_gst: 1,
+
           balancePayable: 1,
           balanceRequired: 1,
           recentCredits: 1,
@@ -1879,8 +2044,15 @@ const syncAllProjectBalances = async (req, res) => {
             balanceSlnko: row.balanceSlnko,
             balancePayable: row.balancePayable,
             balanceRequired: row.balanceRequired,
+            totalReturn: row.totalReturn,
             recentCredits: row.recentCredits || [],
             recentDebits: row.recentDebits || [],
+            totalAmountPaidNew: row.totalAmountPaidNew,
+            totalSalesValue: row.totalSalesValue,
+            totalBilledValue: row.totalBilledValue,
+            bill_basic:row.bill_basic,
+            bill_gst:row.bill_gst
+
           },
         },
         upsert: true,
