@@ -47,6 +47,18 @@ const isNA = (s) => {
 const escapeRegex = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 
+const digitsByKey = Object.freeze({
+  total_received: 2,
+  total_return: 2,
+  netBalance: 2,
+  total_po_basic: 2,
+  gst_as_po_basic: 2,
+  total_po_with_gst: 2,
+  total_billed_value: 2,
+  total_advance_paid: 2,
+  total_adjustment: 2,
+  total_sales_value: 2,
+});
 
 
 const getCustomerPaymentSummary = async (req, res) => {
@@ -1797,38 +1809,45 @@ const postCustomerPaymentSummaryPdf = async (req, res) => {
     ]);
     if (!project)
       return res.status(404).json({ message: "Project not found." });
+       const formatAddress = (address) => {
+      try {
+        if (Array.isArray(address)) {
+          const first = address.find(Boolean) ?? "";
+          address = first;
+        }
 
-    const formatAddress = (address) => {
-      if (address && typeof address === "object") {
-        const village = (address.village_name || "")
-          .replace(/(^"|"$)/g, "")
-          .trim();
-        const district = (address.district_name || "")
-          .replace(/(^"|"$)/g, "")
-          .trim();
-        if (
-          (!village || village.toUpperCase() === "NA") &&
-          (!district || district.toUpperCase() === "NA")
-        )
-          return "-";
-        return `${village}, ${district}`;
+        if (address && typeof address === "object") {
+          const line1    = cleanToken(address.address_line1 ?? address.line1 ?? address.address);
+          const village  = cleanToken(address.village_name ?? address.village ?? address.villageName);
+          const district = cleanToken(address.district_name ?? address.district ?? address.districtName);
+          const city     = cleanToken(address.city ?? address.town ?? address.tehsil);
+          const state    = cleanToken(address.state ?? address.state_name ?? address.stateName);
+          const pincode  = cleanToken(address.pincode ?? address.pin ?? address.zip);
+
+          const parts = [line1, village, district, city, state, pincode].filter((p) => !isNA(p));
+          return parts.length ? parts.join(", ") : "-";
+        }
+
+        if (typeof address === "string" || typeof address === "number") {
+          const s = cleanToken(address);
+          return s && !isNA(s) ? s : "-";
+        }
+
+        return "-";
+      } catch {
+        return "-";
       }
-      if (typeof address === "string") {
-        const cleaned = address.trim().replace(/(^"|"$)/g, "");
-        return cleaned || "-";
-      }
-      return "-";
     };
 
     const projectDetails = {
-      customer_name: project.customer,
-      p_group: project.p_group || "N/A",
-      project_kwp: project.project_kwp,
       name: project.name,
+      p_group: project.p_group,
+      project_kwp: project.project_kwp,
+      customer: project.customer,
       code: project.code,
       billing_type: project.billing_type,
-      billing_address: formatAddress(project.billing_address),
-      site_address: formatAddress(project.site_address),
+      billing_address: formatAddress(project.billing_address ?? ""),
+      site_address: formatAddress(project.site_address ?? ""),
     };
 
     // ---------- Credit (no date filter) ----------
@@ -3113,7 +3132,7 @@ const postCustomerPaymentSummaryPdf = async (req, res) => {
       return acc;
     }, {});
 
-    // ---------- Compute reliable totals from PO aggregation ----------
+ 
     const total_advance_paid = clientHistoryResult.reduce(
       (acc, po) => acc + Number(po.advance_paid || 0),
       0
