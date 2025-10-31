@@ -3,7 +3,7 @@ const userModells = require("../models/user.model");
 const bdleadsModells = require("../models/bdleads.model");
 const { default: mongoose } = require("mongoose");
 const { Parser } = require("json2csv");
-const { getnovuNotification } = require("../utils/nouvnotification.utils");
+const { sendNotification } = require("../utils/sendnotification.utils");
 
 const createTask = async (req, res) => {
   try {
@@ -59,7 +59,7 @@ const createTask = async (req, res) => {
       }
 
       setImmediate(() => {
-        getnovuNotification(workflow, senders, data).catch(err =>
+        sendNotification(workflow, senders, data).catch(err =>
           console.error("Notification error:", err)
         );
       });
@@ -114,7 +114,7 @@ const updateStatus = async (req, res) => {
       }
 
       setImmediate(() => {
-        getnovuNotification(workflow, senders, data).catch(err =>
+        sendNotification(workflow, senders, data).catch(err =>
           console.error("Notification error:", err)
         );
       });

@@ -6,12 +6,12 @@ const {
   deleteBillHistory,
   getBillHistory,
 } = require("../Controllers/billHistory.controller");
-const jwtMW = require("../middlewares/auth");
+const auth = require("../middlewares/auth.middleware.js");
 
-router.get("/billHistory", jwtMW.authentication, listBillHistory);
-router.get("/billHistory/:id", jwtMW.authentication, getBillHistory);
-router.post("/billHistory", jwtMW.authentication, createBillHistory);
-router.put("/billHistory/:id", jwtMW.authentication, updateBillHistory);
-router.delete("/billHistory/:id", jwtMW.authentication, deleteBillHistory);
+router.get("/billHistory", auth, listBillHistory);
+router.get("/billHistory/:id", auth, getBillHistory);
+router.post("/billHistory", auth, createBillHistory);
+router.put("/billHistory/:id", auth, updateBillHistory);
+router.delete("/billHistory/:id", auth, deleteBillHistory);
 
 module.exports = router;

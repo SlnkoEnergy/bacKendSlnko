@@ -1,19 +1,32 @@
 const addMoneyModells = require("../models/addMoneyModells");
+const projectModel = require("../models/project.model");
 const projectModells = require("../models/project.model");
 const projectBalanceModel = require("../models/projectBalance.model");
-const { getBill } = require("./bill.controller");
+const userModel = require("../models/user.model");
 
 //Add Money
 const addMoney = async (req, res) => {
   try {
-    const { p_id, submitted_by, cr_amount, cr_mode, cr_date, comment } =
-      req.body;
+    // Ensure auth middleware is working
+
+    const userId = req.user.userId;
+    if (!userId) {
+      return res.status(401).json({ msg: "Unauthorized: user not found" });
+    }
+
+    const { p_id, cr_amount, cr_mode, cr_date, comment } = req.body;
+    const submitted_by = userId;
+
+    const currentUser = await userModel
+      .findById(submitted_by)
+      .select("name email");
 
     const project = await projectModells.findOne({ p_id: Number(p_id) });
     if (!project) return res.status(404).json({ msg: "Project not found" });
 
     const admoney = await addMoneyModells.create({
       p_id,
+      project_id: project._id,
       submitted_by,
       cr_amount,
       cr_mode,
@@ -23,6 +36,7 @@ const addMoney = async (req, res) => {
 
     const amount = Number(cr_amount) || 0;
 
+    // Update balances
     const updatedBalance = await projectBalanceModel.findOneAndUpdate(
       { p_id: project._id },
       [
@@ -44,9 +58,9 @@ const addMoney = async (req, res) => {
     );
 
     const creditEntry = {
-      cr_date: updatedAt ? new Date(updatedAt) : new Date(),
-      cr_amount: Number(cr_amount) || 0,
-      added_by: submitted_by || null,
+      cr_date: new Date(),
+      cr_amount: amount,
+      added_by: submitted_by,
     };
 
     await projectBalanceModel.updateOne(
@@ -63,9 +77,12 @@ const addMoney = async (req, res) => {
       { upsert: true }
     );
 
-    res
-      .status(201)
-      .json({ msg: "Money added", data: admoney, balance: updatedBalance });
+    res.status(201).json({
+      msg: "Money added successfully",
+      data: admoney,
+      balance: updatedBalance,
+      submitted_by: currentUser?.name || "System",
+    });
   } catch (err) {
     console.error("addMoney error:", err);
     res.status(500).json({ msg: "Server error", error: err.message });
@@ -119,17 +136,77 @@ const deletecredit = async function (req, res) {
 
 //Delete -Crerdit Amount IN USE
 
-const deleteCreditAmount = async function (req, res) {
-  let _id = req.params._id;
+const deleteCreditAmount = async (req, res) => {
   try {
-    let credit = await addMoneyModells.findByIdAndDelete(_id);
+    const _id = req.params._id;
+
+    const credit = await addMoneyModells.findByIdAndDelete(_id);
     if (!credit) {
       return res.status(404).json({ message: "Credit Amount Not Found" });
     }
 
-    res.status(200).json({ msg: "Credit Amount Deleted", credit: credit });
+    const project = await projectModells.findOne({ p_id: credit.p_id });
+    if (!project) {
+      return res
+        .status(404)
+        .json({ message: "Project not found for this credit" });
+    }
+
+    const amount = Number(credit.cr_amount) || 0;
+
+    const updatedBalance = await projectBalanceModel.findOneAndUpdate(
+      { p_id: project._id },
+      [
+        {
+          $set: {
+            totalCredited: {
+              $max: [
+                0,
+                { $subtract: [{ $ifNull: ["$totalCredited", 0] }, amount] },
+              ],
+            },
+            amountAvailable: {
+              $max: [
+                0,
+                {
+                  $subtract: [
+                    {
+                      $subtract: [{ $ifNull: ["$totalCredited", 0] }, amount],
+                    },
+                    { $ifNull: ["$totalDebited", 0] },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      ],
+      { new: true }
+    );
+
+    await projectBalanceModel.updateOne(
+      { p_id: project._id },
+      {
+        $pull: {
+          recentCredits: {
+            cr_amount: credit.cr_amount,
+            cr_date: { $lte: new Date(credit.cr_date) },
+          },
+        },
+      }
+    );
+
+    return res.status(200).json({
+      msg: "Credit Amount Deleted Successfully",
+      deletedCredit: credit,
+      updatedBalance,
+    });
   } catch (error) {
-    return res.status(500).json({ message: "Internal Server Error" + error });
+    console.error("deleteCreditAmount error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
 

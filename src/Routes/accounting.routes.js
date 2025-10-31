@@ -21,32 +21,35 @@ const {
   getProjectBalances,
 } = require("../Controllers/Accounting/ProjectBalance");
 const { standbyRecord } = require("../Controllers/Accounting/standbyRecord");
-const jwtMW = require("../middlewares/auth");
+const auth = require("../middlewares/auth.middleware.js");
+const { syncAllCustomerSummaries } = require("../Controllers/customerSummary.controller");
 
-router.get("/approved-payment", jwtMW.authentication, paymentApproved);
-router.get("/utr-submission", jwtMW.authentication, utrSubmission);
-router.get("/project-balance-old", jwtMW.authentication, projectBalance);
-router.get("/project-balance", jwtMW.authentication, getProjectBalances);
+router.get("/approved-payment", auth, paymentApproved);
+router.get("/utr-submission", auth, utrSubmission);
+router.get("/project-balance-old", auth, projectBalance);
+router.get("/project-balance", auth, getProjectBalances);
 router.post(
   "/export-project-balance",
-  jwtMW.authentication,
+  auth,
   exportProjectBalance
 );
 
-router.get("/payment-approval", jwtMW.authentication, paymentApproval);
-router.post("/po-approve-pdf", jwtMW.authentication, getPoApprovalPdf);
-router.get("/standby-record", jwtMW.authentication, standbyRecord);
+router.get("/payment-approval", auth, paymentApproval);
+router.post("/po-approve-pdf", auth, getPoApprovalPdf);
+router.get("/standby-record", auth, standbyRecord);
 router.get(
   "/customer-payment-summary",
-  jwtMW.authentication,
+  auth,
   getCustomerPaymentSummary
 );
 router.post(
   "/customer-payment-summary-pdf",
-  jwtMW.authentication,
+  auth,
   postCustomerPaymentSummaryPdf
 )
-router.get("/payment-history", jwtMW.authentication, paymentHistory);
-router.get("/debithistorycsv", jwtMW.authentication, exportDebitHistoryCsv);
+router.get("/payment-history", auth, paymentHistory);
+router.get("/debithistorycsv", auth, exportDebitHistoryCsv);
+
+router.post("/customer-summary/sync-all", syncAllCustomerSummaries);
 
 module.exports = router;

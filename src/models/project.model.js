@@ -33,7 +33,7 @@ const projectSchema = new mongoose.Schema(
       type: String,
     },
     project_kwp: { type: String },
-    dc_capacity:{type: String},
+    dc_capacity: { type: String },
     distance: { type: String },
     tarrif: { type: String },
     land: { type: String },
@@ -42,7 +42,14 @@ const projectSchema = new mongoose.Schema(
       {
         status: {
           type: String,
-          enum: ["to be started", "ongoing", "completed", "on hold", "delayed"],
+          enum: [
+            "to be started",
+            "ongoing",
+            "completed",
+            "on hold",
+            "delayed",
+            "dead",
+          ],
         },
         remarks: {
           type: String,
@@ -54,7 +61,14 @@ const projectSchema = new mongoose.Schema(
     current_status: {
       status: {
         type: String,
-        enum: ["to be started", "ongoing", "completed", "on hold", "delayed"],
+        enum: [
+          "to be started",
+          "ongoing",
+          "completed",
+          "on hold",
+          "delayed",
+          "dead",
+        ],
       },
       remarks: { type: String },
       user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

@@ -12,6 +12,8 @@ const materialCategoryModells = require("../models/materialcategory.model");
 const userModells = require("../models/user.model");
 const utrCounter = require("../models/utrCounter");
 const projectBalanceModel = require("../models/projectBalance.model");
+const { sendUsingTemplate } = require("../utils/sendemail.utils");
+const { sendNotification } = require("../utils/sendnotification.utils");
 
 const generateRandomCode = () => Math.floor(100 + Math.random() * 900);
 const generateRandomCreditCode = () => Math.floor(1000 + Math.random() * 9000);
@@ -456,7 +458,7 @@ const payRrequest = async (req, res) => {
       })
       .lean();
 
-    if (!project?.code) {
+    if (!project?._id || !project?.code) {
       return res.status(400).json({ msg: "Invalid or missing project." });
     }
 
@@ -496,6 +498,12 @@ const payRrequest = async (req, res) => {
     }
 
     const initialStage = credit?.credit_status ? "Credit Pending" : "Draft";
+     let tab_pay = "instant";
+    if (credit?.credit_status === true && cr_id) {
+      tab_pay = "credit";
+    } else if (pay_id) {
+      tab_pay = "instant";
+    }
 
     const newPayment = new payRequestModells({
       p_id: Number(p_id) || project.p_id,
@@ -522,6 +530,8 @@ const payRrequest = async (req, res) => {
       utr,
       other,
       comment,
+      tab_pay,
+      project_id: project._id, 
 
       credit: {
         credit_deadline: credit?.credit_deadline || null,
@@ -569,6 +579,8 @@ const payRrequest = async (req, res) => {
       .json({ msg: "Failed to request payment", error: error.message });
   }
 };
+
+
 
 const deadlineExtendRequest = async (req, res) => {
   const { _id } = req.params;
@@ -1082,7 +1094,6 @@ const accApproved = async function (req, res) {
     return res.status(500).json({ message: "Server error" });
   }
 };
-
 const utrUpdate = async function (req, res) {
   const { pay_id, cr_id, utr, utr_submitted_by: bodySubmittedBy } = req.body;
 
@@ -1105,6 +1116,9 @@ const utrUpdate = async function (req, res) {
   let httpStatus = 200;
   let payload = null;
 
+  let emailPayload = null;
+  let isPaymentAgainstPO = false;
+
   const buildSubtractDoc = (p, useUtr) => ({
     p_id: p.p_id,
     pay_type: p.pay_type,
@@ -1122,9 +1136,10 @@ const utrUpdate = async function (req, res) {
         ? { pay_id, acc_match: "matched" }
         : { cr_id, "approval_status.stage": "Final" };
 
-      let payment = await payRequestModells
+      const payment = await payRequestModells
         .findOne(paymentFilter)
         .session(session);
+
       if (!payment) {
         httpStatus = 404;
         payload = {
@@ -1132,8 +1147,14 @@ const utrUpdate = async function (req, res) {
             ? "No matching record found for pay_id or account not matched."
             : "No matching record found with this CR ID at stage 'Final'.",
         };
-        return;
+        return; // exit transaction callback
       }
+
+      isPaymentAgainstPO = payment.pay_type === "Payment Against PO";
+
+      const vendor = await vendorModells
+        .findOne({ name: payment.vendor })
+        .lean();
 
       const oldUtr = (payment.utr || "").trim() || null;
       const utrChanged = oldUtr !== trimmedUtr;
@@ -1141,6 +1162,7 @@ const utrUpdate = async function (req, res) {
       const dup = await payRequestModells
         .findOne({ utr: trimmedUtr, _id: { $ne: payment._id } })
         .session(session);
+
       if (dup) {
         httpStatus = 409;
         payload = { message: "UTR already exists on another record." };
@@ -1151,6 +1173,7 @@ const utrUpdate = async function (req, res) {
         utr: trimmedUtr,
         ...(submittedBy ? { utr_submitted_by: submittedBy } : {}),
       };
+
       await payRequestModells.updateOne(
         { _id: payment._id },
         { $set: setFields },
@@ -1209,6 +1232,7 @@ const utrUpdate = async function (req, res) {
           const alreadyCounted =
             Array.isArray(poDoc?.advance_paid_refs) &&
             poDoc.advance_paid_refs.includes(refKey);
+
           if (!alreadyCounted) {
             await purchaseOrderModells.updateOne(
               { po_number: payment.po_number },
@@ -1234,7 +1258,9 @@ const utrUpdate = async function (req, res) {
 
         const debitEntry = utrChanged
           ? {
-              dbt_date: payment.updatedAt ? new Date(payment.updatedAt) : new Date(),
+              dbt_date: payment.updatedAt
+                ? new Date(payment.updatedAt)
+                : new Date(),
               amount_paid: Number(payment.amount_paid) || 0,
               remarks:
                 payment.remarks || payment.comment || payment.note || null,
@@ -1257,11 +1283,7 @@ const utrUpdate = async function (req, res) {
 
         if (utrChanged && debitEntry) {
           updateDoc.$push = {
-            recentDebits: {
-              $each: [debitEntry],
-              $position: 0,
-              $slice: 3,
-            },
+            recentDebits: { $each: [debitEntry], $position: 0, $slice: 3 },
           };
         }
 
@@ -1271,17 +1293,41 @@ const utrUpdate = async function (req, res) {
         });
       }
 
+      // Stage email payload to use AFTER commit
+      if (utrChanged) {
+        const projDoc = await projectModells
+          .findOne({ p_id: Number(payment.p_id) }, { code: 1, name: 1 })
+          .lean()
+          .session(session);
+
+        const paymentDate = payment.dbt_date || payment.updatedAt || new Date();
+
+        emailPayload = {
+          vendor_name: payment.vendor || "",
+          project: { name: projDoc?.code || "" },
+          payment: {
+            date: paymentDate,
+            amount: Number(payment.amount_paid) || 0,
+          },
+          name_to_send: [payment.vendor] || "",
+          utr: trimmedUtr,
+          user_id: req.user?.userId,
+          tags: ["vendor"],
+          po_number: payment.po_number || "",
+          vendor_email: vendor?.contact_details?.email || "",
+        };
+      }
+
       httpStatus = 200;
       payload = {
-        message: isCrPath
-          ? utrChanged
+        message: Boolean(cr_id)
+          ? oldUtr !== trimmedUtr
             ? "Credit UTR Updated"
             : "UTR unchanged via cr_id; details synced."
-          : utrChanged
+          : oldUtr !== trimmedUtr
             ? "Payment UTR Submitted"
             : "UTR unchanged via pay_id; details synced.",
-        data: payment,
-        subtractMoney: subtractMoneyDoc,
+        // return some minimal info; avoid returning the whole payment doc if not needed
       };
     });
   } catch (err) {
@@ -1290,13 +1336,28 @@ const utrUpdate = async function (req, res) {
         .status(409)
         .json({ message: "UTR already exists.", error: err.message });
     }
-    console.error("utrUpdate error:", err);
     return res.status(500).json({
       message: "An error occurred while updating the UTR number.",
       error: err?.message,
     });
   } finally {
     session.endSession();
+  }
+
+  // *** use the hoisted flag instead of `payment.type`
+  if (emailPayload && isPaymentAgainstPO) {
+    setImmediate(() => {
+      try {
+        sendUsingTemplate(
+          "vendor-payment-email",
+          emailPayload,
+          { sendNotification },
+          { strict: false }
+        );
+      } catch (e) {
+        console.error("[utrUpdate] email send error:", e?.message || e);
+      }
+    });
   }
 
   return res.status(httpStatus).json(payload);
@@ -1799,19 +1860,17 @@ const getExcelDataById = async function (req, res) {
 const getPay = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 50;
+    const pageSize = parseInt(req.query.pageSize) || 10;
     const skip = (page - 1) * pageSize;
 
     const search = (req.query.search || "").trim();
     const status = (req.query.status || "").trim();
-    const tab = (req.query.tab || "").trim();
+    const tab = (req.query.tab || "").trim().toLowerCase();
 
     const searchRegex = search ? new RegExp(search, "i") : null;
     const shouldFilterStatus = status && status.toLowerCase() !== "all";
     const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const statusRegex = shouldFilterStatus
-      ? new RegExp(`^${escapeRegex(status)}$`, "i")
-      : null;
+    const statusRegex = shouldFilterStatus ? new RegExp(`^${escapeRegex(status)}$`, "i") : null;
 
     let EmpDetail = false;
     if (req?.user?.emp_id !== undefined) {
@@ -1821,176 +1880,142 @@ const getPay = async (req, res) => {
       const u = await userModells.findById(id).select("emp_id").lean();
       EmpDetail = (u?.emp_id || "") === "SE-203";
     }
-    const visibilityFilterStage = EmpDetail
-      ? [{ $match: { paid_for: "I&C" } }]
-      : [];
 
-    const lookupStage = {
-      $lookup: {
-        from: "projectdetails",
-        localField: "p_id",
-        foreignField: "p_id",
-        as: "project",
-      },
-    };
-    const unwindStage = {
-      $unwind: { path: "$project", preserveNullAndEmptyArrays: true },
-    };
+    const matchStage = {};
+    if (EmpDetail) matchStage.paid_for = "I&C";
+    if (tab) matchStage.tab_pay = tab;
+    if (statusRegex) matchStage.approved = { $regex: statusRegex };
 
-    const commonMatch = [];
-    if (searchRegex) {
-      commonMatch.push({
-        $or: [
-          { pay_id: { $regex: searchRegex } },
-          { cr_id: { $regex: searchRegex } },
-          { paid_for: { $regex: searchRegex } },
-          { po_number: { $regex: searchRegex } },
-          { vendor: { $regex: searchRegex } },
-          { utr: { $regex: searchRegex } },
-          { "project.customer": { $regex: searchRegex } },
-        ],
-      });
-    }
+    const matchSearchStage = searchRegex
+      ? {
+          $or: [
+            { pay_id: { $regex: searchRegex } },
+            { cr_id: { $regex: searchRegex } },
+            { paid_for: { $regex: searchRegex } },
+            { po_number: { $regex: searchRegex } },
+            { vendor: { $regex: searchRegex } },
+            { utr: { $regex: searchRegex } },
+          ],
+        }
+      : {};
 
-    const instantStageExclusion =
-      tab === "instant"
-        ? [{ $match: { "approval_status.stage": { $ne: "Trash Pending" } } }]
-        : [];
-
-    const statusMatchStage = statusRegex
-      ? [{ $match: { approved: { $regex: statusRegex } } }]
-      : [];
-
-    const addTypeStage = {
-      $addFields: {
-        customer_name: "$project.customer",
-        type: {
-          $switch: {
-            branches: [
-              { case: { $ifNull: ["$pay_id", false] }, then: "instant" },
-              {
-                case: {
-                  $and: [
-                    { $eq: ["$credit.credit_status", true] },
-                    { $ifNull: ["$cr_id", false] },
-                  ],
-                },
-                then: "credit",
-              },
-            ],
-            default: "instant",
-          },
-        },
-      },
-    };
-
-    const baseCommon = [
-      lookupStage,
-      unwindStage,
-      ...(commonMatch.length ? [{ $match: { $and: commonMatch } }] : []),
-      ...visibilityFilterStage,
-      addTypeStage,
-    ];
-
-    const tabMatchStage = tab ? [{ $match: { type: tab } }] : [];
-
-    const remainingDaysStage = [
+    const pipeline = [
       {
-        $addFields: {
-          remaining_days: {
-            $cond: [
-              { $eq: ["$type", "credit"] },
-              {
-                $floor: {
-                  $divide: [
+        $match: Object.keys(matchSearchStage).length
+          ? { $and: [matchStage, matchSearchStage] }
+          : matchStage,
+      },
+      {
+        $facet: {
+          data: [
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: pageSize },
+            {
+              $lookup: {
+                from: "projectdetails",
+                localField: "project_id",
+                foreignField: "_id",
+                pipeline: [{ $project: { customer: 1, code: 1 } }],
+                as: "project",
+              },
+            },
+            { $unwind: { path: "$project", preserveNullAndEmptyArrays: true } },
+            {
+              $lookup: {
+                from: "vendors",
+                localField: "vendor",
+                foreignField: "_id",
+                pipeline: [{ $project: { name: 1 } }],
+                as: "vendorDoc",
+              },
+            },
+            { $unwind: { path: "$vendorDoc", preserveNullAndEmptyArrays: true } },
+            {
+              $addFields: {
+                vendor_name: { $ifNull: ["$vendorDoc.name", "$vendor"] },
+                customer_name: "$project.customer",
+              },
+            },
+            {
+              $addFields: {
+                remaining_days: {
+                  $cond: [
+                    { $eq: ["$tab_pay", "credit"] },
                     {
-                      $subtract: [
-                        { $toDate: "$credit.credit_deadline" },
-                        "$$NOW",
+                      $floor: {
+                        $divide: [
+                          { $subtract: [{ $toDate: "$credit.credit_deadline" }, "$$NOW"] },
+                          1000 * 60 * 60 * 24,
+                        ],
+                      },
+                    },
+                    {
+                      $cond: [
+                        { $eq: ["$approval_status.stage", "Trash Pending"] },
+                        {
+                          $floor: {
+                            $divide: [
+                              {
+                                $subtract: [
+                                  { $add: ["$timers.trash_started_at", 1000 * 60 * 60 * 24 * 15] },
+                                  "$$NOW",
+                                ],
+                              },
+                              1000 * 60 * 60 * 24,
+                            ],
+                          },
+                        },
+                        null,
                       ],
                     },
-                    1000 * 60 * 60 * 24,
                   ],
                 },
               },
-              {
-                $cond: [
-                  { $eq: ["$approval_status.stage", "Trash Pending"] },
-                  {
-                    $floor: {
-                      $divide: [
-                        {
-                          $subtract: [
-                            {
-                              $add: [
-                                "$timers.trash_started_at",
-                                1000 * 60 * 60 * 24 * 15,
-                              ],
-                            },
-                            "$$NOW",
-                          ],
-                        },
-                        1000 * 60 * 60 * 24,
-                      ],
-                    },
-                  },
-                  null,
-                ],
+            },
+            {
+              $project: {
+                project: 0,
+                vendorDoc: 0,
               },
-            ],
-          },
+            },
+          ],
+          total: [{ $count: "count" }],
+          tabCounts: [{ $group: { _id: "$tab_pay", count: { $sum: 1 } } }],
         },
       },
     ];
 
-    const [paginatedData, totalData, tabWiseCounts] = await Promise.all([
-      payRequestModells.aggregate([
-        ...baseCommon,
-        ...instantStageExclusion,
-        ...statusMatchStage,
-        ...tabMatchStage,
-        ...remainingDaysStage,
-        { $project: { project: 0 } },
-        { $sort: { createdAt: -1 } },
-        { $skip: skip },
-        { $limit: pageSize },
-      ]),
-      payRequestModells.aggregate([
-        ...baseCommon,
-        ...instantStageExclusion,
-        ...statusMatchStage,
-        ...tabMatchStage,
-        { $count: "total" },
-      ]),
-      payRequestModells.aggregate([
-        ...baseCommon,
-        ...statusMatchStage,
-        { $group: { _id: "$type", count: { $sum: 1 } } },
-      ]),
-    ]);
+    const [result] = await payRequestModells.aggregate(pipeline);
+
+    const data = result?.data || [];
+    const total = result?.total?.[0]?.count || 0;
+    const tabCounts = result?.tabCounts || [];
 
     const countsByType = { instant: 0, credit: 0 };
-    tabWiseCounts.forEach((t) => {
-      if (t?._id === "instant") countsByType.instant = t.count;
-      if (t?._id === "credit") countsByType.credit = t.count;
+    tabCounts.forEach((t) => {
+      if (t._id === "instant") countsByType.instant = t.count;
+      if (t._id === "credit") countsByType.credit = t.count;
     });
 
     res.status(200).json({
       msg: "pay-summary",
       meta: {
-        total: totalData[0]?.total || 0,
+        total,
         page,
-        count: paginatedData.length,
+        count: data.length,
         instantTotal: countsByType.instant,
         creditTotal: countsByType.credit,
       },
-      data: paginatedData,
+      data,
     });
   } catch (err) {
-    console.error(err);
+    console.error("getPay error:", err);
     res.status(500).json({ msg: "Error retrieving data", error: err.message });
   }
 };
+
+
 
 const getTrashPayment = async (req, res) => {
   try {
@@ -2135,7 +2160,6 @@ const approve_pending = async function (req, res) {
         pay_id: data.pay_id,
         pay_type: data.pay_type,
         amount_paid: data.amount_paid,
-        // amt_for_customer: data.amt_for_customer,
         dbt_date: data.dbt_date,
         paid_for: data.paid_for,
         vendor: data.vendor,
@@ -2239,6 +2263,167 @@ const getpy = async function (req, res) {
   res.status(200).json({ msg: "All pay request", data: data });
 };
 
+const getPayRequestByVendor = async (req, res) => {
+  try {
+    const { vendor, page = "1", limit = "10", search = "" } = req.query;
+
+    if (!vendor || typeof vendor !== "string" || !vendor.trim()) {
+      return res
+        .status(400)
+        .json({ message: "Vendor name is required in query." });
+    }
+    const trimmedVendor = vendor.trim();
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const rawLimit = Math.max(parseInt(limit, 10) || 10, 1);
+    const limitNum = Math.min(rawLimit, 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    const filter = {
+      vendor: { $regex: new RegExp(`^${trimmedVendor}$`, "i") },
+      approved: "Approved",
+    };
+
+    if (typeof search === "string" && search.trim()) {
+      const q = search.trim();
+
+      const asNumber = Number(q);
+      const isNumeric = Number.isFinite(asNumber);
+
+      filter.$or = [
+        { po_number: { $regex: q, $options: "i" } },
+        { remarks: { $regex: q, $options: "i" } },
+        { pay_type: { $regex: q, $options: "i" } },
+        { utr: { $regex: q, $options: "i" } },
+        { pay_id: { $regex: q, $options: "i" } },
+        ...(isNumeric
+          ? [
+              { amount_paid: asNumber },
+              { gst_amount: asNumber },
+              { basic_amount: asNumber },
+            ]
+          : []),
+      ];
+    }
+
+    const [total, data] = await Promise.all([
+      payRequestModells.countDocuments(filter),
+      payRequestModells
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+    ]);
+
+    if (total === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No approved payment requests found for vendor: ${trimmedVendor}`,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      vendor: trimmedVendor,
+      count: data.length,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+      data,
+    });
+  } catch (error) {
+    console.error("Error fetching approved pay requests by vendor:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+      error: error.message,
+    });
+  }
+};
+const addPayTab = async (req, res) => {
+  try {
+    // --- 1) Your existing tab_pay logic (unchanged) ---
+    const tabResult = await payRequestModells.updateMany(
+      {},
+      [
+        {
+          $set: {
+            tab_pay: {
+              $cond: [
+                { $and: [{ $ne: ["$pay_id", null] }, { $ne: ["$pay_id", ""] }] },
+                "instant",
+                {
+                  $cond: [
+                    { $and: [{ $ne: ["$cr_id", null] }, { $ne: ["$cr_id", ""] }] },
+                    "credit",
+                    "instant",
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      ]
+    );
+
+    // --- 2) Build a p_id -> project._id map from the projects collection ---
+    const projects = await projectModells.find({}, { _id: 1, p_id: 1 }).lean();
+    const pidToProjId = new Map(
+      projects.map((p) => [Number(p.p_id), p._id]) // ensure numeric key
+    );
+
+    // --- 3) Find payrequests missing project_id and prepare bulk updates ---
+    const missingFilter = {
+      $or: [{ project_id: { $exists: false } }, { project_id: null }],
+    };
+
+    const payRequests = await payRequestModells
+      .find(missingFilter, { _id: 1, p_id: 1 })
+      .lean();
+
+    const ops = [];
+    for (const pr of payRequests) {
+      const projId = pidToProjId.get(Number(pr.p_id));
+      if (projId) {
+        ops.push({
+          updateOne: {
+            filter: { _id: pr._id, ...missingFilter }, // keep safe guard
+            update: { $set: { project_id: projId } },
+          },
+        });
+      }
+    }
+
+    let projectLinkModified = 0;
+    if (ops.length > 0) {
+      const bw = await payRequestModells.bulkWrite(ops, { ordered: false });
+      // bw.modifiedCount is available in Mongoose 7+, fall back for older
+      projectLinkModified = bw.modifiedCount ?? bw.nModified ?? 0;
+    }
+
+    return res.status(200).json({
+      message:
+        "tab_pay updated and project_id linked where p_id matched successfully.",
+      tab_pay: {
+        matched: tabResult.matchedCount ?? tabResult.nMatched,
+        modified: tabResult.modifiedCount ?? tabResult.nModified,
+      },
+      project_id: {
+        candidatesChecked: payRequests.length,
+        linked: projectLinkModified,
+      },
+    });
+  } catch (error) {
+    console.error("Error in addPayTab:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   payRrequest,
   getPaySummary,
@@ -2263,4 +2448,6 @@ module.exports = {
   hold_approve_pending,
   getExcelDataById,
   getpy,
+  getPayRequestByVendor,
+  addPayTab
 };

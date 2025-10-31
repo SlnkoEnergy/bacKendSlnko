@@ -1935,7 +1935,6 @@ const syncActivitiesFromProjectActivity = async (req, res) => {
       }
 
       if (!changed) {
-        // Nothing to update for this doc
         continue;
       }
 

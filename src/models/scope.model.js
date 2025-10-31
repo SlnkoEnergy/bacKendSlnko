@@ -36,10 +36,44 @@ const scopeSchema = new mongoose.Schema(
         order: {
           type: Number,
         },
-        pr_status:{
+        pr_status: {
           type: Boolean,
-          default: false
-        }
+          default: false,
+        },
+        commitment_date_history: [
+          {
+            date: {
+              type: Date,
+            },
+            remarks: {
+              type: String,
+            },
+            user_id: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "User",
+            },
+            updatedAt: {
+              type: Date,
+              default: Date.now(),
+            },
+          },
+        ],
+        current_commitment_date: {
+          date: {
+            type: Date,
+          },
+          remarks: {
+            type: String,
+          },
+          user_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+          updatedAt: {
+            type: Date,
+            default: Date.now(),
+          },
+        },
       },
     ],
     status_history: [

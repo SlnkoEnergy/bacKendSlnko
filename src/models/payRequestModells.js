@@ -1,7 +1,6 @@
 const { default: mongoose } = require("mongoose");
 const updateCurrentStatus = require("../utils/payRequestUpdate/updateCurrentStatus");
 
-
 const StatusHistorySchema = new mongoose.Schema(
   {
     stage: {
@@ -55,8 +54,11 @@ const UTRHistorySchema = new mongoose.Schema(
 
 const payRequestschema = new mongoose.Schema(
   {
-    p_id: { type: Number },
-    cr_id:{type: String},
+    project_id: {
+      type: mongoose.Schema.Types.ObjectId, ref: "projectDetail",index: true
+    },
+    p_id: { type: Number , index:true},
+    cr_id: { type: String },
     pay_id: { type: String },
     cr_id: { type: String },
     pay_type: { type: String },
@@ -87,6 +89,13 @@ const payRequestschema = new mongoose.Schema(
       type: String,
       enum: ["Pending", "Approved", "Rejected"],
       default: "Pending",
+    },
+
+        tab_pay: {
+      type: String,
+      enum: ["instant", "credit"],
+      default: "instant",
+      index: true,
     },
 
     approval_status: {
@@ -126,9 +135,15 @@ const payRequestschema = new mongoose.Schema(
   { timestamps: true }
 );
 
-
 payRequestschema.pre("save", function (next) {
   updateCurrentStatus(this);
+    if (this.pay_id) {
+    this.tab_pay = "instant";
+  } else if (this.credit?.credit_status === true && this.cr_id) {
+    this.tab_pay = "credit";
+  } else {
+    this.tab_pay = "instant";
+  }
   next();
 });
 
