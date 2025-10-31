@@ -822,21 +822,20 @@ const updateActivityInProject = async (req, res) => {
 
     const useActuals = req.query.actuals === "1" || data?.use_actuals === true;
 
-    const projectActivityDoc = await projectActivity.findOne({
-      project_id: projectId,
-    });
+    // ---- fetch containers ----
+    const projectActivityDoc = await projectActivity.findOne({ project_id: projectId });
     if (!projectActivityDoc) {
       return res.status(404).json({ message: "Project not found" });
     }
 
     const proj = await projectModel.findById(projectId).select("p_id").lean();
-
     if (!proj || !proj.p_id) {
       return res.status(404).json({ message: "Project or p_id not found" });
     }
 
     const handover = await handoversheetModel.findOne({ p_id: proj.p_id });
 
+    // ---- locate activity ----
     const activityIdObj = new mongoose.Types.ObjectId(activityId);
     const activity = projectActivityDoc.activities.find((act) =>
       act.activity_id.equals(activityIdObj)
@@ -845,10 +844,9 @@ const updateActivityInProject = async (req, res) => {
       return res.status(404).json({ message: "Activity not found" });
     }
 
+    // ---- normalize links (preds/succs) ----
     const allowedLinkTypes = new Set(["FS", "SS", "FF", "SF"]);
-    let incomingPreds = Array.isArray(data.predecessors)
-      ? data.predecessors
-      : null;
+    let incomingPreds = Array.isArray(data.predecessors) ? data.predecessors : null;
     let incomingSuccs = Array.isArray(data.successors) ? data.successors : null;
 
     if (incomingPreds) {
@@ -891,22 +889,51 @@ const updateActivityInProject = async (req, res) => {
       activity.successors = incomingSuccs;
     }
 
-    const { predecessors, successors, actual_start, actual_finish, ...rest } =
-      data || {};
+    // ---- whitelist rest of fields (excluding handled keys) ----
+    const { predecessors, successors, actual_start, actual_finish, work_completion, ...rest } = data || {};
     Object.assign(activity, rest);
 
+    // ---- handle work_completion (enum + number) ----
+if (typeof work_completion !== "undefined") {
+  if (!work_completion) {
+    activity.work_completion = undefined;
+  } else if (typeof work_completion === "object") {
+    const allowedUnits = new Set(["m", "kg", "percentage", "number"]);
+    const unit = String(work_completion.unit || "number");
+    if (!allowedUnits.has(unit)) {
+      return res.status(400).json({ message: "Invalid work_completion.unit" });
+    }
+
+    let valueNum = Number(work_completion.value);
+    if (!Number.isFinite(valueNum)) valueNum = 0;
+    if (unit === "percentage") {
+      if (valueNum < 0) valueNum = 0;
+      if (valueNum > 100) valueNum = 100;
+    }
+
+    activity.work_completion = { unit, value: valueNum };
+  } else {
+    return res.status(400).json({ message: "Invalid work_completion payload" });
+  }
+}
+
+
+    // ---- status transitions + dependency side-effects ----
     const prevStatus = activity.current_status?.status || "not started";
     const newStatus = data.status || prevStatus;
 
     if (newStatus && newStatus !== prevStatus) {
       const now = new Date();
+
       if (newStatus === "in progress" && !activity.actual_start) {
         activity.actual_start = now;
       }
+
       if (newStatus === "completed" && !activity.actual_finish) {
         if (!activity.actual_start) activity.actual_start = now;
         activity.actual_finish = now;
 
+        // Auto-allow dependencies + create tasks
         if (Array.isArray(activity.dependency) && activity.dependency.length) {
           for (const dep of activity.dependency) {
             if (!Array.isArray(dep.status_history)) dep.status_history = [];
@@ -917,17 +944,16 @@ const updateActivityInProject = async (req, res) => {
               user_id: req.user?.userId,
             });
           }
+
           const tasksPayloads = activity.dependency.map((dep) => {
             const isModuleTemplate = dep?.model === "moduleTemplates";
-            const title = isModuleTemplate
-              ? `${dep?.model_id_name}`
-              : `PR for ${dep?.model_id_name}`;
+            const title = isModuleTemplate ? `${dep?.model_id_name}` : `PR for ${dep?.model_id_name}`;
 
             return {
               title,
               description: `Task generated for approved ${dep?.model_id_name}`,
               project_id: projectActivityDoc.project_id,
-              userId: handover.submitted_by,
+              userId: handover?.submitted_by,
               sourceKey: `PA:${dep.model_id}:${activity._id}:${dep._id}`,
               source: {
                 type: "projectActivityDependency",
@@ -937,66 +963,73 @@ const updateActivityInProject = async (req, res) => {
               },
             };
           });
+
           await triggerTasksBulk(tasksPayloads);
         }
       }
+
       if (prevStatus === "completed" && newStatus === "in progress") {
+        const now2 = new Date();
         activity.actual_finish = null;
-        activity.actual_start = now;
-        activity.dependency.forEach((dep) => {
-          dep.status_history.push({
-            status: "not allowed",
-            remarks: "Auto updated as status changed to in progress",
-            updatedAt: now,
-            user_id: req.user?.userId,
+        activity.actual_start = now2;
+
+        if (Array.isArray(activity.dependency)) {
+          activity.dependency.forEach((dep) => {
+            dep.status_history = dep.status_history || [];
+            dep.status_history.push({
+              status: "not allowed",
+              remarks: "Auto updated as status changed to in progress",
+              updatedAt: now2,
+              user_id: req.user?.userId,
+            });
           });
-        });
+        }
       }
 
       activity.status_history = activity.status_history || [];
       activity.status_history.push({
         status: newStatus,
-        updated_at: now,
-        user_id: req.user.userId,
+        updated_at: new Date(),
+        user_id: req.user?.userId,
         remarks: data.remarks || "",
       });
     }
+
     if (newStatus === "not started") {
       activity.actual_finish = null;
       activity.actual_start = null;
-      activity.dependency.forEach((dep) => {
-        dep.status_history.push({
-          status: "not allowed",
-          remarks: "Auto updated as status changed to not started",
-          updatedAt: new Date(),
-          user_id: req.user?.userId,
+
+      if (Array.isArray(activity.dependency)) {
+        activity.dependency.forEach((dep) => {
+          dep.status_history = dep.status_history || [];
+          dep.status_history.push({
+            status: "not allowed",
+            remarks: "Auto updated as status changed to not started",
+            updatedAt: new Date(),
+            user_id: req.user?.userId,
+          });
         });
-      });
+      }
     }
 
+    // ---- planned dates & duration normalization ----
     if (activity.planned_start && activity.planned_finish) {
       activity.duration =
-        durationFromStartFinish(
-          activity.planned_start,
-          activity.planned_finish
-        ) || activity.duration;
+        durationFromStartFinish(activity.planned_start, activity.planned_finish) || activity.duration;
     } else if (activity.planned_start && activity.duration) {
-      activity.planned_finish = finishFromStartAndDuration(
-        activity.planned_start,
-        activity.duration
-      );
+      activity.planned_finish = finishFromStartAndDuration(activity.planned_start, activity.duration);
     } else if (activity.planned_finish && activity.duration) {
       const d = Math.max(1, Number(activity.duration) || 0);
       activity.planned_start = addDays(activity.planned_finish, -(d - 1));
     }
 
+    // ---- links rebuild + topo validation ----
     rebuildSuccessorsFromPredecessors(projectActivityDoc.activities);
 
     const topo = topoSort(projectActivityDoc.activities);
     if (!topo.ok) {
       return res.status(400).json({
-        message:
-          "Dependency cycle detected. Please fix predecessors to maintain a DAG.",
+        message: "Dependency cycle detected. Please fix predecessors to maintain a DAG.",
       });
     }
 
@@ -1004,20 +1037,12 @@ const updateActivityInProject = async (req, res) => {
       projectActivityDoc.activities.map((a) => [String(a.activity_id), a])
     );
 
-    const { minStart, minFinish, reasons } = computeMinConstraints(
-      activity,
-      byId,
-      { useActuals }
-    );
+    // ---- constraints (min start/finish) ----
+    const { minStart, minFinish, reasons } = computeMinConstraints(activity, byId, { useActuals });
 
-    if (
-      minStart &&
-      activity.planned_start &&
-      isBefore(activity.planned_start, minStart)
-    ) {
+    if (minStart && activity.planned_start && isBefore(activity.planned_start, minStart)) {
       return res.status(400).json({
-        message:
-          "Invalid planned_start for this dependency setup. It is earlier than allowed.",
+        message: "Invalid planned_start for this dependency setup. It is earlier than allowed.",
         details: {
           required_min_start: minStart,
           provided_start: activity.planned_start,
@@ -1025,14 +1050,9 @@ const updateActivityInProject = async (req, res) => {
         },
       });
     }
-    if (
-      minFinish &&
-      activity.planned_finish &&
-      isBefore(activity.planned_finish, minFinish)
-    ) {
+    if (minFinish && activity.planned_finish && isBefore(activity.planned_finish, minFinish)) {
       return res.status(400).json({
-        message:
-          "Invalid planned_finish for this dependency setup. It is earlier than allowed.",
+        message: "Invalid planned_finish for this dependency setup. It is earlier than allowed.",
         details: {
           required_min_finish: minFinish,
           provided_finish: activity.planned_finish,
@@ -1041,20 +1061,16 @@ const updateActivityInProject = async (req, res) => {
       });
     }
 
-    propagateForwardAdjustments(
-      activity.activity_id,
-      projectActivityDoc.activities,
-      { useActuals }
-    );
+    // ---- forward propagation for dependents ----
+    propagateForwardAdjustments(activity.activity_id, projectActivityDoc.activities, { useActuals });
 
     await projectActivityDoc.save();
     return res.status(200).json({ message: "Activity updated", activity });
   } catch (error) {
-    return res
-      .status(500)
-      .json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
 
 const getActivityInProject = async (req, res) => {
   try {

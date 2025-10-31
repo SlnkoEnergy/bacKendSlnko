@@ -4,6 +4,7 @@ const updateStatus = require("../utils/updatestatus.utils");
 
 const StatusEnum = ["not started", "in progress", "completed"];
 const LinkType = ["FS", "SS", "FF", "SF"];
+const WorkCompletionUnit = ["m", "kg", "percentage", "number"];
 
 function recomputeAssignedEngineersFlat(doc) {
   const set = new Set();
@@ -34,6 +35,18 @@ const projectActivitySchema = new mongoose.Schema(
           ref: "activities",
           required: true,
         },
+         work_completion: {
+      unit: {
+        type: String,
+        enum: WorkCompletionUnit,
+        default: "number",
+        required: true,
+      },
+      value: {
+        type: Number,
+        default: 0,
+      },
+    },
         order: Number,
         planned_start: Date,
         planned_finish: Date,
@@ -162,6 +175,7 @@ const projectActivitySchema = new mongoose.Schema(
         ],
       },
     ],
+   
 
     status: { type: String, enum: ["template", "project"] },
     status_history: [

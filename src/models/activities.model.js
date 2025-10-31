@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const LinkType = ["FS", "SS", "FF", "SF"];
+const WorkCompletionUnit = ["m", "kg", "percentage", "number"];
 const activitySchema = new mongoose.Schema(
   {
     name: {
@@ -43,6 +44,18 @@ const activitySchema = new mongoose.Schema(
     ],
     completion_formula: {
       type: String,
+    },
+    work_completion: {
+      unit: {
+        type: String,
+        enum: WorkCompletionUnit,
+        default: "number",
+        required: true,
+      },
+      value: {
+        type: Number,
+        default: 0,
+      },
     },
     created_by: {
       type: mongoose.Schema.Types.ObjectId,

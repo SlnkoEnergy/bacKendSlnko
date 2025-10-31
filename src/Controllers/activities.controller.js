@@ -3,6 +3,7 @@ const Activity = require("../models/activities.model");
 const ProjectActivity = require("../models/projectactivities.model");
 
 const LINK_TYPES = new Set(["FS", "SS", "FF", "SF"]);
+const VALID_WORK_UNITS = new Set(["m", "kg", "percentage", "number"]);
 
 const createActivity = async (req, res) => {
   try {
@@ -79,6 +80,7 @@ const namesearchOfActivities = async (req, res) => {
       dependency: 1,
       predecessors: 1,
       order: 1,
+      work_completion: 1, // include work_completion in results
     };
     const sort = { name: 1, _id: 1 };
 
@@ -129,11 +131,11 @@ const updateDependency = async (req, res) => {
       return res.status(400).json({ message: "Invalid :id" });
     }
 
-
     const hasNameField = Object.prototype.hasOwnProperty.call(req.body, "name");
     const hasDescField = Object.prototype.hasOwnProperty.call(req.body, "description");
     const hasTypeField = Object.prototype.hasOwnProperty.call(req.body, "type");
     const hasOrderField = Object.prototype.hasOwnProperty.call(req.body, "order");
+    const hasWorkCompletionField = Object.prototype.hasOwnProperty.call(req.body, "work_completion");
 
     const ACTIVITY_TYPES = new Set(["frontend", "backend"]);
     let nextType = undefined;
@@ -154,6 +156,29 @@ const updateDependency = async (req, res) => {
       nextOrder = n;
     }
 
+    // Parse work_completion as { unit, value } with backward compatibility
+    let nextWorkCompletion = undefined;
+    if (hasWorkCompletionField) {
+      const wc = req.body.work_completion;
+      let unit =
+        typeof wc === "object"
+          ? String(wc.unit || "").toLowerCase()
+          : String(wc || req.body.work_completion_unit || "").toLowerCase();
+      let value =
+        typeof wc === "object"
+          ? Number(wc.value)
+          : Number(req.body.work_completion_value);
+
+      if (!VALID_WORK_UNITS.has(unit)) {
+        return res.status(400).json({
+          message: "Invalid work_completion.unit. Allowed: m, kg, percentage, number.",
+        });
+      }
+      if (!Number.isFinite(value)) value = 0;
+      if (unit === "percentage") value = Math.max(0, Math.min(100, value));
+
+      nextWorkCompletion = { unit, value };
+    }
 
     const dependencies = Array.isArray(req.body.dependencies)
       ? req.body.dependencies
@@ -161,13 +186,11 @@ const updateDependency = async (req, res) => {
       ? [{ model: req.body.model, model_id: req.body.model_id, model_id_name: req.body.model_id_name }]
       : [];
 
-
     const LINK_TYPES =
       typeof globalThis.LINK_TYPES === "object" && globalThis.LINK_TYPES instanceof Set
         ? globalThis.LINK_TYPES
         : new Set(["FS", "SS", "FF"]);
 
-   
     const legacyLinkType =
       req.body.link_type ?? req.body.predecessor_type ?? req.body.rel_type ?? req.body.dep_type ?? req.body.type;
 
@@ -186,7 +209,6 @@ const updateDependency = async (req, res) => {
       });
     }
 
-  
     for (const d of dependencies) {
       if (!d?.model || !d?.model_id) {
         return res.status(400).json({ message: "Each dependency needs { model, model_id }" });
@@ -213,11 +235,13 @@ const updateDependency = async (req, res) => {
         ? new mongoose.Types.ObjectId(req.user.userId)
         : undefined;
 
-    const hasActivityFields = hasNameField || hasDescField || hasTypeField || hasOrderField;
+    const hasActivityFields =
+      hasNameField || hasDescField || hasTypeField || hasOrderField || hasWorkCompletionField;
+
     if (!dependencies.length && !predecessors.length && !hasFormulaUpdate && !hasActivityFields) {
       return res.status(400).json({
         message:
-          "Nothing to update. Provide dependencies, predecessors, completion_formula (global), or activity fields (name/description/type/order).",
+          "Nothing to update. Provide dependencies, predecessors, completion_formula (global), or activity fields (name/description/type/order/work_completion).",
       });
     }
 
@@ -244,6 +268,16 @@ const updateDependency = async (req, res) => {
       if (hasOrderField && Number(activity.order) !== Number(nextOrder)) {
         activity.order = nextOrder;
         activityFieldsChanged = true;
+      }
+      if (hasWorkCompletionField) {
+        const cur = activity.work_completion || {};
+        if (
+          cur.unit !== nextWorkCompletion.unit ||
+          Number(cur.value) !== Number(nextWorkCompletion.value)
+        ) {
+          activity.work_completion = nextWorkCompletion;
+          activityFieldsChanged = true;
+        }
       }
 
       // Dependencies (global master)
@@ -386,6 +420,16 @@ const updateDependency = async (req, res) => {
     if (hasOrderField && Number(emb.order) !== Number(nextOrder)) {
       emb.order = nextOrder;
       embFieldsChanged = true;
+    }
+    if (hasWorkCompletionField) {
+      const cur = emb.work_completion || {};
+      if (
+        cur.unit !== nextWorkCompletion.unit ||
+        Number(cur.value) !== Number(nextWorkCompletion.value)
+      ) {
+        emb.work_completion = nextWorkCompletion;
+        embFieldsChanged = true;
+      }
     }
 
     if (!Array.isArray(emb.dependency)) {
