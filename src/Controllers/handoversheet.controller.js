@@ -16,6 +16,7 @@ const { triggerLoanTasksBulk } = require("../utils/triggerLoanTask");
 const axios = require("axios");
 const FormData = require("form-data");
 const path = require("path");
+const documentModel = require("../models/document.model");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -103,6 +104,14 @@ const safe = (str = "") =>
     .replace(/[\/\\\s]+/g, "_")
     .replace(/[^a-zA-Z0-9._-]/g, "_");
 
+const extToType = (ext) => (ext || "").replace(".", "").toLowerCase();
+
+const inferNameFromUrl = (u = "") => {
+  const clean = u.split("?")[0];
+  const last = clean.split("/").pop() || "document";
+  return last;
+};
+
 function normalizeToArray(val) {
   if (val == null) return [];
   if (typeof val === "string") {
@@ -118,11 +127,35 @@ function normalizeToArray(val) {
     return [val];
   }
   if (Array.isArray(val)) return val;
-  if (typeof val === "object") {
-    if (val.url) return [val.url];
-    return [String(val)];
-  }
+  if (typeof val === "object") return [val]; // <- keep objects as objects
   return [String(val)];
+}
+
+function normalizeDocObject(raw) {
+  // Accept both {url} and {fileurl}; keep incoming filename/fileType if present.
+  const url = raw.fileurl || raw.url || "";
+  if (!url) return null;
+
+  let filename =
+    raw.filename ||
+    (raw.baseName
+      ? raw.baseName + (raw.ext || path.extname(url) || "")
+      : inferNameFromUrl(url));
+
+  if (!path.extname(filename)) {
+    const guessed =
+      path.extname(url) ||
+      (raw.ext?.startsWith(".") ? raw.ext : `.${raw.ext || ""}`);
+    filename = guessed ? `${filename}${guessed}` : filename;
+  }
+
+  const fileType = raw.fileType || extToType(path.extname(filename)) || "link";
+
+  return {
+    filename: safe(filename),
+    fileurl: url,
+    fileType,
+  };
 }
 
 async function uploadBufferToBlob({
@@ -155,6 +188,7 @@ async function uploadBufferToBlob({
   return url;
 }
 
+// ============== CONTROLLER ==============
 const createhandoversheet = async (req, res) => {
   try {
     const base =
@@ -171,13 +205,14 @@ const createhandoversheet = async (req, res) => {
       invoice_detail,
       status_of_handoversheet,
       is_locked,
-      documents: docsInsideData,
+      documents: docsInsideData, // may be array of OBJECTS
     } = base;
 
     const userId = req.user?.userId;
     const user = userId ? await userModells.findById(userId) : null;
     if (userId) other_details.submitted_by_BD = userId;
 
+    // 1) create the handover shell (as you already do)
     const handoversheet = new hanoversheetmodells({
       id,
       p_id,
@@ -191,24 +226,9 @@ const createhandoversheet = async (req, res) => {
       is_locked: is_locked || "locked",
       submitted_by: userId || null,
     });
-
     await handoversheet.save();
 
-    const docsFromBase = normalizeToArray(docsInsideData);
-    const docsFromBracket = normalizeToArray(req.body["documents[]"]);
-    const docsFromFlat = normalizeToArray(req.body.documents);
-
-    const indexedDocs = Object.keys(req.body)
-      .filter((k) => /^documents\[\d+\]$/.test(k))
-      .map((k) => req.body[k]);
-
-    const documentUrlCandidates = [
-      ...docsFromBase,
-      ...docsFromBracket,
-      ...docsFromFlat,
-      ...indexedDocs,
-    ].filter(Boolean);
-
+    // 2) collect uploaded files (new uploads)
     const savedDocs = [];
     if (Array.isArray(req.files) && req.files.length) {
       for (const f of req.files) {
@@ -226,7 +246,11 @@ const createhandoversheet = async (req, res) => {
           savedDocs.push({
             filename: fileName,
             fileurl: url,
-            fileType: f.mimetype || "application/octet-stream",
+            fileType:
+              extToType(path.extname(fileName)) ||
+              f.mimetype ||
+              "application/octet-stream",
+            createdBy: userId,
           });
         } catch (e) {
           console.warn("File upload failed:", f.originalname, e?.message);
@@ -234,24 +258,50 @@ const createhandoversheet = async (req, res) => {
       }
     }
 
-    for (const raw of documentUrlCandidates) {
-      const u = String(raw || "").trim();
-      if (!u || !/^https?:\/\//i.test(u)) continue;
+    // 3) collect EXISTING attachments (URLs) from any shape in the request
+    const docsFromBase = normalizeToArray(docsInsideData); // can be objects or strings
+    const docsFromBracket = normalizeToArray(req.body["documents[]"]);
+    const docsFromFlat = normalizeToArray(req.body.documents);
 
-      const last = decodeURIComponent(u.split("/").pop() || "document");
-      const filename = safe(last);
-      savedDocs.push({
-        filename,
-        fileurl: u,
-        fileType: "link",
-      });
+    const indexedDocs = Object.keys(req.body)
+      .filter((k) => /^documents\[\d+\]$/.test(k))
+      .map((k) => req.body[k]);
+
+    const mixed = [
+      ...docsFromBase,
+      ...docsFromBracket,
+      ...docsFromFlat,
+      ...indexedDocs,
+    ].filter(Boolean);
+
+    for (const raw of mixed) {
+      if (typeof raw === "string") {
+        // Plain URL string
+        const u = raw.trim();
+        if (!/^https?:\/\//i.test(u)) continue;
+        const filename = safe(inferNameFromUrl(u));
+        savedDocs.push({
+          filename,
+          fileurl: u,
+          fileType: extToType(path.extname(filename)) || "link",
+          createdBy: userId,
+        });
+      } else if (typeof raw === "object") {
+        // Object form { filename, fileurl, fileType } OR { url, baseName, ext }
+        const norm = normalizeDocObject(raw);
+        if (norm && norm.fileurl) {
+          savedDocs.push({ ...norm, createdBy: userId });
+        }
+      }
     }
 
+    // 4) save documents if any
     if (savedDocs.length) {
       handoversheet.documents = savedDocs;
       await handoversheet.save();
     }
 
+    // 5) side-effects you already had
     if (status_of_handoversheet === "Approved" && is_locked === "locked") {
       const projectData = await projectmodells.findOne({ p_id });
       if (!projectData) {
@@ -270,6 +320,7 @@ const createhandoversheet = async (req, res) => {
       await lead.save();
     }
 
+    // notification (unchanged)
     try {
       const workflow = "handover-submit";
       const Ids = await userModells
@@ -294,7 +345,6 @@ const createhandoversheet = async (req, res) => {
       console.log("Notification error:", err?.message);
     }
 
-    // 9) Respond
     return res.status(200).json({
       message: "Data saved successfully",
       handoversheet,
@@ -722,9 +772,7 @@ const edithandoversheetdata = async function (req, res) {
         filename: finalBase,
         fileurl,
         fileType: f.mimetype || "",
-        originalName: f.originalname,
-        size: f.size,
-        uploadedAt: new Date(),
+        createdBy: req.user.userId,
       });
     }
 
@@ -1053,7 +1101,6 @@ const updatestatus = async function (req, res) {
 
           if (totalDaysToEarliest !== null) {
             const frac = parseFraction(act?.completion_formula);
-            console.log({ frac });
             if (frac !== null) {
               const durationDays = Math.max(
                 0,
@@ -1096,6 +1143,21 @@ const updatestatus = async function (req, res) {
           status: "project",
         });
         await projectActivityDoc.save();
+
+        if (
+          Array.isArray(updatedHandoversheet.documents) &&
+          updatedHandoversheet.documents.length
+        ) {
+          await documentModel.insertMany(
+            updatedHandoversheet.documents.map((d) => ({
+              project_id: projectData._id,
+              filename: d?.filename || "",
+              fileurl: d?.fileurl || "",
+              fileType: d?.fileType || "",
+              createdBy: req.user?.userId || null,
+            }))
+          );
+        }
 
         const createdByUserId = req.user.userId;
         const loanManagers = await getLoanManagers();

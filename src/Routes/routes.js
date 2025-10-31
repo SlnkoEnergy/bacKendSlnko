@@ -27,6 +27,7 @@ const {
   updateProjectStatusForPreviousProjects,
   updateSubmittedByOfProject,
   updateSkippedProject,
+  getAllProjectsForLoan,
 } = require("../Controllers/project.controller.js");
 
 const {
@@ -246,6 +247,7 @@ router.post("/add-new-projecT-IT", auth, createProject);
 router.put("/update-projecT-IT/:_id", auth, updateProject);
 router.get("/get-all-projecT-IT", auth, getallproject);
 router.get("/projects", auth, getAllProjects);
+router.get("/project-loan", auth, getAllProjectsForLoan);
 router.put("/:projectId/updateProjectStatus", auth, updateProjectStatus);
 router.delete("/delete-by-iD-IT/:_id", auth, deleteProjectById);
 router.get("/get-project-iD-IT/:_id", auth, getProjectById);

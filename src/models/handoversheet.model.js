@@ -104,6 +104,10 @@ const handoversheetSchema = new mongoose.Schema(
         fileType: {
           type: String,
         },
+        createdBy:{
+          type: mongoose.Schema.Types.ObjectId,
+          ref:'User'
+        }
       },
     ],
     status_of_handoversheet: { type: String, default: " " },

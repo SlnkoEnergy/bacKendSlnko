@@ -17,6 +17,14 @@ const loanSchema = new mongoose.Schema({
       fileType: {
         type: String,
       },
+      createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      updatedAt: {
+        type: Date,
+        default: Date.now(),
+      },
     },
   ],
   banking_details: [

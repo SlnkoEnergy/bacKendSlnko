@@ -1,8 +1,7 @@
 const Documents = require("../models/document.model");
-const projectModel = require("../models/project.model")
+const projectModel = require("../models/project.model");
 const axios = require("axios");
 const FormData = require("form-data");
-const path = require("path");
 
 // CREATE a document
 const safe = (str = "") =>
@@ -67,8 +66,8 @@ const createDocument = async (req, res) => {
   try {
     const base =
       typeof req.body.data === "string" ? JSON.parse(req.body.data) : req.body;
-    const {project_id} = req.query;
-    const rawProjectId =  project_id;
+    const { project_id } = req.query;
+    const rawProjectId = project_id;
     const project = await projectModel.findById(rawProjectId).lean();
     if (!project) {
       return res.status(404).json({ message: "Project not found." });
@@ -198,8 +197,8 @@ const createDocument = async (req, res) => {
 // READ all documents
 const getAllDocuments = async (req, res) => {
   try {
-    const {project_id} = req.query;
-    const docs = await Documents.find({project_id})
+    const { project_id } = req.query;
+    const docs = await Documents.find({ project_id })
       .populate("project_id", "_id code name")
       .populate("createdBy", "_id name attachment_url");
     res.status(200).json(docs);
@@ -273,10 +272,69 @@ const deleteDocument = async (req, res) => {
   }
 };
 
+const getDocumentByName = async (req, res) => {
+  try {
+    const { project_id, name } = req.query;
+
+    if (!project_id || !name) {
+      return res.status(400).json({
+        success: false,
+        message: "Both project_id and name are required.",
+      });
+    }
+
+    const cleanInput = String(name).trim().toLowerCase();
+    const baseInput = cleanInput.split(".")[0];
+
+    const regex = new RegExp(
+      baseInput.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      "i"
+    );
+
+    const documents = await Documents.find({
+      project_id,
+      $expr: {
+        $regexMatch: {
+          input: {
+            $arrayElemAt: [
+              {
+                $split: [{ $toLower: { $trim: { input: "$filename" } } }, "."],
+              },
+              0,
+            ],
+          },
+          regex: baseInput,
+          options: "i",
+        },
+      },
+    });
+
+    if (!documents || documents.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No matching documents found for this project.",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: documents,
+    });
+  } catch (error) {
+    console.error("getDocumentByName error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createDocument,
   updateDocument,
   getDocumentById,
   getAllDocuments,
   deleteDocument,
+  getDocumentByName,
 };

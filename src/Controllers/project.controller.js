@@ -202,7 +202,82 @@ const getAllProjects = async (req, res) => {
 
     // choose fields to return
     const projection =
-      "code name customer state project_kwp dc_capacity current_status project_completion_date ppa_expiry_date bd_commitment_date remaining_days";
+      "code name customer state number project_kwp dc_capacity current_status project_completion_date ppa_expiry_date bd_commitment_date remaining_days";
+
+    // run query + count in parallel
+    const [items, total] = await Promise.all([
+      projectModells
+        .find(query)
+        .select(projection)
+        .sort(sort)
+        .skip(skip)
+        .limit(l)
+        .lean(),
+      projectModells.countDocuments(query),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / l));
+
+    return res.status(200).json({
+      message: "Projects fetched successfully",
+      data: items,
+      pagination: {
+        page: p,
+        limit: l,
+        totalDocs: total,
+        totalPages,
+        hasPrevPage: p > 1,
+        hasNextPage: p < totalPages,
+      },
+      query: {
+        search: search || null,
+        status: status || null,
+        sort,
+      },
+    });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+const getAllProjectsForLoan = async (req, res) => {
+  try {
+    const {
+      page = "1",
+      limit = "10",
+      search = "",
+      status,
+      sort = "-createdAt",
+    } = req.query;
+
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (p - 1) * l;
+
+    const query = {};
+    if (status && status.toLowerCase() !== "all") {
+      query["current_status.status"] = status;
+    }
+
+    if (search && String(search).trim() !== "") {
+      const safe = String(search)
+        .trim()
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const rx = new RegExp(safe, "i");
+
+      const or = [{ code: rx }, { name: rx }, { description: rx }];
+
+      if (mongoose.isValidObjectId(search)) {
+        or.push({ _id: new mongoose.Types.ObjectId(search) });
+      }
+      query.$or = or;
+    }
+
+    // choose fields to return
+    const projection =
+      "code name customer state number project_kwp dc_capacity current_status project_completion_date ppa_expiry_date bd_commitment_date remaining_days";
 
     // run query + count in parallel
     const [items, total] = await Promise.all([
@@ -1256,24 +1331,18 @@ const updateSubmittedByOfProject = async (req, res) => {
 
 const updateSkippedProject = async (req, res) => {
   try {
-    // Step 1: Find the ObjectId for "Guddu Rani Dubey"
     const user = await userModells.findOne({ name: "Guddu Rani Dubey" });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const newSubmittedById = user._id; // Get the ObjectId for the user
+    const newSubmittedById = user._id; 
 
-    // Step 2: Find the projects where `submitted_by` is the string "Guddu Rani Dubey"
     const projects = await projectModells.find({ submitted_by: "Guddu Rani Dubey" });
-    console.log(projects);
     if (projects.length > 0) {
-      // Step 3: Loop through all projects and update the `submitted_by` field with ObjectId
       for (let project of projects) {
-        project.submitted_by = new mongoose.Types.ObjectId(newSubmittedById);  // Set the new ObjectId
-
-        // Save the updated project
+        project.submitted_by = new mongoose.Types.ObjectId(newSubmittedById);  
         await project.save();
       }
 
@@ -1293,6 +1362,7 @@ module.exports = {
   updateProject,
   getallproject,
   getAllProjects,
+  getAllProjectsForLoan,
   updateProjectStatus,
   deleteProjectById,
   getProjectById,
