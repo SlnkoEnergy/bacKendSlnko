@@ -21,7 +21,7 @@ const {
   getAllActivities,
   updateDPR
 } = require("../Controllers/dpractivities.controller");
-const jwtMW = require("../middlewares/auth");
+const auth = require("../middlewares/auth.middleware.js");
 
 // DPR Routes
 router.get("/dpr", auth, getAllDpr);
