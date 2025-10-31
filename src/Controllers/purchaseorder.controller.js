@@ -977,13 +977,12 @@ const generatePurchaseOrderPdf = async (req, res) => {
       };
     }
 
-  const doc = await purchaseOrderModells
-  .findOne(query)
-  .populate("vendor", "_id name")
-  .select("item date po_number vendor p_id _id") 
-  .lean()
-  .exec();
-
+    const doc = await purchaseOrderModells
+      .findOne(query)
+      .populate("vendor", "_id name")
+      .select("item date po_number vendor p_id _id")
+      .lean()
+      .exec();
 
     const notes = await PohistoryModel.find({
       subject_type: "purchase_order",

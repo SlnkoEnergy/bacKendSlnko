@@ -93,6 +93,23 @@ const handoversheetSchema = new mongoose.Schema(
       msme_reg: { type: String },
       invoicing_GST_status: { type: String },
     },
+    documents: [
+      {
+        filename: {
+          type: String,
+        },
+        fileurl: {
+          type: String,
+        },
+        fileType: {
+          type: String,
+        },
+        createdBy:{
+          type: mongoose.Schema.Types.ObjectId,
+          ref:'User'
+        }
+      },
+    ],
     status_of_handoversheet: { type: String, default: " " },
     submitted_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     assigned_to: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
