@@ -132,14 +132,14 @@ const getPaginatedBill = catchAsyncError(async (req, res) => {
 
   const matchStage = search
     ? {
-        $or: [
-          { bill_number: { $regex: searchRegex } },
-          { po_number: { $regex: searchRegex } },
-          { approved_by: { $regex: searchRegex } },
-          { "poData.vendor": { $regex: searchRegex } },
-          { "poData.item": { $regex: searchRegex } },
-        ],
-      }
+      $or: [
+        { bill_number: { $regex: searchRegex } },
+        { po_number: { $regex: searchRegex } },
+        { approved_by: { $regex: searchRegex } },
+        { "poData.vendor": { $regex: searchRegex } },
+        { "poData.item": { $regex: searchRegex } },
+      ],
+    }
     : {};
 
   const pipeline = [
@@ -596,6 +596,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
 //Bills Exports
 const exportBills = catchAsyncError(async (req, res, next) => {
   const { from, to, export: exportAll } = req.query;
+  const { Ids } = req.body;
 
   let matchStage = {};
   const parseDate = (str) => {
@@ -603,7 +604,11 @@ const exportBills = catchAsyncError(async (req, res, next) => {
     return new Date(year, month - 1, day);
   };
 
-  if (exportAll !== "all") {
+  const objectIds = Ids.map((id) => new mongoose.Types.ObjectId(id));
+  if (objectIds.length > 0) {
+    matchStage = { _id: { $in: objectIds } }
+  }
+  else if (exportAll !== "all") {
     if (!from || !to) {
       return res.status(400).json({ msg: "from and to dates are required" });
     }
@@ -919,13 +924,13 @@ const bill_approved = catchAsyncError(async (req, res, next) => {
       },
       ...(bill_number
         ? [
-            {
-              $eq: [
-                { $trim: { input: { $toString: "$bill_number" } } },
-                bill_number,
-              ],
-            },
-          ]
+          {
+            $eq: [
+              { $trim: { input: { $toString: "$bill_number" } } },
+              bill_number,
+            ],
+          },
+        ]
         : []),
     ],
   };
