@@ -2,6 +2,7 @@ const billModel = require("../models/bill.model");
 const purchaseOrderModel = require("../models/purchaseorder.model");
 const moment = require("moment");
 const mongoose = require("mongoose");
+const { Types } = mongoose;
 const { Parser } = require("json2csv");
 const {
   catchAsyncError,
@@ -9,6 +10,19 @@ const {
 const ErrorHandler = require("../middlewares/error.middleware");
 const userModells = require("../models/user.model");
 const materialcategoryModel = require("../models/materialcategory.model");
+
+const toObjectIdOrNull = (val) => {
+  if (!val) return null;
+  if (val instanceof Types.ObjectId) return val;
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    return Types.ObjectId.isValid(trimmed) ? new Types.ObjectId(trimmed) : null;
+  }
+  if (typeof val === "object" && val._id && Types.ObjectId.isValid(val._id)) {
+    return new Types.ObjectId(val._id);
+  }
+  return null;
+};
 
 const addBill = catchAsyncError(async function (req, res, next) {
   const {
@@ -118,14 +132,14 @@ const getPaginatedBill = catchAsyncError(async (req, res) => {
 
   const matchStage = search
     ? {
-        $or: [
-          { bill_number: { $regex: searchRegex } },
-          { po_number: { $regex: searchRegex } },
-          { approved_by: { $regex: searchRegex } },
-          { "poData.vendor": { $regex: searchRegex } },
-          { "poData.item": { $regex: searchRegex } },
-        ],
-      }
+      $or: [
+        { bill_number: { $regex: searchRegex } },
+        { po_number: { $regex: searchRegex } },
+        { approved_by: { $regex: searchRegex } },
+        { "poData.vendor": { $regex: searchRegex } },
+        { "poData.item": { $regex: searchRegex } },
+      ],
+    }
     : {};
 
   const pipeline = [
@@ -582,6 +596,7 @@ const getAllBill = catchAsyncError(async (req, res, next) => {
 //Bills Exports
 const exportBills = catchAsyncError(async (req, res, next) => {
   const { from, to, export: exportAll } = req.query;
+  const { Ids } = req.body;
 
   let matchStage = {};
   const parseDate = (str) => {
@@ -589,7 +604,11 @@ const exportBills = catchAsyncError(async (req, res, next) => {
     return new Date(year, month - 1, day);
   };
 
-  if (exportAll !== "all") {
+  const objectIds = Ids.map((id) => new mongoose.Types.ObjectId(id));
+  if (objectIds.length > 0) {
+    matchStage = { _id: { $in: objectIds } }
+  }
+  else if (exportAll !== "all") {
     if (!from || !to) {
       return res.status(400).json({ msg: "from and to dates are required" });
     }
@@ -879,54 +898,90 @@ const deleteBill = catchAsyncError(async function (req, res, next) {
 });
 
 // bill_appoved
-const bill_approved = catchAsyncError(async function (req, res, next) {
-  const { bill_number } = req.body;
-  const userId = req.user.userId;
-  const existingBill = await billModel.findOne({
-    bill_number: bill_number,
-  });
-  if (!existingBill) {
-    return next(new ErrorHandler("No bill found", 404));
+
+const normStr = (v) =>
+  v == null ? "" : String(Array.isArray(v) ? v[0] : v).trim();
+
+const bill_approved = catchAsyncError(async (req, res, next) => {
+  let { po_number, bill_number } = req.body;
+  const rawUserId = req.user?.userId;
+
+  po_number = normStr(po_number);
+  bill_number = normStr(bill_number);
+
+  if (!po_number) return next(new ErrorHandler("PO number is required.", 400));
+
+  const approverId = toObjectIdOrNull(rawUserId);
+  if (!approverId) return next(new ErrorHandler("Invalid approver id.", 400));
+
+  const expr = {
+    $and: [
+      {
+        $eq: [
+          { $trim: { input: { $toString: "$po_number" } } },
+          po_number,
+        ],
+      },
+      ...(bill_number
+        ? [
+          {
+            $eq: [
+              { $trim: { input: { $toString: "$bill_number" } } },
+              bill_number,
+            ],
+          },
+        ]
+        : []),
+    ],
+  };
+
+  const bill = await billModel.findOne({ $expr: expr }).lean();
+  if (!bill) return next(new ErrorHandler("Bill not found.", 404));
+
+  const cleanedApprovedBy = toObjectIdOrNull(bill.approved_by);
+  const patch = {};
+
+  if (bill.approved_by === "" || bill.approved_by !== cleanedApprovedBy) {
+    patch.approved_by = cleanedApprovedBy;
   }
 
-  if (
-    existingBill.approved_by !== undefined &&
-    existingBill.approved_by !== null
-  ) {
-    return next(
-      new ErrorHandler(
-        "Bill is already approved and cannot be updated to an empty string.",
-        400
-      )
-    );
+  if (cleanedApprovedBy) {
+    if (Object.keys(patch).length) {
+      await billModel.updateOne({ _id: bill._id }, { $set: patch });
+    }
+    const refreshed = await billModel.findById(bill._id).lean();
+    return res.status(200).json({
+      success: true,
+      msg: "Bill already approved.",
+      data: refreshed,
+    });
   }
-  const approvedby = await billModel.findOneAndUpdate(
-    { bill_number },
-    { $set: { approved_by: userId } },
-    { new: true }
-  );
 
-  res.status(200).json({
-    msg: "Bill updated successfully.",
-    data: approvedby,
+  patch.approved_by = approverId;
+  await billModel.updateOne({ _id: bill._id }, { $set: patch });
+
+  const updated = await billModel.findById(bill._id).lean();
+  return res.status(200).json({
+    success: true,
+    msg: "Bill approved successfully.",
+    data: updated,
   });
 });
+
+
 
 function escapeRegex(s = "") {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// normalize whitespace; trim; collapse multiple spaces
 function normalizeName(s = "") {
   return s.trim().replace(/\s+/g, " ");
 }
 
-// lookup strategy: exact (case-insensitive), else contains (case-insensitive)
 async function findUserByName(raw) {
   const name = normalizeName(raw);
   if (!name) return null;
 
-  // 1) exact match (case-insensitive)
   let user = await userModells
     .findOne({
       name: { $regex: `^${escapeRegex(name)}$`, $options: "i" },

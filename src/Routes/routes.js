@@ -93,6 +93,7 @@ const {
   getpy,
   getTrashPayment,
   getPayRequestByVendor,
+  addPayTab
 } = require("../Controllers/payRequestControllers.js");
 const {
   addAdjustmentRequest,
@@ -420,7 +421,8 @@ router.get(
   getExcelDataById
 );
 router.get("/get-pay-smry", auth, getpy);
-router.get("/payrequestvendor", auth, getPayRequestByVendor);
+router.get('/payrequestvendor', auth, getPayRequestByVendor);
+router.post("/add-tab-payrequests", addPayTab)
 
 //adjustment request
 router.post(
@@ -487,7 +489,7 @@ router.put(
 
   bill_approved
 );
-router.get("/get-export-bill", auth, exportBills);
+router.post("/get-export-bill", auth, exportBills);
 router.put("/manipulatebill", manipulatebill);
 //subtractmoney-debitmoney
 router.post("/debit-moneY-IT", auth, subtractmoney);

@@ -674,9 +674,9 @@ const editPO = async function (req, res) {
             Array.isArray(respData) && respData.length > 0
               ? respData[0]
               : respData.url ||
-                respData.fileUrl ||
-                (respData.data && respData.data.url) ||
-                null;
+              respData.fileUrl ||
+              (respData.data && respData.data.url) ||
+              null;
         } catch (e) {
           console.error("Upload failed for:", attachment_name, e?.message);
         }
@@ -898,9 +898,9 @@ const getPOByPONumber = async (req, res) => {
 
       const catDocs = catIdSet.size
         ? await materialCategoryModells
-            .find({ _id: { $in: Array.from(catIdSet) } })
-            .select({ name: 1 })
-            .lean()
+          .find({ _id: { $in: Array.from(catIdSet) } })
+          .select({ name: 1 })
+          .lean()
         : [];
 
       const catMap = new Map(
@@ -1291,7 +1291,7 @@ const getPaginatedPo = async (req, res) => {
     const pageSize = parseInt(req.query.pageSize, 10) || 10;
     const skip = (page - 1) * pageSize;
 
-    const search = (req.query.search || "").trim(); // unified search term
+    const search = (req.query.search || "").trim();
     const status = (req.query.status || "").trim();
     const filter = (req.query.filter || "").trim();
 
@@ -1349,29 +1349,29 @@ const getPaginatedPo = async (req, res) => {
 
       ...(createdFrom || createdTo
         ? {
-            dateObj: {
-              ...(createdFrom ? { $gte: createdFrom } : {}),
-              ...(createdTo ? { $lte: createdTo } : {}),
-            },
-          }
+          dateObj: {
+            ...(createdFrom ? { $gte: createdFrom } : {}),
+            ...(createdTo ? { $lte: createdTo } : {}),
+          },
+        }
         : {}),
 
       ...(etdFrom || etdTo
         ? {
-            etd: {
-              ...(etdFrom ? { $gte: etdFrom } : {}),
-              ...(etdTo ? { $lte: etdTo } : {}),
-            },
-          }
+          etd: {
+            ...(etdFrom ? { $gte: etdFrom } : {}),
+            ...(etdTo ? { $lte: etdTo } : {}),
+          },
+        }
         : {}),
 
       ...(deliveryFrom || deliveryTo
         ? {
-            delivery_date: {
-              ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
-              ...(deliveryTo ? { $lte: deliveryTo } : {}),
-            },
-          }
+          delivery_date: {
+            ...(deliveryFrom ? { $gte: deliveryFrom } : {}),
+            ...(deliveryTo ? { $lte: deliveryTo } : {}),
+          },
+        }
         : {}),
     };
 
@@ -1568,12 +1568,12 @@ const getPaginatedPo = async (req, res) => {
       },
       ...(itemSearch
         ? [
-            {
-              $match: {
-                resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
-              },
+          {
+            $match: {
+              resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
             },
-          ]
+          },
+        ]
         : []),
 
       ...vendorResolveStages,
@@ -1688,12 +1688,12 @@ const getPaginatedPo = async (req, res) => {
       },
       ...(itemSearch
         ? [
-            {
-              $match: {
-                resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
-              },
+          {
+            $match: {
+              resolvedCatNames: { $elemMatch: { $regex: itemSearchRegex } },
             },
-          ]
+          },
+        ]
         : []),
 
       ...vendorResolveStages,
@@ -1714,12 +1714,12 @@ const getPaginatedPo = async (req, res) => {
     const formatDate = (date) =>
       date
         ? new Date(date)
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-            .replace(/ /g, "/")
+          .toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+          .replace(/ /g, "/")
         : "";
 
     const data = result.map((it) => ({ ...it, date: formatDate(it.date) }));
@@ -1740,16 +1740,18 @@ const getPaginatedPo = async (req, res) => {
 
 const getExportPo = async (req, res) => {
   try {
+
     const toArray = (v) =>
       Array.isArray(v)
         ? v
         : typeof v === "string"
           ? v
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
           : [];
 
+    // 1) Selected IDs (if any)
     const rawIds = [
       ...toArray(req.body?.purchaseorders),
       ...toArray(req.query?.purchaseorders),
@@ -2228,7 +2230,7 @@ const getExportPo = async (req, res) => {
 
     const parser = new Parser({ fields, quote: '"', withBOM: false });
     const csvBody = parser.parse(rows);
-    const csv = "\uFEFF" + csvBody;
+    const csv = "\uFEFF" + csvBody; // BOM for Excel
 
     const fileName = `PO_Items_Export_${new Date().toISOString().slice(0, 10)}.csv`;
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -2245,8 +2247,9 @@ const getExportPo = async (req, res) => {
 const updateSalesPO = async (req, res) => {
   try {
     const { id } = req.params;
-    const { remarks, basic_sales, sales_invoice, po_number } = req.body || {};
+    const { remarks, basic_sales, sales_invoice, po_number, gst_on_sales } = req.body || {};
 
+    
     if (!id && !po_number) {
       return res
         .status(400)
@@ -2260,34 +2263,30 @@ const updateSalesPO = async (req, res) => {
     }
 
     const basic = Number(basic_sales);
+    const gst = Number(gst_on_sales || 0);
     const invoice = String(sales_invoice || "").trim();
 
     if (!Number.isFinite(basic))
       return res.status(400).json({ message: "basic_sales must be a number" });
+    if (!Number.isFinite(gst))
+      return res.status(400).json({ message: "gst_on_sales must be a number" });
     if (!invoice)
       return res.status(400).json({ message: "Sales Invoice is mandatory" });
 
+  
     const po = id
       ? await purchaseOrderModells.findById(id)
       : await purchaseOrderModells.findOne({
-          po_number: String(po_number).trim(),
-        });
+        po_number: String(po_number).trim(),
+      });
 
     if (!po) return res.status(404).json({ message: "PO not found" });
-
-    const project = await projectModel.findById(po.project_id, {
-      billing_type: 1,
-    });
-
-    const billingType = project?.billing_type || "Individual";
-
-    const gstRate = billingType === "Composite" ? 0.089 : 0.18;
-    const gst = Number((basic * gstRate).toFixed(2));
 
     const poValue = Number(po.po_value) || 0;
     const alreadySales = Number(po.total_sales_value) || 0;
     const entryTotal = basic + gst;
 
+  
     const safePo = (s) =>
       String(s || "")
         .trim()
@@ -2301,10 +2300,10 @@ const updateSalesPO = async (req, res) => {
     const files = req.file
       ? [req.file]
       : Array.isArray(req.files)
-        ? req.files
-        : req.files && typeof req.files === "object"
-          ? Object.values(req.files).flat()
-          : [];
+      ? req.files
+      : req.files && typeof req.files === "object"
+      ? Object.values(req.files).flat()
+      : [];
 
     const uploadedAttachments = [];
 
@@ -2334,6 +2333,7 @@ const updateSalesPO = async (req, res) => {
           console.warn("Image compression failed, using original:", e.message);
         }
       }
+
 
       try {
         const form = new FormData();
@@ -2385,9 +2385,14 @@ const updateSalesPO = async (req, res) => {
 
     po.isSales = true;
     po.total_sales_value = alreadySales + entryTotal;
-
     po.markModified("sales_Details");
+
+    if (!["for", "slnko", "client"].includes(po.delivery_type)) {
+      po.delivery_type = undefined;
+    }
+
     await po.save();
+
 
     return res.status(200).json({
       message:
@@ -2396,8 +2401,6 @@ const updateSalesPO = async (req, res) => {
           : "Sales PO updated successfully (isSales = true)",
       data: {
         po_number: po.po_number,
-        billing_type: billingType,
-        gst_rate_applied: `${(gstRate * 100).toFixed(1)}%`,
         po_value: poValue,
         basic_sales: basic,
         gst_on_sales: gst,
@@ -2412,6 +2415,7 @@ const updateSalesPO = async (req, res) => {
       .json({ message: "Error updating Sales PO", error: error.message });
   }
 };
+
 
 //Move-Recovery
 const moverecovery = async function (req, res) {
@@ -2758,14 +2762,14 @@ const getPoBasic = async (req, res) => {
         },
         ...(search
           ? [
-              {
-                $or: [
-                  { p_id: { $regex: searchRegex } },
-                  { po_number: { $regex: searchRegex } },
-                  { vendor: { $regex: searchRegex } },
-                ],
-              },
-            ]
+            {
+              $or: [
+                { p_id: { $regex: searchRegex } },
+                { po_number: { $regex: searchRegex } },
+                { vendor: { $regex: searchRegex } },
+              ],
+            },
+          ]
           : []),
       ],
     };
