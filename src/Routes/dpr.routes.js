@@ -41,7 +41,7 @@ router.put(
   auth,
   updateStatusDprTask
 );
-router.delete("/dpr-task/:_id", jwtMW.authentication, deleteDprTask);
+router.delete("/dpr-task/:_id", auth, deleteDprTask);
 
 router.post("/dpr-activities", auth, createDPR);
 router.put("/update-dpr-activities", auth, updateDPR);
