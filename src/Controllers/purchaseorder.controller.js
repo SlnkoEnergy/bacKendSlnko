@@ -977,13 +977,12 @@ const generatePurchaseOrderPdf = async (req, res) => {
       };
     }
 
-  const doc = await purchaseOrderModells
-  .findOne(query)
-  .populate("vendor", "_id name")
-  .select("item date po_number vendor p_id _id") 
-  .lean()
-  .exec();
-
+    const doc = await purchaseOrderModells
+      .findOne(query)
+      .populate("vendor", "_id name")
+      .select("item date po_number vendor p_id _id")
+      .lean()
+      .exec();
 
     const notes = await PohistoryModel.find({
       subject_type: "purchase_order",
@@ -2248,8 +2247,9 @@ const getExportPo = async (req, res) => {
 const updateSalesPO = async (req, res) => {
   try {
     const { id } = req.params;
-    const { remarks, basic_sales, sales_invoice, po_number } = req.body || {};
+    const { remarks, basic_sales, sales_invoice, po_number, gst_on_sales } = req.body || {};
 
+    
     if (!id && !po_number) {
       return res
         .status(400)
@@ -2263,13 +2263,17 @@ const updateSalesPO = async (req, res) => {
     }
 
     const basic = Number(basic_sales);
+    const gst = Number(gst_on_sales || 0);
     const invoice = String(sales_invoice || "").trim();
 
     if (!Number.isFinite(basic))
       return res.status(400).json({ message: "basic_sales must be a number" });
+    if (!Number.isFinite(gst))
+      return res.status(400).json({ message: "gst_on_sales must be a number" });
     if (!invoice)
       return res.status(400).json({ message: "Sales Invoice is mandatory" });
 
+  
     const po = id
       ? await purchaseOrderModells.findById(id)
       : await purchaseOrderModells.findOne({
@@ -2278,19 +2282,11 @@ const updateSalesPO = async (req, res) => {
 
     if (!po) return res.status(404).json({ message: "PO not found" });
 
-    const project = await projectModel.findById(po.project_id, {
-      billing_type: 1,
-    });
-
-    const billingType = project?.billing_type || "Individual";
-
-    const gstRate = billingType === "Composite" ? 0.089 : 0.18;
-    const gst = Number((basic * gstRate).toFixed(2));
-
     const poValue = Number(po.po_value) || 0;
     const alreadySales = Number(po.total_sales_value) || 0;
     const entryTotal = basic + gst;
 
+  
     const safePo = (s) =>
       String(s || "")
         .trim()
@@ -2304,10 +2300,10 @@ const updateSalesPO = async (req, res) => {
     const files = req.file
       ? [req.file]
       : Array.isArray(req.files)
-        ? req.files
-        : req.files && typeof req.files === "object"
-          ? Object.values(req.files).flat()
-          : [];
+      ? req.files
+      : req.files && typeof req.files === "object"
+      ? Object.values(req.files).flat()
+      : [];
 
     const uploadedAttachments = [];
 
@@ -2337,6 +2333,7 @@ const updateSalesPO = async (req, res) => {
           console.warn("Image compression failed, using original:", e.message);
         }
       }
+
 
       try {
         const form = new FormData();
@@ -2388,9 +2385,14 @@ const updateSalesPO = async (req, res) => {
 
     po.isSales = true;
     po.total_sales_value = alreadySales + entryTotal;
-
     po.markModified("sales_Details");
+
+    if (!["for", "slnko", "client"].includes(po.delivery_type)) {
+      po.delivery_type = undefined;
+    }
+
     await po.save();
+
 
     return res.status(200).json({
       message:
@@ -2399,8 +2401,6 @@ const updateSalesPO = async (req, res) => {
           : "Sales PO updated successfully (isSales = true)",
       data: {
         po_number: po.po_number,
-        billing_type: billingType,
-        gst_rate_applied: `${(gstRate * 100).toFixed(1)}%`,
         po_value: poValue,
         basic_sales: basic,
         gst_on_sales: gst,
@@ -2415,6 +2415,7 @@ const updateSalesPO = async (req, res) => {
       .json({ message: "Error updating Sales PO", error: error.message });
   }
 };
+
 
 //Move-Recovery
 const moverecovery = async function (req, res) {

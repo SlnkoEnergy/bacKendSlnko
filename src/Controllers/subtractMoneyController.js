@@ -1,6 +1,6 @@
 const subtractModells= require("../models/debitMoneyModells");
 const payrequestModells =require("../models/payRequestModells");
-const recoverydebitModells = require("../models/recoveryDebitHistoryModells");
+const recoverydebitModells = require("../models/recoverydebithistory.model");
 
 const subtractmoney = async function (req, res) {
     try {

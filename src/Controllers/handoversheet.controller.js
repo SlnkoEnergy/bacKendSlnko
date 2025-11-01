@@ -13,6 +13,10 @@ const postsModel = require("../models/posts.model");
 const activitiesModel = require("../models/activities.model");
 const projectactivitiesModel = require("../models/projectactivities.model");
 const { triggerLoanTasksBulk } = require("../utils/triggerLoanTask");
+const axios = require("axios");
+const FormData = require("form-data");
+const path = require("path");
+const documentModel = require("../models/document.model");
 
 const migrateProjectToHandover = async (req, res) => {
   try {
@@ -94,24 +98,129 @@ const migrateProjectToHandover = async (req, res) => {
   }
 };
 
-const createhandoversheet = async function (req, res) {
+const safe = (str = "") =>
+  String(str)
+    .trim()
+    .replace(/[\/\\\s]+/g, "_")
+    .replace(/[^a-zA-Z0-9._-]/g, "_");
+
+const extToType = (ext) => (ext || "").replace(".", "").toLowerCase();
+
+const inferNameFromUrl = (u = "") => {
+  const clean = u.split("?")[0];
+  const last = clean.split("/").pop() || "document";
+  return last;
+};
+
+function normalizeToArray(val) {
+  if (val == null) return [];
+  if (typeof val === "string") {
+    const t = val.trim();
+    if (t.startsWith("[") && t.endsWith("]")) {
+      try {
+        const arr = JSON.parse(t);
+        return Array.isArray(arr) ? arr : [t];
+      } catch {
+        return [val];
+      }
+    }
+    return [val];
+  }
+  if (Array.isArray(val)) return val;
+  if (typeof val === "object") return [val];
+  return [String(val)];
+}
+
+function normalizeDocObject(raw) {
+  // Accept both {url} and {fileurl}; keep incoming filename/fileType if present.
+  const url = raw.fileurl || raw.url || "";
+  if (!url) return null;
+
+  let filename =
+    raw.filename ||
+    (raw.baseName
+      ? raw.baseName + (raw.ext || path.extname(url) || "")
+      : inferNameFromUrl(url));
+
+  if (!path.extname(filename)) {
+    const guessed =
+      path.extname(url) ||
+      (raw.ext?.startsWith(".") ? raw.ext : `.${raw.ext || ""}`);
+    filename = guessed ? `${filename}${guessed}` : filename;
+  }
+
+  const fileType = raw.fileType || extToType(path.extname(filename)) || "link";
+
+  return {
+    filename: safe(filename),
+    fileurl: url,
+    fileType,
+  };
+}
+
+async function uploadBufferToBlob({
+  buffer,
+  originalname,
+  mimetype,
+  folderPath,
+}) {
+  const form = new FormData();
+  form.append("file", buffer, {
+    filename: originalname,
+    contentType: mimetype,
+  });
+
+  const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
+
+  const resp = await axios.post(uploadUrl, form, {
+    headers: form.getHeaders(),
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+  });
+
+  const d = resp.data;
+  const url =
+    Array.isArray(d) && d.length > 0
+      ? d[0]
+      : d.url || d.fileUrl || (d.data && d.data.url) || null;
+
+  if (!url) throw new Error("UPLOAD_API did not return a file URL");
+  return url;
+}
+
+// ============== CONTROLLER ==============
+const createhandoversheet = async (req, res) => {
   try {
-    const {
+    const base =
+      typeof req.body.data === "string" ? JSON.parse(req.body.data) : req.body;
+
+    let {
       id,
       p_id,
       customer_details,
       order_details,
       project_detail,
       commercial_details,
-      other_details,
+      other_details = {},
       invoice_detail,
-    } = req.body;
+      status_of_handoversheet,
+      is_locked,
+      documents: docsInsideData,
+    } = base;
 
-    const userId = req.user.userId;
-    const user = await userModells.findById(userId);
+    const userId = req.user?.userId;
+    const user = userId ? await userModells.findById(userId) : null;
+    if (userId) other_details.submitted_by_BD = userId;
 
-    other_details.submitted_by_BD = userId;
+    const existingHandover = await handoversheetModells.findOne({ id: id });
 
+    if (existingHandover) {
+      return res.status(400).json({
+        message: "Handover Already Exists",
+      });
+    }
+
+    // 1) create the handover shell (as you already do)
     const handoversheet = new hanoversheetmodells({
       id,
       p_id,
@@ -121,38 +230,105 @@ const createhandoversheet = async function (req, res) {
       commercial_details,
       other_details,
       invoice_detail,
-      status_of_handoversheet: req.body.status_of_handoversheet || "draft",
-      submitted_by: userId,
+      status_of_handoversheet: status_of_handoversheet || "draft",
+      is_locked: is_locked || "locked",
+      submitted_by: userId || null,
     });
+    await handoversheet.save();
 
-    cheched_id = await hanoversheetmodells.findOne({ id: id });
-    if (cheched_id) {
-      return res.status(400).json({ message: "Handoversheet already exists" });
+    // 2) collect uploaded files (new uploads)
+    const savedDocs = [];
+    if (Array.isArray(req.files) && req.files.length) {
+      for (const f of req.files) {
+        try {
+          const fileName = f.originalname || "document";
+          const folderPath = `Handovers/${safe(handoversheet.id)}`;
+
+          const url = await uploadBufferToBlob({
+            buffer: f.buffer,
+            originalname: fileName,
+            mimetype: f.mimetype || "application/octet-stream",
+            folderPath,
+          });
+
+          savedDocs.push({
+            filename: fileName,
+            fileurl: url,
+            fileType:
+              extToType(path.extname(fileName)) ||
+              f.mimetype ||
+              "application/octet-stream",
+            createdBy: userId,
+          });
+        } catch (e) {
+          console.warn("File upload failed:", f.originalname, e?.message);
+        }
+      }
     }
 
-    if (
-      req.body.status_of_handoversheet === "Approved" &&
-      req.body.is_locked === "locked"
-    ) {
-      const projectData = await projectmodells.findOne({ p_id: p_id });
+    // 3) collect EXISTING attachments (URLs) from any shape in the request
+    const docsFromBase = normalizeToArray(docsInsideData); // can be objects or strings
+    const docsFromBracket = normalizeToArray(req.body["documents[]"]);
+    const docsFromFlat = normalizeToArray(req.body.documents);
+
+    const indexedDocs = Object.keys(req.body)
+      .filter((k) => /^documents\[\d+\]$/.test(k))
+      .map((k) => req.body[k]);
+
+    const mixed = [
+      ...docsFromBase,
+      ...docsFromBracket,
+      ...docsFromFlat,
+      ...indexedDocs,
+    ].filter(Boolean);
+
+    for (const raw of mixed) {
+      if (typeof raw === "string") {
+        // Plain URL string
+        const u = raw.trim();
+        if (!/^https?:\/\//i.test(u)) continue;
+        const filename = safe(inferNameFromUrl(u));
+        savedDocs.push({
+          filename,
+          fileurl: u,
+          fileType: extToType(path.extname(filename)) || "link",
+          createdBy: userId,
+        });
+      } else if (typeof raw === "object") {
+        // Object form { filename, fileurl, fileType } OR { url, baseName, ext }
+        const norm = normalizeDocObject(raw);
+        if (norm && norm.fileurl) {
+          savedDocs.push({ ...norm, createdBy: userId });
+        }
+      }
+    }
+
+    // 4) save documents if any
+    if (savedDocs.length) {
+      handoversheet.documents = savedDocs;
+      await handoversheet.save();
+    }
+
+    // 5) side-effects you already had
+    if (status_of_handoversheet === "Approved" && is_locked === "locked") {
+      const projectData = await projectmodells.findOne({ p_id });
       if (!projectData) {
         return res.status(404).json({ message: "Project not found" });
       }
-
       const moduleCategoryData = new moduleCategory({
         project_id: projectData._id,
       });
-
       await moduleCategoryData.save();
     }
 
-    const lead = await bdleadsModells.findOne({ id: id });
-    lead.status_of_handoversheet = req.body.status_of_handoversheet || "draft";
-    lead.handover_lock = req.body.handover_lock || "locked";
-    await lead.save();
-    await handoversheet.save();
+    const lead = await bdleadsModells.findOne({ id });
+    if (lead) {
+      lead.status_of_handoversheet = status_of_handoversheet || "draft";
+      lead.handover_lock = is_locked || "locked";
+      await lead.save();
+    }
 
-    // Notification for Creating Handover
+    // notification (unchanged)
     try {
       const workflow = "handover-submit";
       const Ids = await userModells
@@ -160,26 +336,32 @@ const createhandoversheet = async function (req, res) {
         .select("_id")
         .lean()
         .then((users) => users.map((u) => u._id));
-      const data = {
-        message: `${user?.name} submitted the handover for Lead ${lead.id} on ${new Date().toLocaleString()}.`,
-        link: `leadProfile?id=${lead._id}&tab=handover`,
+
+      const noteData = {
+        message: `${user?.name || "Someone"} submitted the handover for Lead ${lead?.id || id} on ${new Date().toLocaleString()}.`,
+        link: `leadProfile?id=${lead?._id}&tab=handover`,
         type: "sales",
         link1: `/sales`,
       };
+
       setImmediate(() => {
-        sendNotification(workflow, Ids, data).catch((err) =>
+        sendNotification(workflow, Ids, noteData).catch((err) =>
           console.error("Notification error:", err)
         );
       });
-    } catch (error) {
-      console.log(error);
+    } catch (err) {
+      console.log("Notification error:", err?.message);
     }
-    res.status(200).json({
+
+    return res.status(200).json({
       message: "Data saved successfully",
       handoversheet,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Create Handover error:", error);
+    return res
+      .status(500)
+      .json({ message: error.message || "Internal Server Error" });
   }
 };
 
@@ -527,22 +709,91 @@ const edithandoversheetdata = async function (req, res) {
       return res.status(400).json({ message: "Valid _id param is required" });
     }
 
-    const body = req.body || {};
+    let body = {};
+    if (typeof req.body.data === "string" && req.body.data.trim()) {
+      try {
+        body = JSON.parse(req.body.data);
+      } catch (e) {
+        return res
+          .status(400)
+          .json({ message: "Invalid JSON in 'data' field" });
+      }
+    } else if (req.is("application/json")) {
+      body = req.body || {};
+    }
 
     const update = {
       ...body,
       submitted_by: req?.user?.userId,
     };
 
-    const handoverSheet = await hanoversheetmodells.findByIdAndUpdate(
-      id,
-      { $set: update },
-      { new: true, runValidators: true }
-    );
-
+    // Load sheet
+    const handoverSheet = await hanoversheetmodells.findById(id);
     if (!handoverSheet) {
       return res.status(404).json({ message: "Handover sheet not found" });
     }
+
+    // Apply main field updates
+    Object.assign(handoverSheet, update);
+
+    const names = normalizeToArray(req.body.names);
+    const files = Array.isArray(req.files)
+      ? req.files
+      : Array.isArray(req.files?.files)
+        ? req.files.files
+        : [];
+
+    const folderPath = `Handovers/${safe(handoverSheet.id)}`;
+
+    const newDocs = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (!f || !f.buffer) continue;
+
+      const originalExt = path.extname(f.originalname) || "";
+      const baseNameFromClient = (names[i] || "").trim();
+      const finalBase = safe(
+        baseNameFromClient || f.originalname.replace(/\.[^.]+$/, "")
+      );
+      const finalNameWithExt = originalExt
+        ? `${finalBase}${originalExt}`
+        : finalBase;
+
+      // Upload to blob
+      let fileurl;
+      try {
+        fileurl = await uploadBufferToBlob({
+          buffer: f.buffer,
+          originalname: finalNameWithExt,
+          mimetype: f.mimetype || "application/octet-stream",
+          folderPath,
+        });
+      } catch (e) {
+        // Skip creating a doc if upload failed
+        console.error("Upload failed for", f.originalname, e.message);
+        continue;
+      }
+
+      if (!fileurl) continue;
+
+      newDocs.push({
+        filename: finalBase,
+        fileurl,
+        fileType: f.mimetype || "",
+        createdBy: req.user.userId,
+      });
+    }
+
+    if (newDocs.length) {
+      handoverSheet.documents = Array.isArray(handoverSheet.documents)
+        ? handoverSheet.documents.concat(newDocs)
+        : newDocs;
+    }
+
+    // Save sheet
+    await handoverSheet.save();
+
+    // Cascade lead flags (optional)
     const leadUpdate = {};
     if (typeof body.is_locked !== "undefined") {
       leadUpdate.handover_lock = body.is_locked;
@@ -550,7 +801,6 @@ const edithandoversheetdata = async function (req, res) {
     if (typeof body.status_of_handoversheet !== "undefined") {
       leadUpdate.status_of_handoversheet = body.status_of_handoversheet;
     }
-
     if (Object.keys(leadUpdate).length) {
       await bdleadsModells.findOneAndUpdate(
         { id: handoverSheet.id },
@@ -560,11 +810,15 @@ const edithandoversheetdata = async function (req, res) {
     }
 
     return res.status(200).json({
-      message: "Status updated successfully",
+      message: "Handover sheet updated successfully",
       handoverSheet,
+      uploaded: newDocs.length,
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error(error);
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
@@ -855,7 +1109,6 @@ const updatestatus = async function (req, res) {
 
           if (totalDaysToEarliest !== null) {
             const frac = parseFraction(act?.completion_formula);
-            console.log({ frac });
             if (frac !== null) {
               const durationDays = Math.max(
                 0,
@@ -898,6 +1151,21 @@ const updatestatus = async function (req, res) {
           status: "project",
         });
         await projectActivityDoc.save();
+
+        if (
+          Array.isArray(updatedHandoversheet.documents) &&
+          updatedHandoversheet.documents.length
+        ) {
+          await documentModel.insertMany(
+            updatedHandoversheet.documents.map((d) => ({
+              project_id: projectData._id,
+              filename: d?.filename || "",
+              fileurl: d?.fileurl || "",
+              fileType: d?.fileType || "",
+              createdBy: req.user?.userId || null,
+            }))
+          );
+        }
 
         const createdByUserId = req.user.userId;
         const loanManagers = await getLoanManagers();

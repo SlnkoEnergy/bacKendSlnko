@@ -37,7 +37,8 @@ const {
   fixBdLeadsFields,
   getLeadCounts,
   updateLeadStatusBulk,
-  updatePriority
+  updatePriority,
+  getDocuments
 } = require("../Controllers/bdleads.controller.js");
 const {
   getNotesById,
@@ -92,6 +93,7 @@ router.put(
 router.get("/states", auth, getUniqueState);
 router.put("/updatehandoverstatus", auth, fixBdLeadsFields);
 router.get("/lead-count", auth, getLeadCounts);
+router.get('/lead-documents', auth, getDocuments);
 
 // Task Routes
 router.get("/bd-tasks/:_id", auth, getTaskById);
