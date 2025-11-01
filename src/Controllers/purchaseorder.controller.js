@@ -2249,42 +2249,33 @@ const updateSalesPO = async (req, res) => {
     const { id } = req.params;
     const { remarks, basic_sales, sales_invoice, po_number, gst_on_sales } = req.body || {};
 
-    
-    if (!id && !po_number) {
-      return res
-        .status(400)
-        .json({ message: "Provide either _id (param) or po_number (body)." });
-    }
+    if (!id && !po_number)
+      return res.status(400).json({ message: "Provide either _id or po_number" });
 
-    if (!remarks?.trim()) {
-      return res
-        .status(400)
-        .json({ message: "Remarks are required to update Sales PO." });
-    }
+    if (!remarks?.trim())
+      return res.status(400).json({ message: "Remarks are required" });
 
     const basic = Number(basic_sales);
-    const gst = Number(gst_on_sales || 0);
+    const gstPercent = Number(gst_on_sales || 0);
     const invoice = String(sales_invoice || "").trim();
 
-    if (!Number.isFinite(basic))
-      return res.status(400).json({ message: "basic_sales must be a number" });
-    if (!Number.isFinite(gst))
-      return res.status(400).json({ message: "gst_on_sales must be a number" });
+    if (!basic || isNaN(basic))
+      return res.status(400).json({ message: "Invalid basic_sales" });
+    if (isNaN(gstPercent))
+      return res.status(400).json({ message: "Invalid gst_on_sales" });
     if (!invoice)
-      return res.status(400).json({ message: "Sales Invoice is mandatory" });
+      return res.status(400).json({ message: "Sales Invoice is required" });
 
-  
+    // Find PO
     const po = id
       ? await purchaseOrderModells.findById(id)
-      : await purchaseOrderModells.findOne({
-        po_number: String(po_number).trim(),
-      });
+      : await purchaseOrderModells.findOne({ po_number: String(po_number).trim() });
 
     if (!po) return res.status(404).json({ message: "PO not found" });
 
-    const poValue = Number(po.po_value) || 0;
-    const alreadySales = Number(po.total_sales_value) || 0;
-    const entryTotal = basic + gst;
+    // --- Simple total calculation ---
+    const gstAmount = (basic * gstPercent) / 100;
+    const entryTotal = basic + gstAmount;
 
   
     const safePo = (s) =>
@@ -2375,46 +2366,39 @@ const updateSalesPO = async (req, res) => {
 
     po.sales_Details.push({
       remarks: remarks.trim(),
-      attachments: uploadedAttachments,
-      converted_at: new Date(),
       basic_sales: basic,
-      gst_on_sales: gst,
+      gst_on_sales: gstPercent,
       sales_invoice: invoice,
-      user_id: userId,
+      converted_at: new Date(),
+      user_id: req.user?.userId || null,
     });
 
+    // Recalculate total
+    po.total_sales_value = po.sales_Details.reduce((sum, s) => {
+      const b = Number(s.basic_sales) || 0;
+      const g = Number(s.gst_on_sales) || 0;
+      return sum + b + (b * g) / 100;
+    }, 0);
+
     po.isSales = true;
-    po.total_sales_value = alreadySales + entryTotal;
-    po.markModified("sales_Details");
-
-    if (!["for", "slnko", "client"].includes(po.delivery_type)) {
-      po.delivery_type = undefined;
-    }
-
     await po.save();
 
-
     return res.status(200).json({
-      message:
-        uploadedAttachments.length > 0
-          ? "Sales PO updated with attachments (isSales = true)"
-          : "Sales PO updated successfully (isSales = true)",
+      message: "Sales PO updated successfully",
       data: {
         po_number: po.po_number,
-        po_value: poValue,
         basic_sales: basic,
-        gst_on_sales: gst,
+        gst_on_sales: gstPercent,
+        gst_amount: gstAmount,
         total_sales_value: po.total_sales_value,
-        attachments: uploadedAttachments,
       },
     });
   } catch (error) {
     console.error("Error updating Sales PO:", error);
-    return res
-      .status(500)
-      .json({ message: "Error updating Sales PO", error: error.message });
+    res.status(500).json({ message: "Error updating Sales PO", error: error.message });
   }
 };
+
 
 
 //Move-Recovery
