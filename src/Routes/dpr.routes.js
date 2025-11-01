@@ -19,7 +19,8 @@ const {
 const {
   createDPR,
   getAllActivities,
-  updateDPR
+  updateDPR,
+  getAllDPR
 } = require("../Controllers/dpractivities.controller");
 const auth = require("../middlewares/auth.middleware.js");
 
@@ -46,5 +47,6 @@ router.delete("/dpr-task/:_id", auth, deleteDprTask);
 router.post("/dpr-activities", auth, createDPR);
 router.put("/update-dpr-activities", auth, updateDPR);
 router.get("/dpr-activities-list", auth, getAllActivities);
+router.get("/get-all-dpr", auth, getAllDPR)
 
 module.exports = router;
