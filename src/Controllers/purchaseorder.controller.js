@@ -2250,7 +2250,6 @@ const updateSalesPO = async (req, res) => {
 
     if (!id && !po_number)
       return res.status(400).json({ message: "Provide either _id or po_number" });
-
     if (!remarks?.trim())
       return res.status(400).json({ message: "Remarks are required" });
 
@@ -2258,37 +2257,96 @@ const updateSalesPO = async (req, res) => {
     const gstPercent = Number(gst_on_sales || 0);
     const invoice = String(sales_invoice || "").trim();
 
-    if (!basic || isNaN(basic))
-      return res.status(400).json({ message: "Invalid basic_sales" });
-    if (isNaN(gstPercent))
-      return res.status(400).json({ message: "Invalid gst_on_sales" });
-    if (!invoice)
-      return res.status(400).json({ message: "Sales Invoice is required" });
+    if (isNaN(basic)) return res.status(400).json({ message: "Invalid basic_sales" });
+    if (isNaN(gstPercent)) return res.status(400).json({ message: "Invalid gst_on_sales" });
+    if (!invoice) return res.status(400).json({ message: "Sales Invoice is required" });
 
-    // Find PO
+    // --- Find PO ---
     const po = id
       ? await purchaseOrderModells.findById(id)
       : await purchaseOrderModells.findOne({ po_number: String(po_number).trim() });
 
     if (!po) return res.status(404).json({ message: "PO not found" });
 
-    // --- Simple total calculation ---
+    // --- Setup upload URL ---
+    const safePo = (s) => String(s || "").trim().replace(/[\/\s]+/g, "_");
+    const folderPath = `Account/PO/${safePo(po.po_number)}`;
+    const uploadUrl = `${process.env.UPLOAD_API}?containerName=protrac&foldername=${encodeURIComponent(folderPath)}`;
+
+    // --- Collect files ---
+    const files = req.file
+      ? [req.file]
+      : Array.isArray(req.files)
+      ? req.files
+      : req.files && typeof req.files === "object"
+      ? Object.values(req.files).flat()
+      : [];
+
+    const uploadedAttachments = [];
+
+    for (const file of files) {
+      try {
+        const attachment_name = file.originalname || "file";
+        const mimeType =
+          mime.lookup(attachment_name) || file.mimetype || "application/octet-stream";
+
+        let buffer =
+          file.buffer || (file.path ? fs.readFileSync(file.path) : null);
+        if (!buffer) continue;
+
+        // --- Compress images (optional) ---
+        if (mimeType.startsWith("image/")) {
+          try {
+            const sharpInst = sharp(buffer);
+            buffer = await sharpInst.jpeg({ quality: 40 }).toBuffer();
+          } catch (e) {
+            console.warn("Image compression failed, using original:", e.message);
+          }
+        }
+
+        // --- Upload to blob ---
+        const form = new FormData();
+        form.append("file", buffer, {
+          filename: attachment_name,
+          contentType: mimeType,
+        });
+
+        const resp = await axios.post(uploadUrl, form, {
+          headers: form.getHeaders(),
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+        });
+
+        const url =
+          resp?.data?.url ||
+          resp?.data?.fileUrl ||
+          resp?.data?.data?.url ||
+          (Array.isArray(resp?.data) && (resp.data[0]?.url || resp.data[0])) ||
+          null;
+
+        if (url) uploadedAttachments.push({ attachment_url: url, attachment_name });
+      } catch (e) {
+        console.error("Upload failed:", e.message);
+      }
+    }
+
+    // --- Add sales entry ---
     const gstAmount = (basic * gstPercent) / 100;
     const entryTotal = basic + gstAmount;
 
-    // --- Update sales details ---
     if (!Array.isArray(po.sales_Details)) po.sales_Details = [];
 
     po.sales_Details.push({
       remarks: remarks.trim(),
+      attachments: uploadedAttachments,
+      converted_at: new Date(),
       basic_sales: basic,
       gst_on_sales: gstPercent,
       sales_invoice: invoice,
-      converted_at: new Date(),
       user_id: req.user?.userId || null,
     });
 
-    // Recalculate total
+    // --- Calculate total sales value ---
     po.total_sales_value = po.sales_Details.reduce((sum, s) => {
       const b = Number(s.basic_sales) || 0;
       const g = Number(s.gst_on_sales) || 0;
@@ -2299,13 +2357,17 @@ const updateSalesPO = async (req, res) => {
     await po.save();
 
     return res.status(200).json({
-      message: "Sales PO updated successfully",
+      message:
+        uploadedAttachments.length > 0
+          ? "Sales PO updated with attachments"
+          : "Sales PO updated successfully",
       data: {
         po_number: po.po_number,
         basic_sales: basic,
         gst_on_sales: gstPercent,
         gst_amount: gstAmount,
         total_sales_value: po.total_sales_value,
+        attachments: uploadedAttachments,
       },
     });
   } catch (error) {
@@ -2313,6 +2375,7 @@ const updateSalesPO = async (req, res) => {
     res.status(500).json({ message: "Error updating Sales PO", error: error.message });
   }
 };
+
 
 
 
