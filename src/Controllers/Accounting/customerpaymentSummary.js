@@ -1837,7 +1837,7 @@ const getCustomerPaymentSummary = async (req, res) => {
     // ---------- Derived results ----------
     const total_advance_paid =
       (totalDebited || 0) - (balanceSummary?.total_return || 0);
-
+      
 
       // const total_sales_value = salesMeta?.total_sales_value || 0;
     const remaining_advance_left_after_billed =
@@ -3773,7 +3773,7 @@ total_sales_value: {
     };
 
     // ---------- PDF ----------
-    const apiUrl = `${process.env.PDF_PORT}customer-summary/cu-summary`;
+    const apiUrl = `${process.env.PDF_PORT}/customer-summary/cu-summary`;
     const axiosResponse = await axios({
       method: "post",
       url: apiUrl,
